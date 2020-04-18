@@ -214,14 +214,18 @@ if __name__ == "__main__":
                                                                "neighbor_action_all": sample[3],
                                                                "negotiate_rate_all": sample[4]},
                                                 "reward": r})
+                            agent.set_reward(r)
 
                 for agent in agents:
+                    if local_step.get() > 1:
+                        agent.update_history()
                     agent.reset_negotiate()
                 step_end = time.time()
 
                 writer.add_scalar("step_time", step_end - step_begin, global_step.get())
                 writer.add_scalar("episodic_reward", t.mean(reward), global_step.get())
                 writer.add_scalar("episodic_sum_reward", t.mean(total_reward), global_step.get())
+                writer.add_scalar("episode_length", local_step.get(), global_step.get())
 
                 logger.info("Step {} completed in {:.3f} s, epoch={}, episode={}".
                             format(local_step, step_end - step_begin, epoch, episode))

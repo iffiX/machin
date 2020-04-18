@@ -41,9 +41,16 @@ class SwarmAgent:
         self.neighbors = neighbors
 
     def set_observe(self, observation: t.Tensor):
-        self.observation = t.flatten(observation.to(self.device), start_dim=1)
+        self.observation = t.flatten(observation.to(self.device), start_dim=1).to(self.device)
 
     def set_reward(self, reward):
+        if t.is_tensor(reward):
+            if reward.dim != 2:
+                reward = reward.view(self.batch_size, -1)
+        else:
+            if self.batch_size != 1:
+                raise RuntimeError("Check batch size!")
+            reward = t.tensor(reward).view(1, 1).to(self.device)
         self.reward = reward
 
     def update_history(self):
@@ -58,8 +65,9 @@ class SwarmAgent:
                                    dim=1)
         full_action = t.stack([self.action] + [n.action for n in self.neighbors] +
                               [t.zeros_like(self.action)] * pad_num, dim=1)
+
         full_rewards = t.stack([self.reward] + [n.reward for n in self.neighbors] +
-                               [t.zeros_like(self.reward)] * pad_num, dim=1).unsqueeze(dim=-1)
+                               [t.zeros_like(self.reward)] * pad_num, dim=1)
         self.history.append(t.cat((full_observation, full_action, full_rewards), dim=2))
 
     def get_action(self, sync=True):

@@ -391,6 +391,7 @@ class BipedalMultiWalker(gym.Env, EzPickle):
             init_x = begin_x + self.TERRAIN_STEP * self.TERRAIN_AGENT_DISTANCE * i
             init_y = self.TERRAIN_HEIGHT + 2 * self.LEG_H
             agent = self.agents[i]
+            agent.init_pos = (init_x, init_y)
             agent.lidar = [LidarCallback() for _ in range(self.LIDAR_RESOLUTION)]
 
             agent.hull = self.world.CreateDynamicBody(
@@ -588,7 +589,8 @@ class BipedalMultiWalker(gym.Env, EzPickle):
             state += agent_state
 
             # moving forward is a way to receive reward
-            sum_reward = self.MAX_MOVE_REWARD * pos[0] / (self.TERRAIN_LENGTH * self.TERRAIN_STEP)
+            sum_reward = self.MAX_MOVE_REWARD * (pos[0] - agent.init_pos[0]) \
+                         / (self.TERRAIN_LENGTH * self.TERRAIN_STEP)
 
             # carrying cargo forward is also a way to receive reward
             sum_reward += cargo_reward
@@ -603,10 +605,10 @@ class BipedalMultiWalker(gym.Env, EzPickle):
             agent_reward = sum_reward - self.prev_sum_reward[i]
             self.prev_sum_reward[i] = sum_reward
 
-            # punishment for using power
-            for a in action:
-                agent_reward -= 0.00035 * self.MOTORS_TORQUE * np.clip(np.abs(a), 0, 1)
-                # normalized to about -50.0 using heuristic, more optimal agent should spend less
+            ## punishment for using power
+            #for a in action:
+            #    agent_reward -= 0.00035 * self.MOTORS_TORQUE * np.clip(np.abs(a), 0, 1)
+            #    # normalized to about -50.0 using heuristic, more optimal agent should spend less
             reward[i] = agent_reward
 
         self.scroll = min_x - self.VIEWPORT_W / self.SCALE / 5
