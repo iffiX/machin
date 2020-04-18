@@ -10,14 +10,14 @@ def get_args():
         help='The Configuration file')
     argparser.add_argument("--env", action="append")
     args = argparser.parse_args()
-    return args
-
-
-def set_env(args):
     if args.env is not None:
+        env_dict = {}
         for env_str in args.env:
             name, value = env_str.split('=')
-            globals()[name] = eval(value)
+            value = eval(value)
+            env_dict[name] = value
+        args.env = env_dict
+    return args
 
 
 

@@ -15,7 +15,7 @@ from utils.image import create_gif
 from utils.tensor_board import global_board
 from utils.helper_classes import Counter
 from utils.prep import prep_dir_default
-from utils.args import get_args, set_env
+from utils.args import get_args
 
 from env.walker.multi_walker import BipedalMultiWalker
 
@@ -62,7 +62,8 @@ def gen_learning_rate_func(lr_map):
 
 if __name__ == "__main__":
     args = get_args()
-    set_env(args)
+    for k, v in args.env.items():
+        globals()[k] = v
     total_steps = max_epochs * max_episodes * max_steps
 
     # preparations
