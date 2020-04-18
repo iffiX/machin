@@ -12,10 +12,12 @@ def get_args():
     args = argparser.parse_args()
     return args
 
+
 def set_env(args):
-    for env_str in args.env:
-        name, value = env_str.split('=')
-        globals()[name] = eval(value)
+    if args.env is not None:
+        for env_str in args.env:
+            name, value = env_str.split('=')
+            globals()[name] = eval(value)
 
 
 
