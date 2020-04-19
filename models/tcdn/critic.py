@@ -5,7 +5,7 @@ from models.base.tcdnnet import TCDNNet
 
 
 class SwarmCritic(nn.Module):
-    def __init__(self, observe_dim, action_dim, history_depth, neighbor_num, device="cuda:0"):
+    def __init__(self, observe_dim, action_dim, history_depth, device="cuda:0"):
         super(SwarmCritic, self).__init__()
         in_dim = observe_dim + action_dim + 1
         self.add_module("net", TCDNNet(in_dim, 1, history_depth + 1,

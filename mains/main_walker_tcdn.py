@@ -47,7 +47,7 @@ action_dim = 4
 # warm up should be less than one epoch
 ddpg_update_int = 1  # in steps
 ddpg_update_batch_num = 1
-ddpg_warmup_steps = 20
+ddpg_warmup_steps = 2000
 model_save_int = 100  # in episodes
 profile_int = 20  # in episodes
 
