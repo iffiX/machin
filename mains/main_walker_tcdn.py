@@ -201,7 +201,9 @@ if __name__ == "__main__":
                     if not render:
                         actions = ddpg.add_noise_to_action(actions,
                                                            noise_range * agent_num,
-                                                           float(noise()))
+                                                           1)
+
+                    actions = t.clamp(actions, min=-1, max=1)
 
                     writer.add_scalar("action_min", t.min(actions), global_step.get())
                     writer.add_scalar("action_mean", t.mean(actions), global_step.get())
