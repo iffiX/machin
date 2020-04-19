@@ -17,6 +17,8 @@ def get_args():
             value = eval(value)
             env_dict[name] = value
         args.env = env_dict
+    else:
+        args.env = {}
     return args
 
 

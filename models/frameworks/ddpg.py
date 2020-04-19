@@ -74,8 +74,9 @@ class ReplayBuffer:
         Replay buffer stores a series of transition objects in form:
             {"state": dict,
              "action": dict,
-             "reward": tensor,
+             "reward": tensor or float,
              "next_state": dict,
+             "terminal": bool,
              ..any other keys and values...
              },
         and functions as a ring buffer. The value of "state", "action",
@@ -169,14 +170,16 @@ class ReplayBuffer:
                             tmp_dict[sub_k] = [item[k][sub_k] for item in batch]
                 result.append(tmp_dict)
             elif k == "reward":
-                if torch.is_tensor(batch[0][k]) and concatenate:
+                if torch.is_tensor(batch[0][k]) and len(batch[0][k].shape) > 0:
                     result.append(torch.cat([item[k] for item in batch], dim=0).to(device))
                 else:
-                    result.append(torch.tensor([item[k] for item in batch], device=device))
+                    result.append(torch.tensor([float(item[k]) for item in batch], device=device))
+            elif k == "terminal":
+                result.append(torch.tensor([float(item[k]) for item in batch], device=device))
             elif k == "*":
                 # select custom keys
                 for remain_k in batch[0].keys():
-                    if remain_k not in ("state", "action", "next_state", "reward"):
+                    if remain_k not in ("state", "action", "next_state", "reward", "terminal"):
                         result.append(tuple(item[remain_k] for item in batch))
             else:
                 result.append(tuple(item[k] for item in batch))
@@ -324,25 +327,16 @@ class DDPG(TorchFramework):
         Returns:
             (mean value of estimated policy value, value loss)
         """
-        state, action, reward, next_state, *others = \
+        state, action, reward, next_state, terminal, *others = \
             self.rpb.sample_batch(self.batch_num, concatenate_samples, self.device,
-                                  sample_keys=["state", "action", "reward", "next_state", "*"])
-
-        print("state")
-        print(state)
-        print("action")
-        print(action)
-        print("reward")
-        print(reward)
-
+                                  sample_keys=["state", "action", "reward", "next_state", "terminal", "*"])
 
         # Update critic network first
         # Generate value reference :math: `y_i` using target actor and target critic
-
         with torch.no_grad():
             next_action = self.action_trans_func(self.act(next_state, True), next_state)
             next_value = self.criticize(next_state, next_action, True)
-            y_i = self.reward_func(reward, self.discount, next_value, others)
+            y_i = self.reward_func(reward, self.discount, next_value, terminal, others)
 
         cur_value = self.criticize(state, action)
         value_loss = self.criterion(cur_value, y_i)
@@ -386,5 +380,5 @@ class DDPG(TorchFramework):
         super(DDPG, self).save(model_dir, network_map, version)
 
     @staticmethod
-    def bellman_function(reward, discount, next_value, *_):
-        return reward + discount * next_value
+    def bellman_function(reward, discount, next_value, terminal, *_):
+        return reward + discount * (1 - terminal) * next_value

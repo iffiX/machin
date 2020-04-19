@@ -157,7 +157,7 @@ class BipedalMultiWalker(gym.Env, EzPickle):
     MAX_MOVE_REWARD = 300
     MAX_CARRY_REWARD = 300
     GAME_OVER_PUNISH = 200
-    NOT_CARRYING_PUNISH = 50
+    NOT_CARRYING_PUNISH = 100
 
     FRICTION = 2.5
 
@@ -228,6 +228,7 @@ class BipedalMultiWalker(gym.Env, EzPickle):
 
         self.world.DestroyBody(self.cargo)
         self.cargo = None
+        self.cargo_init_pos = None
 
         for a in self.agents:
             self.world.DestroyBody(a.hull)
@@ -492,6 +493,7 @@ class BipedalMultiWalker(gym.Env, EzPickle):
         )
         self.cargo.color1 = (0.5, 0.4, 0.9)
         self.cargo.color2 = (0.3, 0.3, 0.5)
+        self.cargo_init_pos = [init_x, init_y]
 
     def reset(self):
         self._destroy()
@@ -548,8 +550,9 @@ class BipedalMultiWalker(gym.Env, EzPickle):
         max_x = -np.inf
         state = []
         reward = np.zeros(self.agent_num)
-        cargo_reward = self.MAX_MOVE_REWARD * self.cargo.position[0] \
+        cargo_reward = self.MAX_MOVE_REWARD * (self.cargo.position[0] - self.cargo_init_pos[0])\
                        / (self.TERRAIN_LENGTH * self.TERRAIN_STEP)
+
         for i in range(self.agent_num):
             agent = self.agents[i]
             pos = agent.hull.position
@@ -599,8 +602,8 @@ class BipedalMultiWalker(gym.Env, EzPickle):
             sum_reward -= 5.0 * abs(state[0])
 
             # keep contact with cargo
-            if not agent.is_carrying:
-                sum_reward -= self.NOT_CARRYING_PUNISH
+            # if not agent.is_carrying:
+            #     sum_reward -= self.NOT_CARRYING_PUNISH
 
             agent_reward = sum_reward - self.prev_sum_reward[i]
             self.prev_sum_reward[i] = sum_reward

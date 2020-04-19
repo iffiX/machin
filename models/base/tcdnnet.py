@@ -1,6 +1,7 @@
 import math as m
 import torch as t
 import torch.nn as nn
+from typing import Union
 
 
 class CasualConv1d(nn.Module):
@@ -61,11 +62,22 @@ class AttentionBlock(nn.Module):
         self.linear_values = nn.Linear(in_channels, value_size).to(device)
         self.sqrt_key_size = m.sqrt(key_size)
 
-    def forward(self, input: t.Tensor):
+    def forward(self, input: t.Tensor, time_steps: Union[t.Tensor, None]):
         # input is dim (N, T, in_channels) where N is the batch_size, and T is the sequence length
-        # mask_ij = (1 if i >= j else 0)
+        # time steps is dim (N, T)
+
+        # mask_ij = (1 if i >= j else 0), i and j are time steps
+        # Note: sequence index may not be equal to time steps, eg: time steps could be:
+        # 1, 1, 1, 2, 2, 3, 3, 3, 3, ...., n
+        # each sequence element has its matching time step
+
         length = input.shape[1]
-        mask = t.ones([length, length], dtype=t.uint8, device=input.device).triu(diagonal=1)
+
+        if time_steps is None:
+            # when each sequence element has a different time step, use a diagonal matrix
+            mask = t.ones([length, length], dtype=t.uint8, device=input.device).triu(diagonal=1)
+        else:
+            mask = time_steps > time_steps.unsqueeze(dim=2)
 
         # import pdb; pdb.set_trace()
         keys = self.linear_keys(input)  # shape: (N, T, key_size)
@@ -88,7 +100,7 @@ class TCDNNet(nn.Module):
     def __init__(self, in_channels, out_channels, seq_length, additional_length=0,
                  att_layers=((64, 32), (256, 128), (512, 256)),
                  tc_layers=(128, 128),
-                 fc_layers=(512, 256),
+                 fc_layers=(),
                  activation=None,
                  final_process=None,
                  device="cuda:0"):
@@ -127,27 +139,27 @@ class TCDNNet(nn.Module):
         self.fc_num = len(fc_layers)
         self.final_procecss = final_process
 
-    def forward(self, input: t.Tensor, additional=None):
-        x = t.flatten(input, 2, -1)
+    def forward(self, input: t.Tensor, time_steps=None, additional=None, only_use_last=True):
+        x = input
         raw, rel = [], []
         for i in range(self.att_num - 1):
-            x, re, ra = self.layers["attention_{}".format(i)](x)
+            x, re, ra = self.layers["attention_{}".format(i)](x, time_steps)
             x = self.layers["tconv_{}".format(i)](x)
             rel.append(re)
             raw.append(ra)
 
-        x, re, ra = self.layers["attention_{}".format(self.att_num-1)](x)
+        x, re, ra = self.layers["attention_{}".format(self.att_num-1)](x, time_steps)
         rel.append(re)
         raw.append(ra)
 
-        # we do not need to output a sequence, so only the last element is needed
-        x = t.squeeze(x[:, -1, :], dim=1)
         if additional is not None:
-            x = t.cat((x, additional), dim=1)
+            additional = t.cat([t.unsqueeze(additional, dim=1)] * x.shape[1], dim=1)
+            x = t.cat((x, additional), dim=2)
         for i in range(self.fc_num):
             x = self.layers["fc_{}".format(i)](x)
             if i != self.fc_num - 1:
                 x = self.activation(x)
+
         if self.final_procecss is not None:
             if self.final_procecss == "softmax":
                 x = t.softmax(x, dim=1).clone()
@@ -157,4 +169,9 @@ class TCDNNet(nn.Module):
                 x = t.sigmoid(x).clone()
             else:
                 x = self.final_procecss(x).clone()
+
+        if only_use_last:
+            # we do not need to output a sequence, so only the last element is needed
+            x = t.squeeze(x[:, -1, :], dim=1)
+
         return x, rel, raw

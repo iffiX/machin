@@ -5,11 +5,6 @@ import torch.nn as nn
 from torch.optim.lr_scheduler import LambdaLR
 
 from models.frameworks.ddpg import DDPG
-from models.noise import OrnsteinUhlenbeckNoise
-from models.tcdn.actor import SwarmActor, WrappedActorNet
-from models.tcdn.critic import SwarmCritic, WrappedCriticNet
-from models.tcdn.negotiatior import SwarmNegotiator
-from models.tcdn.agent import SwarmAgent
 
 from utils.logging import default_logger as logger
 from utils.image import create_gif
@@ -27,14 +22,10 @@ max_epochs = 20
 max_episodes = 800
 max_steps = 1000
 replay_size = 500000
-history_depth = 10
 agent_num = 1
-neighbors = [-1, 1]
 noise_range = ((-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5))
-mean_anneal = 0.3
-theta_anneal = 0.1
 device = t.device("cuda:0")
-root_dir = "/data/AI/tmp/multi_agent/walker/tcdn/"
+root_dir = "/data/AI/tmp/multi_agent/walker/naive/"
 model_dir = root_dir + "model/"
 log_dir = root_dir + "log/"
 save_map = {"actor": "actor",
@@ -47,9 +38,44 @@ action_dim = 4
 # warm up should be less than one epoch
 ddpg_update_int = 1  # in steps
 ddpg_update_batch_num = 1
-ddpg_warmup_steps = 20
+ddpg_warmup_steps = 2000
 model_save_int = 100  # in episodes
-profile_int = 20  # in episodes
+profile_int = 10  # in episodes
+
+
+class Actor(nn.Module):
+    def __init__(self, state_dim, action_dim, max_action):
+        super(Actor, self).__init__()
+
+        self.l1 = nn.Linear(state_dim, 400)
+        self.l2 = nn.Linear(400, 300)
+        self.l3 = nn.Linear(300, action_dim)
+
+        self.max_action = max_action
+
+    def forward(self, state):
+        a = t.relu(self.l1(state))
+        a = t.relu(self.l2(a))
+        a = t.tanh(self.l3(a)) * self.max_action
+        return a
+
+
+class Critic(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super(Critic, self).__init__()
+
+        self.l1 = nn.Linear(state_dim + action_dim, 400)
+        self.l2 = nn.Linear(400, 300)
+        self.l3 = nn.Linear(300, 1)
+
+    def forward(self, state, action):
+        state_action = t.cat([state, action], 1)
+
+        q = t.relu(self.l1(state_action))
+        q = t.relu(self.l2(q))
+        q = self.l3(q)
+        return q
+
 
 def gen_learning_rate_func(lr_map):
     def learning_rate_func(step):
@@ -73,17 +99,10 @@ if __name__ == "__main__":
     global_board.init(log_dir + "train_log")
     writer = global_board.writer
 
-    base_actor = SwarmActor(observe_dim, action_dim, history_depth, True, device)
-    base_actor_t = SwarmActor(observe_dim, action_dim, history_depth, True, device)
-    negotiator = SwarmNegotiator(observe_dim, action_dim, history_depth, True, device)
-    negotiator_t = SwarmNegotiator(observe_dim, action_dim, history_depth, True, device)
-
-    # currently, all agents share the same two networks
-    # TODO: implement K-Sub policies
-    actor = WrappedActorNet(base_actor, negotiator)
-    actor_t = WrappedActorNet(base_actor_t, negotiator_t)
-    critic = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, device))
-    critic_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, device))
+    actor = Actor(observe_dim, action_dim, 1).to(device)
+    actor_t = Actor(observe_dim, action_dim, 1).to(device)
+    critic = Critic(observe_dim, action_dim).to(device)
+    critic_t = Critic(observe_dim, action_dim).to(device)
 
     logger.info("Networks created")
 
@@ -113,9 +132,6 @@ if __name__ == "__main__":
     # training
     # preparations
     env = BipedalMultiWalker(agent_num)
-    agents = [SwarmAgent(base_actor, negotiator, action_dim, observe_dim,
-                         history_depth, mean_anneal, theta_anneal, 1, True, device)
-              for i in range(agent_num)]
 
     # begin training
     # epoch > episode
@@ -124,7 +140,6 @@ if __name__ == "__main__":
     episode_finished = False
     global_step = Counter()
     local_step = Counter()
-    noise = OrnsteinUhlenbeckNoise([1], 0.5, 0.1)
     while epoch < max_epochs:
         epoch.count()
         logger.info("Begin epoch {}".format(epoch))
@@ -134,17 +149,6 @@ if __name__ == "__main__":
 
             # environment initialization
             env.reset()
-            for agent in agents:
-                agent.reset()
-
-            ### currently, agents have fixed communication topology
-            for i in range(agent_num):
-                agent_neighbors = []
-                for j in neighbors:
-                    index = i + j
-                    if agent_num > index >= 0:
-                        agent_neighbors.append(index)
-                agents[i].set_neighbors([agents[n] for n in agent_neighbors])
 
             # render configuration
             if episode.get() % profile_int == 0 and global_step.get() > ddpg_warmup_steps:
@@ -169,10 +173,10 @@ if __name__ == "__main__":
                 local_step.count()
 
                 step_begin = time.time()
+                state, reward, old_state, old_reward = None, None, None, None
                 with t.no_grad():
-                    old_samples = [agent.get_sample() for agent in agents]
-
-                    state, reward, episode_finished, info = env.step(actions[0].to("cpu"))
+                    old_state, old_reward = state, reward
+                    state, reward, episode_finished, _ = env.step(actions[0].to("cpu"))
 
                     if render:
                         frames.append(env.render(mode="rgb_array"))
@@ -184,55 +188,24 @@ if __name__ == "__main__":
 
                     # agent model inference
                     for ag in range(agent_num):
-                        agents[ag].set_observe(state[ag * 24: (ag + 1) * 24].unsqueeze(dim=0))
+                        actions[:, ag * 4: (ag + 1) * 4] = actor(state[ag * 24: (ag + 1) * 24].unsqueeze(0))
 
-                    for ag in range(agent_num):
-                        actions[:, ag * 4: (ag + 1) * 4] = agents[ag].act_step(local_step.get())
-                    print(actions)
-
-                    while all([agent.get_negotiation_rate() > 0.01 for agent in agents]):
-                        for ag in range(agent_num):
-                            agents[ag].negotiate_step(local_step.get())
-
-                    for ag in range(agent_num):
-                        actions[:, ag * 4: (ag + 1) * 4] = agents[ag].final_step()
-
-                    #if global_step.get() < ddpg_warmup_steps:
-                    if not render:
+                    if global_step.get() < ddpg_warmup_steps:
                         actions = ddpg.add_noise_to_action(actions,
                                                            noise_range * agent_num,
-                                                           float(noise()))
+                                                           1)
 
                     writer.add_scalar("action_min", t.min(actions), global_step.get())
                     writer.add_scalar("action_mean", t.mean(actions), global_step.get())
                     writer.add_scalar("action_max", t.max(actions), global_step.get())
 
                     if local_step.get() > 1:
-                        for old_sample, agent, r in zip(old_samples, agents, reward[0]):
-                            sample = agent.get_sample()
-                            ddpg.store_observe({"state": {"history": old_sample[0],
-                                                          "history_time_steps": old_sample[1],
-                                                          "observation": old_sample[2],
-                                                          "neighbor_observation": old_sample[3],
-                                                          "neighbor_action_all": old_sample[4],
-                                                          "negotiate_rate_all": old_sample[5],
-                                                          "time_step": local_step.get() - 1},
-                                                "action": {"action": agent.action},
-                                                "next_state": {"history": sample[0],
-                                                               "history_time_steps": sample[1],
-                                                               "observation": sample[2],
-                                                               "neighbor_observation": sample[3],
-                                                               "neighbor_action_all": sample[4],
-                                                               "negotiate_rate_all": sample[5],
-                                                               "time_step": local_step.get()},
-                                                "reward": r,
-                                                "terminal": episode_finished or local_step.get() == max_steps})
-                            agent.set_reward(r)
+                        for ag in range(agent_num):
+                            ddpg.store_observe({"state": {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0)},
+                                                "action": {"action": actions[:, ag * 4:(ag+1)*4]},
+                                                "next_state": {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0)},
+                                                "reward": reward[ag]})
 
-                for agent in agents:
-                    if local_step.get() > 1:
-                        agent.update_history(local_step.get())
-                    agent.reset_negotiate()
                 step_end = time.time()
 
                 writer.add_scalar("step_time", step_end - step_begin, global_step.get())
