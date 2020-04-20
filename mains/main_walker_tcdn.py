@@ -188,9 +188,9 @@ if __name__ == "__main__":
 
                     #if global_step.get() < ddpg_warmup_steps:
                     if not render:
-                        actions = ddpg.add_noise_to_action(actions,
-                                                           noise_range * agent_num,
-                                                           1)
+                        actions = ddpg.add_uniform_noise_to_action(actions,
+                                                                   noise_range * agent_num,
+                                                                   1)
 
                     actions = t.clamp(actions, min=-1, max=1)
 

@@ -28,8 +28,8 @@ def soft_update(target_net: nn.Module,
     with torch.no_grad():
         for target_param, param in zip(target_net.parameters(),
                                        source_net.parameters()):
-            target_param.copy_(
-                target_param * (1.0 - update_rate) + param * update_rate
+            target_param.data.copy_(
+                target_param.data * (1.0 - update_rate) + param.data * update_rate
             )
 
 
@@ -47,10 +47,10 @@ def hard_update(target_net: nn.Module,
 
     for target_buffer, buffer in zip(target_net.buffers(),
                                      source_net.buffers()):
-        target_buffer.copy_(buffer)
+        target_buffer.data.copy_(buffer.data)
     for target_param, param in zip(target_net.parameters(),
                                    source_net.parameters()):
-        target_param.copy_(param.data)
+        target_param.data.copy_(param.data)
 
 
 def safe_call(model, *named_args):
@@ -97,7 +97,7 @@ class ReplayBuffer:
         self.buffer = []
         self.index = 0
 
-    def append(self, transition: Union[List, Tuple], prob=1):
+    def append(self, transition: Union[List, Tuple]):
         """
         Store a transition object to buffer.
 
@@ -112,10 +112,9 @@ class ReplayBuffer:
             # trim buffer to buffer_size
             self.buffer = self.buffer[(self.size() - self.buffer_size):]
         if self.size() == self.buffer_size:
-            if np.random.rand() < prob:
-                self.buffer[self.index] = transition
-                self.index += 1
-                self.index %= self.buffer_size
+            self.buffer[self.index] = transition
+            self.index += 1
+            self.index %= self.buffer_size
         else:
             self.buffer.append(transition)
 
@@ -147,11 +146,13 @@ class ReplayBuffer:
         """
         if self.size() < batch_size:
             batch = random.sample(self.buffer, self.size())
+            real_num = self.size()
         else:
             batch = random.sample(self.buffer, batch_size)
+            real_num = batch_size
 
         if len(batch) == 0:
-            return ()
+            return 0, ()
 
         if sample_keys is None:
             sample_keys = batch[0].keys()
@@ -183,7 +184,7 @@ class ReplayBuffer:
                         result.append(tuple(item[remain_k] for item in batch))
             else:
                 result.append(tuple(item[k] for item in batch))
-        return tuple(result)
+        return real_num, tuple(result)
 
 
 class DDPG(TorchFramework):
@@ -198,7 +199,7 @@ class DDPG(TorchFramework):
                  learning_rate=0.001,
                  lr_scheduler=None,
                  lr_scheduler_params=None,
-                 batch_num=1,
+                 batch_size=1,
                  update_rate=0.005,
                  discount=0.99,
                  replay_size=100000,
@@ -208,7 +209,7 @@ class DDPG(TorchFramework):
         Initialize DDPG framework.
         """
         self.device = device
-        self.batch_num = batch_num
+        self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
         self.rpb = ReplayBuffer(replay_size)
@@ -250,20 +251,26 @@ class DDPG(TorchFramework):
         else:
             return safe_call(self.actor, state)
 
-    def act_with_noise(self, state, noise_range=(0.0, 1.0), ratio=1.0, use_target=False):
+    def act_with_noise(self, state, noise_param=(0.0, 1.0), ratio=1.0, mode="uniform", use_target=False):
         """
         Use actor network to give a policy (with uniform noise added) to the current state.
 
         Args:
-            noise_range: A single tuple or a list of tuples specifying noise range added
-                         to each column (last dimension) of action.
+            noise_param: A single tuple or a list of tuples specifying noise params
+            for each column (last dimension) of action.
         Returns:
             Policy (with uniform noise) produced by actor.
         """
-        return self.add_noise_to_action(self.act(state, use_target),
-                                        noise_range, ratio)
+        if mode == "uniform":
+            return self.add_uniform_noise_to_action(self.act(state, use_target),
+                                                    noise_param, ratio)
+        elif mode == "normal":
+            return self.add_normal_noise_to_action(self.act(state, use_target),
+                                                   noise_param, ratio)
+        else:
+            raise RuntimeError("Unknown noise type: " + str(mode))
 
-    def add_noise_to_action(self, action, noise_range=(0.0, 1.0), ratio=1.0):
+    def add_uniform_noise_to_action(self, action, noise_range=(0.0, 1.0), ratio=1.0):
         if isinstance(noise_range[0], tuple):
             if len(noise_range) != action.shape[-1]:
                 raise ValueError("Noise range length doesn't match the last dimension of action")
@@ -275,6 +282,20 @@ class DDPG(TorchFramework):
         else:
             noise = torch.rand(action.shape, device=action.device) \
                     * (noise_range[1] - noise_range[0]) + noise_range[0]
+        return action + noise * ratio
+
+    def add_normal_noise_to_action(self, action, noise_param=(0.0, 0.1), ratio=1.0):
+        if isinstance(noise_param[0], tuple):
+            if len(noise_param) != action.shape[-1]:
+                raise ValueError("Noise range length doesn't match the last dimension of action")
+            noise = torch.randn(action.shape, device=action.device)
+            for i in range(action.shape[-1]):
+                noi_p = noise_param[i]
+                noise.view(-1, noise.shape[-1])[:, i] *= noi_p[1]
+                noise.view(-1, noise.shape[-1])[:, i] += noi_p[0]
+        else:
+            noise = torch.rand(action.shape, device=action.device) \
+                    * noise_param[1] + noise_param[0]
         return action + noise * ratio
 
     def criticize(self, state, action, use_target=False):
@@ -320,15 +341,15 @@ class DDPG(TorchFramework):
     def get_replay_buffer(self):
         return self.rpb
 
-    def update(self, concatenate_samples=True):
+    def update(self, update_value=True, update_policy=True, update_targets=True, concatenate_samples=True):
         """
         Update network weights by sampling from replay buffer.
 
         Returns:
             (mean value of estimated policy value, value loss)
         """
-        state, action, reward, next_state, terminal, *others = \
-            self.rpb.sample_batch(self.batch_num, concatenate_samples, self.device,
+        batch_size, (state, action, reward, next_state, terminal, *others) = \
+            self.rpb.sample_batch(self.batch_size, concatenate_samples, self.device,
                                   sample_keys=["state", "action", "reward", "next_state", "terminal", "*"])
 
         # Update critic network first
@@ -336,14 +357,18 @@ class DDPG(TorchFramework):
         with torch.no_grad():
             next_action = self.action_trans_func(self.act(next_state, True), next_state)
             next_value = self.criticize(next_state, next_action, True)
+            reward = reward.view(batch_size, -1)
+            terminal = terminal.view(batch_size, -1)
+            next_value = next_value.view(batch_size, -1)
             y_i = self.reward_func(reward, self.discount, next_value, terminal, others)
 
         cur_value = self.criticize(state, action)
         value_loss = self.criterion(cur_value, y_i)
 
-        self.critic.zero_grad()
-        value_loss.backward()
-        self.critic_optim.step()
+        if update_value:
+            self.critic.zero_grad()
+            value_loss.backward()
+            self.critic_optim.step()
 
         # Update actor network
         cur_action = self.action_trans_func(self.act(state), state)
@@ -353,13 +378,15 @@ class DDPG(TorchFramework):
         # but optimizer workers by minimizing the target
         act_policy_loss = -act_value.mean()
 
-        self.actor.zero_grad()
-        act_policy_loss.backward()
-        self.actor_optim.step()
+        if update_policy:
+            self.actor.zero_grad()
+            act_policy_loss.backward()
+            self.actor_optim.step()
 
         # Update target networks
-        soft_update(self.actor_target, self.actor, self.update_rate)
-        soft_update(self.critic_target, self.critic, self.update_rate)
+        if update_targets:
+            soft_update(self.actor_target, self.actor, self.update_rate)
+            soft_update(self.critic_target, self.critic, self.update_rate)
 
         # use .item() to prevent memory leakage
         return -act_policy_loss.item(), value_loss.item()

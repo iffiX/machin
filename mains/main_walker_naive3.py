@@ -2,9 +2,7 @@ import time
 import torch as t
 import torch.nn as nn
 
-from torch.optim.lr_scheduler import LambdaLR
-
-from models.frameworks.ddpg import DDPG
+from models.frameworks.ddpg_td3 import DDPG_TD3
 from models.noise import OrnsteinUhlenbeckNoise
 
 from utils.logging import default_logger as logger
@@ -21,12 +19,13 @@ restart = True
 # max_batch = 8
 max_epochs = 20
 max_episodes = 1000
-max_steps = 1000
+max_steps = 2000
 replay_size = 500000
 agent_num = 1
 explore_noise_params = [(0, 0.2)] * 4
+policy_noise_params = [(0, 0.1)] * 4
 device = t.device("cuda:0")
-root_dir = "/data/AI/tmp/multi_agent/walker/naive2/"
+root_dir = "/data/AI/tmp/multi_agent/walker/naive3/"
 model_dir = root_dir + "model/"
 log_dir = root_dir + "log/"
 save_map = {}
@@ -37,7 +36,7 @@ action_dim = 4
 # lr: learning rate, int: interval
 # warm up should be less than one epoch
 ddpg_update_batch_size = 100
-ddpg_warmup_steps = 200
+ddpg_warmup_steps = 20
 model_save_int = 500  # in episodes
 profile_int = 50  # in episodes
 
@@ -92,10 +91,12 @@ if __name__ == "__main__":
     actor_t = Actor(observe_dim, action_dim, 1).to(device)
     critic = Critic(observe_dim, action_dim).to(device)
     critic_t = Critic(observe_dim, action_dim).to(device)
+    critic2 = Critic(observe_dim, action_dim).to(device)
+    critic2_t = Critic(observe_dim, action_dim).to(device)
 
     logger.info("Networks created")
 
-    ddpg = DDPG(actor, actor_t, critic, critic_t,
+    ddpg = DDPG_TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
                 discount=0.99,
                 update_rate=0.005,
@@ -118,16 +119,12 @@ if __name__ == "__main__":
     episode_finished = False
     global_step = Counter()
     local_step = Counter()
-    #noise = OrnsteinUhlenbeckNoise([1], 0.5, 0.1)
     while epoch < max_epochs:
         epoch.count()
         logger.info("Begin epoch {}".format(epoch))
         while episode < max_episodes:
             episode.count()
             logger.info("Begin episode {}, epoch={}".format(episode, epoch))
-
-            # environment initialization
-            env.reset()
 
             # render configuration
             if episode.get() % profile_int == 0 and global_step.get() > ddpg_warmup_steps:
@@ -144,8 +141,8 @@ if __name__ == "__main__":
 
             # batch size = 1
             episode_begin = time.time()
-            actions = t.zeros([1, agent_num * 4], device=device)
             total_reward = t.zeros([1, agent_num], device=device)
+            actions = t.zeros([1, agent_num * 4], device=device)
             state, reward = t.tensor(env.reset(), dtype=t.float32, device=device), 0
 
             while not episode_finished and local_step.get() <= max_steps:
@@ -178,9 +175,10 @@ if __name__ == "__main__":
 
                     total_reward += reward
 
+
                     for ag in range(agent_num):
                         ddpg.store_observe({"state": {"state": old_state[ag * 24: (ag + 1) * 24].unsqueeze(0).clone()},
-                                            "action": {"action": actions[:, ag * 4:(ag + 1) * 4].clone()},
+                                            "action": {"action": actions[:, ag * 4:(ag+1)*4].clone()},
                                             "next_state": {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0).clone()},
                                             "reward": float(reward[ag]),
                                             "terminal": episode_finished or local_step.get() == max_steps})

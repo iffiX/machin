@@ -191,9 +191,9 @@ if __name__ == "__main__":
                         actions[:, ag * 4: (ag + 1) * 4] = actor(state[ag * 24: (ag + 1) * 24].unsqueeze(0))
 
                     if global_step.get() < ddpg_warmup_steps:
-                        actions = ddpg.add_noise_to_action(actions,
-                                                           noise_range * agent_num,
-                                                           1)
+                        actions = ddpg.add_uniform_noise_to_action(actions,
+                                                                   noise_range * agent_num,
+                                                                   1)
 
                     writer.add_scalar("action_min", t.min(actions), global_step.get())
                     writer.add_scalar("action_mean", t.mean(actions), global_step.get())
