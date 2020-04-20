@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.optim.lr_scheduler import LambdaLR
 
 from models.frameworks.ddpg import DDPG
+from models.noise import OrnsteinUhlenbeckNoise
 
 from utils.logging import default_logger as logger
 from utils.image import create_gif
@@ -19,28 +20,26 @@ from env.walker.multi_walker import BipedalMultiWalker
 restart = True
 # max_batch = 8
 max_epochs = 20
-max_episodes = 800
+max_episodes = 1000
 max_steps = 1000
 replay_size = 500000
-agent_num = 1
-noise_range = ((-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5))
+agent_num = 2
+explore_noise_params = [(0, 0.2)] * 4
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/naive/"
 model_dir = root_dir + "model/"
 log_dir = root_dir + "log/"
-save_map = {"actor": "actor",
-            "critic": "critic"}
+save_map = {}
 
 observe_dim = 24
 action_dim = 4
 # train configs
 # lr: learning rate, int: interval
 # warm up should be less than one epoch
-ddpg_update_int = 1  # in steps
-ddpg_update_batch_num = 1
-ddpg_warmup_steps = 2000
-model_save_int = 100  # in episodes
-profile_int = 10  # in episodes
+ddpg_update_batch_size = 100
+ddpg_warmup_steps = 200
+model_save_int = 500  # in episodes
+profile_int = 50  # in episodes
 
 
 class Actor(nn.Module):
@@ -77,16 +76,6 @@ class Critic(nn.Module):
         return q
 
 
-def gen_learning_rate_func(lr_map):
-    def learning_rate_func(step):
-        for i in range(len(lr_map) - 1):
-            if lr_map[i][0] <= step < lr_map[i + 1][0]:
-                return lr_map[i][1]
-        return lr_map[-1][1]
-
-    return learning_rate_func
-
-
 if __name__ == "__main__":
     args = get_args()
     for k, v in args.env.items():
@@ -106,24 +95,13 @@ if __name__ == "__main__":
 
     logger.info("Networks created")
 
-    actor_lr_map = [[0, 1e-4],
-                    [total_steps // 3, 1e-4],
-                    [total_steps * 2 // 3, 1e-4],
-                    [total_steps, 1e-4]]
-    critic_lr_map = [[0, 1e-4],
-                     [total_steps // 3, 1e-4],
-                     [total_steps * 2 // 3, 1e-4],
-                     [total_steps, 1e-4]]
-
-    actor_lr_func = gen_learning_rate_func(actor_lr_map)
-    critic_lr_func = gen_learning_rate_func(critic_lr_map)
-
     ddpg = DDPG(actor, actor_t, critic, critic_t,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
-                lr_scheduler=LambdaLR,
-                lr_scheduler_params=[[actor_lr_func], [critic_lr_func]],
-                replay_size=replay_size,
-                batch_num=1)
+                discount=0.99,
+                update_rate=0.005,
+                batch_size=ddpg_update_batch_size,
+                learning_rate=0.001,
+                replay_size=replay_size)
 
     if not restart:
         ddpg.load(root_dir + "/model", save_map)
@@ -131,7 +109,7 @@ if __name__ == "__main__":
 
     # training
     # preparations
-    env = BipedalMultiWalker(agent_num)
+    env = BipedalMultiWalker(agent_num=agent_num)
 
     # begin training
     # epoch > episode
@@ -140,6 +118,7 @@ if __name__ == "__main__":
     episode_finished = False
     global_step = Counter()
     local_step = Counter()
+    #noise = OrnsteinUhlenbeckNoise([1], 0.5, 0.1)
     while epoch < max_epochs:
         epoch.count()
         logger.info("Begin epoch {}".format(epoch))
@@ -167,15 +146,28 @@ if __name__ == "__main__":
             episode_begin = time.time()
             actions = t.zeros([1, agent_num * 4], device=device)
             total_reward = t.zeros([1, agent_num], device=device)
+            state, reward = t.tensor(env.reset(), dtype=t.float32, device=device), 0
 
             while not episode_finished and local_step.get() <= max_steps:
                 global_step.count()
                 local_step.count()
 
                 step_begin = time.time()
-                state, reward, old_state, old_reward = None, None, None, None
                 with t.no_grad():
-                    old_state, old_reward = state, reward
+                    old_state = state
+
+                    # agent model inference
+
+                    for ag in range(agent_num):
+                        if not render:
+                            actions[:, ag * 4: (ag + 1) * 4] = ddpg.act_with_noise(
+                                {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0)},
+                                explore_noise_params, mode="normal")
+                        else:
+                            actions[:, ag * 4: (ag + 1) * 4] = ddpg.act(
+                                {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0)})
+
+                    actions = t.clamp(actions, min=-1, max=1)
                     state, reward, episode_finished, _ = env.step(actions[0].to("cpu"))
 
                     if render:
@@ -186,25 +178,16 @@ if __name__ == "__main__":
 
                     total_reward += reward
 
-                    # agent model inference
                     for ag in range(agent_num):
-                        actions[:, ag * 4: (ag + 1) * 4] = actor(state[ag * 24: (ag + 1) * 24].unsqueeze(0))
-
-                    if global_step.get() < ddpg_warmup_steps:
-                        actions = ddpg.add_uniform_noise_to_action(actions,
-                                                                   noise_range * agent_num,
-                                                                   1)
+                        ddpg.store_observe({"state": {"state": old_state[ag * 24: (ag + 1) * 24].unsqueeze(0).clone()},
+                                            "action": {"action": actions[:, ag * 4:(ag + 1) * 4].clone()},
+                                            "next_state": {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0).clone()},
+                                            "reward": float(reward[0][ag]),
+                                            "terminal": episode_finished or local_step.get() == max_steps})
 
                     writer.add_scalar("action_min", t.min(actions), global_step.get())
                     writer.add_scalar("action_mean", t.mean(actions), global_step.get())
                     writer.add_scalar("action_max", t.max(actions), global_step.get())
-
-                    if local_step.get() > 1:
-                        for ag in range(agent_num):
-                            ddpg.store_observe({"state": {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0)},
-                                                "action": {"action": actions[:, ag * 4:(ag+1)*4]},
-                                                "next_state": {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0)},
-                                                "reward": reward[ag]})
 
                 step_end = time.time()
 
@@ -216,14 +199,16 @@ if __name__ == "__main__":
                 logger.info("Step {} completed in {:.3f} s, epoch={}, episode={}".
                             format(local_step, step_end - step_begin, epoch, episode))
 
-                if global_step.get() % ddpg_update_int == 0 and global_step.get() > ddpg_warmup_steps:
-                    for i in range(ddpg_update_batch_num):
-                        ddpg_train_begin = time.time()
-                        ddpg.update(False)
-                        ddpg.update_lr_scheduler()
-                        ddpg_train_end = time.time()
-                        logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
-                                    format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))
+            logger.info("Sum reward: {}, epoch={}, episode={}".format(
+                t.mean(total_reward), epoch, episode))
+
+            if global_step.get() > ddpg_warmup_steps:
+                for i in range(local_step.get()):
+                    ddpg_train_begin = time.time()
+                    ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
+                    ddpg_train_end = time.time()
+                    logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
+                                format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))
 
             if render:
                 create_gif(frames, "{}/log/images/{}_{}".format(root_dir, epoch, episode))
