@@ -87,22 +87,11 @@ if __name__ == "__main__":
 
     logger.info("Networks created")
 
-    actor_lr_map = [[0, 1e-4],
-                    [total_steps // 3, 1e-4],
-                    [total_steps * 2 // 3, 1e-4],
-                    [total_steps, 1e-4]]
-    critic_lr_map = [[0, 1e-4],
-                     [total_steps // 3, 1e-4],
-                     [total_steps * 2 // 3, 1e-4],
-                     [total_steps, 1e-4]]
-
-    actor_lr_func = gen_learning_rate_func(actor_lr_map)
-    critic_lr_func = gen_learning_rate_func(critic_lr_map)
-
     ddpg = DDPG(actor, actor_t, critic, critic_t,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
-                lr_scheduler=LambdaLR,
-                lr_scheduler_params=[[actor_lr_func], [critic_lr_func]],
+                learning_rate=1e-4,
+                discount=0.99,
+                update_rate=0.005,
                 replay_size=replay_size,
                 batch_num=1)
 

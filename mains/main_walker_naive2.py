@@ -78,16 +78,6 @@ class Critic(nn.Module):
         return q
 
 
-def gen_learning_rate_func(lr_map):
-    def learning_rate_func(step):
-        for i in range(len(lr_map) - 1):
-            if lr_map[i][0] <= step < lr_map[i + 1][0]:
-                return lr_map[i][1]
-        return lr_map[-1][1]
-
-    return learning_rate_func
-
-
 if __name__ == "__main__":
     args = get_args()
     for k, v in args.env.items():
@@ -107,24 +97,12 @@ if __name__ == "__main__":
 
     logger.info("Networks created")
 
-    actor_lr_map = [[0, 1e-3],
-                    [total_steps // 3, 1e-3],
-                    [total_steps * 2 // 3, 1e-3],
-                    [total_steps, 1e-3]]
-    critic_lr_map = [[0, 1e-3],
-                     [total_steps // 3, 1e-3],
-                     [total_steps * 2 // 3, 1e-3],
-                     [total_steps, 1e-3]]
-
-    actor_lr_func = gen_learning_rate_func(actor_lr_map)
-    critic_lr_func = gen_learning_rate_func(critic_lr_map)
-
     ddpg = DDPG(actor, actor_t, critic, critic_t,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
                 discount=0.99,
+                update_rate=0.005,
                 batch_num=100,
-                lr_scheduler=LambdaLR,
-                lr_scheduler_params=[[actor_lr_func], [critic_lr_func]],
+                learning_rate=0.001,
                 replay_size=replay_size)
 
     if not restart:
@@ -194,10 +172,10 @@ if __name__ == "__main__":
                         actions[:, ag * 4: (ag + 1) * 4] = actor(state[ag * 24: (ag + 1) * 24].unsqueeze(0))
 
                     if not render:
-                        n = float(noise())
+                        #n = float(noise())
                         actions = ddpg.add_noise_to_action(actions,
                                                            noise_range * agent_num,
-                                                           n)
+                                                           1)
 
                     actions = t.clamp(actions, min=-1, max=1)
 

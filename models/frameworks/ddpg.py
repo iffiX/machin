@@ -195,13 +195,13 @@ class DDPG(TorchFramework):
                  optimizer,
                  criterion,
                  device,
-                 learning_rate=0.01,
+                 learning_rate=0.001,
                  lr_scheduler=None,
                  lr_scheduler_params=None,
                  batch_num=1,
-                 update_rate=0.05,
-                 discount=0.9,
-                 replay_size=800,
+                 update_rate=0.005,
+                 discount=0.99,
+                 replay_size=100000,
                  reward_func=None,
                  action_trans_func=None):
         """
