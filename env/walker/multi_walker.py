@@ -210,7 +210,7 @@ class BipedalMultiWalker(gym.Env, EzPickle):
         self.reset()
 
         action_range = np.array([1] * (4 * agent_num))
-        observe_range = np.array([np.inf] * (24 * agent_num))
+        observe_range = np.array([np.inf] * (25 * agent_num))
         # define action space and observation space in gym.Env
         self.action_space = spaces.Box(-action_range, action_range, dtype=np.float32)
         self.observation_space = spaces.Box(-observe_range, observe_range, dtype=np.float32)
@@ -585,10 +585,11 @@ class BipedalMultiWalker(gym.Env, EzPickle):
                 agent.joints[2].speed / self.SPEED_HIP,
                 agent.joints[3].angle + 1.0,
                 agent.joints[3].speed / self.SPEED_KNEE,
-                1.0 if agent.legs[3].ground_contact else 0.0
+                1.0 if agent.legs[3].ground_contact else 0.0,
+                1.0 if agent.is_carrying else 0.0
             ]
             agent_state += [l.fraction for l in agent.lidar]
-            assert len(agent_state) == 24
+            assert len(agent_state) == 25
             state += agent_state
 
             # moving forward is a way to receive reward
@@ -602,16 +603,16 @@ class BipedalMultiWalker(gym.Env, EzPickle):
             sum_reward -= 5.0 * abs(state[0])
 
             # keep contact with cargo
-            # if not agent.is_carrying:
-            #     sum_reward -= self.NOT_CARRYING_PUNISH
+            if not agent.is_carrying:
+                sum_reward -= self.NOT_CARRYING_PUNISH
 
             agent_reward = sum_reward - self.prev_sum_reward[i]
             self.prev_sum_reward[i] = sum_reward
 
             ## punishment for using power
-            #for a in action:
-            #    agent_reward -= 0.00035 * self.MOTORS_TORQUE * np.clip(np.abs(a), 0, 1)
-            #    # normalized to about -50.0 using heuristic, more optimal agent should spend less
+            for a in action:
+                # normalized to about -50.0 using heuristic, more optimal agent should spend less
+                agent_reward -= 0.00035 * self.MOTORS_TORQUE * np.clip(np.abs(a), 0, 1)
             reward[i] = agent_reward
 
         self.scroll = min_x - self.VIEWPORT_W / self.SCALE / 5

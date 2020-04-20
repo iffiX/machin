@@ -18,21 +18,23 @@ from env.walker.multi_walker import BipedalMultiWalker
 
 # configs
 restart = True
+
+observe_dim = 25
+action_dim = 4
+
 # max_batch = 8
 max_epochs = 20
 max_episodes = 1000
-max_steps = 1000
+max_steps = 2000
 replay_size = 500000
 agent_num = 2
-explore_noise_params = [(0, 0.2)] * 4
+explore_noise_params = [(0, 0.2)] * action_dim
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/naive/"
 model_dir = root_dir + "model/"
 log_dir = root_dir + "log/"
 save_map = {}
 
-observe_dim = 24
-action_dim = 4
 # train configs
 # lr: learning rate, int: interval
 # warm up should be less than one epoch
@@ -144,7 +146,7 @@ if __name__ == "__main__":
 
             # batch size = 1
             episode_begin = time.time()
-            actions = t.zeros([1, agent_num * 4], device=device)
+            actions = t.zeros([1, agent_num * action_dim], device=device)
             total_reward = t.zeros([1, agent_num], device=device)
             state, reward = t.tensor(env.reset(), dtype=t.float32, device=device), 0
 
@@ -160,12 +162,12 @@ if __name__ == "__main__":
 
                     for ag in range(agent_num):
                         if not render:
-                            actions[:, ag * 4: (ag + 1) * 4] = ddpg.act_with_noise(
-                                {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0)},
+                            actions[:, ag * action_dim: (ag + 1) * action_dim] = ddpg.act_with_noise(
+                                {"state": state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0)},
                                 explore_noise_params, mode="normal")
                         else:
-                            actions[:, ag * 4: (ag + 1) * 4] = ddpg.act(
-                                {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0)})
+                            actions[:, ag * action_dim: (ag + 1) * action_dim] = ddpg.act(
+                                {"state": state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0)})
 
                     actions = t.clamp(actions, min=-1, max=1)
                     state, reward, episode_finished, _ = env.step(actions[0].to("cpu"))
@@ -179,9 +181,11 @@ if __name__ == "__main__":
                     total_reward += reward
 
                     for ag in range(agent_num):
-                        ddpg.store_observe({"state": {"state": old_state[ag * 24: (ag + 1) * 24].unsqueeze(0).clone()},
-                                            "action": {"action": actions[:, ag * 4:(ag + 1) * 4].clone()},
-                                            "next_state": {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0).clone()},
+                        ddpg.store_observe({"state": {"state":
+                                                old_state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0).clone()},
+                                            "action": {"action": actions[:, ag * action_dim:(ag + 1) * action_dim].clone()},
+                                            "next_state": {"state":
+                                                state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0).clone()},
                                             "reward": float(reward[0][ag]),
                                             "terminal": episode_finished or local_step.get() == max_steps})
 
