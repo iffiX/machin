@@ -28,7 +28,7 @@ replay_size = 500000
 agent_num = 3
 explore_noise_params = [(0, 0.2)] * action_dim
 device = t.device("cuda:0")
-root_dir = "/data/AI/tmp/multi_agent/walker/hdqn/"
+root_dir = "/data/AI/tmp/multi_agent/walker/maddpg/"
 model_dir = root_dir + "model/"
 log_dir = root_dir + "log/"
 save_map = {}
@@ -38,6 +38,7 @@ save_map = {}
 # warm up should be less than one epoch
 ddpg_update_batch_size = 100
 ddpg_warmup_steps = 200
+ddpg_average_target_int = 100
 model_save_int = 100  # in episodes
 profile_int = 50  # in episodes
 
@@ -55,17 +56,17 @@ class Critic(nn.Module):
         self.fc2 = nn.Linear(1024+act_dim, 512)
         self.fc3 = nn.Linear(512, 300)
         self.fc4 = nn.Linear(300, 1)
-        self.prelu1 = nn.PReLU()
-        self.prelu2 = nn.PReLU()
-        self.prelu3 = nn.PReLU()
+        self.act1 = nn.LeakyReLU() #nn.PReLU() #nn.ReLU()
+        self.act2 = nn.LeakyReLU() #nn.PReLU() #nn.ReLU()
+        self.act3 = nn.LeakyReLU() #nn.PReLU() #nn.ReLU()
 
     # obs: batch_size * obs_dim
-    def forward(self, states, action, other_actions):
-        acts = t.cat((action, other_actions), dim=0)
-        result = self.prelu1(self.fc1(states))
+    def forward(self, all_states, action, other_actions):
+        acts = t.cat((action, other_actions), dim=1)
+        result = self.act1(self.fc1(all_states))
         combined = t.cat([result, acts], dim=1)
-        result = self.prelu2(self.fc2(combined))
-        return self.fc4(self.prelu3(self.fc3(result)))
+        result = self.act2(self.fc2(combined))
+        return self.fc4(self.act3(self.fc3(result)))
     
 
 if __name__ == "__main__":
@@ -150,14 +151,15 @@ if __name__ == "__main__":
                     old_state = state
 
                     # agent model inference
-
                     for ag in range(agent_num):
                         if not render:
                             actions[:, ag * action_dim: (ag + 1) * action_dim] = ddpg.act_with_noise(
+                                ag,
                                 {"state": state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0)},
                                 explore_noise_params, mode="normal")
                         else:
                             actions[:, ag * action_dim: (ag + 1) * action_dim] = ddpg.act(
+                                ag,
                                 {"state": state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0)})
 
                     actions = t.clamp(actions, min=-1, max=1)
@@ -172,11 +174,18 @@ if __name__ == "__main__":
                     total_reward += reward
 
                     for ag in range(agent_num):
-                        ddpg.store_observe({"state": {"state":
-                                                old_state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0).clone()},
-                                            "action": {"action": actions[:, ag * action_dim:(ag + 1) * action_dim].clone()},
-                                            "next_state": {"state":
-                                                state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0).clone()},
+                        ddpg.store_observe({"state": {"state": old_state[ag * observe_dim: (ag + 1) * observe_dim]
+                                                               .unsqueeze(0).clone(),
+                                                      "all_states": old_state.unsqueeze(0).clone()},
+                                            "action": {"action": actions[:, ag * action_dim:(ag + 1) * action_dim]
+                                                                 .clone()},
+                                            "other_actions": {
+                                                "other_actions": t.cat((actions[:, :ag * action_dim],
+                                                                        actions[:, (ag + 1) * action_dim:]), dim=1)
+                                            },
+                                            "next_state": {"state": state[ag * observe_dim: (ag + 1) * observe_dim]
+                                                                    .unsqueeze(0).clone(),
+                                                           "all_states": state.unsqueeze(0).clone()},
                                             "reward": float(reward[0][ag]),
                                             "terminal": episode_finished or local_step.get() == max_steps})
 
@@ -204,6 +213,9 @@ if __name__ == "__main__":
                     ddpg_train_end = time.time()
                     logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
                                 format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))
+
+            if episode.get() % ddpg_average_target_int == 0:
+                ddpg.average_target_parameters()
 
             if render:
                 create_gif(frames, "{}/log/images/{}_{}".format(root_dir, epoch, episode))
