@@ -2,8 +2,6 @@ import time
 import torch as t
 import torch.nn as nn
 
-from torch.optim.lr_scheduler import LambdaLR
-
 from models.frameworks.ddpg import DDPG
 from models.noise import OrnsteinUhlenbeckNoise
 from models.tcdn.actor import SwarmActor, WrappedActorNet
@@ -50,15 +48,6 @@ ddpg_update_batch_num = 1
 ddpg_warmup_steps = 2000
 model_save_int = 100  # in episodes
 profile_int = 20  # in episodes
-
-def gen_learning_rate_func(lr_map):
-    def learning_rate_func(step):
-        for i in range(len(lr_map) - 1):
-            if lr_map[i][0] <= step < lr_map[i + 1][0]:
-                return lr_map[i][1]
-        return lr_map[-1][1]
-
-    return learning_rate_func
 
 
 if __name__ == "__main__":

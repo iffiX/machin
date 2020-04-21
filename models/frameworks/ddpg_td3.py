@@ -31,6 +31,7 @@ class DDPG_TD3(TorchFramework):
                  discount=0.99,
                  replay_size=100000,
                  reward_func=None,
+                 policy_noise_func=None,
                  action_trans_func=None):
         """
         Initialize DDPG framework.
@@ -65,7 +66,8 @@ class DDPG_TD3(TorchFramework):
         self.criterion = criterion
 
         self.reward_func = DDPG_TD3.bellman_function if reward_func is None else reward_func
-        self.action_trans_func = DDPG_TD3.action_trans_func if action_trans_func is None else action_trans_func
+        self.policy_noise_func = DDPG_TD3.policy_noise_func if policy_noise_func is None else policy_noise_func
+        self.action_trans_func = lambda *x: {"action": x[0]} if action_trans_func is None else action_trans_func
 
         super(DDPG_TD3, self).__init__()
         self.set_top(["actor", "critic", "critic2", "actor_target", "critic_target", "critic2_target"])
@@ -201,12 +203,10 @@ class DDPG_TD3(TorchFramework):
         # Update critic network first
         # Generate value reference :math: `y_i` using target actor and target critic
         with torch.no_grad():
-            next_action = self.action_trans_func(self.act(next_state, True), next_state)
+            next_action = self.action_trans_func(self.policy_noise_func(self.act(next_state, True)), next_state)
             next_value = self.criticize(next_state, next_action, True)
             next_value2 = self.criticize2(next_state, next_action, True)
             next_value = torch.min(next_value, next_value2)
-            reward = reward.view(batch_size, -1)
-            terminal = terminal.view(batch_size, -1)
             next_value = next_value.view(batch_size, -1)
             y_i = self.reward_func(reward, self.discount, next_value, terminal, others)
 
@@ -224,7 +224,7 @@ class DDPG_TD3(TorchFramework):
             self.critic2_optim.step()
 
         # Update actor network
-        cur_action = {"action": self.act(state)}
+        cur_action = self.action_trans_func(self.act(state), state)
         act_value = self.criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),
@@ -266,10 +266,10 @@ class DDPG_TD3(TorchFramework):
         return reward + discount * (1 - terminal) * next_value
 
     @staticmethod
-    def action_trans_func(actions, *args):
+    def policy_noise_func(actions, *args):
         noise = torch.zeros_like(actions)
         noise = noise.data.normal_(0, 0.2)
         noise = torch.clamp(noise, -0.5, 0.5)
         actions = actions + noise
         actions = torch.clamp(actions, min=-1, max=1)
-        return { "action": actions }
+        return actions

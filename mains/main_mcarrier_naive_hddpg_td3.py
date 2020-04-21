@@ -2,10 +2,8 @@ import time
 import torch as t
 import torch.nn as nn
 
-from torch.optim.lr_scheduler import LambdaLR
-
-from models.frameworks.ddpg import DDPG
-from models.noise import OrnsteinUhlenbeckNoise
+from models.frameworks.hddpg_td3 import HDDPG_TD3
+from models.naive.env_walker import Actor, Critic
 
 from utils.logging import default_logger as logger
 from utils.image import create_gif
@@ -14,67 +12,34 @@ from utils.helper_classes import Counter
 from utils.prep import prep_dir_default
 from utils.args import get_args
 
-from env.walker.single_walker import BipedalWalker
+from env.walker.carrier import BipedalMultiCarrier
+
+# definitions
+observe_dim = 28
+action_dim = 4
 
 # configs
 restart = True
-# max_batch = 8
-max_epochs = 20
+max_epochs = 5
 max_episodes = 1000
-max_steps = 1000
+max_steps = 2000
 replay_size = 500000
-agent_num = 1
-explore_noise_params = [(0, 0.2)] * 4
+
+agent_num = 3
+explore_noise_params = [(0, 0.2)] * action_dim
 device = t.device("cuda:0")
-root_dir = "/data/AI/tmp/multi_agent/walker/naive2/"
+root_dir = "/data/AI/tmp/multi_agent/walker/hdqn/"
 model_dir = root_dir + "model/"
 log_dir = root_dir + "log/"
 save_map = {}
 
-observe_dim = 24
-action_dim = 4
 # train configs
 # lr: learning rate, int: interval
 # warm up should be less than one epoch
 ddpg_update_batch_size = 100
 ddpg_warmup_steps = 200
-model_save_int = 500  # in episodes
+model_save_int = 100  # in episodes
 profile_int = 50  # in episodes
-
-
-class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, max_action):
-        super(Actor, self).__init__()
-
-        self.l1 = nn.Linear(state_dim, 400)
-        self.l2 = nn.Linear(400, 300)
-        self.l3 = nn.Linear(300, action_dim)
-
-        self.max_action = max_action
-
-    def forward(self, state):
-        a = t.relu(self.l1(state))
-        a = t.relu(self.l2(a))
-        a = t.tanh(self.l3(a)) * self.max_action
-        return a
-
-
-class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super(Critic, self).__init__()
-
-        self.l1 = nn.Linear(state_dim + action_dim, 400)
-        self.l2 = nn.Linear(400, 300)
-        self.l3 = nn.Linear(300, 1)
-
-    def forward(self, state, action):
-        state_action = t.cat([state, action], 1)
-
-        q = t.relu(self.l1(state_action))
-        q = t.relu(self.l2(q))
-        q = self.l3(q)
-        return q
-
 
 if __name__ == "__main__":
     args = get_args()
@@ -92,10 +57,13 @@ if __name__ == "__main__":
     actor_t = Actor(observe_dim, action_dim, 1).to(device)
     critic = Critic(observe_dim, action_dim).to(device)
     critic_t = Critic(observe_dim, action_dim).to(device)
+    critic2 = Critic(observe_dim, action_dim).to(device)
+    critic2_t = Critic(observe_dim, action_dim).to(device)
 
     logger.info("Networks created")
 
-    ddpg = DDPG(actor, actor_t, critic, critic_t,
+    ddpg = HDDPG_TD3(
+                actor, actor_t, critic, critic_t, critic2, critic2_t,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
                 discount=0.99,
                 update_rate=0.005,
@@ -109,7 +77,7 @@ if __name__ == "__main__":
 
     # training
     # preparations
-    env = BipedalWalker()
+    env = BipedalMultiCarrier(agent_num=agent_num)
 
     # begin training
     # epoch > episode
@@ -118,7 +86,7 @@ if __name__ == "__main__":
     episode_finished = False
     global_step = Counter()
     local_step = Counter()
-    #noise = OrnsteinUhlenbeckNoise([1], 0.5, 0.1)
+
     while epoch < max_epochs:
         epoch.count()
         logger.info("Begin epoch {}".format(epoch))
@@ -144,7 +112,7 @@ if __name__ == "__main__":
 
             # batch size = 1
             episode_begin = time.time()
-            actions = t.zeros([1, agent_num * 4], device=device)
+            actions = t.zeros([1, agent_num * action_dim], device=device)
             total_reward = t.zeros([1, agent_num], device=device)
             state, reward = t.tensor(env.reset(), dtype=t.float32, device=device), 0
 
@@ -160,12 +128,12 @@ if __name__ == "__main__":
 
                     for ag in range(agent_num):
                         if not render:
-                            actions[:, ag * 4: (ag + 1) * 4] = ddpg.act_with_noise(
-                                {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0)},
+                            actions[:, ag * action_dim: (ag + 1) * action_dim] = ddpg.act_with_noise(
+                                {"state": state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0)},
                                 explore_noise_params, mode="normal")
                         else:
-                            actions[:, ag * 4: (ag + 1) * 4] = ddpg.act(
-                                {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0)})
+                            actions[:, ag * action_dim: (ag + 1) * action_dim] = ddpg.act(
+                                {"state": state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0)})
 
                     actions = t.clamp(actions, min=-1, max=1)
                     state, reward, episode_finished, _ = env.step(actions[0].to("cpu"))
@@ -179,10 +147,12 @@ if __name__ == "__main__":
                     total_reward += reward
 
                     for ag in range(agent_num):
-                        ddpg.store_observe({"state": {"state": old_state[ag * 24: (ag + 1) * 24].unsqueeze(0).clone()},
-                                            "action": {"action": actions[:, ag * 4:(ag + 1) * 4].clone()},
-                                            "next_state": {"state": state[ag * 24: (ag + 1) * 24].unsqueeze(0).clone()},
-                                            "reward": float(reward[ag]),
+                        ddpg.store_observe({"state": {"state":
+                                                old_state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0).clone()},
+                                            "action": {"action": actions[:, ag * action_dim:(ag + 1) * action_dim].clone()},
+                                            "next_state": {"state":
+                                                state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0).clone()},
+                                            "reward": float(reward[0][ag]),
                                             "terminal": episode_finished or local_step.get() == max_steps})
 
                     writer.add_scalar("action_min", t.min(actions), global_step.get())

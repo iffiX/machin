@@ -123,7 +123,7 @@ class LidarCallback(Box2D.b2.rayCastCallback):
         return fraction
 
 
-class BipedalMultiWalker(gym.Env, EzPickle):
+class BipedalMultiCarrier(gym.Env, EzPickle):
     FPS = 50
     SCALE = 30.0  # affects how fast-paced the game is, forces should be adjusted as well
     VIEWPORT_W = 600
@@ -148,16 +148,17 @@ class BipedalMultiWalker(gym.Env, EzPickle):
     TERRAIN_LENGTH_AFTER_STARTPAD = 200  # in steps
     TERRAIN_HEIGHT = VIEWPORT_H / SCALE / 4
     TERRAIN_GRASS = 10  # low long are grass spots, in steps
-    TERRAIN_STARTPAD_PER_AGENT = 15  # in steps
+    TERRAIN_STARTPAD_PADDING = 15  # in steps
     TERRAIN_AGENT_DISTANCE = 8  # in steps
 
-    CARGO_HEIGHT = 4 / SCALE
+    CARGO_HEIGHT = 8 / SCALE
     CARGO_Y_OFFSET = 9 / SCALE  # same as max y of hull poly
+    CARGO_X_PADDING = 60 / SCALE
 
-    MAX_MOVE_REWARD = 300
-    MAX_CARRY_REWARD = 300
+    MAX_MOVE_REWARD = 500
+    MAX_CARRY_REWARD = 500
     GAME_OVER_PUNISH = 200
-    NOT_CARRYING_PUNISH = 100
+    NOT_CARRYING_PUNISH = 10
 
     FRICTION = 2.5
 
@@ -204,7 +205,8 @@ class BipedalMultiWalker(gym.Env, EzPickle):
             categoryBits=0x0001,
         )
 
-        self.TERRAIN_STARTPAD_LENGTH = counter = self.TERRAIN_STARTPAD_PER_AGENT * self.agent_num
+        self.TERRAIN_STARTPAD_LENGTH = counter = \
+            self.TERRAIN_STARTPAD_PADDING + self.TERRAIN_AGENT_DISTANCE * self.agent_num
         self.TERRAIN_LENGTH = self.TERRAIN_STARTPAD_LENGTH + self.TERRAIN_LENGTH_AFTER_STARTPAD
 
         self.reset()
@@ -387,7 +389,7 @@ class BipedalMultiWalker(gym.Env, EzPickle):
             self.cloud_poly.append((poly, x1, x2))
 
     def _generate_agents(self):
-        begin_x = self.TERRAIN_STEP * self.TERRAIN_STARTPAD_PER_AGENT / 2
+        begin_x = self.TERRAIN_STEP * self.TERRAIN_STARTPAD_PADDING / 2
         for i in range(self.agent_num):
             init_x = begin_x + self.TERRAIN_STEP * self.TERRAIN_AGENT_DISTANCE * i
             init_y = self.TERRAIN_HEIGHT + 2 * self.LEG_H
@@ -400,7 +402,7 @@ class BipedalMultiWalker(gym.Env, EzPickle):
                 fixtures=fixtureDef(
                     shape=polygonShape(vertices=[(x / self.SCALE, y / self.SCALE) for x, y in self.HULL_POLY]),
                     density=5.0,
-                    friction=0.1,
+                    friction=0.8,
                     categoryBits=0x0100,
                     maskBits=0x0011,  # collide with ground and cargo
                     restitution=0.0,  # 0.99 bouncy
@@ -476,15 +478,18 @@ class BipedalMultiWalker(gym.Env, EzPickle):
                 agent.joints.append(self.world.CreateJoint(rjd2))
 
     def _generate_cargo(self):
-        length = self.TERRAIN_STEP * self.TERRAIN_AGENT_DISTANCE * (self.agent_num - 0.5)
-        init_x = self.TERRAIN_STEP * self.TERRAIN_STARTPAD_PER_AGENT / 2
+        inner_length = self.TERRAIN_AGENT_DISTANCE * (self.agent_num - 1)
+        length = self.TERRAIN_STEP * inner_length + 2 * self.CARGO_X_PADDING
+        init_x = self.TERRAIN_STEP * (self.TERRAIN_STARTPAD_PADDING + inner_length) / 2
         init_y = self.TERRAIN_HEIGHT + 2 * self.LEG_H + self.CARGO_Y_OFFSET
+        # Note: box=(half_width, half_height)
         self.cargo = self.world.CreateDynamicBody(
             position=(init_x, init_y),
             angle=0,
             fixtures=fixtureDef(
-                shape=polygonShape(box=(length, self.CARGO_HEIGHT)),
-                density=1.0,
+                shape=polygonShape(box=(length/2, self.CARGO_HEIGHT/2)),
+                density=0.5,
+                friction=0.8,
                 restitution=0.0,
                 categoryBits=0x0010,
                 maskBits=0x0101,  # collide with ground and agents
@@ -550,7 +555,7 @@ class BipedalMultiWalker(gym.Env, EzPickle):
         max_x = -np.inf
         state = []
         reward = np.zeros(self.agent_num)
-        cargo_reward = self.MAX_MOVE_REWARD * (self.cargo.position[0] - self.cargo_init_pos[0])\
+        cargo_reward = self.MAX_CARRY_REWARD * (self.cargo.position[0] - self.cargo_init_pos[0]) \
                        / (self.TERRAIN_LENGTH * self.TERRAIN_STEP)
 
         for i in range(self.agent_num):
@@ -586,10 +591,13 @@ class BipedalMultiWalker(gym.Env, EzPickle):
                 agent.joints[3].angle + 1.0,
                 agent.joints[3].speed / self.SPEED_KNEE,
                 1.0 if agent.legs[3].ground_contact else 0.0,
+                self.cargo.angle,
+                self.cargo.position[0] - pos[0],
+                self.cargo.position[1] - pos[1],
                 1.0 if agent.is_carrying else 0.0
             ]
             agent_state += [l.fraction for l in agent.lidar]
-            assert len(agent_state) == 25
+            assert len(agent_state) == 28
             state += agent_state
 
             # moving forward is a way to receive reward
@@ -603,16 +611,17 @@ class BipedalMultiWalker(gym.Env, EzPickle):
             sum_reward -= 5.0 * abs(state[0])
 
             # keep contact with cargo
-            if not agent.is_carrying:
-                sum_reward -= self.NOT_CARRYING_PUNISH
+            # if not agent.is_carrying:
+            #    sum_reward -= self.NOT_CARRYING_PUNISH
 
             agent_reward = sum_reward - self.prev_sum_reward[i]
             self.prev_sum_reward[i] = sum_reward
 
             ## punishment for using power
             for a in action:
-                # normalized to about -50.0 using heuristic, more optimal agent should spend less
                 agent_reward -= 0.00035 * self.MOTORS_TORQUE * np.clip(np.abs(a), 0, 1)
+                # normalized to about -50.0 using heuristic, more optimal agent should spend less
+
             reward[i] = agent_reward
 
         self.scroll = min_x - self.VIEWPORT_W / self.SCALE / 5
@@ -687,5 +696,14 @@ class BipedalMultiWalker(gym.Env, EzPickle):
             self.viewer = None
 
 
-class BipedalMultiWalkerHardcore(BipedalMultiWalker):
+class BipedalMultiCarrierHardcore(BipedalMultiCarrier):
+    hardcore = True
+
+
+class BipedalSingleCarrier(BipedalMultiCarrier):
+    def __init__(self):
+        super(BipedalSingleCarrier, self).__init__(agent_num=1)
+
+
+class BipedalSingleCarrierHardCore(BipedalSingleCarrier):
     hardcore = True

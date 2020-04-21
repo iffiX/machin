@@ -172,11 +172,11 @@ class ReplayBuffer:
                 result.append(tmp_dict)
             elif k == "reward":
                 if torch.is_tensor(batch[0][k]) and len(batch[0][k].shape) > 0:
-                    result.append(torch.cat([item[k] for item in batch], dim=0).to(device))
+                    result.append(torch.cat([item[k] for item in batch], dim=0).to(device).view(real_num, -1))
                 else:
-                    result.append(torch.tensor([float(item[k]) for item in batch], device=device))
+                    result.append(torch.tensor([float(item[k]) for item in batch], device=device).view(real_num, -1))
             elif k == "terminal":
-                result.append(torch.tensor([float(item[k]) for item in batch], device=device))
+                result.append(torch.tensor([float(item[k]) for item in batch], device=device).view(real_num, -1))
             elif k == "*":
                 # select custom keys
                 for remain_k in batch[0].keys():
@@ -357,8 +357,6 @@ class DDPG(TorchFramework):
         with torch.no_grad():
             next_action = self.action_trans_func(self.act(next_state, True), next_state)
             next_value = self.criticize(next_state, next_action, True)
-            reward = reward.view(batch_size, -1)
-            terminal = terminal.view(batch_size, -1)
             next_value = next_value.view(batch_size, -1)
             y_i = self.reward_func(reward, self.discount, next_value, terminal, others)
 

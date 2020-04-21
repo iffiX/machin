@@ -2,10 +2,8 @@ import time
 import torch as t
 import torch.nn as nn
 
-from torch.optim.lr_scheduler import LambdaLR
-
-from models.frameworks.ddpg import DDPG
-from models.noise import OrnsteinUhlenbeckNoise
+from models.frameworks.maddpg import MADDPG
+from models.naive.env_walker import Actor
 
 from utils.logging import default_logger as logger
 from utils.image import create_gif
@@ -14,23 +12,23 @@ from utils.helper_classes import Counter
 from utils.prep import prep_dir_default
 from utils.args import get_args
 
-from env.walker.multi_walker import BipedalMultiWalker
+from env.walker.carrier import BipedalMultiCarrier
+
+# definitions
+observe_dim = 28
+action_dim = 4
 
 # configs
 restart = True
-
-observe_dim = 25
-action_dim = 4
-
-# max_batch = 8
-max_epochs = 20
+max_epochs = 5
 max_episodes = 1000
 max_steps = 2000
 replay_size = 500000
-agent_num = 2
+
+agent_num = 3
 explore_noise_params = [(0, 0.2)] * action_dim
 device = t.device("cuda:0")
-root_dir = "/data/AI/tmp/multi_agent/walker/naive/"
+root_dir = "/data/AI/tmp/multi_agent/walker/hdqn/"
 model_dir = root_dir + "model/"
 log_dir = root_dir + "log/"
 save_map = {}
@@ -40,43 +38,35 @@ save_map = {}
 # warm up should be less than one epoch
 ddpg_update_batch_size = 100
 ddpg_warmup_steps = 200
-model_save_int = 500  # in episodes
+model_save_int = 100  # in episodes
 profile_int = 50  # in episodes
 
 
-class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, max_action):
-        super(Actor, self).__init__()
-
-        self.l1 = nn.Linear(state_dim, 400)
-        self.l2 = nn.Linear(400, 300)
-        self.l3 = nn.Linear(300, action_dim)
-
-        self.max_action = max_action
-
-    def forward(self, state):
-        a = t.relu(self.l1(state))
-        a = t.relu(self.l2(a))
-        a = t.tanh(self.l3(a)) * self.max_action
-        return a
-
-
 class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, agent_num, state_dim, action_dim):
         super(Critic, self).__init__()
+        self.agent_num = agent_num
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        st_dim = state_dim * agent_num
+        act_dim = action_dim * agent_num
 
-        self.l1 = nn.Linear(state_dim + action_dim, 400)
-        self.l2 = nn.Linear(400, 300)
-        self.l3 = nn.Linear(300, 1)
+        self.fc1 = nn.Linear(st_dim, 1024)
+        self.fc2 = nn.Linear(1024+act_dim, 512)
+        self.fc3 = nn.Linear(512, 300)
+        self.fc4 = nn.Linear(300, 1)
+        self.prelu1 = nn.PReLU()
+        self.prelu2 = nn.PReLU()
+        self.prelu3 = nn.PReLU()
 
-    def forward(self, state, action):
-        state_action = t.cat([state, action], 1)
-
-        q = t.relu(self.l1(state_action))
-        q = t.relu(self.l2(q))
-        q = self.l3(q)
-        return q
-
+    # obs: batch_size * obs_dim
+    def forward(self, states, action, other_actions):
+        acts = t.cat((action, other_actions), dim=0)
+        result = self.prelu1(self.fc1(states))
+        combined = t.cat([result, acts], dim=1)
+        result = self.prelu2(self.fc2(combined))
+        return self.fc4(self.prelu3(self.fc3(result)))
+    
 
 if __name__ == "__main__":
     args = get_args()
@@ -90,14 +80,15 @@ if __name__ == "__main__":
     global_board.init(log_dir + "train_log")
     writer = global_board.writer
 
-    actor = Actor(observe_dim, action_dim, 1).to(device)
-    actor_t = Actor(observe_dim, action_dim, 1).to(device)
-    critic = Critic(observe_dim, action_dim).to(device)
-    critic_t = Critic(observe_dim, action_dim).to(device)
+    actors = [Actor(observe_dim, action_dim, 1).to(device) for i in range(agent_num)]
+    actor_ts = [Actor(observe_dim, action_dim, 1).to(device) for i in range(agent_num)]
+    critics = [Critic(agent_num, observe_dim, action_dim).to(device) for i in range(agent_num)]
+    critic_ts = [Critic(agent_num, observe_dim, action_dim).to(device) for i in range(agent_num)]
 
     logger.info("Networks created")
 
-    ddpg = DDPG(actor, actor_t, critic, critic_t,
+    ddpg = MADDPG(
+                actors, actor_ts, critics, critic_ts,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
                 discount=0.99,
                 update_rate=0.005,
@@ -111,7 +102,7 @@ if __name__ == "__main__":
 
     # training
     # preparations
-    env = BipedalMultiWalker(agent_num=agent_num)
+    env = BipedalMultiCarrier(agent_num=agent_num)
 
     # begin training
     # epoch > episode
@@ -120,7 +111,7 @@ if __name__ == "__main__":
     episode_finished = False
     global_step = Counter()
     local_step = Counter()
-    #noise = OrnsteinUhlenbeckNoise([1], 0.5, 0.1)
+
     while epoch < max_epochs:
         epoch.count()
         logger.info("Begin epoch {}".format(epoch))
