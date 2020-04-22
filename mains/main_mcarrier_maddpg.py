@@ -25,7 +25,7 @@ max_episodes = 1000
 max_steps = 2000
 replay_size = 500000
 
-agent_num = 3
+agent_num = 2
 explore_noise_params = [(0, 0.2)] * action_dim
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/maddpg/"
@@ -52,21 +52,20 @@ class Critic(nn.Module):
         st_dim = state_dim * agent_num
         act_dim = action_dim * agent_num
 
-        self.fc1 = nn.Linear(st_dim, 1024)
-        self.fc2 = nn.Linear(1024+act_dim, 512)
-        self.fc3 = nn.Linear(512, 300)
-        self.fc4 = nn.Linear(300, 1)
-        self.act1 = nn.LeakyReLU() #nn.PReLU() #nn.ReLU()
-        self.act2 = nn.LeakyReLU() #nn.PReLU() #nn.ReLU()
-        self.act3 = nn.LeakyReLU() #nn.PReLU() #nn.ReLU()
+        self.fc1 = nn.Linear(st_dim + act_dim, 1024)
+        self.fc2 = nn.Linear(1024, 300)
+        self.fc3 = nn.Linear(300, 1)
 
     # obs: batch_size * obs_dim
     def forward(self, all_states, action, other_actions):
-        acts = t.cat((action, other_actions), dim=1)
-        result = self.act1(self.fc1(all_states))
-        combined = t.cat([result, acts], dim=1)
-        result = self.act2(self.fc2(combined))
-        return self.fc4(self.act3(self.fc3(result)))
+        if other_actions is not None:
+            # in case agent num = 1
+            action = t.cat((action, other_actions), dim=1)
+        state_action = t.cat([all_states, action], dim=1)
+        q = t.relu(self.fc1(state_action))
+        q = t.relu(self.fc2(q))
+        q = self.fc3(q)
+        return q
     
 
 if __name__ == "__main__":

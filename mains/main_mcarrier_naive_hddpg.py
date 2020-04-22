@@ -2,8 +2,7 @@ import time
 import torch as t
 import torch.nn as nn
 
-from models.frameworks.hddpg_td3 import HDDPG_TD3
-from models.frameworks.ddpg_td3 import DDPG_TD3
+from models.frameworks.hddpg import HDDPG
 from models.naive.env_walker import Actor, Critic
 
 from utils.logging import default_logger as logger
@@ -26,10 +25,10 @@ max_episodes = 1000
 max_steps = 2000
 replay_size = 500000
 
-agent_num = 3
+agent_num = 1
 explore_noise_params = [(0, 0.2)] * action_dim
 q_increase_rate = 1
-q_decrease_rate = 0.1
+q_decrease_rate = 1
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/hdqn/"
 model_dir = root_dir + "model/"
@@ -65,15 +64,15 @@ if __name__ == "__main__":
 
     logger.info("Networks created")
 
-    ddpg = DDPG_TD3(
-                actor, actor_t, critic, critic_t, critic2, critic2_t,
+    ddpg = HDDPG(
+                actor, actor_t, critic, critic_t,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
+                q_increase_rate=q_increase_rate,
+                q_decrease_rate=q_decrease_rate,
                 discount=0.99,
                 update_rate=0.005,
                 batch_size=ddpg_update_batch_size,
                 learning_rate=0.001,
-                #q_increase_rate=q_increase_rate,
-                #q_decrease_rate=q_decrease_rate,
                 replay_size=replay_size)
 
     if not restart:

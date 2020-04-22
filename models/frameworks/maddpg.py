@@ -374,6 +374,9 @@ class MADDPG(TorchFramework):
 
     @staticmethod
     def action_ccat_func(raw_other_actions_list):
-        return torch.cat([act for act in raw_other_actions_list], dim=1)
+        if len(raw_other_actions_list) > 0:
+            return torch.cat([act for act in raw_other_actions_list], dim=1)
+        else:
+            return None
 
 
