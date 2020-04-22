@@ -1,6 +1,7 @@
 import time
 import random
 import inspect
+import traceback
 import numpy as np
 import torch
 import torch.nn as nn
@@ -96,6 +97,7 @@ class ReplayBuffer:
         self.buffer_size = buffer_size
         self.buffer = []
         self.index = 0
+        self.warned = []
 
     def append(self, transition: Union[List, Tuple]):
         """
@@ -161,14 +163,24 @@ class ReplayBuffer:
             if k in ("state", "action", "next_state"):
                 tmp_dict = {}
                 for sub_k in batch[0][k].keys():
-                    if concatenate:
-                        tmp_dict[sub_k] = torch.cat([item[k][sub_k] for item in batch], dim=0) \
-                                               .to(device)
-                    else:
-                        if batch_size == 1:
-                            tmp_dict[sub_k] = batch[0][k][sub_k]
+                    try:
+                        if concatenate:
+                            tmp_dict[sub_k] = torch.cat([item[k][sub_k] for item in batch], dim=0) \
+                                                   .to(device)
                         else:
-                            tmp_dict[sub_k] = [item[k][sub_k] for item in batch]
+                            if batch_size == 1:
+                                tmp_dict[sub_k] = batch[0][k][sub_k]
+                            else:
+                                tmp_dict[sub_k] = [item[k][sub_k] for item in batch]
+                    except Exception as e:
+                        if (k, sub_k) not in self.warned:
+                            self.warned.append((k, sub_k))
+                            print("Error ocurred in replay buffer: {}, while concatenating {}:{}, \n"
+                                  "if this behavior is desired, please ignore this message, \n"
+                                  "otherwise, please consider about disabling concatenation. \n"
+                                  "This sub-key will not be concatenated.\n".format(
+                                   traceback.format_exc(), k, sub_k))
+                        tmp_dict[sub_k] = [item[k][sub_k] for item in batch]
                 result.append(tmp_dict)
             elif k == "reward":
                 if torch.is_tensor(batch[0][k]) and len(batch[0][k].shape) > 0:
@@ -181,7 +193,7 @@ class ReplayBuffer:
                 # select custom keys
                 for remain_k in batch[0].keys():
                     if remain_k not in ("state", "action", "next_state", "reward", "terminal"):
-                        result.append(tuple(item[remain_k] for item in batch))
+                        result.append([item[remain_k] for item in batch])
             else:
                 result.append(tuple(item[k] for item in batch))
         return real_num, tuple(result)

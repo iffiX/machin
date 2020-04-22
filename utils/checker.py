@@ -1,6 +1,21 @@
 import torch
 import numpy as np
 
+
+def check_shape(tensor, shape_list):
+    shape = list(tensor.shape)
+    if len(shape) != len(shape_list):
+        raise RuntimeError("Shape length invalid, required {} dims, is {} dims".format(
+            len(shape_list), len(shape)
+        ))
+    for s1, s2, dim in zip(shape, shape_list, range(len(shape_list))):
+        if s2 > 0:
+            if s1 != s2:
+                raise RuntimeError("Shape invalid at dimension {}, required {}, is {}.".format(
+                    dim, s2, s1
+                ))
+
+
 def check_nan(tensor, name):
     if torch.any(torch.isnan(tensor)):
         print(tensor)

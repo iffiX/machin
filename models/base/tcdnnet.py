@@ -77,7 +77,8 @@ class AttentionBlock(nn.Module):
             # when each sequence element has a different time step, use a diagonal matrix
             mask = t.ones([length, length], dtype=t.uint8, device=input.device).triu(diagonal=1)
         else:
-            mask = time_steps > time_steps.unsqueeze(dim=2)
+            # upper diagnoal
+            mask = time_steps.unsqueeze(dim=2) < time_steps.unsqueeze(dim=1)
 
         # import pdb; pdb.set_trace()
         keys = self.linear_keys(input)  # shape: (N, T, key_size)
@@ -98,9 +99,9 @@ class AttentionBlock(nn.Module):
 
 class TCDNNet(nn.Module):
     def __init__(self, in_channels, out_channels, seq_length, additional_length=0,
-                 att_layers=((64, 32), (256, 128), (512, 256)),
-                 tc_layers=(128, 128),
-                 fc_layers=(),
+                 att_layers=((64, 32), (128, 64)),
+                 tc_layers=(32,),
+                 fc_layers=(400,),
                  activation=None,
                  final_process=None,
                  device="cuda:0"):
@@ -153,8 +154,10 @@ class TCDNNet(nn.Module):
         raw.append(ra)
 
         if additional is not None:
+            # additional should be (B, additional_size)
             additional = t.cat([t.unsqueeze(additional, dim=1)] * x.shape[1], dim=1)
             x = t.cat((x, additional), dim=2)
+
         for i in range(self.fc_num):
             x = self.layers["fc_{}".format(i)](x)
             if i != self.fc_num - 1:

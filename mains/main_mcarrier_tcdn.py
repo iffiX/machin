@@ -2,7 +2,7 @@ import time
 import torch as t
 import torch.nn as nn
 
-from models.frameworks.ddpg import DDPG
+from models.frameworks.ddpg_td3 import DDPG_TD3
 from models.noise import OrnsteinUhlenbeckNoise
 from models.tcdn.actor import SwarmActor, WrappedActorNet
 from models.tcdn.critic import SwarmCritic, WrappedCriticNet
@@ -16,38 +16,40 @@ from utils.helper_classes import Counter
 from utils.prep import prep_dir_default
 from utils.args import get_args
 
-from env.walker.multi_walker import BipedalMultiWalker
+from env.walker.carrier import BipedalMultiCarrier
+
+# definitions
+observe_dim = 28
+action_dim = 4
 
 # configs
 restart = True
 # max_batch = 8
 max_epochs = 20
-max_episodes = 800
-max_steps = 1000
+max_episodes = 1000
+max_steps = 100
 replay_size = 500000
-history_depth = 10
+
 agent_num = 1
+history_depth = 10
 neighbors = [-1, 1]
-noise_range = ((-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5))
-mean_anneal = 0.3
-theta_anneal = 0.1
+noise_range = [(0, 0.2)] * action_dim
+nego_mean_anneal = 0.3
+nego_theta_anneal = 0.1
+nego_rounds = 2
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/tcdn/"
 model_dir = root_dir + "model/"
 log_dir = root_dir + "log/"
-save_map = {"actor": "actor",
-            "critic": "critic"}
+save_map = {}
 
-observe_dim = 24
-action_dim = 4
 # train configs
 # lr: learning rate, int: interval
 # warm up should be less than one epoch
-ddpg_update_int = 1  # in steps
-ddpg_update_batch_num = 1
-ddpg_warmup_steps = 2000
+ddpg_update_batch_size = 100
+ddpg_warmup_steps = 20
 model_save_int = 100  # in episodes
-profile_int = 20  # in episodes
+profile_int = 50  # in episodes
 
 
 if __name__ == "__main__":
@@ -73,16 +75,19 @@ if __name__ == "__main__":
     actor_t = WrappedActorNet(base_actor_t, negotiator_t)
     critic = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, device))
     critic_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, device))
+    critic2 = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, device))
+    critic2_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, device))
 
     logger.info("Networks created")
 
-    ddpg = DDPG(actor, actor_t, critic, critic_t,
+    ddpg = DDPG_TD3(
+                actor, actor_t, critic, critic_t, critic2, critic2_t,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
-                learning_rate=1e-4,
                 discount=0.99,
                 update_rate=0.005,
+                learning_rate=0.001,
                 replay_size=replay_size,
-                batch_num=1)
+                batch_size=ddpg_update_batch_size)
 
     if not restart:
         ddpg.load(root_dir + "/model", save_map)
@@ -90,9 +95,10 @@ if __name__ == "__main__":
 
     # training
     # preparations
-    env = BipedalMultiWalker(agent_num)
-    agents = [SwarmAgent(base_actor, negotiator, action_dim, observe_dim,
-                         history_depth, mean_anneal, theta_anneal, 1, True, device)
+    env = BipedalMultiCarrier(agent_num)
+    agents = [SwarmAgent(base_actor, negotiator, len(neighbors), action_dim, observe_dim, history_depth,
+                         mean_anneal=nego_mean_anneal, theta_anneal=nego_theta_anneal,
+                         batch_size=1, contiguous=True, device=device)
               for i in range(agent_num)]
 
     # begin training
@@ -110,8 +116,6 @@ if __name__ == "__main__":
             episode.count()
             logger.info("Begin episode {}, epoch={}".format(episode, epoch))
 
-            # environment initialization
-            env.reset()
             for agent in agents:
                 agent.reset()
 
@@ -139,8 +143,10 @@ if __name__ == "__main__":
 
             # batch size = 1
             episode_begin = time.time()
-            actions = t.zeros([1, agent_num * 4], device=device)
+            actions = t.zeros([1, agent_num * action_dim], device=device)
             total_reward = t.zeros([1, agent_num], device=device)
+            state, reward = t.tensor(env.reset(), dtype=t.float32, device=device), 0
+            old_samples = None
 
             while not episode_finished and local_step.get() <= max_steps:
                 global_step.count()
@@ -148,8 +154,27 @@ if __name__ == "__main__":
 
                 step_begin = time.time()
                 with t.no_grad():
-                    old_samples = [agent.get_sample() for agent in agents]
 
+                    # agent model inference
+                    for ag in range(agent_num):
+                        agents[ag].set_observe(state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(dim=0))
+
+                    for ag in range(agent_num):
+                        agents[ag].act_step(local_step.get())
+
+                    for i in range(nego_rounds):
+                        for ag in range(agent_num):
+                            agents[ag].negotiate_step()
+
+                    for ag in range(agent_num):
+                        actions[:, ag * action_dim: (ag + 1) * action_dim] = agents[ag].final_step()
+
+                    if not render:
+                        actions = ddpg.add_uniform_noise_to_action(actions,
+                                                                   noise_range * agent_num,
+                                                                   1)
+
+                    actions = t.clamp(actions, min=-1, max=1)
                     state, reward, episode_finished, info = env.step(actions[0].to("cpu"))
 
                     if render:
@@ -160,34 +185,10 @@ if __name__ == "__main__":
 
                     total_reward += reward
 
-                    # agent model inference
-                    for ag in range(agent_num):
-                        agents[ag].set_observe(state[ag * 24: (ag + 1) * 24].unsqueeze(dim=0))
+                    for agent, r in zip(agents, reward[0]):
+                        agent.set_reward(r.view(1, 1))
 
-                    for ag in range(agent_num):
-                        actions[:, ag * 4: (ag + 1) * 4] = agents[ag].act_step(local_step.get())
-                    print(actions)
-
-                    while all([agent.get_negotiation_rate() > 0.01 for agent in agents]):
-                        for ag in range(agent_num):
-                            agents[ag].negotiate_step(local_step.get())
-
-                    for ag in range(agent_num):
-                        actions[:, ag * 4: (ag + 1) * 4] = agents[ag].final_step()
-
-                    #if global_step.get() < ddpg_warmup_steps:
-                    if not render:
-                        actions = ddpg.add_uniform_noise_to_action(actions,
-                                                                   noise_range * agent_num,
-                                                                   1)
-
-                    actions = t.clamp(actions, min=-1, max=1)
-
-                    writer.add_scalar("action_min", t.min(actions), global_step.get())
-                    writer.add_scalar("action_mean", t.mean(actions), global_step.get())
-                    writer.add_scalar("action_max", t.max(actions), global_step.get())
-
-                    if local_step.get() > 1:
+                    if old_samples is not None:
                         for old_sample, agent, r in zip(old_samples, agents, reward[0]):
                             sample = agent.get_sample()
                             ddpg.store_observe({"state": {"history": old_sample[0],
@@ -196,7 +197,7 @@ if __name__ == "__main__":
                                                           "neighbor_observation": old_sample[3],
                                                           "neighbor_action_all": old_sample[4],
                                                           "negotiate_rate_all": old_sample[5],
-                                                          "time_step": local_step.get() - 1},
+                                                          "time_step": old_sample[6]},
                                                 "action": {"action": agent.action},
                                                 "next_state": {"history": sample[0],
                                                                "history_time_steps": sample[1],
@@ -204,14 +205,19 @@ if __name__ == "__main__":
                                                                "neighbor_observation": sample[3],
                                                                "neighbor_action_all": sample[4],
                                                                "negotiate_rate_all": sample[5],
-                                                               "time_step": local_step.get()},
-                                                "reward": r,
+                                                               "time_step": sample[6]},
+                                                "reward": float(r),
                                                 "terminal": episode_finished or local_step.get() == max_steps})
-                            agent.set_reward(r)
+
+
+                    writer.add_scalar("action_min", t.min(actions), global_step.get())
+                    writer.add_scalar("action_mean", t.mean(actions), global_step.get())
+                    writer.add_scalar("action_max", t.max(actions), global_step.get())
+
+                    old_samples = [agent.get_sample() for agent in agents]
 
                 for agent in agents:
-                    if local_step.get() > 1:
-                        agent.update_history(local_step.get())
+                    agent.update_history(local_step.get())
                     agent.reset_negotiate()
                 step_end = time.time()
 
@@ -223,14 +229,18 @@ if __name__ == "__main__":
                 logger.info("Step {} completed in {:.3f} s, epoch={}, episode={}".
                             format(local_step, step_end - step_begin, epoch, episode))
 
-                if global_step.get() % ddpg_update_int == 0 and global_step.get() > ddpg_warmup_steps:
-                    for i in range(ddpg_update_batch_num):
-                        ddpg_train_begin = time.time()
-                        ddpg.update(False)
-                        ddpg.update_lr_scheduler()
-                        ddpg_train_end = time.time()
-                        logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
-                                    format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))
+            logger.info("Sum reward: {}, epoch={}, episode={}".format(
+                t.mean(total_reward), epoch, episode))
+
+            if global_step.get() > ddpg_warmup_steps:
+                for i in range(local_step.get()):
+                    ddpg_train_begin = time.time()
+                    # if using non-batched agents, set concatenate_samples=False
+                    ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
+                    ddpg.update_lr_scheduler()
+                    ddpg_train_end = time.time()
+                    logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
+                                format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))
 
             if render:
                 create_gif(frames, "{}/log/images/{}_{}".format(root_dir, epoch, episode))
