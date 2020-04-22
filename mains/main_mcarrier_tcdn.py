@@ -30,7 +30,7 @@ max_episodes = 1000
 max_steps = 100
 replay_size = 500000
 
-agent_num = 1
+agent_num = 3
 history_depth = 10
 neighbors = [-1, 1]
 noise_range = [(0, 0.2)] * action_dim

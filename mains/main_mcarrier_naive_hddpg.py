@@ -25,7 +25,7 @@ max_episodes = 1000
 max_steps = 2000
 replay_size = 500000
 
-agent_num = 1
+agent_num = 2
 explore_noise_params = [(0, 0.2)] * action_dim
 q_increase_rate = 1
 q_decrease_rate = 1

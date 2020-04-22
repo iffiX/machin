@@ -395,6 +395,8 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
             init_y = self.TERRAIN_HEIGHT + 2 * self.LEG_H
             agent = self.agents[i]
             agent.init_pos = (init_x, init_y)
+            agent.init_cargo_rela_dist = (self.cargo_init_pos[0] - init_x,
+                                          self.cargo_init_pos[1] - init_y)
             agent.lidar = [LidarCallback() for _ in range(self.LIDAR_RESOLUTION)]
 
             agent.hull = self.world.CreateDynamicBody(
@@ -499,6 +501,7 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
         self.cargo.color1 = (0.5, 0.4, 0.9)
         self.cargo.color2 = (0.3, 0.3, 0.5)
         self.cargo_init_pos = [init_x, init_y]
+        self.cargo_length = length
 
     def reset(self):
         self._destroy()
@@ -518,8 +521,9 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
         self._generate_terrain(self.hardcore)
         self._generate_clouds()
 
-        self._generate_agents()
         self._generate_cargo()
+        self._generate_agents()
+
 
         self.draw_list = self.terrain + [self.cargo]
         for agent in self.agents:
@@ -592,8 +596,8 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
                 agent.joints[3].speed / self.SPEED_KNEE,
                 1.0 if agent.legs[3].ground_contact else 0.0,
                 self.cargo.angle,
-                self.cargo.position[0] - pos[0],
-                self.cargo.position[1] - pos[1],
+                ((self.cargo.position[0] - pos[0]) - agent.init_cargo_rela_dist[0]) / self.cargo_length,
+                ((self.cargo.position[1] - pos[1]) - agent.init_cargo_rela_dist[1]) / (self.CARGO_HEIGHT * 5),
                 1.0 if agent.is_carrying else 0.0
             ]
             agent_state += [l.fraction for l in agent.lidar]
