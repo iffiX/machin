@@ -185,7 +185,7 @@ if __name__ == "__main__":
                                 format(i, ddpg_train_end - ddpg_train_begin, epoch, episode, global_step.get()))
 
             if render:
-                create_gif(frames, "{}/log/images/{}_{}_{}".format(root_dir, epoch, episode))
+                create_gif(frames, "{}/log/images/{}_{}_{}".format(root_dir, epoch, episode, global_step.get()))
 
             local_step.reset()
             episode_finished = False
