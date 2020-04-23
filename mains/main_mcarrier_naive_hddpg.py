@@ -110,7 +110,7 @@ if __name__ == "__main__":
 
             # model serialization
             if episode.get() % model_save_int == 0:
-                ddpg.save(model_dir, save_map, global_step.get() / 1000)
+                ddpg.save(model_dir, save_map, global_step.get())
                 logger.info("Saving model parameters, epoch={}, episode={}"
                             .format(epoch, episode))
 
@@ -182,10 +182,10 @@ if __name__ == "__main__":
                     ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
                     ddpg_train_end = time.time()
                     logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
-                                format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))
+                                format(i, ddpg_train_end - ddpg_train_begin, epoch, episode, global_step.get()))
 
             if render:
-                create_gif(frames, "{}/log/images/{}_{}".format(root_dir, epoch, episode))
+                create_gif(frames, "{}/log/images/{}_{}_{}".format(root_dir, epoch, episode))
 
             local_step.reset()
             episode_finished = False
