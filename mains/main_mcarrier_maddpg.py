@@ -52,10 +52,9 @@ class Critic(nn.Module):
         st_dim = state_dim * agent_num
         act_dim = action_dim * agent_num
 
-        self.fc1 = nn.Linear(st_dim + act_dim, 1024)
-        self.fc2 = nn.Linear(1024, 512)
-        self.fc3 = nn.Linear(512, 300)
-        self.fc4 = nn.Linear(300, 1)
+        self.fc1 = nn.Linear(st_dim + act_dim, 2048)
+        self.fc2 = nn.Linear(2048, 1024)
+        self.fc3 = nn.Linear(1024, 1)
 
     # obs: batch_size * obs_dim
     def forward(self, all_states, action, other_actions):
@@ -65,8 +64,7 @@ class Critic(nn.Module):
         state_action = t.cat([all_states, action], dim=1)
         q = t.relu(self.fc1(state_action))
         q = t.relu(self.fc2(q))
-        q = t.relu(self.fc3(q))
-        q = self.fc4(q)
+        q = self.fc3(q)
         return q
     
 

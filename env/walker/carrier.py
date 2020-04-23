@@ -158,7 +158,7 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
     MAX_MOVE_REWARD = 500
     MAX_CARRY_REWARD = 500
     GAME_OVER_PUNISH = 200
-    NOT_CARRYING_PUNISH = 10
+    NOT_CARRYING_PUNISH = 50
 
     FRICTION = 2.5
 
@@ -501,6 +501,7 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
         self.cargo.color1 = (0.5, 0.4, 0.9)
         self.cargo.color2 = (0.3, 0.3, 0.5)
         self.cargo_init_pos = [init_x, init_y]
+        self.cargo_last_pos = [init_x, init_y]
         self.cargo_length = length
 
     def reset(self):
@@ -611,12 +612,14 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
             # carrying cargo forward is also a way to receive reward
             sum_reward += cargo_reward
 
+            # MAYBE: differentiate cargo reward of agents by detecting is_carrying?
+
             # keep head straight
             sum_reward -= 5.0 * abs(state[0])
 
             # keep contact with cargo
-            # if not agent.is_carrying:
-            #    sum_reward -= self.NOT_CARRYING_PUNISH
+            if not agent.is_carrying:
+               sum_reward -= self.NOT_CARRYING_PUNISH
 
             agent_reward = sum_reward - self.prev_sum_reward[i]
             self.prev_sum_reward[i] = sum_reward
