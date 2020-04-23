@@ -20,15 +20,15 @@ action_dim = 4
 
 # configs
 restart = True
-max_epochs = 5
+max_epochs = 20
 max_episodes = 1000
 max_steps = 2000
 replay_size = 500000
 
-agent_num = 2
+agent_num = 3
 explore_noise_params = [(0, 0.2)] * action_dim
 q_increase_rate = 1
-q_decrease_rate = 1
+q_decrease_rate = 0.2
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/hdqn/"
 model_dir = root_dir + "model/"
@@ -110,7 +110,7 @@ if __name__ == "__main__":
 
             # model serialization
             if episode.get() % model_save_int == 0:
-                ddpg.save(model_dir, save_map, episode.get() + (epoch.get() - 1) * max_episodes)
+                ddpg.save(model_dir, save_map, global_step.get() / 1000)
                 logger.info("Saving model parameters, epoch={}, episode={}"
                             .format(epoch, episode))
 
