@@ -30,13 +30,14 @@ max_episodes = 1000
 max_steps = 100
 replay_size = 500000
 
-agent_num = 3
+agent_num = 1
 history_depth = 10
 neighbors = [-1, 1]
+neighbor_num = len(neighbors)
 noise_range = [(0, 0.2)] * action_dim
 nego_mean_anneal = 0.3
 nego_theta_anneal = 0.1
-nego_rounds = 2
+nego_rounds = 1
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/tcdn/"
 model_dir = root_dir + "model/"
@@ -64,19 +65,19 @@ if __name__ == "__main__":
     global_board.init(log_dir + "train_log")
     writer = global_board.writer
 
-    base_actor = SwarmActor(observe_dim, action_dim, history_depth, True, device)
-    base_actor_t = SwarmActor(observe_dim, action_dim, history_depth, True, device)
-    negotiator = SwarmNegotiator(observe_dim, action_dim, history_depth, True, device)
-    negotiator_t = SwarmNegotiator(observe_dim, action_dim, history_depth, True, device)
+    base_actor = SwarmActor(observe_dim, action_dim, history_depth, neighbor_num, True, device)
+    base_actor_t = SwarmActor(observe_dim, action_dim, history_depth, neighbor_num, True, device)
+    negotiator = SwarmNegotiator(observe_dim, action_dim, history_depth, neighbor_num, True, device)
+    negotiator_t = SwarmNegotiator(observe_dim, action_dim, history_depth, neighbor_num, True, device)
 
     # currently, all agents share the same two networks
     # TODO: implement K-Sub policies
     actor = WrappedActorNet(base_actor, negotiator)
     actor_t = WrappedActorNet(base_actor_t, negotiator_t)
-    critic = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, device))
-    critic_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, device))
-    critic2 = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, device))
-    critic2_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, device))
+    critic = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
+    critic_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
+    critic2 = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
+    critic2_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
 
     logger.info("Networks created")
 

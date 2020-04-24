@@ -6,10 +6,11 @@ from typing import Union
 
 
 class SwarmNegotiator(nn.Module):
-    def __init__(self, observe_dim, action_dim, history_depth, contiguous=True, device="cuda:0"):
+    def __init__(self, observe_dim, action_dim, history_depth, neighbor_num, contiguous=True, device="cuda:0"):
         super(SwarmNegotiator, self).__init__()
         in_dim = observe_dim + action_dim + 1
-        self.add_module("net", TCDNNet(in_dim, action_dim, history_depth + 1, additional_length=1,
+        seq_length = (history_depth + 1) * (neighbor_num + 1)
+        self.add_module("net", TCDNNet(in_dim, action_dim, seq_length, additional_length=1,
                                        final_process="tanh" if contiguous else "softmax", device=device))
         self.device = device
         self.observe_dim = observe_dim

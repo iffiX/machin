@@ -15,11 +15,12 @@ class CasualConv1d(nn.Module):
 
     def forward(self, input: t.Tensor):
         # Takes something of shape (N, in_channels, T),
-        # returns (N, out_channels, T) if stride = 1
+        # returns (N, out_channels, T) if stride = 1.
+        # removed length should be dilation * (kernel_size - 1) if stride = 1.
         length = input.shape[-1]
         out_length = (length + self.stride - 1) // self.stride
         out = self.conv1d(input)
-        return out[:, :, :out_length]
+        return out[:, :, :out_length].contiguous()
 
 
 class DenseBlock(nn.Module):
@@ -85,16 +86,15 @@ class AttentionBlock(nn.Module):
         query = self.linear_query(input)  # shape: (N, T, key_size)
         values = self.linear_values(input)  # shape: (N, T, value_size)
         raw = t.bmm(query, t.transpose(keys, 1, 2))  # shape: (N, T, T)
-        with t.no_grad():
-            tmp = raw.clone()
-            # fill with -inf so in softmax, elements will be 0
-            tmp.masked_fill_(mask, -float('inf'))
+        tmp = raw.clone()
+        # fill with -inf so in softmax, elements will be 0
+        tmp.masked_fill_(mask, -float('inf'))
         rel = t.softmax(tmp / self.sqrt_key_size,
                         dim=1)  # shape: (N, T, T), broadcasting over any slice [:, x, :], each row of the matrix
         tmp = t.bmm(rel, values)  # shape: (N, T, value_size)
 
         # shapes: (N, T, in_channels + value_size), (N, T, T), (N, T, T)
-        return t.cat((input, tmp), dim=2), rel, raw
+        return t.cat((input, tmp), dim=2), rel.detach(), raw.detach()
 
 
 class TCDNNet(nn.Module):
@@ -141,6 +141,7 @@ class TCDNNet(nn.Module):
         self.final_procecss = final_process
 
     def forward(self, input: t.Tensor, time_steps=None, additional=None, only_use_last=True):
+        # input is dim (N, T, in_channels)
         x = input
         raw, rel = [], []
         for i in range(self.att_num - 1):

@@ -6,10 +6,11 @@ from models.base.tcdnnet import TCDNNet
 
 
 class SwarmActor(nn.Module):
-    def __init__(self, observe_dim, action_dim, history_depth, contiguous=False, device="cuda:0"):
+    def __init__(self, observe_dim, action_dim, history_depth, neighbor_num, contiguous=False, device="cuda:0"):
         super(SwarmActor, self).__init__()
         in_dim = observe_dim + action_dim + 1
-        self.add_module("net", TCDNNet(in_dim, action_dim, history_depth + 1,
+        seq_length = (history_depth + 1) * (neighbor_num + 1)
+        self.add_module("net", TCDNNet(in_dim, action_dim, seq_length,
                                        final_process="tanh" if contiguous else "softmax", device=device))
 
         self.device = device
@@ -24,15 +25,18 @@ class SwarmActor(nn.Module):
                 history_time_steps: t.Tensor,
                 time_step: t.Tensor):
         # TODO: clip observe with small attention weight to 0
+        # shape: (B, neighbor_num+1, observation_dim)
         full_observe = t.cat((t.unsqueeze(observation, dim=1), neighbor_observation), dim=1)
 
 
         # observe is known, action and reward in current step is unknown, set to 0
+        # shape: (B, neighbor_num+1, action_dim+observation_dim+reward_dim)
         curr_state = t.zeros((full_observe.shape[0], full_observe.shape[1],
                               self.observe_dim + self.action_dim + 1),
                              dtype=full_observe.dtype, device=self.device)
         curr_state[:, :, :self.observe_dim] = full_observe.to(self.device)
 
+        # shape: (B, (neighbor_num+1) * history_depth, action_dim+observation_dim+reward_dim)
         curr_state = t.cat((history, curr_state), dim=1)
         time_steps = t.cat((history_time_steps, time_step), dim=1)
 
