@@ -31,8 +31,8 @@ max_steps = 2000
 replay_size = 500000
 
 agent_num = 1
-history_depth = 10
-neighbors = [-1, 1]
+history_depth = 2
+neighbors = [-1]
 neighbor_num = len(neighbors)
 explore_noise_params = [(0, 0.2)] * action_dim
 nego_mean_anneal = 0.3
