@@ -200,7 +200,8 @@ if __name__ == "__main__":
             if global_step.get() > ddpg_warmup_steps:
                 for i in range(local_step.get()):
                     ddpg_train_begin = time.time()
-                    ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
+                    #ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
+                    ddpg.update()
                     ddpg_train_end = time.time()
                     logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
                                 format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))

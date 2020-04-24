@@ -239,7 +239,8 @@ if __name__ == "__main__":
                 for i in range(local_step.get()):
                     ddpg_train_begin = time.time()
                     # if using non-batched agents, set concatenate_samples=False
-                    ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
+                    # ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
+                    ddpg.update()
                     ddpg.update_lr_scheduler()
                     ddpg_train_end = time.time()
                     logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".

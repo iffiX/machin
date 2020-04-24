@@ -129,7 +129,6 @@ if __name__ == "__main__":
                     old_state = state
 
                     # agent model inference
-
                     for ag in range(agent_num):
                         if not render:
                             actions[:, ag * action_dim: (ag + 1) * action_dim] = ddpg.act_with_noise(
