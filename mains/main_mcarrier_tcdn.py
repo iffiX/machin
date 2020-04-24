@@ -4,7 +4,6 @@ import torch.nn as nn
 
 from models.frameworks.ddpg_td3 import DDPG_TD3
 from models.frameworks.ddpg import DDPG
-from models.noise import OrnsteinUhlenbeckNoise
 from models.tcdn.actor import SwarmActor, WrappedActorNet
 from models.tcdn.critic import SwarmCritic, WrappedCriticNet
 from models.tcdn.negotiatior import SwarmNegotiator
@@ -16,6 +15,7 @@ from utils.tensor_board import global_board
 from utils.helper_classes import Counter
 from utils.prep import prep_dir_default
 from utils.args import get_args
+from utils.checker import check_model
 
 from env.walker.carrier import BipedalMultiCarrier
 
@@ -25,20 +25,19 @@ action_dim = 4
 
 # configs
 restart = True
-# max_batch = 8
 max_epochs = 20
 max_episodes = 1000
-max_steps = 100
+max_steps = 2000
 replay_size = 500000
 
 agent_num = 1
 history_depth = 10
 neighbors = [-1, 1]
 neighbor_num = len(neighbors)
-noise_range = [(0, 0.2)] * action_dim
+explore_noise_params = [(0, 0.2)] * action_dim
 nego_mean_anneal = 0.3
 nego_theta_anneal = 0.1
-nego_rounds = 1
+nego_rounds = 0
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/tcdn/"
 model_dir = root_dir + "model/"
@@ -49,7 +48,7 @@ save_map = {}
 # lr: learning rate, int: interval
 # warm up should be less than one epoch
 ddpg_update_batch_size = 100
-ddpg_warmup_steps = 20
+ddpg_warmup_steps = 200
 model_save_int = 100  # in episodes
 profile_int = 50  # in episodes
 
@@ -110,7 +109,10 @@ if __name__ == "__main__":
     episode_finished = False
     global_step = Counter()
     local_step = Counter()
-    noise = OrnsteinUhlenbeckNoise([1], 0.5, 0.1)
+
+    #check_model(writer, critic, global_step, name="critic")
+    #check_model(writer, base_actor, global_step, name="actor")
+
     while epoch < max_epochs:
         epoch.count()
         logger.info("Begin epoch {}".format(epoch))
@@ -172,9 +174,9 @@ if __name__ == "__main__":
                         actions[:, ag * action_dim: (ag + 1) * action_dim] = agents[ag].final_step()
 
                     if not render:
-                        actions = ddpg.add_uniform_noise_to_action(actions,
-                                                                   noise_range * agent_num,
-                                                                   1)
+                        actions = ddpg.add_normal_noise_to_action(actions,
+                                                                  explore_noise_params * agent_num,
+                                                                  1)
 
                     actions = t.clamp(actions, min=-1, max=1)
                     state, reward, episode_finished, info = env.step(actions[0].to("cpu"))

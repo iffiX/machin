@@ -341,10 +341,7 @@ class SwarmAgent:
                                  self.negotiate_rate)
 
         # dim (B, action_dim)
-        if self.contiguous:
-            self.action = self.action + self.negotiate_rate * change
-        else:
-            self.action = (self.action + self.negotiate_rate * change) / (1 + self.negotiate_rate)
+        self.action = (self.action + self.negotiate_rate * change) / (1 + self.negotiate_rate)
 
         self.negotiate_rate_all.append(self.negotiate_rate.clone())
         self._update_negotiate_rate()
