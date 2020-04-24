@@ -3,6 +3,12 @@ import re
 import torch
 import shutil
 
+def prep_clear_dir(dir):
+    file_list = [f for f in os.listdir(dir)]
+    for f in file_list:
+        os.remove(os.path.join(dir, f))
+
+
 def prep_create_dirs(dirs):
     """
     dirs - a list of directories to create if these directories are not found
@@ -13,7 +19,7 @@ def prep_create_dirs(dirs):
             os.makedirs(dir_)
 
 
-def prep_dir_default(root_dir):
+def prep_dir_default(root_dir, clear_old=False):
     if not os.path.exists(root_dir + "/model"):
         os.mkdir(root_dir + "/model")
     if not os.path.exists(root_dir + "/log"):
@@ -25,6 +31,10 @@ def prep_dir_default(root_dir):
         os.mkdir(root_dir + "/log/train_log")
     if not os.path.exists(root_dir + "/log/images"):
         os.mkdir(root_dir + "/log/images")
+
+    if clear_old:
+        prep_clear_dir(root_dir + "/model")
+        prep_clear_dir(root_dir + "/log/images")
 
 
 def prep_load_model(model_dir, network_map, version=-1, quiet=False):

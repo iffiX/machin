@@ -25,7 +25,7 @@ max_episodes = 1000
 max_steps = 2000
 replay_size = 500000
 
-agent_num = 3
+agent_num = 2
 explore_noise_params = [(0, 0.2)] * action_dim
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/maddpg/"
@@ -38,7 +38,7 @@ save_map = {}
 # warm up should be less than one epoch
 ddpg_update_batch_size = 100
 ddpg_warmup_steps = 200
-ddpg_average_target_int = 500
+ddpg_average_target_int = 100
 model_save_int = 200  # in episodes
 profile_int = 50  # in episodes
 
@@ -52,16 +52,13 @@ class Critic(nn.Module):
         st_dim = state_dim * agent_num
         act_dim = action_dim * agent_num
 
-        self.fc1 = nn.Linear(st_dim + act_dim, 2048)
-        self.fc2 = nn.Linear(2048, 1024)
-        self.fc3 = nn.Linear(1024, 1)
+        self.fc1 = nn.Linear(st_dim + act_dim, 1200)
+        self.fc2 = nn.Linear(1200, 900)
+        self.fc3 = nn.Linear(900, 1)
 
     # obs: batch_size * obs_dim
-    def forward(self, all_states, action, other_actions):
-        if other_actions is not None:
-            # in case agent num = 1
-            action = t.cat((action, other_actions), dim=1)
-        state_action = t.cat([all_states, action], dim=1)
+    def forward(self, all_states, all_actions):
+        state_action = t.cat([all_states, all_actions], dim=1)
         q = t.relu(self.fc1(state_action))
         q = t.relu(self.fc2(q))
         q = self.fc3(q)
@@ -176,12 +173,7 @@ if __name__ == "__main__":
                         ddpg.store_observe({"state": {"state": old_state[ag * observe_dim: (ag + 1) * observe_dim]
                                                                .unsqueeze(0).clone(),
                                                       "all_states": old_state.unsqueeze(0).clone()},
-                                            "action": {"action": actions[:, ag * action_dim:(ag + 1) * action_dim]
-                                                                 .clone()},
-                                            "other_actions": {
-                                                "other_actions": t.cat((actions[:, :ag * action_dim],
-                                                                        actions[:, (ag + 1) * action_dim:]), dim=1)
-                                            },
+                                            "action": {"all_actions": actions.clone()},
                                             "next_state": {"state": state[ag * observe_dim: (ag + 1) * observe_dim]
                                                                     .unsqueeze(0).clone(),
                                                            "all_states": state.unsqueeze(0).clone()},

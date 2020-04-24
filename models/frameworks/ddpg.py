@@ -54,13 +54,20 @@ def hard_update(target_net: nn.Module,
         target_param.data.copy_(param.data)
 
 
-def safe_call(model, *named_args):
+def safe_call(model, *named_args, required_argument=()):
     """
     Call a model and discard unnecessary arguments
 
     """
     args = inspect.getfullargspec(model.forward).args
     args_dict = {}
+    if any(arg not in args for arg in required_argument):
+        missing = []
+        for arg in required_argument:
+            if arg not in args:
+                missing.append(arg)
+        raise RuntimeError("Model missing required argument field(s): {}, "
+                           "check your store_observe() function.".format(missing))
     for na in named_args:
         for k, v in na.items():
             if k in args:

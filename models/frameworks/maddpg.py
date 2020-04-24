@@ -13,71 +13,6 @@ from typing import Union, List, Tuple
 from utils.visualize import visualize_graph
 
 
-class MADDPG_ReplayBuffer(ReplayBuffer):
-    def __init__(self, buffer_size):
-        super(MADDPG_ReplayBuffer, self).__init__(buffer_size)
-
-    def sample_batch(self, batch_size, concatenate=True, device=None, sample_keys=None):
-        """
-        Sample a random batch from replay buffer.
-
-        Args:
-            batch_size: Maximum size of the sample.
-            device:     Device to copy to.
-            sample_keys: If sample_keys is specified, then only specified keys
-                         of the transition object will be sampled and stacked.
-
-        Returns:
-            None if no batch is sampled.
-            Or a tuple of sampled results, the tensors in "state", "action" and
-            "next_state" dictionaries will be concatenated in dimension 0. Values
-            of "reward" and other custom keys will be concatenated together as tuples.
-        """
-        if self.size() < batch_size:
-            batch = random.sample(self.buffer, self.size())
-            real_num = self.size()
-        else:
-            batch = random.sample(self.buffer, batch_size)
-            real_num = batch_size
-
-        if len(batch) == 0:
-            return 0, ()
-
-        if sample_keys is None:
-            sample_keys = batch[0].keys()
-        result = []
-        for k in sample_keys:
-            if k in ("state", "action", "other_actions", "next_state"):
-                tmp_dict = {}
-                for sub_k in batch[0][k].keys():
-                    if concatenate:
-                        tmp_dict[sub_k] = torch.cat([item[k][sub_k] for item in batch], dim=0) \
-                                               .to(device)
-                    else:
-                        if batch_size == 1:
-                            tmp_dict[sub_k] = batch[0][k][sub_k]
-                        else:
-                            tmp_dict[sub_k] = [item[k][sub_k] for item in batch]
-                result.append(tmp_dict)
-            elif k == "reward":
-                if torch.is_tensor(batch[0][k]) and len(batch[0][k].shape) > 0:
-                    result.append(torch.cat([item[k] for item in batch], dim=0).to(device).view(real_num, -1))
-                else:
-                    result.append(torch.tensor([float(item[k]) for item in batch], device=device).view(real_num, -1))
-            elif k == "terminal":
-                result.append(torch.tensor([float(item[k]) for item in batch], device=device).view(real_num, -1))
-            elif k == "*":
-                # select custom keys
-                for remain_k in batch[0].keys():
-                    if remain_k not in ("state", "action", "other_actions", "next_state", "reward", "terminal"):
-                        result.append(tuple(item[remain_k] for item in batch))
-            else:
-                result.append(tuple(item[k] for item in batch))
-        return real_num, tuple(result)
-
-
-
-
 class MADDPG(TorchFramework):
     # TODO: multi-threading &|| multi processing
     def __init__(self,
@@ -95,9 +30,7 @@ class MADDPG(TorchFramework):
                  update_rate=0.005,
                  discount=0.99,
                  replay_size=100000,
-                 reward_func=None,
-                 action_trans_func=None,
-                 action_ccat_func=None):
+                 reward_func=None):
         """
         Initialize DDPG framework.
         """
@@ -105,7 +38,7 @@ class MADDPG(TorchFramework):
         self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
-        self.rpb = MADDPG_ReplayBuffer(replay_size)
+        self.rpb = ReplayBuffer(replay_size)
 
         self.actors = actors
         self.actor_targets = actor_targets
@@ -132,8 +65,6 @@ class MADDPG(TorchFramework):
         self.criterion = criterion
 
         self.reward_func = MADDPG.bellman_function if reward_func is None else reward_func
-        self.action_trans_func = MADDPG.action_trans_func if action_trans_func is None else action_trans_func
-        self.action_ccat_func = MADDPG.action_ccat_func if action_ccat_func is None else action_ccat_func
 
         super(MADDPG, self).__init__()
         self.set_top([])
@@ -199,7 +130,7 @@ class MADDPG(TorchFramework):
                     * noise_param[1] + noise_param[0]
         return action + noise * ratio
 
-    def criticize(self, index, state, action, other_actions, use_target=False):
+    def criticize(self, index, state, all_actions, use_target=False):
         """
         Use the first critic network to evaluate current value.
 
@@ -209,9 +140,11 @@ class MADDPG(TorchFramework):
             State and action will be concatenated in dimension 1
         """
         if use_target:
-            return safe_call(self.critic_targets[index], state, action, other_actions)
+            return safe_call(self.critic_targets[index], state, all_actions,
+                             required_argument=("all_states", "all_actions"))
         else:
-            return safe_call(self.critics[index], state, action, other_actions)
+            return safe_call(self.critics[index], state, all_actions,
+                             required_argument=("all_states", "all_actions"))
 
     def store_observe(self, transition):
         """
@@ -229,13 +162,6 @@ class MADDPG(TorchFramework):
         """
         self.reward_func = rf
 
-    def set_action_transform_func(self, tf):
-        """
-        Set action transform function. The transform function is used to transform the output
-        of actor to the input of critic
-        """
-        self.action_trans_func = tf
-
     def set_update_rate(self, rate=0.01):
         self.update_rate = rate
 
@@ -252,32 +178,32 @@ class MADDPG(TorchFramework):
 
         Note: currently agents share the same replay buffer
         """
-        batch_size, (state, action, other_actions, reward, next_state, terminal, *others) = \
+        batch_size, (state, action, reward, next_state, terminal, *others) = \
             self.rpb.sample_batch(self.batch_size, concatenate_samples, self.device,
-                                  sample_keys=["state", "action", "other_actions",
-                                               "reward", "next_state", "terminal", "*"])
+                                  sample_keys=["state", "action", "reward", "next_state", "terminal", "*"])
 
         # Update critic network first
         # Generate value reference :math: `y_i` using target actor and target critic
         total_act_policy_loss = 0
         total_value_loss = 0
+
+        with torch.no_grad():
+            all_actions = [self.act(ag, next_state, True) for ag in range(len(self.actors))]
+
         for i in range(len(self.actors)):
-            others = [k for k in range(len(self.actors)) if k != i]
             with torch.no_grad():
-                next_action, next_other_actions = self.action_trans_func(
-                    self.act(i, next_state, True),
-                    self.action_ccat_func(
-                        [self.act(k, next_state, True) for k in others]
-                    ),
-                    next_state
-                )
-                next_value = self.criticize(i, next_state, next_action, next_other_actions, True)
+                # only copy list, not content
+                next_all_actions = copy.copy(all_actions)
+                next_all_actions[i] = self.act(i, next_state, True)
+                next_all_actions = {"all_actions": torch.cat(next_all_actions, dim=1)}
+                next_value = self.criticize(i, next_state, next_all_actions, True)
                 next_value = next_value.view(batch_size, -1)
                 y_i = self.reward_func(reward, self.discount, next_value, terminal, others)
 
-            cur_value = self.criticize(i, state, action, other_actions)
+            # action contain actions of all agents, same for state
+            cur_value = self.criticize(i, state, action)
             value_loss = self.criterion(cur_value, y_i)
-            total_value_loss += value_loss
+            total_value_loss += value_loss.detach()
 
             if update_value:
                 self.critics[i].zero_grad()
@@ -285,9 +211,10 @@ class MADDPG(TorchFramework):
                 self.critic_optims[i].step()
 
             # Update actor network
-            # TODO: simplify this line
-            cur_action, _ = self.action_trans_func(self.act(i, state), other_actions, state)
-            act_value = self.criticize(i, state, cur_action, other_actions)
+            cur_all_actions = copy.copy(all_actions)
+            cur_all_actions[i] = self.act(i, state)
+            cur_all_actions = {"all_actions": torch.cat(cur_all_actions, dim=1)}
+            act_value = self.criticize(i, state, cur_all_actions)
 
             # "-" is applied because we want to maximize J_b(u),
             # but optimizer workers by minimizing the target
@@ -367,16 +294,5 @@ class MADDPG(TorchFramework):
     @staticmethod
     def bellman_function(reward, discount, next_value, terminal, *_):
         return reward + discount * (1 - terminal) * next_value
-
-    @staticmethod
-    def action_trans_func(action, other_actions, *_):
-        return {"action": action}, {"other_actions": other_actions}
-
-    @staticmethod
-    def action_ccat_func(raw_other_actions_list):
-        if len(raw_other_actions_list) > 0:
-            return torch.cat([act for act in raw_other_actions_list], dim=1)
-        else:
-            return None
 
 
