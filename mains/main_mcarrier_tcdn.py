@@ -37,7 +37,7 @@ neighbor_num = len(neighbors)
 explore_noise_params = [(0, 0.2)] * action_dim
 nego_mean_anneal = 0.3
 nego_theta_anneal = 0.1
-nego_rounds = 1
+nego_rounds = 0
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/tcdn/"
 model_dir = root_dir + "model/"
@@ -76,13 +76,11 @@ if __name__ == "__main__":
     actor_t = WrappedActorNet(base_actor_t, negotiator_t)
     critic = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
     critic_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
-    #critic2 = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
-    #critic2_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
 
     logger.info("Networks created")
 
     ddpg = DDPG(
-                actor, actor_t, critic, critic_t, #critic2, critic2_t,
+                actor, actor_t, critic, critic_t,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
                 discount=0.99,
                 update_rate=0.005,
