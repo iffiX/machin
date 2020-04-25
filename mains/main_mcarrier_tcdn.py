@@ -76,13 +76,13 @@ if __name__ == "__main__":
     actor_t = WrappedActorNet(base_actor_t, negotiator_t)
     critic = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
     critic_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
-    critic2 = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
-    critic2_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
+    #critic2 = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
+    #critic2_t = WrappedCriticNet(SwarmCritic(observe_dim, action_dim, history_depth, neighbor_num, device))
 
     logger.info("Networks created")
 
-    ddpg = DDPG_TD3(
-                actor, actor_t, critic, critic_t, critic2, critic2_t,
+    ddpg = DDPG(
+                actor, actor_t, critic, critic_t, #critic2, critic2_t,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
                 discount=0.99,
                 update_rate=0.005,

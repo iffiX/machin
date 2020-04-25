@@ -27,7 +27,7 @@ max_steps = 2000
 replay_size = 500000
 
 agent_num = 2
-explore_noise_params = [(0, 0.2)] * action_dim
+explore_noise_params = [(0, 0.3)] * action_dim
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/maddpg/"
 model_dir = root_dir + "model/"
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     ddpg = MADDPG(
                 actors, actor_ts, critics, critic_ts,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
-                discount=0.99,
+                discount=0.95,
                 update_rate=0.005,
                 batch_size=ddpg_update_batch_size,
                 learning_rate=0.001,
@@ -207,8 +207,8 @@ if __name__ == "__main__":
                     logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
                                 format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))
 
-            if episode.get() % ddpg_average_target_int == 0:
-                ddpg.average_target_parameters()
+            # if episode.get() % ddpg_average_target_int == 0:
+            #     ddpg.average_target_parameters()
 
             if render:
                 create_gif(frames, "{}/log/images/{}_{}_{}".format(root_dir, epoch, episode, global_step.get()))

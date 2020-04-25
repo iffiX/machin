@@ -98,7 +98,7 @@ class MADDPG(TorchFramework):
                                                     noise_param, ratio)
         elif mode == "normal":
             return self.add_normal_noise_to_action(self.act(index, state, use_target),
-                                                    noise_param, ratio)
+                                                   noise_param, ratio)
         else:
             raise RuntimeError("Unknown noise type: " + str(mode))
 
@@ -190,7 +190,7 @@ class MADDPG(TorchFramework):
         with torch.no_grad():
             all_next_actions_t = [self.act(ag, next_state, True) for ag in range(len(self.actors))]
             all_next_actions_t = {"all_actions": torch.cat(all_next_actions_t, dim=1)}
-            all_actions = [self.act(ag, state) for ag in range(len(self.actors))]
+            # all_actions = [self.act(ag, state) for ag in range(len(self.actors))]
 
         for i in range(len(self.actors)):
             with torch.no_grad():
@@ -209,9 +209,13 @@ class MADDPG(TorchFramework):
                 self.critic_optims[i].step()
 
             # Update actor network
-            cur_all_actions = copy.deepcopy(all_actions)
-            cur_all_actions[i] = self.act(i, state)
-            cur_all_actions = {"all_actions": torch.cat(cur_all_actions, dim=1)}
+            # cur_all_actions = copy.deepcopy(all_actions)
+            # cur_all_actions[i] = self.act(i, state)
+            # cur_all_actions = {"all_actions": torch.cat(cur_all_actions, dim=1)}
+            cur_all_actions = action["all_actions"].clone().detach()
+            action_dim = int(cur_all_actions.shape[-1] / len(self.actors))
+            cur_all_actions[:, i * action_dim: (i + 1) * action_dim] = self.act(i, state)
+            cur_all_actions = {"all_actions": cur_all_actions}
             act_value = self.criticize(i, state, cur_all_actions)
 
             # "-" is applied because we want to maximize J_b(u),
@@ -292,5 +296,3 @@ class MADDPG(TorchFramework):
     @staticmethod
     def bellman_function(reward, discount, next_value, terminal, *_):
         return reward + discount * (1 - terminal) * next_value
-
-
