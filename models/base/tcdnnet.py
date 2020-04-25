@@ -101,7 +101,7 @@ class TCDNNet(nn.Module):
     def __init__(self, in_channels, out_channels, seq_length, additional_length=0,
                  att_layers=((64, 32), (128, 64)),
                  tc_layers=(32,),
-                 fc_layers=(400,),
+                 fc_layers=(),
                  activation=None,
                  final_process=None,
                  device="cuda:0"):

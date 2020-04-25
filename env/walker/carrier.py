@@ -625,8 +625,9 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
             self.prev_sum_reward[i] = sum_reward
 
             ## punishment for using power
-            for a in action:
-                agent_reward -= 0.00035 * self.MOTORS_TORQUE * np.clip(np.abs(a), 0, 1)
+            # may cause local minimum (i.e. agents not moving)
+            # for a in action:
+            #     agent_reward -= 0.00035 * self.MOTORS_TORQUE * np.clip(np.abs(a), 0, 1)
                 # normalized to about -50.0 using heuristic, more optimal agent should spend less
 
             reward[i] = agent_reward
