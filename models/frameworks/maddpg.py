@@ -188,15 +188,13 @@ class MADDPG(TorchFramework):
         total_value_loss = 0
 
         with torch.no_grad():
-            all_actions = [self.act(ag, next_state, True) for ag in range(len(self.actors))]
+            all_next_actions_t = [self.act(ag, next_state, True) for ag in range(len(self.actors))]
+            all_next_actions_t = {"all_actions": torch.cat(all_next_actions_t, dim=1)}
+            all_actions = [self.act(ag, state) for ag in range(len(self.actors))]
 
         for i in range(len(self.actors)):
             with torch.no_grad():
-                # only copy list, not content
-                next_all_actions = copy.copy(all_actions)
-                next_all_actions[i] = self.act(i, next_state, True)
-                next_all_actions = {"all_actions": torch.cat(next_all_actions, dim=1)}
-                next_value = self.criticize(i, next_state, next_all_actions, True)
+                next_value = self.criticize(i, next_state, all_next_actions_t, True)
                 next_value = next_value.view(batch_size, -1)
                 y_i = self.reward_func(reward, self.discount, next_value, terminal, others)
 
@@ -211,7 +209,7 @@ class MADDPG(TorchFramework):
                 self.critic_optims[i].step()
 
             # Update actor network
-            cur_all_actions = copy.copy(all_actions)
+            cur_all_actions = copy.deepcopy(all_actions)
             cur_all_actions[i] = self.act(i, state)
             cur_all_actions = {"all_actions": torch.cat(cur_all_actions, dim=1)}
             act_value = self.criticize(i, state, cur_all_actions)

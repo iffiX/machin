@@ -20,6 +20,7 @@ action_dim = 4
 
 # configs
 restart = True
+clear_old = True
 max_epochs = 20
 max_episodes = 1000
 max_steps = 2000
@@ -72,7 +73,7 @@ if __name__ == "__main__":
     total_steps = max_epochs * max_episodes * max_steps
 
     # preparations
-    prep_dir_default(root_dir)
+    prep_dir_default(root_dir, clear_old=clear_old)
     logger.info("Directories prepared.")
     global_board.init(log_dir + "train_log")
     writer = global_board.writer
@@ -200,7 +201,7 @@ if __name__ == "__main__":
             if global_step.get() > ddpg_warmup_steps:
                 for i in range(local_step.get()):
                     ddpg_train_begin = time.time()
-                    #ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
+                    # ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
                     ddpg.update()
                     ddpg_train_end = time.time()
                     logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
