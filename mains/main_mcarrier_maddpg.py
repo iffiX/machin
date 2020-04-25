@@ -27,7 +27,7 @@ max_steps = 2000
 replay_size = 500000
 
 agent_num = 2
-explore_noise_params = [(0, 0.3)] * action_dim
+explore_noise_params = [(0, 0.2)] * action_dim
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/maddpg/"
 model_dir = root_dir + "model/"
@@ -37,7 +37,7 @@ save_map = {}
 # train configs
 # lr: learning rate, int: interval
 # warm up should be less than one epoch
-ddpg_update_batch_size = 100
+ddpg_update_batch_size = 256
 ddpg_warmup_steps = 200
 ddpg_average_target_int = 100
 model_save_int = 200  # in episodes
@@ -53,16 +53,18 @@ class Critic(nn.Module):
         st_dim = state_dim * agent_num
         act_dim = action_dim * agent_num
 
-        self.fc1 = nn.Linear(st_dim + act_dim, 1200)
-        self.fc2 = nn.Linear(1200, 900)
-        self.fc3 = nn.Linear(900, 1)
+        self.fc1 = nn.Linear(st_dim, 1024)
+        self.fc2 = nn.Linear(1024 + act_dim, 512)
+        self.fc3 = nn.Linear(512, 300)
+        self.fc4 = nn.Linear(300, 1)
 
     # obs: batch_size * obs_dim
     def forward(self, all_states, all_actions):
-        state_action = t.cat([all_states, all_actions], dim=1)
-        q = t.relu(self.fc1(state_action))
+        q = t.relu(self.fc1(all_states))
+        q = t.cat([q, all_actions], dim=1)
         q = t.relu(self.fc2(q))
-        q = self.fc3(q)
+        q = t.relu(self.fc3(q))
+        q = self.fc4(q)
         return q
     
 
@@ -89,9 +91,9 @@ if __name__ == "__main__":
                 actors, actor_ts, critics, critic_ts,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
                 discount=0.99,
-                update_rate=0.005,
+                update_rate=1e-3,
                 batch_size=ddpg_update_batch_size,
-                learning_rate=0.001,
+                learning_rate=3e-4,
                 replay_size=replay_size)
 
     if not restart:
@@ -201,8 +203,8 @@ if __name__ == "__main__":
             if global_step.get() > ddpg_warmup_steps:
                 for i in range(local_step.get()):
                     ddpg_train_begin = time.time()
-                    # ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
-                    ddpg.update()
+                    ddpg.update(update_policy=i % 2 == 0)
+                    # ddpg.update()
                     ddpg_train_end = time.time()
                     logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
                                 format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))

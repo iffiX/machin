@@ -47,7 +47,7 @@ save_map = {}
 # train configs
 # lr: learning rate, int: interval
 # warm up should be less than one epoch
-ddpg_update_batch_size = 100
+ddpg_update_batch_size = 256
 ddpg_warmup_steps = 200
 model_save_int = 100  # in episodes
 profile_int = 50  # in episodes
@@ -83,8 +83,8 @@ if __name__ == "__main__":
                 actor, actor_t, critic, critic_t,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
                 discount=0.99,
-                update_rate=0.005,
-                learning_rate=0.001,
+                update_rate=1e-3,
+                learning_rate=1e-4,
                 replay_size=replay_size,
                 batch_size=ddpg_update_batch_size)
 
