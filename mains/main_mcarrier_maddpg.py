@@ -93,7 +93,7 @@ if __name__ == "__main__":
                 discount=0.99,
                 update_rate=1e-3,
                 batch_size=ddpg_update_batch_size,
-                learning_rate=3e-4,
+                learning_rate=1e-3,
                 replay_size=replay_size)
 
     if not restart:

@@ -28,11 +28,11 @@ restart = True
 max_epochs = 20
 max_episodes = 1000
 max_steps = 2000
-replay_size = 500000
+replay_size = 400000
 
-agent_num = 1
+agent_num = 2
 history_depth = 2
-neighbors = [-1]
+neighbors = [-1, 1]
 neighbor_num = len(neighbors)
 explore_noise_params = [(0, 0.35)] * action_dim
 nego_mean_anneal = 0.3
