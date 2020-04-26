@@ -28,7 +28,7 @@ restart = True
 max_epochs = 20
 max_episodes = 1000
 max_steps = 2000
-replay_size = 400000
+replay_size = 100000
 
 agent_num = 2
 history_depth = 2

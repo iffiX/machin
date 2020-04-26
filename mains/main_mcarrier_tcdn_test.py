@@ -26,11 +26,10 @@ max_episodes = 1000
 max_steps = 2000
 replay_size = 400000
 
-agent_num = 2
+agent_num = 1
 history_depth = 2
-neighbors = [-1, 1]
+neighbors = [-1]
 neighbor_num = len(neighbors)
-explore_noise_params = [(0, 0.35)] * action_dim
 nego_mean_anneal = 0.3
 nego_theta_anneal = 0.1
 nego_rounds = 0
@@ -145,7 +144,9 @@ if __name__ == "__main__":
             agent.update_history(local_step.get())
             agent.reset_negotiate()
         step_end = time.time()
-
+        logger.info("Step {} completed in {:.3f} s, epoch={}, episode={}".
+                    format(local_step, step_end - step_begin, epoch, episode))
+        
     create_gif(frames, "{}/test".format(load_dir))
     episode_end = time.time()
     logger.info("Episode completed in {:.3f} s".format(episode_end - episode_begin))
