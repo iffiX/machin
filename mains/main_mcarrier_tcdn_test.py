@@ -146,7 +146,7 @@ if __name__ == "__main__":
         step_end = time.time()
         logger.info("Step {} completed in {:.3f} s, epoch={}, episode={}".
                     format(local_step, step_end - step_begin, epoch, episode))
-        
+
     create_gif(frames, "{}/test".format(load_dir))
     episode_end = time.time()
     logger.info("Episode completed in {:.3f} s".format(episode_end - episode_begin))
