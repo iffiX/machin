@@ -47,9 +47,14 @@ class MADDPG(TorchFramework):
         self.actor_optims = [optimizer(ac.parameters(), lr=learning_rate) for ac in actors]
         self.critic_optims = [optimizer(cr.parameters(), lr=learning_rate) for cr in critics]
 
-        # result parameters will be averaged before saving
-        self.actor_target = copy.deepcopy(actor_targets[0])
-        self.critic_target = copy.deepcopy(critic_targets[0])
+        # create wrapper for target actors and target critics
+        self.actor_target = nn.Module()
+        self.critic_target = nn.Module()
+        for actor_t, idx in zip(self.actor_targets, range(len(self.actor_targets))):
+            self.actor_target.add_module("actor_{}".format(idx), actor_t)
+
+        for critic_t, idx in zip(self.critic_targets, range(len(self.critic_targets))):
+            self.critic_target.add_module("critic_{}".format(idx), critic_t)
 
         # Make sure target and online networks have the same weight
         with torch.no_grad():
@@ -258,30 +263,18 @@ class MADDPG(TorchFramework):
                 hard_update(critic, self.critic_target)
 
     def save(self, model_dir, network_map, version=0):
-        # average parameters
-        with torch.no_grad():
-            actor_params = [net.parameters() for net in [self.actor_target] + self.actor_targets]
-            for target_param, *params in zip(*actor_params):
-                target_param.data.copy_(
-                    torch.mean(torch.stack([p.to(target_param.device) for p in params], dim=0), dim=0)
-                )
-            critic_params = [net.parameters() for net in [self.critic_target] + self.critic_targets]
-            for target_param, *params in zip(*critic_params):
-                target_param.data.copy_(
-                    torch.mean(torch.stack([p.to(target_param.device) for p in params], dim=0), dim=0)
-                )
         super(MADDPG, self).save(model_dir, network_map, version)
 
     def average_target_parameters(self):
         with torch.no_grad():
-            actor_params = [net.parameters() for net in [self.actor_target] + self.actor_targets]
+            actor_params = [net.parameters() for net in self.actor_targets]
             for target_param, *params in zip(*actor_params):
                 target_param.data.copy_(
                     torch.mean(torch.stack([p.to(target_param.device) for p in params], dim=0), dim=0)
                 )
                 for p in params:
                     p.data.copy_(target_param.to(p.device))
-            critic_params = [net.parameters() for net in [self.critic_target] + self.critic_targets]
+            critic_params = [net.parameters() for net in self.critic_targets]
             for target_param, *params in zip(*critic_params):
                 target_param.data.copy_(
                     torch.mean(torch.stack([p.to(target_param.device) for p in params], dim=0), dim=0)

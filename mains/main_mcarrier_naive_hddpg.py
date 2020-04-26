@@ -59,8 +59,6 @@ if __name__ == "__main__":
     actor_t = Actor(observe_dim, action_dim, 1).to(device)
     critic = Critic(observe_dim, action_dim).to(device)
     critic_t = Critic(observe_dim, action_dim).to(device)
-    critic2 = Critic(observe_dim, action_dim).to(device)
-    critic2_t = Critic(observe_dim, action_dim).to(device)
 
     logger.info("Networks created")
 

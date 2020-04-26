@@ -1,6 +1,7 @@
 import time
 import torch as t
 import torch.nn as nn
+from torch.optim.lr_scheduler import LambdaLR
 
 from models.frameworks.maddpg import MADDPG
 from models.naive.env_walker import Actor
@@ -11,6 +12,7 @@ from utils.tensor_board import global_board
 from utils.helper_classes import Counter
 from utils.prep import prep_dir_default
 from utils.args import get_args
+from utils.train import gen_learning_rate_func
 
 from env.walker.carrier import BipedalMultiCarrier
 
@@ -19,8 +21,8 @@ observe_dim = 28
 action_dim = 4
 
 # configs
-restart = True
-clear_old = True
+restart = False
+clear_old = False
 max_epochs = 20
 max_episodes = 1000
 max_steps = 2000
@@ -40,7 +42,7 @@ save_map = {}
 ddpg_update_batch_size = 256
 ddpg_warmup_steps = 200
 ddpg_average_target_int = 100
-model_save_int = 200  # in episodes
+model_save_int = 1  # in episodes
 profile_int = 50  # in episodes
 
 
@@ -87,13 +89,16 @@ if __name__ == "__main__":
 
     logger.info("Networks created")
 
+    actor_lr_func = gen_learning_rate_func([[0, 1e-4]])
+    critic_lr_func = gen_learning_rate_func([[0, 1e-3]])
     ddpg = MADDPG(
                 actors, actor_ts, critics, critic_ts,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
                 discount=0.99,
                 update_rate=1e-3,
                 batch_size=ddpg_update_batch_size,
-                learning_rate=1e-3,
+                lr_scheduler=LambdaLR,
+                lr_scheduler_params=[[actor_lr_func], [critic_lr_func]],
                 replay_size=replay_size)
 
     if not restart:
@@ -204,7 +209,7 @@ if __name__ == "__main__":
                 for i in range(local_step.get()):
                     ddpg_train_begin = time.time()
                     ddpg.update(update_policy=i % 2 == 0)
-                    # ddpg.update()
+                    ddpg.update_lr_scheduler()
                     ddpg_train_end = time.time()
                     logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
                                 format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))
