@@ -144,8 +144,7 @@ if __name__ == "__main__":
             agent.update_history(local_step.get())
             agent.reset_negotiate()
         step_end = time.time()
-        logger.info("Step {} completed in {:.3f} s, epoch={}, episode={}".
-                    format(local_step, step_end - step_begin, epoch, episode))
+        logger.info("Step {} completed in {:.3f} s".format(local_step, step_end - step_begin))
 
     create_gif(frames, "{}/test".format(load_dir))
     episode_end = time.time()
