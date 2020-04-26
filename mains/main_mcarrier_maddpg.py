@@ -21,8 +21,8 @@ observe_dim = 28
 action_dim = 4
 
 # configs
-restart = False
-clear_old = False
+restart = True
+clear_old = True
 max_epochs = 20
 max_episodes = 1000
 max_steps = 2000
