@@ -84,7 +84,7 @@ if __name__ == "__main__":
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
                 discount=0.99,
                 update_rate=1e-3,
-                learning_rate=1e-4,
+                learning_rate=2e-4,
                 replay_size=replay_size,
                 batch_size=ddpg_update_batch_size)
 
