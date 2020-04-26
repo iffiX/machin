@@ -40,9 +40,9 @@ save_map = {}
 # lr: learning rate, int: interval
 # warm up should be less than one epoch
 ddpg_update_batch_size = 256
-ddpg_warmup_steps = 200
+ddpg_warmup_steps = 2000
 ddpg_average_target_int = 100
-model_save_int = 1  # in episodes
+model_save_int = 100  # in episodes
 profile_int = 50  # in episodes
 
 
