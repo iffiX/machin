@@ -183,6 +183,7 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
         self.game_over = False
         self.scroll = 0.0
         self.lidar_step = 0
+        self.not_moving_counter = 0
 
         # culmulative reward, shaping-prev_shaping = increased reward (or step reward)
         self.prev_sum_reward = None
@@ -512,6 +513,7 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
         self.prev_sum_reward = np.zeros(self.agent_num)
         self.scroll = 0.0
         self.lidar_step = 0
+        self.not_moving_counter = 0
 
         W = self.VIEWPORT_W / self.SCALE
         H = self.VIEWPORT_H / self.SCALE
@@ -615,7 +617,8 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
             # MAYBE: differentiate cargo reward of agents by detecting is_carrying?
 
             # keep head straight
-            sum_reward -= 5.0 * abs(state[0])
+            # may not be beneficial for eventual result
+            # sum_reward -= 5.0 * abs(state[0])
 
             # keep contact with cargo
             if not agent.is_carrying:
@@ -634,6 +637,10 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
 
         self.scroll = min_x - self.VIEWPORT_W / self.SCALE / 5
         is_finished = False
+
+        if self.cargo.linearVelocity.x / self.FPS < 1e-5 and \
+                all([ag.hull.linearVelocity.x / self.FPS < 1e-5 for ag in self.agents]):
+            is_finished = True
         if self.game_over or min_x < 0 or self.cargo.position[0] < 0:
             reward[:] = -self.GAME_OVER_PUNISH
             is_finished = True

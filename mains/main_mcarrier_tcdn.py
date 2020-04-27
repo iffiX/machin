@@ -1,6 +1,7 @@
 import time
 import torch as t
 import torch.nn as nn
+from torch.optim.lr_scheduler import LambdaLR
 
 from models.frameworks.ddpg_td3 import DDPG_TD3
 from models.frameworks.ddpg import DDPG
@@ -16,6 +17,7 @@ from utils.helper_classes import Counter
 from utils.prep import prep_dir_default
 from utils.args import get_args
 from utils.checker import check_model
+from utils.train import gen_learning_rate_func
 
 from env.walker.carrier import BipedalMultiCarrier
 
@@ -28,7 +30,7 @@ restart = True
 clear_old = True
 max_epochs = 20
 max_episodes = 1000
-max_steps = 2000
+max_steps = 1000
 replay_size = 400000
 
 agent_num = 2
@@ -80,12 +82,15 @@ if __name__ == "__main__":
 
     logger.info("Networks created")
 
+    actor_lr_func = gen_learning_rate_func([[0, 1e-4]])
+    critic_lr_func = gen_learning_rate_func([[0, 1e-3]])
     ddpg = DDPG(
                 actor, actor_t, critic, critic_t,
                 t.optim.Adam, nn.MSELoss(reduction='sum'), device,
                 discount=0.99,
                 update_rate=1e-3,
-                learning_rate=1e-4,
+                lr_scheduler=LambdaLR,
+                lr_scheduler_params=[[actor_lr_func], [critic_lr_func]],
                 replay_size=replay_size,
                 batch_size=ddpg_update_batch_size)
 

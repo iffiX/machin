@@ -184,7 +184,7 @@ class TCDNNet(nn.Module):
     def __init__(self, in_channels, out_channels, seq_length, additional_length=0,
                  att_layer=(32, 32),
                  tc_layers=(32, 32),
-                 fc_layers=(300,),
+                 fc_layers=(),
                  activation=t.relu,
                  final_process=None,
                  device="cuda:0"):
@@ -229,7 +229,7 @@ class TCDNNet(nn.Module):
 
         # we do not need to output a sequence, so do an amalgamation
         x = t.transpose(x, 1, 2)
-        x = t.squeeze(self.layers["fc_amalgamate"](x), dim=-1)
+        x = t.squeeze(self.activation(self.layers["fc_amalgamate"](x)), dim=-1)
 
         if additional is not None:
             # additional should be (B, additional_size)
