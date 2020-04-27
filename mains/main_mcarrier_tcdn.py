@@ -34,7 +34,7 @@ max_steps = 1000
 replay_size = 400000
 
 agent_num = 2
-history_depth = 2
+history_depth = 1
 neighbors = [-1, 1]
 neighbor_num = len(neighbors)
 explore_noise_params = [(0, 0.35)] * action_dim
@@ -52,8 +52,8 @@ save_map = {}
 # warm up should be less than one epoch
 ddpg_update_batch_size = 256
 ddpg_warmup_steps = 200
-model_save_int = 100  # in episodes
-profile_int = 50  # in episodes
+model_save_int = 50  # in episodes
+profile_int = 10  # in episodes
 
 
 if __name__ == "__main__":

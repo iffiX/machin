@@ -640,7 +640,12 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
 
         if self.cargo.linearVelocity.x / self.FPS < 1e-5 and \
                 all([ag.hull.linearVelocity.x / self.FPS < 1e-5 for ag in self.agents]):
-            is_finished = True
+            self.not_moving_counter += 1
+            if self.not_moving_counter >= 50:
+                # print("Terminating session due to being static.")
+                is_finished = True
+        else:
+            self.not_moving_counter = 0
         if self.game_over or min_x < 0 or self.cargo.position[0] < 0:
             reward[:] = -self.GAME_OVER_PUNISH
             is_finished = True
