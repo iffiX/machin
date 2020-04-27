@@ -25,7 +25,7 @@ restart = True
 clear_old = True
 max_epochs = 20
 max_episodes = 1000
-max_steps = 2000
+max_steps = 1000
 replay_size = 500000
 
 agent_num = 2
@@ -42,8 +42,8 @@ save_map = {}
 ddpg_update_batch_size = 256
 ddpg_warmup_steps = 2000
 ddpg_average_target_int = 100
-model_save_int = 100  # in episodes
-profile_int = 50  # in episodes
+model_save_int = 50  # in episodes
+profile_int = 10  # in episodes
 
 
 class Critic(nn.Module):

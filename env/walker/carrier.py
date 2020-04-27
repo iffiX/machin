@@ -621,8 +621,9 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
             # sum_reward -= 5.0 * abs(state[0])
 
             # keep contact with cargo
-            if not agent.is_carrying:
-               sum_reward -= self.NOT_CARRYING_PUNISH
+            # may not be beneficial for eventual result
+            # if not agent.is_carrying:
+            #    sum_reward -= self.NOT_CARRYING_PUNISH
 
             agent_reward = sum_reward - self.prev_sum_reward[i]
             self.prev_sum_reward[i] = sum_reward
@@ -642,7 +643,7 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
                 all([ag.hull.linearVelocity.x / self.FPS < 1e-5 for ag in self.agents]):
             self.not_moving_counter += 1
             if self.not_moving_counter >= 50:
-                # print("Terminating session due to being static.")
+                print("Terminating session due to being static.")
                 is_finished = True
         else:
             self.not_moving_counter = 0
