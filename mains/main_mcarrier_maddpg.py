@@ -89,7 +89,7 @@ if __name__ == "__main__":
 
     logger.info("Networks created")
 
-    actor_lr_func = gen_learning_rate_func([[0, 1e-4]])
+    actor_lr_func = gen_learning_rate_func([[0, 5e-4]])
     critic_lr_func = gen_learning_rate_func([[0, 1e-3]])
     ddpg = MADDPG(
                 actors, actor_ts, critics, critic_ts,
