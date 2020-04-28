@@ -28,7 +28,8 @@ map_size = 20
 agent_ratio = 0.01
 neighbor_num = 3
 
-explore_noise_params = (0, 0.2)
+#explore_noise_params = (0, 0.2)
+explore_noise_params = (0, 1)
 q_increase_rate = 1
 q_decrease_rate = 1
 device = t.device("cuda:0")
@@ -66,9 +67,9 @@ def run_agents(env, ddpg, group_handle, agent_num, neighbor_num, add_noise):
             action = ddpg.act({"state": state})
             raw_actions.append(action)
             actions[ag] = t.argmax(action)
-
+    print(actions)
     env.set_action(group_handle, actions)
-    return t.cat(raw_actions, dim=0), views
+    return t.cat(raw_actions, dim=0), actions, views
 
 
 if __name__ == "__main__":
@@ -158,7 +159,7 @@ if __name__ == "__main__":
             total_reward = [np.zeros([agent_num], dtype=np.float),
                             np.zeros([agent_num], dtype=np.float)]
             old_states, states = [None, None], [None, None]
-            actions = [None, None]
+            actions, raw_actions = [None, None], [None, None]
 
             while not episode_finished and local_step.get() <= max_steps:
                 old_states = states
@@ -172,14 +173,14 @@ if __name__ == "__main__":
 
                     # agent model inference
                     if render:
-                        actions[0], states[0] = \
+                        raw_actions[0], actions[0], states[0] = \
                             run_agents(env, ddpg, group1_handle, current_agent_g1_num, neighbor_num, False)
-                        actions[1], states[1] = \
+                        raw_actions[1], actions[1], states[1] = \
                             run_agents(env, ddpg, group2_handle, current_agent_g2_num, neighbor_num, False)
                     else:
-                        actions[0], states[0] = \
+                        raw_actions[0], actions[0], states[0] = \
                             run_agents(env, ddpg, group1_handle, current_agent_g1_num, neighbor_num, True)
-                        actions[1], states[1] = \
+                        raw_actions[1], actions[1], states[1] = \
                             run_agents(env, ddpg, group2_handle, current_agent_g2_num, neighbor_num, True)
 
                     episode_finished = env.step()
@@ -197,7 +198,7 @@ if __name__ == "__main__":
                     if old_states[0] is not None and old_states[1] is not None:
                         for ag in range(agent_num):
                             for g in (0, 1):
-                                for old_st, act, st, r in zip(old_states[g], actions[g], states[g], reward[g]):
+                                for old_st, act, st, r in zip(old_states[g], raw_actions[g], states[g], reward[g]):
                                     ddpg.store_observe({"state": {"state": old_st.unsqueeze(0).clone()},
                                                         "action": {"action": act.unsqueeze(0).clone()},
                                                         "next_state": {"state": st.unsqueeze(0).clone()},

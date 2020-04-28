@@ -182,8 +182,8 @@ class AttentionBlock(nn.Module):
 
 class TCDNNet(nn.Module):
     def __init__(self, in_channels, out_channels, seq_length, additional_length=0,
-                 att_layer=(32, 32),
-                 tc_layers=(32, 32),
+                 att_layer=(16, 16),
+                 tc_layers=(16, 16),
                  fc_layers=(),
                  activation=t.relu,
                  final_process=None,

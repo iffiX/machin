@@ -37,7 +37,7 @@ agent_num = 2
 history_depth = 1
 neighbors = [-1, 1]
 neighbor_num = len(neighbors)
-explore_noise_params = [(0, 0.35)] * action_dim
+explore_noise_params = [(0, 0.2)] * action_dim
 nego_mean_anneal = 0.3
 nego_theta_anneal = 0.1
 nego_rounds = 0
@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     logger.info("Networks created")
 
-    actor_lr_func = gen_learning_rate_func([[0, 1e-4]])
+    actor_lr_func = gen_learning_rate_func([[0, 5e-4]])
     critic_lr_func = gen_learning_rate_func([[0, 1e-3]])
     ddpg = DDPG(
                 actor, actor_t, critic, critic_t,
