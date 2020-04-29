@@ -34,8 +34,7 @@ nego_mean_anneal = 0.3
 nego_theta_anneal = 0.1
 nego_rounds = 0
 device = t.device("cuda:0")
-#load_dir = "/data/AI/tmp/multi_agent/walker/tcdn/model/"
-load_dir = "/data/AI/tmp/multi_agent/walker/tcdn_ag1_tmp"
+load_dir = "/data/AI/tmp/multi_agent/walker/tcdn/model/"
 save_map = {}
 
 
