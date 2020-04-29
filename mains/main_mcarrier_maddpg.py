@@ -29,7 +29,7 @@ max_steps = 1000
 replay_size = 500000
 
 agent_num = 2
-explore_noise_params = [(0, 0.2)] * action_dim
+explore_noise_params = [(0, 0.5)] * action_dim
 device = t.device("cuda:0")
 root_dir = "/data/AI/tmp/multi_agent/walker/maddpg/"
 model_dir = root_dir + "model/"

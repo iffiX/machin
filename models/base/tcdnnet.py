@@ -227,6 +227,8 @@ class TCDNNet(nn.Module):
 
         x, rel, raw = self.layers["attention"](x, time_steps)
 
+        print(rel)
+
         # we do not need to output a sequence, so do an amalgamation
         x = t.transpose(x, 1, 2)
         x = t.squeeze(self.activation(self.layers["fc_amalgamate"](x)), dim=-1)
