@@ -27,8 +27,8 @@ max_steps = 2000
 replay_size = 400000
 
 agent_num = 1
-history_depth = 2
-neighbors = [-1]
+history_depth = 1
+neighbors = [-1, 1]
 neighbor_num = len(neighbors)
 nego_mean_anneal = 0.3
 nego_theta_anneal = 0.1
@@ -115,10 +115,12 @@ if __name__ == "__main__":
                 agents[ag].set_observe(state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(dim=0))
 
             for ag in range(agent_num):
+                print("agent {} act:".format(ag))
                 agents[ag].act_step(local_step.get())
 
             for i in range(nego_rounds):
                 for ag in range(agent_num):
+                    print("agent {} nego {}:".format(ag, i))
                     agents[ag].negotiate_step()
 
             for ag in range(agent_num):
