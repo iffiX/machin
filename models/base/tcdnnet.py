@@ -227,6 +227,7 @@ class TCDNNet(nn.Module):
 
         x, rel, raw = self.layers["attention"](x, time_steps)
 
+        t.set_printoptions(linewidth=200,)
         print(rel)
 
         # we do not need to output a sequence, so do an amalgamation
