@@ -15,7 +15,7 @@ from models.tcdn.agent import SwarmAgent
 from utils.logging import default_logger as logger
 from utils.tensor_board import global_board
 from utils.helper_classes import Counter
-from utils.prep import prep_dir_default, prep_create_dirs
+from utils.prep import prep_dirs_default, prep_create_dirs
 
 # configs
 restart = True
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     total_steps = max_epochs * max_episodes * max_steps
 
     # preparations
-    prep_dir_default(root_dir)
+    prep_dirs_default(root_dir)
     logger.info("Directories prepared.")
     global_board.init(log_dir + "train_log")
     writer = global_board.writer

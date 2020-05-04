@@ -1,5 +1,9 @@
+import time
+
+
 class Counter:
-    _count = 0
+    def __init__(self):
+        self._count = 0
 
     def count(self):
         self._count += 1
@@ -30,7 +34,8 @@ class Counter:
 
 
 class Switch:
-    _on = False
+    def __init__(self):
+        self._on = False
 
     def flip(self):
         self._on = not self._on
@@ -46,7 +51,8 @@ class Switch:
 
 
 class Trigger:
-    _on = False
+    def __init__(self):
+        self._on = False
 
     def flip(self):
         self._on = not self._on
@@ -62,6 +68,17 @@ class Trigger:
 
     def off(self):
         self._on = False
+
+
+class Timer:
+    def __init__(self):
+        self._last = time.time()
+
+    def begin(self):
+        self._last = time.time()
+
+    def end(self):
+        return time.time() - self._last
 
 
 class Object:

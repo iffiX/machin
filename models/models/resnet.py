@@ -4,6 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.weight_norm import weight_norm
 
+from .base import NeuralNetworkModule
+
 
 def conv3x3(in_planes, out_planes, stride=1):
     """
@@ -43,7 +45,7 @@ def cfg(depth, use_batch_norm=True):
     return cfg_dict[str(depth)]
 
 
-class BasicBlock(nn.Module):
+class BasicBlock(NeuralNetworkModule):
     expansion = 1  # expansion parameter, output will have "expansion * in_planes" depth
 
     def __init__(self, in_planes, out_planes, stride=1):
@@ -64,6 +66,8 @@ class BasicBlock(nn.Module):
         # an empty sequential structure means no transformation is made on input X
         self.shortcut = nn.Sequential()
 
+        self.set_input_module(self.conv1)
+
         # a convolution is needed if we cannot directly add input X to output
         # BatchNorm2d produces NaN gradient?
         if stride != 1 or in_planes != self.expansion * out_planes:
@@ -81,7 +85,7 @@ class BasicBlock(nn.Module):
         return out
 
 
-class Bottleneck(nn.Module):
+class Bottleneck(NeuralNetworkModule):
     expansion = 4  # expansion parameter, output will have "expansion * in_planes" depth
 
     def __init__(self, in_planes, out_planes, stride=1):
@@ -105,6 +109,9 @@ class Bottleneck(nn.Module):
         self.bn3 = nn.BatchNorm2d(self.expansion * out_planes)
 
         self.shortcut = nn.Sequential()
+
+        self.set_input_module(self.conv1)
+
         if stride != 1 or in_planes != self.expansion * out_planes:
             self.shortcut = nn.Sequential(
                 nn.Conv2d(in_planes, self.expansion * out_planes,
@@ -120,7 +127,7 @@ class Bottleneck(nn.Module):
         return out
 
 
-class BasicBlockWN(nn.Module):
+class BasicBlockWN(NeuralNetworkModule):
     """
     Basic block with weight normalization
     """
@@ -142,6 +149,8 @@ class BasicBlockWN(nn.Module):
         # an empty sequential structure means no transformation is made on input X
         self.shortcut = nn.Sequential()
 
+        self.set_input_module(self.conv1)
+
         # a convolution is needed if we cannot directly add input X to output
         if stride != 1 or in_planes != self.expansion * out_planes:
             self.shortcut = nn.Sequential(
@@ -157,7 +166,7 @@ class BasicBlockWN(nn.Module):
         return out
 
 
-class BottleneckWN(nn.Module):
+class BottleneckWN(NeuralNetworkModule):
     """
     Bottleneck block with weight normalization
     """
@@ -181,6 +190,9 @@ class BottleneckWN(nn.Module):
                                            kernel_size=1, bias=False))
 
         self.shortcut = nn.Sequential()
+
+        self.set_input_module(self.conv1)
+
         if stride != 1 or in_planes != self.expansion * out_planes:
             self.shortcut = nn.Sequential(
                 weight_norm(nn.Conv2d(in_planes, self.expansion * out_planes,
@@ -197,7 +209,7 @@ class BottleneckWN(nn.Module):
         return out
 
 
-class ResNet(nn.Module):
+class ResNet(NeuralNetworkModule):
     def __init__(self, in_planes, depth, out_planes, out_pool_size=(1, 1), use_batch_norm=True):
         """
         Create a resnet of specified depth.
@@ -231,7 +243,8 @@ class ResNet(nn.Module):
             self.base = nn.Sequential(self.conv1, nn.ReLU(), self.layer1, self.layer2,
                                       self.layer3, self.layer4)
         self.fc = nn.Linear(512 * out_pool_size[0] * out_pool_size[1], out_planes)
-        self.counter = 0
+
+        self.set_input_module(self.conv1)
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)
@@ -245,7 +258,6 @@ class ResNet(nn.Module):
 
     def forward(self, x):
         x = self.base(x)
-        self.counter += 1
         kernel_size = (np.int(np.floor(x.size(2) / self.out_pool_size[0])),
                        np.int(np.floor(x.size(3) / self.out_pool_size[1])))
         x = F.avg_pool2d(x, kernel_size)

@@ -1,8 +1,11 @@
 import logging
 import pymongo as mon
 import pymongo.errors as mon_err
+
 from urllib.parse import quote_plus
 from typing import List, Mapping, Union, Any
+
+from utils.logging import default_logger
 
 
 class Database:

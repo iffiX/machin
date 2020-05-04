@@ -5,22 +5,21 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from .base import TorchFramework
 from .ddpg import DDPG, soft_update
-from typing import Union, List, Tuple
+from ..models.base import NeuralNetworkModule, NeuralNetworkWrapper
+from typing import Union
 
 from utils.visualize import visualize_graph
 
 
 class HDDPG(DDPG):
     def __init__(self,
-                 actor: nn.Module,
-                 actor_target: nn.Module,
-                 critic: nn.Module,
-                 critic_target: nn.Module,
+                 actor: Union[NeuralNetworkModule, NeuralNetworkWrapper],
+                 actor_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
+                 critic: Union[NeuralNetworkModule, NeuralNetworkWrapper],
+                 critic_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
                  optimizer,
                  criterion,
-                 device,
                  q_increase_rate=1,
                  q_decrease_rate=0.1,
                  learning_rate=0.001,
@@ -30,6 +29,7 @@ class HDDPG(DDPG):
                  update_rate=0.005,
                  discount=0.99,
                  replay_size=100000,
+                 replay_device="cpu",
                  reward_func=None,
                  action_trans_func=None):
         """
@@ -39,8 +39,8 @@ class HDDPG(DDPG):
         self.q_decrease_rate = q_decrease_rate
         super(HDDPG, self).__init__(actor, actor_target, critic, critic_target,
                                     optimizer, criterion,
-                                    device, learning_rate, lr_scheduler, lr_scheduler_params,
-                                    batch_size, update_rate, discount, replay_size, reward_func,
+                                    learning_rate, lr_scheduler, lr_scheduler_params,
+                                    batch_size, update_rate, discount, replay_size, replay_device, reward_func,
                                     action_trans_func)
 
     def update(self, update_value=True, update_policy=True, update_targets=True, concatenate_samples=True):
@@ -51,20 +51,19 @@ class HDDPG(DDPG):
             (mean value of estimated policy value, value loss)
         """
         batch_size, (state, action, reward, next_state, terminal, *others) = \
-            self.rpb.sample_batch(self.batch_size, concatenate_samples, self.device,
+            self.rpb.sample_batch(self.batch_size, concatenate_samples,
                                   sample_keys=["state", "action", "reward", "next_state", "terminal", "*"])
 
         # Update critic network first
         # Generate value reference :math: `y_i` using target actor and target critic
         with torch.no_grad():
-            next_action = self.action_trans_func(self.act(next_state, True), next_state)
+            next_action = self.action_trans_func(self.act(next_state, True), next_state, *others)
             next_value = self.criticize(next_state, next_action, True)
             next_value = next_value.view(batch_size, -1)
-            y_i = self.reward_func(reward, self.discount, next_value, terminal, others)
+            y_i = self.reward_func(reward, self.discount, next_value, terminal, *others)
 
         cur_value = self.criticize(state, action)
-
-        value_diff = y_i - cur_value
+        value_diff = y_i.to(cur_value.device) - cur_value
         value_change = torch.where(value_diff > 0,
                                    value_diff * self.q_increase_rate,
                                    value_diff * self.q_decrease_rate)
@@ -76,7 +75,7 @@ class HDDPG(DDPG):
             self.critic_optim.step()
 
         # Update actor network
-        cur_action = self.action_trans_func(self.act(state), state)
+        cur_action = self.action_trans_func(self.act(state), state, *others)
         act_value = self.criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),
@@ -95,3 +94,5 @@ class HDDPG(DDPG):
 
         # use .item() to prevent memory leakage
         return -act_policy_loss.item(), value_loss.item()
+
+

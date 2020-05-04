@@ -1,5 +1,6 @@
 import torch as t
-import torch.distributions as tdist
+
+from models.noise.generator import NormalNoiseGen
 from utils.logging import default_logger as logger
 
 
@@ -27,69 +28,7 @@ class AdaptiveParamNoiseSpec(object):
         return fmt.format(self.initial_stddev, self.desired_action_stddev, self.adoption_coefficient)
 
 
-class Noise(object):
-    """
-    Base class for noise generators.
-    """
-    def reset(self):
-        pass
-
-
-class NormalNoise(Noise):
-    def __init__(self, mu, sigma):
-        """
-        Normal noise generator.
-        Args:
-            mu: Average mean of noise
-            sigma: Sigma of the normal distribution.
-        """
-        self.mu = mu
-        self.sigma = sigma
-        self.dist = tdist.normal.Normal(mu, sigma)
-
-    def __call__(self, shape):
-        return self.dist.sample(shape)
-
-    def __repr__(self):
-        return 'NormalNoise(mu={}, sigma={})'.format(self.mu, self.sigma)
-
-
-class OrnsteinUhlenbeckNoise(Noise):
-    def __init__(self, shape, mu, sigma, theta=0.15, dt=1e-2, x0=None):
-        """
-        Ornstein-Uhlenbeck noise generator.
-        Based on http://math.stackexchange.com/questions/1287634/implementing-ornstein-uhlenbeck-in-matlab
-        :math:` X_{n+1} = X_n + \theta (\mu - X_n)\Delta t + \sigma \Delta W_n`
-        Args:
-            mu: Average mean of noise.
-            sigma: Weight of the random wiener process.
-            theta: Weight of difference correction
-            dt: Time step size.
-            x0: Start x value.
-        """
-        self.theta = theta
-        self.mu = mu
-        self.sigma = sigma
-        self.dt = t.tensor(dt) if not isinstance(dt, t.Tensor) else dt
-        self.norm_dist = tdist.normal.Normal(loc=0.0, scale=1.0)
-        self.shape = shape
-        self.x0 = x0
-        self.reset()
-
-    def __call__(self):
-        x = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + \
-            self.sigma * t.sqrt(self.dt) * self.norm_dist.sample(self.shape)
-        self.x_prev = x
-        return x
-
-    def reset(self):
-        self.x_prev = self.x0 if self.x0 is not None else t.zeros(self.shape)
-
-    def __repr__(self):
-        return 'OrnsteinUhlenbeckNoise(mu={}, sigma={})'.format(self.mu, self.sigma)
-
-
-def gen_perturb_hook(module, perturb_switch, reset_switch, perturb_gen):
+def _gen_perturb_hook(module, perturb_switch, reset_switch, perturb_gen):
     org_params = {}
     noisy_params = {}
 
@@ -125,7 +64,7 @@ def gen_perturb_hook(module, perturb_switch, reset_switch, perturb_gen):
 
 def perturb_model(model, device, perturb_switch, reset_switch,
                   distance_func=lambda x, y: t.dist(x, y, 2),
-                  desired_action_stddev=0.5, noise_distribution=NormalNoise(0, 1.0)):
+                  desired_action_stddev=0.5, noise_distribution=NormalNoiseGen(0, 1.0)):
     tmp_action = {}
     post_hooks = []
     param_noise_spec = AdaptiveParamNoiseSpec(desired_action_stddev=desired_action_stddev)
@@ -151,7 +90,7 @@ def perturb_model(model, device, perturb_switch, reset_switch,
     for sub_name, sub_module in model.named_modules():
         if len([i for i in sub_module.modules()]) != 1:
             continue
-        pre_f, post = gen_perturb_hook(sub_module, perturb_switch, reset_switch, param_noise_gen)
+        pre_f, post = _gen_perturb_hook(sub_module, perturb_switch, reset_switch, param_noise_gen)
         sub_module.register_forward_pre_hook(pre_f)
         post_hooks.append(post)
 

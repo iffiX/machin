@@ -1,7 +1,15 @@
+import json
 import argparse
 
 
 def get_args():
+    """
+    Get arguments from the commandline
+    Note: --env a=b will set <Returned Arg Object>.env[a] = b
+
+    Return:
+         Arg object, each attribute is an argument
+    """
     argparser = argparse.ArgumentParser(description=__doc__)
     argparser.add_argument(
         '-c', '--config',
@@ -22,4 +30,17 @@ def get_args():
     return args
 
 
+def get_args_from_json(json_file):
+    """
+    Get arguments from a json file
 
+    Args:
+        json_file: path to the json config file
+    Return:
+        config(namespace) or config(dictionary)
+    """
+    # parse the configurations from the config json file provided
+    with open(json_file, 'r') as config_file:
+        config_dict = json.load(config_file)
+
+    return config_dict

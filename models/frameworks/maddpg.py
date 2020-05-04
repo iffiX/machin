@@ -1,28 +1,24 @@
-import time
-import random
-import inspect
-import copy
-import numpy as np
 import torch
 import torch.nn as nn
+import torch.multiprocessing as mp
 
 from .base import TorchFramework
 from .ddpg import soft_update, hard_update, safe_call, ReplayBuffer
-from typing import Union, List, Tuple
+from ..models.base import NeuralNetworkModule, NeuralNetworkWrapper
+from ..noise.action_space_noise import *
+from typing import Union, List
 
 from utils.visualize import visualize_graph
 
 
 class MADDPG(TorchFramework):
-    # TODO: multi-threading &|| multi processing
     def __init__(self,
-                 actors: List[nn.Module],
-                 actor_targets: List[nn.Module],
-                 critics: List[nn.Module],
-                 critic_targets: List[nn.Module],
+                 actors: List[Union[NeuralNetworkModule, NeuralNetworkWrapper]],
+                 actor_targets: List[Union[NeuralNetworkModule, NeuralNetworkWrapper]],
+                 critics: List[Union[NeuralNetworkModule, NeuralNetworkWrapper]],
+                 critic_targets: List[Union[NeuralNetworkModule, NeuralNetworkWrapper]],
                  optimizer,
                  criterion,
-                 device,
                  learning_rate=0.001,
                  lr_scheduler=None,
                  lr_scheduler_params=None,
@@ -30,15 +26,18 @@ class MADDPG(TorchFramework):
                  update_rate=0.005,
                  discount=0.99,
                  replay_size=100000,
-                 reward_func=None):
+                 replay_device="cpu",
+                 reward_func=None,
+                 process_num=-1):
         """
-        Initialize DDPG framework.
+        Initialize MADDPG framework.
         """
-        self.device = device
+        if not (len(actors) == len(actor_targets) == len(critics) == len(critic_targets)):
+            raise RuntimeError("Actor, actor target, critic, critic target number doesn't match.")
         self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
-        self.rpb = ReplayBuffer(replay_size)
+        self.rpb = ReplayBuffer(replay_size, replay_device)
 
         self.actors = actors
         self.actor_targets = actor_targets
@@ -55,6 +54,17 @@ class MADDPG(TorchFramework):
 
         for critic_t, idx in zip(self.critic_targets, range(len(self.critic_targets))):
             self.critic_target.add_module("critic_{}".format(idx), critic_t)
+
+        # enable multiprocessing
+        if process_num == -1:
+            process_num = min(mp.cpu_count(), len(self.actors))
+
+        self.pool_ctx = mp.get_context("spawn")
+        self.pool = self.pool_ctx.Pool(process_num)
+
+        for model in self.actor_targets + self.critic_targets + self.actors + self.critics:
+            model.share_memory()
+
 
         # Make sure target and online networks have the same weight
         with torch.no_grad():

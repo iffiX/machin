@@ -9,13 +9,14 @@ from typing import List
 
 def show_image(image, show_normalized=True, pause_time=0.01, title=""):
     """
-    :param image: A numpy array of shape [width, height, channels] or [width, height],
-                   datatype can be float(double) or int(int8, int16... etc.).
-                   When a frame is float type, its value range should be [0, 1].
-                   When a frame is integer type, its value range should be [0, 255].
-    :param show_normalized: Show normalized image alongside the original one.
-    :param pause_time: Pause time between displaying currrent image and the next one.
-    :param title: Title of the display window.
+    Args:
+        image: A numpy array of shape [width, height, channels] or [width, height],
+               datatype can be float(double) or int(int8, int16... etc.).
+               When a frame is float type, its value range should be [0, 1].
+               When a frame is integer type, its value range should be [0, 255].
+        show_normalized: Show normalized image alongside the original one.
+        pause_time: Pause time between displaying currrent image and the next one.
+        title: Title of the display window.
     """
     if np.issubdtype(image.dtype, np.integer):
         image = image.astype(np.floating) / 255
@@ -44,13 +45,13 @@ def show_image(image, show_normalized=True, pause_time=0.01, title=""):
 
 def create_gif(frames: List[np.array], path, fps=15):
     """
-    :param frames: A list of numpy arrays of shape [width, height, channels] or [width, height],
+    Args:
+        frames: A list of numpy arrays of shape [width, height, channels] or [width, height],
                    datatype can be float(double) or int(int8, int16... etc.).
                    When a frame is float type, its value range should be [0, 1].
                    When a frame is integer type, its value range should be [0, 255].
-    :param path: Path to save the gif image, without extension.
-    :param fps: frames per second
-    :return: None
+        path: Path to save the gif image, without extension.
+        fps: frames per second
     """
     if len(frames) == 0:
         raise RuntimeWarning("Empty frames sequence, file {}.gif skipped".format(path))
@@ -70,13 +71,13 @@ def create_gif(frames: List[np.array], path, fps=15):
 
 def create_image(image: np.array, path, extension=".png"):
     """
-    :param image: A numpy array of shape [width, height, channels] or [width, height],
+    Args:
+        image: A numpy array of shape [width, height, channels] or [width, height],
                    datatype can be float(double) or int(int8, int16... etc.).
                    When a frame is float type, its value range should be [0, 1].
                    When a frame is integer type, its value range should be [0, 255].
-    :param path: Path to save the image, without extension.
-    :param extension: Image extension
-    :return: None
+        path: Path to save the image, without extension.
+        extension: Image extension
     """
     if np.issubdtype(image.dtype, np.integer):
         image = image.astype(np.uint8)

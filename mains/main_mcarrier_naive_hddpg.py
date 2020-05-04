@@ -9,7 +9,7 @@ from utils.logging import default_logger as logger
 from utils.image import create_gif
 from utils.tensor_board import global_board
 from utils.helper_classes import Counter
-from utils.prep import prep_dir_default
+from utils.prep import prep_dirs_default
 from utils.args import get_args
 
 from env.walker.carrier import BipedalMultiCarrier
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     total_steps = max_epochs * max_episodes * max_steps
 
     # preparations
-    prep_dir_default(root_dir)
+    prep_dirs_default(root_dir)
     logger.info("Directories prepared.")
     global_board.init(log_dir + "train_log")
     writer = global_board.writer

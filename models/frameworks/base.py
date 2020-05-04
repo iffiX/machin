@@ -25,7 +25,7 @@ class TorchFramework:
     def get_restorable(self):
         return self._is_restorable
 
-    def load(self, model_dir, network_map, version=-1):
+    def load(self, model_dir, network_map=None, version=-1):
         """
         Load weights into modules.
 
@@ -37,6 +37,7 @@ class TorchFramework:
             An example of network map:
             {"actor": "actor", "critic": "critic"}
         """
+        network_map = {} if network_map is None else network_map
         restore_map = {}
         for r in self._is_restorable:
             if r in network_map:
@@ -47,7 +48,7 @@ class TorchFramework:
                 restore_map[r] = getattr(self, r)
         prep_load_model(model_dir, restore_map, version)
 
-    def save(self, model_dir, network_map, version=0):
+    def save(self, model_dir, network_map=None, version=0):
         """
         Save module weights.
 
@@ -55,6 +56,7 @@ class TorchFramework:
             model_dir: Save directory.
             network_map: Key is module name, value is saved name.
         """
+        network_map = {} if network_map is None else network_map
         if version == 0:
             warnings.warn("You are using the default version 0 to save, use custom version instead.",
                           RuntimeWarning)
