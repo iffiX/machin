@@ -72,10 +72,15 @@ class ModelAssigner:
     def __init__(self,
                  models: List[nn.Module],
                  model_connection: Dict[Tuple[int, int], int],
-                 devices: List[Union[t.device, str]]=None,
+                 devices: List[Union[t.device, str]] = None,
                  model_with_input_size_multiplier=2,
                  max_mem_ratio=0.5,
-                 cpu_weight=0.3):
+                 cpu_weight=0.3,
+                 distance_weight=1,
+                 size_balance_weight=1e-3,
+                 complexity_balance_weight=1,
+                 iterations=500,
+                 update_rate=0.01):
         if devices is None:
             devices = [t.device(type="cuda", index=i) for i in GPUtil.getAvailable(order="load")]
         else:
@@ -102,7 +107,7 @@ class ModelAssigner:
         gpus = GPUtil.getGPUs()
         for d in devices:
             if d.type == "cpu":
-                device_size_capacity.append(int(psutil.virtual_memory().available / 1024**2) * max_mem_ratio)
+                device_size_capacity.append(int(psutil.virtual_memory().available / 1024 ** 2) * max_mem_ratio)
                 device_complexity_capacity.append(cpu_weight)
             elif d.type == "cuda":
                 device_size_capacity.append(gpus[d.index].memoryFree * max_mem_ratio)
@@ -117,7 +122,7 @@ class ModelAssigner:
         device_num = len(devices)
         model_num = len(models)
         placement = t.randn([model_num, device_num], requires_grad=True)
-        optimizer = t.optim.Adam([placement], lr=0.01)
+        optimizer = t.optim.Adam([placement], lr=update_rate)
         model_size = t.tensor(sizes).view([1, model_num])
         size_capacity = t.tensor(device_size_capacity).view([1, device_num])
         model_complexity = model_size
@@ -129,16 +134,21 @@ class ModelAssigner:
         for i in range(device_num):
             for j in range(i):
                 if devices[i].type == "cpu" and devices[j].type == "cuda" \
-                   or devices[i].type == "cuda" and devices[j].type == "cpu":
+                        or devices[i].type == "cuda" and devices[j].type == "cpu":
                     device_distance[i, j] = device_distance[j, i] = 10
                 elif devices[i].type == "cuda" and devices[j].type == "cuda" \
-                   and devices[i].index != devices[j].index:
+                        and devices[i].index != devices[j].index:
                     device_distance[i, j] = device_distance[j, i] = 1
-        for iter in range(500):
+
+        # optimize
+        for iter in range(iterations):
             self.optimize_placement(optimizer, placement,
                                     model_size, size_capacity,
                                     model_complexity, complexity_capacity,
-                                    model_conn, device_distance)
+                                    model_conn, device_distance,
+                                    distance_weight,
+                                    size_balance_weight,
+                                    complexity_balance_weight)
             print(t.softmax(placement, dim=1))
         self._assignment = [devices[d] for d in t.argmax(placement, dim=1).tolist()]
         for model, ass_device in zip(models, self._assignment):
@@ -157,9 +167,9 @@ class ModelAssigner:
                            complexity_capacity: t.Tensor,
                            model_connection: t.Tensor,
                            device_distance: t.Tensor,
-                           distance_weight=1,
-                           size_balance_weight=1e-3,
-                           complexity_balance_weight=1):
+                           distance_weight,
+                           size_balance_weight,
+                           complexity_balance_weight):
         """
         Suppose there are n models to place and m devices available
         Args:
