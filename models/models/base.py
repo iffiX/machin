@@ -77,7 +77,7 @@ class NeuralNetworkWrapper:
 
     def __getattr__(self, item):
         # if access some attribute that could not be found
-        return self.wrapped_module.__getattribute__(item)
+        return getattr(object.__getattribute__(self, "wrapped_module"), item)
 
     def __setattr__(self, key, value):
         if key not in {"wrapped_module", "input_device", "output_device"}:

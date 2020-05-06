@@ -2,29 +2,41 @@ import os
 from datetime import datetime, timedelta
 from typing import Union
 
-from utils.prep import prep_dirs_default, prep_create_dirs
+from utils.prep import prep_dirs_default, prep_clear_dirs
 
 
 class Environment:
     def __init__(self,
                  env_root: str,
-                 env_dirs: Union[dict, None]=None):
+                 env_dirs: Union[dict, None]=None,
+                 restart_use_trial: Union[str, None]=None):
         """
         Create the default environment for saving.
 
         Args:
             env_root: root directory for all trials of the environment.
             env_dirs: directory mapping for sub directories, such as log, model, etc.
+            restart_use_trial: in format %Y_%m_%d_%H_%M_%S
         """
         self.env_root = env_root
         self.env_dirs = env_dirs
-        self.env_create_time = datetime.now()
+
+        if restart_use_trial is None:
+            self.env_create_time = datetime.now()
+        else:
+            self.env_create_time = datetime.strptime(restart_use_trial,
+                                                     "%Y_%m_%d_%H_%M_%S")
         self._check_dirs()
         self._prep_dirs()
 
     def get_trial_root(self):
         return os.path.join(self.env_root,
                             self.env_create_time.strftime("%Y_%m_%d_%H_%M_%S"))
+
+    def get_trial_config_file(self):
+        return os.path.join(self.env_root,
+                            self.env_create_time.strftime("%Y_%m_%d_%H_%M_%S"),
+                            "config/config.json")
 
     def get_trial_model_dir(self):
         return os.path.join(self.env_root,
@@ -43,6 +55,34 @@ class Environment:
 
     def get_trial_time(self):
         return self.env_create_time
+
+    def clear_trial_config_dir(self):
+        prep_clear_dirs([
+            os.path.join(self.env_root,
+                         self.env_create_time.strftime("%Y_%m_%d_%H_%M_%S"),
+                         "config")
+        ])
+
+    def clear_trial_model_dir(self):
+        prep_clear_dirs([
+            os.path.join(self.env_root,
+                         self.env_create_time.strftime("%Y_%m_%d_%H_%M_%S"),
+                         "model")
+        ])
+
+    def clear_trial_image_dir(self):
+        prep_clear_dirs([
+            os.path.join(self.env_root,
+                         self.env_create_time.strftime("%Y_%m_%d_%H_%M_%S"),
+                         "log/images")
+        ])
+
+    def clear_trial_train_log_dir(self):
+        prep_clear_dirs([
+            os.path.join(self.env_root,
+                         self.env_create_time.strftime("%Y_%m_%d_%H_%M_%S"),
+                         "log/train_log")
+        ])
 
     def remove_trials_older_than(self,
                                  diff_day=0,

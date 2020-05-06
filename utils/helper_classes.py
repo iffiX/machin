@@ -83,7 +83,7 @@ class Timer:
 
 class Object:
     def __init__(self):
-        self.data = {}
+        super(Object, self).__setattr__("data", {})
 
     def __call__(self, *args, **kwargs):
         return self.call(*args, **kwargs)
@@ -94,11 +94,21 @@ class Object:
     def __getattr__(self, item):
         return self.attr(item)
 
+    def __getitem__(self, item):
+        return self.attr(item)
+
     def __setattr__(self, key, value):
         if key != "data" and key != "attr" and key != "call":
-            self.attr(key, (value,))
-        else:
+            self.attr(key, value)
+        elif key == "call":
             super(Object, self).__setattr__(key, value)
+        else:
+            raise RuntimeWarning("You should not set data or attr property of an Object.")
+
+    def __setitem__(self, key, value):
+        self.__setattr__(key, value)
 
     def attr(self, item, change=None):
-        pass
+        if change is not None:
+            self.data[item] = change
+        return self.data.get(item, None)

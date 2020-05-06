@@ -75,10 +75,11 @@ class ModelAssigner:
                  devices: List[Union[t.device, str]] = None,
                  model_with_input_size_multiplier=2,
                  max_mem_ratio=0.5,
-                 cpu_weight=0.3,
-                 distance_weight=1,
+                 cpu_weight=0.1,
+                 distance_weight=5,
                  size_balance_weight=1e-3,
-                 complexity_balance_weight=1,
+                 complexity_balance_weight=5,
+                 entropy_weight=1,
                  iterations=500,
                  update_rate=0.01):
         if devices is None:
@@ -148,7 +149,8 @@ class ModelAssigner:
                                     model_conn, device_distance,
                                     distance_weight,
                                     size_balance_weight,
-                                    complexity_balance_weight)
+                                    complexity_balance_weight,
+                                    entropy_weight)
             print(t.softmax(placement, dim=1))
         self._assignment = [devices[d] for d in t.argmax(placement, dim=1).tolist()]
         for model, ass_device in zip(models, self._assignment):
@@ -169,7 +171,8 @@ class ModelAssigner:
                            device_distance: t.Tensor,
                            distance_weight,
                            size_balance_weight,
-                           complexity_balance_weight):
+                           complexity_balance_weight,
+                           entropy_weight):
         """
         Suppose there are n models to place and m devices available
         Args:
@@ -198,9 +201,15 @@ class ModelAssigner:
         norm_cmplx_capacity = complexity_capacity / t.sum(complexity_capacity)
         cmplx_match_cost = (t.einsum("ij,jk->ik", [norm_model_cmplx, placement]) - norm_cmplx_capacity) ** 2
 
+        # entropy loss, prevent placement probability diffuse over devices
+        x = placement * placement.log()
+        x1 = t.zeros_like(placement)
+        entropy_cost = -t.where(placement > 0, x, x1).sum(dim=-1)
+
         total_cost = t.mean(connection_cost) * distance_weight + \
                      t.mean(size_match_cost) * size_balance_weight + \
-                     t.mean(cmplx_match_cost) * complexity_balance_weight
+                     t.mean(cmplx_match_cost) * complexity_balance_weight + \
+                     t.mean(entropy_cost) * entropy_weight
 
         optimizer.zero_grad()
         total_cost.backward()

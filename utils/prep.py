@@ -31,10 +31,12 @@ def prep_dirs_default(root_dir, clear_old=False):
     :param clear_old: whether completely removes all things in the old default directories.
     """
     prep_create_dirs((root_dir + "/model",
+                      root_dir + "/config",
                       root_dir + "/log/images",
                       root_dir + "/log/train_log"))
     if clear_old:
         prep_clear_dirs((root_dir + "/model",
+                         root_dir + "/config",
                          root_dir + "/log/images",
                          root_dir + "/log/train_log"))
 

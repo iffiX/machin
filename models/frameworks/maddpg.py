@@ -1,14 +1,22 @@
+import itertools
 import torch
 import torch.nn as nn
-import torch.multiprocessing as mp
 
 from .base import TorchFramework
 from .ddpg import soft_update, hard_update, safe_call, ReplayBuffer
 from ..models.base import NeuralNetworkModule, NeuralNetworkWrapper
 from ..noise.action_space_noise import *
-from typing import Union, List
+from typing import Union, List, Iterable
 
 from utils.visualize import visualize_graph
+from utils.parallel import Pool, cpu_count, get_context
+
+def average_parameter(target_param: t.Tensor, *params: Iterable[t.Tensor]):
+    target_param.data.copy_(
+        torch.mean(torch.stack([p.to(target_param.device) for p in params], dim=0), dim=0)
+    )
+    for p in params:
+        p.data.copy_(target_param)
 
 
 class MADDPG(TorchFramework):
@@ -56,22 +64,20 @@ class MADDPG(TorchFramework):
             self.critic_target.add_module("critic_{}".format(idx), critic_t)
 
         # enable multiprocessing
-        if process_num == -1:
-            process_num = min(mp.cpu_count(), len(self.actors))
+        if not (process_num > 0):
+            process_num = cpu_count()
 
-        self.pool_ctx = mp.get_context("spawn")
-        self.pool = self.pool_ctx.Pool(process_num)
+        self.pool_ctx = get_context("spawn")
+        self.pool = Pool(process_num, context=self.pool_ctx)
+        self.pool.enable_global(True)
 
         for model in self.actor_targets + self.critic_targets + self.actors + self.critics:
             model.share_memory()
 
-
         # Make sure target and online networks have the same weight
         with torch.no_grad():
-            for actor, actor_target in zip(actors, actor_targets):
-                hard_update(actor, actor_target)
-            for critic, critic_target in zip(critics, critic_targets):
-                hard_update(critic, critic_target)
+            self.pool.starmap(hard_update, zip(actors, actor_targets))
+            self.pool.starmap(hard_update, zip(critics, critic_targets))
 
         if lr_scheduler is not None:
             self.actor_lr_schs = [lr_scheduler(ac_opt, *lr_scheduler_params[0]) for ac_opt in self.actor_optims]
@@ -194,19 +200,23 @@ class MADDPG(TorchFramework):
         Note: currently agents share the same replay buffer
         """
         batch_size, (state, action, reward, next_state, terminal, *others) = \
-            self.rpb.sample_batch(self.batch_size, concatenate_samples, self.device,
+            self.rpb.sample_batch(self.batch_size, concatenate_samples,
                                   sample_keys=["state", "action", "reward", "next_state", "terminal", "*"])
 
-        # Update critic network first
-        # Generate value reference :math: `y_i` using target actor and target critic
-        total_act_policy_loss = 0
-        total_value_loss = 0
-
+        agent_num = len(self.actors)
         with torch.no_grad():
-            all_next_actions_t = [self.act(ag, next_state, True) for ag in range(len(self.actors))]
+            all_next_actions_t = self.pool.map(
+                self.act,
+                zip(range(agent_num),
+                    itertools.repeat(next_state),
+                    itertools.repeat(True))
+            )
             all_next_actions_t = {"all_actions": torch.cat(all_next_actions_t, dim=1)}
 
-        for i in range(len(self.actors)):
+        def update_inner(i):
+            # Update critic network first
+            # Generate value reference :math: `y_i` using target actor and target critic
+
             with torch.no_grad():
                 next_value = self.criticize(i, next_state, all_next_actions_t, True)
                 next_value = next_value.view(batch_size, -1)
@@ -215,7 +225,6 @@ class MADDPG(TorchFramework):
             # action contain actions of all agents, same for state
             cur_value = self.criticize(i, state, action)
             value_loss = self.criterion(cur_value, y_i)
-            total_value_loss += value_loss.detach()
 
             if update_value:
                 self.critics[i].zero_grad()
@@ -232,7 +241,6 @@ class MADDPG(TorchFramework):
             # "-" is applied because we want to maximize J_b(u),
             # but optimizer workers by minimizing the target
             act_policy_loss = -act_value.mean()
-            total_act_policy_loss += act_policy_loss.detach()
 
             if update_policy:
                 self.actors[i].zero_grad()
@@ -244,13 +252,15 @@ class MADDPG(TorchFramework):
                 soft_update(self.actor_targets[i], self.actors[i], self.update_rate)
                 soft_update(self.critic_targets[i], self.critics[i], self.update_rate)
 
+            return float(act_policy_loss), float(value_loss)
+
+        mean_loss = t.tensor(self.pool.map(update_inner, range(agent_num))).mean(dim=1)
+
         if average_target_parametrs:
             self.average_target_parameters()
 
-        total_act_policy_loss /= len(self.actors)
-        total_value_loss /= len(self.actors)
-        # use .item() to prevent memory leakage
-        return -total_act_policy_loss.item(), total_value_loss.item()
+        # returns action value and policy loss
+        return -float(mean_loss[0]), float(mean_loss[1])
 
     def update_lr_scheduler(self):
         if hasattr(self, "actor_lr_schs"):
@@ -260,38 +270,23 @@ class MADDPG(TorchFramework):
             for critic_lr_sch in self.critic_lr_schs:
                 critic_lr_sch.step()
 
-    def load(self, model_dir, network_map, version=-1):
+    def load(self, model_dir, network_map=None, version=-1):
         super(MADDPG, self).load(model_dir, network_map, version)
         with torch.no_grad():
-            for actor in self.actors:
-                hard_update(actor, self.actor_target)
-            for critic in self.critics:
-                hard_update(critic, self.critic_target)
-            for actor in self.actor_targets:
-                hard_update(actor, self.actor_target)
-            for critic in self.critic_targets:
-                hard_update(critic, self.critic_target)
+            self.pool.starmap(hard_update, zip(self.actors, self.actor_targets))
+            self.pool.starmap(hard_update, zip(self.critics, self.critic_targets))
 
-    def save(self, model_dir, network_map, version=0):
+    def save(self, model_dir, network_map=None, version=0):
         super(MADDPG, self).save(model_dir, network_map, version)
 
     def average_target_parameters(self):
         with torch.no_grad():
             actor_params = [net.parameters() for net in self.actor_targets]
-            for target_param, *params in zip(*actor_params):
-                target_param.data.copy_(
-                    torch.mean(torch.stack([p.to(target_param.device) for p in params], dim=0), dim=0)
-                )
-                for p in params:
-                    p.data.copy_(target_param.to(p.device))
             critic_params = [net.parameters() for net in self.critic_targets]
-            for target_param, *params in zip(*critic_params):
-                target_param.data.copy_(
-                    torch.mean(torch.stack([p.to(target_param.device) for p in params], dim=0), dim=0)
-                )
-                for p in params:
-                    p.data.copy_(target_param.to(p.device))
+            self.pool.starmap(average_parameter, itertools.chain(zip(*actor_params), zip(*critic_params)))
 
     @staticmethod
     def bellman_function(reward, discount, next_value, terminal, *_):
+        next_value = next_value.to(reward.device)
+        terminal = terminal.to(reward.device)
         return reward + discount * (1 - terminal) * next_value
