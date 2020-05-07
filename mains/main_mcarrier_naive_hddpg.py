@@ -3,7 +3,7 @@ import torch as t
 import torch.nn as nn
 from datetime import datetime as dt
 
-from models.models.base import NeuralNetworkWrapper as NNW
+from models.models.base import StaticNeuralNetworkWrapper as NNW
 from models.noise.action_space_noise import add_normal_noise_to_action
 from models.frameworks.hddpg import HDDPG
 from models.naive.env_walker import Actor, Critic

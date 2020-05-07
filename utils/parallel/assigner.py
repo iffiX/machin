@@ -75,7 +75,7 @@ class ModelAssigner:
                  devices: List[Union[t.device, str]] = None,
                  model_with_input_size_multiplier=2,
                  max_mem_ratio=0.5,
-                 cpu_weight=0.1,
+                 cpu_weight=1,
                  distance_weight=5,
                  size_balance_weight=1e-3,
                  complexity_balance_weight=5,
@@ -151,7 +151,6 @@ class ModelAssigner:
                                     size_balance_weight,
                                     complexity_balance_weight,
                                     entropy_weight)
-            print(t.softmax(placement, dim=1))
         self._assignment = [devices[d] for d in t.argmax(placement, dim=1).tolist()]
         for model, ass_device in zip(models, self._assignment):
             model.to(ass_device)
@@ -193,7 +192,6 @@ class ModelAssigner:
         connection_cost = model_connection * model_distance
 
         # sum(model size) < capacity
-        print(t.einsum("ij,jk->ik", [model_size, placement]) - size_capacity)
         size_match_cost = t.relu(t.einsum("ij,jk->ik", [model_size, placement]) - size_capacity)
 
         # match computing power percent

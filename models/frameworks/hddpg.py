@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 from .ddpg import DDPG, soft_update
-from ..models.base import NeuralNetworkModule, NeuralNetworkWrapper
+from ..models.base import NeuralNetworkModule, StaticNeuralNetworkWrapper
 from typing import Union
 
 from utils.visualize import visualize_graph
@@ -14,10 +14,10 @@ from utils.visualize import visualize_graph
 
 class HDDPG(DDPG):
     def __init__(self,
-                 actor: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 actor_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 critic: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 critic_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
+                 actor: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 actor_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 critic: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 critic_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
                  optimizer,
                  criterion,
                  q_increase_rate=1,

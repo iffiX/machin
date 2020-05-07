@@ -3,7 +3,7 @@ import torch as t
 import torch.nn as nn
 from datetime import datetime as dt
 
-from models.models.base import NeuralNetworkWrapper as NNW
+from models.models.base import DynamicNeuralNetworkWrapper as NNW
 from models.frameworks.maddpg import MADDPG
 from models.naive.env_walker import Actor
 
@@ -39,7 +39,7 @@ c.root_dir = "/data/AI/tmp/multi_agent/mcarrier/maddpg/"
 # lr: learning rate, int: interval
 # warm up should be less than one epoch
 c.ddpg_update_batch_size = 100
-c.ddpg_warmup_steps = 200
+c.ddpg_warmup_steps = 2000
 c.ddpg_average_target_int = 200
 c.model_save_int = 100  # in episodes
 c.profile_int = 50  # in episodes
@@ -90,10 +90,10 @@ if __name__ == "__main__":
     writer = global_board.writer
     logger.info("Directories prepared.")
 
-    actor = NNW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
-    actor_t = NNW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
-    critic = NNW(Critic(c.agent_num, observe_dim, action_dim).to(c.device), c.device, c.device)
-    critic_t = NNW(Critic(c.agent_num, observe_dim, action_dim).to(c.device), c.device, c.device)
+    actor = NNW(Actor(observe_dim, action_dim, 1))
+    actor_t = NNW(Actor(observe_dim, action_dim, 1))
+    critic = NNW(Critic(c.agent_num, observe_dim, action_dim))
+    critic_t = NNW(Critic(c.agent_num, observe_dim, action_dim))
 
     logger.info("Networks created")
 
@@ -101,9 +101,10 @@ if __name__ == "__main__":
                   t.optim.Adam, nn.MSELoss(reduction='sum'),
                   sub_policy_num=c.sub_policy_num,
                   discount=0.99,
-                  update_rate=0.005,
+                  update_rate=0.001,
+                  available_devices=["cuda:0"],
                   batch_size=c.ddpg_update_batch_size,
-                  learning_rate=0.001,
+                  learning_rate=1e-4,
                   replay_size=c.replay_size,
                   replay_device="cpu")
 
@@ -203,8 +204,8 @@ if __name__ == "__main__":
                 ddpg.update_lr_scheduler()
                 writer.add_scalar("train_step_time", timer.end(), global_step.get())
 
-        if episode.get() % c.ddpg_average_target_int == 0:
-            ddpg.average_target_parameters()
+        # if episode.get() % c.ddpg_average_target_int == 0:
+        #     ddpg.average_target_parameters()
 
         if render:
             create_gif(frames, save_env.get_trial_image_dir() + "/{}_{}".format(episode, global_step))

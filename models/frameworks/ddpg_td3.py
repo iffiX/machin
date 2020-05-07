@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from .base import TorchFramework
-from ..models.base import NeuralNetworkModule, NeuralNetworkWrapper
+from ..models.base import NeuralNetworkModule, StaticNeuralNetworkWrapper
 from .ddpg import soft_update, hard_update, safe_call, DDPG
 from typing import Union
 
@@ -11,12 +11,12 @@ from utils.visualize import visualize_graph
 
 class DDPG_TD3(DDPG):
     def __init__(self,
-                 actor: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 actor_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 critic: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 critic_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 critic2: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 critic2_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
+                 actor: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 actor_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 critic: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 critic_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 critic2: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 critic2_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
                  optimizer,
                  criterion,
                  learning_rate=0.001,

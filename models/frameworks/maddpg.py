@@ -4,12 +4,13 @@ import itertools
 import numpy as np
 
 from .ddpg import *
-from ..models.base import NeuralNetworkModule, NeuralNetworkWrapper
+from ..models.base import NeuralNetworkModule, StaticNeuralNetworkWrapper
 from ..noise.action_space_noise import *
 from typing import Union, Iterable
 
 from utils.visualize import visualize_graph
 from utils.parallel import ThreadPool, cpu_count
+from utils.parallel.assigner import ModelAssigner
 
 
 def average_parameter(target_param: t.Tensor, *params: Iterable[t.Tensor]):
@@ -23,12 +24,13 @@ def average_parameter(target_param: t.Tensor, *params: Iterable[t.Tensor]):
 class MADDPG(TorchFramework):
     def __init__(self,
                  agent_num,
-                 actor: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 actor_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 critic: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 critic_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
+                 actor: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 actor_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 critic: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 critic_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
                  optimizer,
                  criterion,
+                 available_devices: Union[list, None]=None,
                  sub_policy_num=1,
                  learning_rate=0.001,
                  lr_scheduler=None,
@@ -56,6 +58,21 @@ class MADDPG(TorchFramework):
         self.actor_optims = [optimizer(ac.parameters(), lr=learning_rate) for ac in self.actors]
         self.critic_optims = [optimizer(cr.parameters(), lr=learning_rate) for cr in self.critics]
         self.sub_policy_num = sub_policy_num
+
+        if available_devices is not None and len(available_devices) > 0:
+            nets = self.actors + self.actor_targets + self.critics + self.critic_targets
+            # only actors and critics are related
+            connections = {(i, i + self.sub_policy_num * 2): 1 for i in range(self.sub_policy_num)}
+            assigner = ModelAssigner(nets, connections, available_devices)
+            act_asgn, actt_asgn, crt_asgn, crtt_asgn = np.array_split(assigner.assignment, 4)
+            print("Actors assigned to:")
+            print(act_asgn)
+            print("Actors (target) assigned to:")
+            print(actt_asgn)
+            print("Critics assigned to:")
+            print(crt_asgn)
+            print("Critics (target) assigned to:")
+            print(crtt_asgn)
 
         # create wrapper for target actors and target critics
         self.actor_target = nn.Module()

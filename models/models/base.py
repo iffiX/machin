@@ -1,7 +1,14 @@
+import torch
 import torch.nn as nn
 
 
 class NeuralNetworkModule(nn.Module):
+    """
+    Note: input device and output device are determined by module parameters,
+          your input module / output module should not store parameters on
+          more than one devices, and you also should not move your output to
+          other devices other than your parameter storage device in forward().
+    """
     def __init__(self):
         super(NeuralNetworkModule, self).__init__()
         self.input_module = None
@@ -33,7 +40,12 @@ class NeuralNetworkModule(nn.Module):
             raise RuntimeError("Input module not set.")
         else:
             if not isinstance(self.input_module, NeuralNetworkModule):
-                return [p.device for p in self.input_module.parameters()][0]
+                set = {p.device for p in self.input_module.parameters()}
+                if len(set) != 1:
+                    raise RuntimeError("This input module contains parameters on different devices, "
+                                       "please consider about splitting it.")
+                else:
+                    return list(set)[0]
             else:
                 return self.input_module.input_device
 
@@ -43,7 +55,12 @@ class NeuralNetworkModule(nn.Module):
             raise RuntimeError("Output module not set.")
         elif self.output_module is not None:
             if not isinstance(self.output_module, NeuralNetworkModule):
-                return [p.device for p in self.output_module.parameters()][0]
+                set = {p.device for p in self.output_module.parameters()}
+                if len(set) != 1:
+                    raise RuntimeError("This output module contains parameters on different devices, "
+                                       "please consider about splitting it.")
+                else:
+                    return list(set)[0]
             else:
                 return self.output_module.output_device
         else:
@@ -64,7 +81,24 @@ class NeuralNetworkModule(nn.Module):
         pass
 
 
-def NeuralNetworkWrapper(wrapped_module: nn.Module, input_device, output_device):
+def StaticNeuralNetworkWrapper(wrapped_module: nn.Module, input_device, output_device):
+    """
+    Wrapped module could locate on multiple devices, but must not be moved.
+    """
     wrapped_module.input_device = input_device
     wrapped_module.output_device = output_device
     return wrapped_module
+
+
+def DynamicNeuralNetworkWrapper(wrapped_module: nn.Module):
+    """
+    Wrapped module must locate on one single device, but could be moved around.
+    """
+    wrapper = NeuralNetworkModule()
+    wrapper.add_module("wrapped_module", wrapped_module)
+    wrapper.set_input_module(wrapped_module)
+    wrapper.set_output_module(wrapped_module)
+    wrapper.forward = wrapped_module.forward
+    return wrapper
+
+

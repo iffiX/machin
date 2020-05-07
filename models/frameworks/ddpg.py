@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from .base import TorchFramework
-from ..models.base import NeuralNetworkModule, NeuralNetworkWrapper
+from ..models.base import NeuralNetworkModule, StaticNeuralNetworkWrapper
 from typing import Union, Dict
 
 from ..noise.action_space_noise import *
@@ -268,10 +268,10 @@ class ReplayBuffer:
 
 class DDPG(TorchFramework):
     def __init__(self,
-                 actor: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 actor_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 critic: Union[NeuralNetworkModule, NeuralNetworkWrapper],
-                 critic_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
+                 actor: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 actor_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 critic: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 critic_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
                  optimizer,
                  criterion,
                  learning_rate=0.001,

@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from datetime import datetime as dt
 
-from models.models.base import NeuralNetworkWrapper as NNW
+from models.models.base import StaticNeuralNetworkWrapper as NNW
 from models.frameworks.ddpg_td3 import DDPG_TD3
 from models.naive.env_walker import Actor, Critic
 
