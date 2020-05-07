@@ -1,18 +1,18 @@
-import time
+import itertools as it
 import torch as t
 import torch.nn as nn
-from torch.optim.lr_scheduler import LambdaLR
+from datetime import datetime as dt
 
+from models.models.base import NeuralNetworkWrapper as NNW
 from models.frameworks.maddpg import MADDPG
 from models.naive.env_walker import Actor
 
 from utils.logging import default_logger as logger
 from utils.image import create_gif
 from utils.tensor_board import global_board
-from utils.helper_classes import Counter
-from utils.prep import prep_dirs_default
-from utils.args import get_args
-from utils.train import gen_learning_rate_func
+from utils.helper_classes import Counter, Timer, Object
+from utils.env import Environment
+from utils.conf import *
 
 from env.walker.carrier import BipedalMultiCarrier
 
@@ -21,29 +21,28 @@ observe_dim = 28
 action_dim = 4
 
 # configs
-restart = True
-clear_old = True
-max_epochs = 20
-max_episodes = 1000
-max_steps = 1000
-replay_size = 500000
+c = Config()
+# c.restart_from_trial = "2020_05_06_21_50_57"
+c.max_episodes = 20000
+c.max_steps = 2000
+c.replay_size = 500000
 
-agent_num = 2
-explore_noise_params = [(0, 0.5)] * action_dim
-device = t.device("cuda:0")
-root_dir = "/data/AI/tmp/multi_agent/walker/maddpg/"
-model_dir = root_dir + "model/"
-log_dir = root_dir + "log/"
-save_map = {}
+c.agent_num = 3
+c.sub_policy_num = 3
+c.explore_noise_params = (0, 0.2)
+c.q_increase_rate = 1
+c.q_decrease_rate = 1
+c.device = "cuda:0"
+c.root_dir = "/data/AI/tmp/multi_agent/mcarrier/maddpg/"
 
 # train configs
 # lr: learning rate, int: interval
 # warm up should be less than one epoch
-ddpg_update_batch_size = 256
-ddpg_warmup_steps = 2000
-ddpg_average_target_int = 100
-model_save_int = 50  # in episodes
-profile_int = 10  # in episodes
+c.ddpg_update_batch_size = 100
+c.ddpg_warmup_steps = 200
+c.ddpg_average_target_int = 200
+c.model_save_int = 100  # in episodes
+c.profile_int = 50  # in episodes
 
 
 class Critic(nn.Module):
@@ -62,168 +61,154 @@ class Critic(nn.Module):
 
     # obs: batch_size * obs_dim
     def forward(self, all_states, all_actions):
+        all_actions = t.flatten(all_actions, 1, -1)
+        all_states = t.flatten(all_states, 1, -1)
         q = t.relu(self.fc1(all_states))
         q = t.cat([q, all_actions], dim=1)
         q = t.relu(self.fc2(q))
         q = t.relu(self.fc3(q))
         q = self.fc4(q)
         return q
-    
+
 
 if __name__ == "__main__":
     args = get_args()
-    for k, v in args.env.items():
-        globals()[k] = v
-    total_steps = max_epochs * max_episodes * max_steps
+    merge_config(c, args.conf)
 
     # preparations
-    prep_dirs_default(root_dir, clear_old=clear_old)
-    logger.info("Directories prepared.")
-    global_board.init(log_dir + "train_log")
+    save_env = Environment(c.root_dir, restart_use_trial=c.restart_from_trial)
+    if c.restart_from_trial is not None:
+        r = c.restart_from_trial
+        replace_config(c, load_config_cdict(save_env.get_trial_config_file()))
+        save_env.clear_trial_train_log_dir()
+        # prevent overwriting
+        c.restart_from_trial = r
+    else:
+        save_config(c, save_env.get_trial_config_file())
+    # save_env.remove_trials_older_than(diff_hour=1)
+    global_board.init(save_env.get_trial_train_log_dir())
     writer = global_board.writer
+    logger.info("Directories prepared.")
 
-    actors = [Actor(observe_dim, action_dim, 1).to(device) for i in range(agent_num)]
-    actor_ts = [Actor(observe_dim, action_dim, 1).to(device) for i in range(agent_num)]
-    critics = [Critic(agent_num, observe_dim, action_dim).to(device) for i in range(agent_num)]
-    critic_ts = [Critic(agent_num, observe_dim, action_dim).to(device) for i in range(agent_num)]
+    actor = NNW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
+    actor_t = NNW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
+    critic = NNW(Critic(c.agent_num, observe_dim, action_dim).to(c.device), c.device, c.device)
+    critic_t = NNW(Critic(c.agent_num, observe_dim, action_dim).to(c.device), c.device, c.device)
 
     logger.info("Networks created")
 
-    actor_lr_func = gen_learning_rate_func([[0, 5e-4]])
-    critic_lr_func = gen_learning_rate_func([[0, 1e-3]])
-    ddpg = MADDPG(
-                actors, actor_ts, critics, critic_ts,
-                t.optim.Adam, nn.MSELoss(reduction='sum'), device,
-                discount=0.99,
-                update_rate=1e-3,
-                batch_size=ddpg_update_batch_size,
-                lr_scheduler=LambdaLR,
-                lr_scheduler_params=[[actor_lr_func], [critic_lr_func]],
-                replay_size=replay_size)
+    ddpg = MADDPG(c.agent_num, actor, actor_t, critic, critic_t,
+                  t.optim.Adam, nn.MSELoss(reduction='sum'),
+                  sub_policy_num=c.sub_policy_num,
+                  discount=0.99,
+                  update_rate=0.005,
+                  batch_size=c.ddpg_update_batch_size,
+                  learning_rate=0.001,
+                  replay_size=c.replay_size,
+                  replay_device="cpu")
 
-    if not restart:
-        ddpg.load(root_dir + "/model", save_map)
+    if c.restart_from_trial is not None:
+        ddpg.load(save_env.get_trial_model_dir())
     logger.info("DDPG framework initialized")
 
     # training
     # preparations
-    env = BipedalMultiCarrier(agent_num=agent_num)
+    env = BipedalMultiCarrier(agent_num=c.agent_num)
 
     # begin training
-    # epoch > episode
-    epoch = Counter()
     episode = Counter()
     episode_finished = False
     global_step = Counter()
     local_step = Counter()
+    timer = Timer()
 
-    while epoch < max_epochs:
-        epoch.count()
-        logger.info("Begin epoch {}".format(epoch))
-        while episode < max_episodes:
-            episode.count()
-            logger.info("Begin episode {}, epoch={}".format(episode, epoch))
+    while episode < c.max_episodes:
+        episode.count()
+        logger.info("Begin episode {} at {}".format(episode, dt.now().strftime("%m/%d-%H:%M:%S")))
 
-            # environment initialization
-            env.reset()
+        # environment initialization
+        env.reset()
 
-            # render configuration
-            if episode.get() % profile_int == 0 and global_step.get() > ddpg_warmup_steps:
-                render = True
-            else:
-                render = False
-            frames = []
+        # render configuration
+        if episode.get() % c.profile_int == 0 and global_step.get() > c.ddpg_warmup_steps:
+            render = True
+        else:
+            render = False
+        frames = []
 
-            # model serialization
-            if episode.get() % model_save_int == 0:
-                ddpg.save(model_dir, save_map, global_step.get())
-                logger.info("Saving model parameters, epoch={}, episode={}"
-                            .format(epoch, episode))
+        # model serialization
+        if episode.get() % c.model_save_int == 0:
+            ddpg.save(save_env.get_trial_model_dir(), version=episode.get())
+            logger.info("Saving model parameters, episode={}".format(episode))
 
-            # batch size = 1
-            episode_begin = time.time()
-            actions = t.zeros([1, agent_num * action_dim], device=device)
-            total_reward = t.zeros([1, agent_num], device=device)
-            state, reward = t.tensor(env.reset(), dtype=t.float32, device=device), 0
+        # batch size = 1
+        actions = t.zeros([1, c.agent_num, action_dim], device=c.device)
+        total_reward = t.zeros([1, c.agent_num], device=c.device)
+        state, reward = t.tensor(env.reset(), dtype=t.float32, device=c.device)\
+                            .view([1, c.agent_num, -1]), 0
 
-            while not episode_finished and local_step.get() <= max_steps:
-                global_step.count()
-                local_step.count()
+        while not episode_finished and local_step.get() <= c.max_steps:
+            global_step.count()
+            local_step.count()
 
-                step_begin = time.time()
-                with t.no_grad():
-                    old_state = state
+            timer.begin()
+            with t.no_grad():
+                old_state = state
 
-                    # agent model inference
-                    for ag in range(agent_num):
-                        if not render:
-                            actions[:, ag * action_dim: (ag + 1) * action_dim] = ddpg.act_with_noise(
-                                ag,
-                                {"state": state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0)},
-                                explore_noise_params, mode="normal")
-                        else:
-                            actions[:, ag * action_dim: (ag + 1) * action_dim] = ddpg.act(
-                                ag,
-                                {"state": state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0)})
+                # agent model inference
+                if not render:
+                    actions[0] = ddpg.act_with_noise(
+                        {"state": state.flatten(0, 1)},
+                        c.explore_noise_params, mode="normal"
+                    )
+                else:
+                    actions[0] = ddpg.act({"state": state.flatten(0, 1)})
 
-                    actions = t.clamp(actions, min=-1, max=1)
-                    state, reward, episode_finished, _ = env.step(actions[0].to("cpu"))
+                actions = t.clamp(actions, min=-1, max=1)
+                state, reward, episode_finished, _ = env.step(t.flatten(actions.to("cpu")))
 
-                    if render:
-                        frames.append(env.render(mode="rgb_array"))
+                if render:
+                    frames.append(env.render(mode="rgb_array"))
 
-                    state = t.tensor(state, dtype=t.float32, device=device)
-                    reward = t.tensor(reward, dtype=t.float32, device=device).unsqueeze(dim=0)
+                state = t.tensor(state, dtype=t.float32, device=c.device).view([1, c.agent_num, -1])
+                reward = t.tensor(reward, dtype=t.float32, device=c.device).unsqueeze(dim=0)
 
-                    total_reward += reward
+                total_reward += reward
 
-                    for ag in range(agent_num):
-                        ddpg.store_observe({"state": {"state": old_state[ag * observe_dim: (ag + 1) * observe_dim]
-                                                               .unsqueeze(0).clone(),
-                                                      "all_states": old_state.unsqueeze(0).clone()},
-                                            "action": {"all_actions": actions.clone()},
-                                            "next_state": {"state": state[ag * observe_dim: (ag + 1) * observe_dim]
-                                                                    .unsqueeze(0).clone(),
-                                                           "all_states": state.unsqueeze(0).clone()},
-                                            "reward": float(reward[0][ag]),
-                                            "terminal": episode_finished or local_step.get() == max_steps})
+                for ag in range(c.agent_num):
+                    ddpg.store_observe({"state": {"state": old_state[:, ag].clone(),
+                                                  "all_states": old_state.clone()},
+                                        "action": {"all_actions": actions.clone()},
+                                        "next_state": {"state": state[:, ag].clone(),
+                                                       "all_states": state.clone()},
+                                        "reward": float(reward[0][ag]),
+                                        "index": ag,
+                                        "terminal": episode_finished or local_step.get() == c.max_steps})
 
-                    writer.add_scalar("action_min", t.min(actions), global_step.get())
-                    writer.add_scalar("action_mean", t.mean(actions), global_step.get())
-                    writer.add_scalar("action_max", t.max(actions), global_step.get())
+                writer.add_scalar("action_min", t.min(actions), global_step.get())
+                writer.add_scalar("action_mean", t.mean(actions), global_step.get())
+                writer.add_scalar("action_max", t.max(actions), global_step.get())
 
-                step_end = time.time()
+            writer.add_scalar("step_time", timer.end(), global_step.get())
+            writer.add_scalar("episodic_reward", t.mean(reward), global_step.get())
+            writer.add_scalar("episodic_sum_reward", t.mean(total_reward), global_step.get())
+            writer.add_scalar("episode_length", local_step.get(), global_step.get())
 
-                writer.add_scalar("step_time", step_end - step_begin, global_step.get())
-                writer.add_scalar("episodic_reward", t.mean(reward), global_step.get())
-                writer.add_scalar("episodic_sum_reward", t.mean(total_reward), global_step.get())
-                writer.add_scalar("episode_length", local_step.get(), global_step.get())
+        logger.info("Sum reward: {}, episode={}".format(total_reward, episode))
 
-                logger.info("Step {} completed in {:.3f} s, epoch={}, episode={}".
-                            format(local_step, step_end - step_begin, epoch, episode))
+        if global_step.get() > c.ddpg_warmup_steps:
+            for i in range(local_step.get()):
+                timer.begin()
+                ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
+                ddpg.update_lr_scheduler()
+                writer.add_scalar("train_step_time", timer.end(), global_step.get())
 
-            logger.info("Sum reward: {}, epoch={}, episode={}".format(
-                t.mean(total_reward), epoch, episode))
+        if episode.get() % c.ddpg_average_target_int == 0:
+            ddpg.average_target_parameters()
 
-            if global_step.get() > ddpg_warmup_steps:
-                for i in range(local_step.get()):
-                    ddpg_train_begin = time.time()
-                    ddpg.update(update_policy=i % 2 == 0)
-                    ddpg.update_lr_scheduler()
-                    ddpg_train_end = time.time()
-                    logger.info("DDPG train Step {} completed in {:.3f} s, epoch={}, episode={}".
-                                format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))
+        if render:
+            create_gif(frames, save_env.get_trial_image_dir() + "/{}_{}".format(episode, global_step))
 
-            # if episode.get() % ddpg_average_target_int == 0:
-            #     ddpg.average_target_parameters()
-
-            if render:
-                create_gif(frames, "{}/log/images/{}_{}_{}".format(root_dir, epoch, episode, global_step.get()))
-
-            local_step.reset()
-            episode_finished = False
-            episode_end = time.time()
-            logger.info("Episode {} completed in {:.3f} s, epoch={}".
-                        format(episode, episode_end - episode_begin, epoch))
-
-        episode.reset()
+        local_step.reset()
+        episode_finished = False
+        logger.info("End episode {} at {}".format(episode, dt.now().strftime("%m/%d-%H:%M:%S")))

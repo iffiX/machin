@@ -102,8 +102,14 @@ class Object:
             self.attr(key, value)
         elif key == "call":
             super(Object, self).__setattr__(key, value)
+        elif key == "data":
+            if isinstance(value, dict):
+                super(Object, self).__setattr__(key, value)
+            else:
+                raise RuntimeError("The data attribute must be a dictionary.")
         else:
-            raise RuntimeWarning("You should not set data or attr property of an Object.")
+            raise RuntimeError("You should not set the attr property of an Object. "
+                               "Please Override it in a sub class.")
 
     def __setitem__(self, key, value):
         self.__setattr__(key, value)

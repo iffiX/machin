@@ -1,15 +1,16 @@
+import copy
 import itertools
-import torch
-import torch.nn as nn
 
-from .base import TorchFramework
-from .ddpg import soft_update, hard_update, safe_call, ReplayBuffer
+import numpy as np
+
+from .ddpg import *
 from ..models.base import NeuralNetworkModule, NeuralNetworkWrapper
 from ..noise.action_space_noise import *
-from typing import Union, List, Iterable
+from typing import Union, Iterable
 
 from utils.visualize import visualize_graph
-from utils.parallel import Pool, cpu_count, get_context
+from utils.parallel import ThreadPool, cpu_count
+
 
 def average_parameter(target_param: t.Tensor, *params: Iterable[t.Tensor]):
     target_param.data.copy_(
@@ -21,12 +22,14 @@ def average_parameter(target_param: t.Tensor, *params: Iterable[t.Tensor]):
 
 class MADDPG(TorchFramework):
     def __init__(self,
-                 actors: List[Union[NeuralNetworkModule, NeuralNetworkWrapper]],
-                 actor_targets: List[Union[NeuralNetworkModule, NeuralNetworkWrapper]],
-                 critics: List[Union[NeuralNetworkModule, NeuralNetworkWrapper]],
-                 critic_targets: List[Union[NeuralNetworkModule, NeuralNetworkWrapper]],
+                 agent_num,
+                 actor: Union[NeuralNetworkModule, NeuralNetworkWrapper],
+                 actor_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
+                 critic: Union[NeuralNetworkModule, NeuralNetworkWrapper],
+                 critic_target: Union[NeuralNetworkModule, NeuralNetworkWrapper],
                  optimizer,
                  criterion,
+                 sub_policy_num=1,
                  learning_rate=0.001,
                  lr_scheduler=None,
                  lr_scheduler_params=None,
@@ -36,48 +39,42 @@ class MADDPG(TorchFramework):
                  replay_size=100000,
                  replay_device="cpu",
                  reward_func=None,
-                 process_num=-1):
+                 thread_num=-1):
         """
         Initialize MADDPG framework.
         """
-        if not (len(actors) == len(actor_targets) == len(critics) == len(critic_targets)):
-            raise RuntimeError("Actor, actor target, critic, critic target number doesn't match.")
         self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
         self.rpb = ReplayBuffer(replay_size, replay_device)
+        self.agent_num = agent_num
 
-        self.actors = actors
-        self.actor_targets = actor_targets
-        self.critics = critics
-        self.critic_targets = critic_targets
-        self.actor_optims = [optimizer(ac.parameters(), lr=learning_rate) for ac in actors]
-        self.critic_optims = [optimizer(cr.parameters(), lr=learning_rate) for cr in critics]
+        self.actors = [copy.deepcopy(actor) for _ in range(sub_policy_num)]
+        self.actor_targets = [copy.deepcopy(actor_target) for _ in range(sub_policy_num)]
+        self.critics = [copy.deepcopy(critic) for _ in range(sub_policy_num)]
+        self.critic_targets = [copy.deepcopy(critic_target) for _ in range(sub_policy_num)]
+        self.actor_optims = [optimizer(ac.parameters(), lr=learning_rate) for ac in self.actors]
+        self.critic_optims = [optimizer(cr.parameters(), lr=learning_rate) for cr in self.critics]
+        self.sub_policy_num = sub_policy_num
 
         # create wrapper for target actors and target critics
         self.actor_target = nn.Module()
         self.critic_target = nn.Module()
-        for actor_t, idx in zip(self.actor_targets, range(len(self.actor_targets))):
+        for actor_t, idx in zip(self.actor_targets, range(self.sub_policy_num)):
             self.actor_target.add_module("actor_{}".format(idx), actor_t)
 
-        for critic_t, idx in zip(self.critic_targets, range(len(self.critic_targets))):
+        for critic_t, idx in zip(self.critic_targets, range(self.sub_policy_num)):
             self.critic_target.add_module("critic_{}".format(idx), critic_t)
 
-        # enable multiprocessing
-        if not (process_num > 0):
-            process_num = cpu_count()
-
-        self.pool_ctx = get_context("spawn")
-        self.pool = Pool(process_num, context=self.pool_ctx)
-        self.pool.enable_global(True)
-
-        for model in self.actor_targets + self.critic_targets + self.actors + self.critics:
-            model.share_memory()
+        # enable multi-threading
+        if not thread_num > 0:
+            thread_num = cpu_count()
+        self.pool = ThreadPool(thread_num)
 
         # Make sure target and online networks have the same weight
         with torch.no_grad():
-            self.pool.starmap(hard_update, zip(actors, actor_targets))
-            self.pool.starmap(hard_update, zip(critics, critic_targets))
+            self.pool.starmap(hard_update, zip(self.actors, self.actor_targets))
+            self.pool.starmap(hard_update, zip(self.critics, self.critic_targets))
 
         if lr_scheduler is not None:
             self.actor_lr_schs = [lr_scheduler(ac_opt, *lr_scheduler_params[0]) for ac_opt in self.actor_optims]
@@ -91,20 +88,23 @@ class MADDPG(TorchFramework):
         self.set_top([])
         self.set_restorable(["actor_target", "critic_target"])
 
-    def act(self, index, state, use_target=False):
+    def act(self, state, use_target=False, index=-1):
         """
         Use actor network to give a policy to the current state.
 
         Returns:
             Policy produced by actor.
         """
+        if index not in range(self.sub_policy_num):
+            index = np.random.randint(0, self.sub_policy_num)
+
         if use_target:
             return safe_call(self.actor_targets[index], state)
         else:
             return safe_call(self.actors[index], state)
 
-    def act_with_noise(self, index, state, noise_param=(0.0, 1.0),
-                       ratio=1.0, mode="uniform", use_target=False):
+    def act_with_noise(self, state, noise_param=(0.0, 1.0),
+                       ratio=1.0, mode="uniform", use_target=False, index=-1):
         """
         Use actor network to give a policy (with uniform noise added) to the current state.
 
@@ -115,43 +115,15 @@ class MADDPG(TorchFramework):
             Policy (with uniform noise) produced by actor.
         """
         if mode == "uniform":
-            return self.add_uniform_noise_to_action(self.act(index, state, use_target),
-                                                    noise_param, ratio)
+            return add_uniform_noise_to_action(self.act(state, use_target, index),
+                                               noise_param, ratio)
         elif mode == "normal":
-            return self.add_normal_noise_to_action(self.act(index, state, use_target),
-                                                   noise_param, ratio)
+            return add_normal_noise_to_action(self.act(state, use_target, index),
+                                              noise_param, ratio)
         else:
             raise RuntimeError("Unknown noise type: " + str(mode))
 
-    def add_uniform_noise_to_action(self, action, noise_param=(0.0, 1.0), ratio=1.0):
-        if isinstance(noise_param[0], tuple):
-            if len(noise_param) != action.shape[-1]:
-                raise ValueError("Noise range length doesn't match the last dimension of action")
-            noise = torch.rand(action.shape, device=action.device)
-            for i in range(action.shape[-1]):
-                noi_p = noise_param[i]
-                noise.view(-1, noise.shape[-1])[:, i] *= noi_p[1] - noi_p[0]
-                noise.view(-1, noise.shape[-1])[:, i] += noi_p[0]
-        else:
-            noise = torch.rand(action.shape, device=action.device) \
-                    * (noise_param[1] - noise_param[0]) + noise_param[0]
-        return action + noise * ratio
-
-    def add_normal_noise_to_action(self, action, noise_param=(0.0, 0.1), ratio=1.0):
-        if isinstance(noise_param[0], tuple):
-            if len(noise_param) != action.shape[-1]:
-                raise ValueError("Noise range length doesn't match the last dimension of action")
-            noise = torch.randn(action.shape, device=action.device)
-            for i in range(action.shape[-1]):
-                noi_p = noise_param[i]
-                noise.view(-1, noise.shape[-1])[:, i] *= noi_p[1]
-                noise.view(-1, noise.shape[-1])[:, i] += noi_p[0]
-        else:
-            noise = torch.rand(action.shape, device=action.device) \
-                    * noise_param[1] + noise_param[0]
-        return action + noise * ratio
-
-    def criticize(self, index, state, all_actions, use_target=False):
+    def criticize(self, state, all_actions, use_target=False, index=-1):
         """
         Use the first critic network to evaluate current value.
 
@@ -160,6 +132,9 @@ class MADDPG(TorchFramework):
         Notes:
             State and action will be concatenated in dimension 1
         """
+        if index not in range(self.sub_policy_num):
+            index = np.random.randint(0, self.sub_policy_num)
+
         if use_target:
             return safe_call(self.critic_targets[index], state, all_actions,
                              required_argument=("all_states", "all_actions"))
@@ -190,7 +165,7 @@ class MADDPG(TorchFramework):
         return self.rpb
 
     def update(self, update_value=True, update_policy=True, update_targets=True,
-               average_target_parametrs=False, concatenate_samples=True):
+               average_target_parametrs=False):
         """
         Update network weights by sampling from replay buffer.
 
@@ -199,32 +174,29 @@ class MADDPG(TorchFramework):
 
         Note: currently agents share the same replay buffer
         """
-        batch_size, (state, action, reward, next_state, terminal, *others) = \
-            self.rpb.sample_batch(self.batch_size, concatenate_samples,
-                                  sample_keys=["state", "action", "reward", "next_state", "terminal", "*"])
+        batch_size, (state, action, reward, next_state, terminal, agent_indexes, *others) = \
+            self.rpb.sample_batch(self.batch_size,
+                                  sample_keys=["state", "action", "reward", "next_state", "terminal",
+                                               "index", "*"])
 
-        agent_num = len(self.actors)
         with torch.no_grad():
-            all_next_actions_t = self.pool.map(
-                self.act,
-                zip(range(agent_num),
-                    itertools.repeat(next_state),
-                    itertools.repeat(True))
-            )
-            all_next_actions_t = {"all_actions": torch.cat(all_next_actions_t, dim=1)}
+            # each train step will randomly select a target network to act
+            all_next_actions_t = self.act(
+                {"state": torch.flatten(next_state["all_states"], 0, 1)}, True)
+            all_next_actions_t = {"all_actions": all_next_actions_t.view(batch_size, self.agent_num, -1)}
 
         def update_inner(i):
             # Update critic network first
             # Generate value reference :math: `y_i` using target actor and target critic
 
             with torch.no_grad():
-                next_value = self.criticize(i, next_state, all_next_actions_t, True)
+                next_value = self.criticize(next_state, all_next_actions_t, True, i)
                 next_value = next_value.view(batch_size, -1)
                 y_i = self.reward_func(reward, self.discount, next_value, terminal, others)
 
             # action contain actions of all agents, same for state
-            cur_value = self.criticize(i, state, action)
-            value_loss = self.criterion(cur_value, y_i)
+            cur_value = self.criticize(state, action, index=i)
+            value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
 
             if update_value:
                 self.critics[i].zero_grad()
@@ -233,10 +205,10 @@ class MADDPG(TorchFramework):
 
             # Update actor network
             cur_all_actions = action["all_actions"].clone().detach()
-            action_dim = int(cur_all_actions.shape[-1] / len(self.actors))
-            cur_all_actions[:, i * action_dim: (i + 1) * action_dim] = self.act(i, state)
+            cur_all_actions[range(batch_size), agent_indexes] = \
+                self.act(state, index=i).to(cur_all_actions.device)
             cur_all_actions = {"all_actions": cur_all_actions}
-            act_value = self.criticize(i, state, cur_all_actions)
+            act_value = self.criticize(state, cur_all_actions, index=i)
 
             # "-" is applied because we want to maximize J_b(u),
             # but optimizer workers by minimizing the target
@@ -254,7 +226,8 @@ class MADDPG(TorchFramework):
 
             return float(act_policy_loss), float(value_loss)
 
-        mean_loss = t.tensor(self.pool.map(update_inner, range(agent_num))).mean(dim=1)
+        all_loss = self.pool.map(update_inner, range(self.sub_policy_num))
+        mean_loss = t.tensor(all_loss).mean(dim=0)
 
         if average_target_parametrs:
             self.average_target_parameters()

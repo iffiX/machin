@@ -64,26 +64,7 @@ class NeuralNetworkModule(nn.Module):
         pass
 
 
-class NeuralNetworkWrapper:
-    """
-    This wrapper is used to wrap a vanilla nn.Module, and provide
-    input_device and output_device to frameworks
-    """
-
-    def __init__(self, wrapped_module: nn.Module, input_device, output_device):
-        self.wrapped_module = wrapped_module
-        self.input_device = input_device
-        self.output_device = output_device
-
-    def __getattr__(self, item):
-        # if access some attribute that could not be found
-        return getattr(object.__getattribute__(self, "wrapped_module"), item)
-
-    def __setattr__(self, key, value):
-        if key not in {"wrapped_module", "input_device", "output_device"}:
-            return self.wrapped_module.__setattr__(key, value)
-        else:
-            super(NeuralNetworkWrapper, self).__setattr__(key, value)
-
-    def __call__(self, *args, **kwargs):
-        return self.wrapped_module(*args, **kwargs)
+def NeuralNetworkWrapper(wrapped_module: nn.Module, input_device, output_device):
+    wrapped_module.input_device = input_device
+    wrapped_module.output_device = output_device
+    return wrapped_module

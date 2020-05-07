@@ -88,16 +88,21 @@ class Transition:
                  reward: Union[float, torch.Tensor],
                  terminal: bool,
                  **kwargs):
+        self._length = 5
+        self._keys = ["state", "action", "next_state", "reward", "terminal"] + list(kwargs.keys())
+
         self.state = state
         self.action = action
         self.next_state = next_state
         self.reward = reward
         self.terminal = terminal
-        self.others = kwargs
+        for k, v in kwargs.items():
+            self._length += 1
+            setattr(self, k, v)
         self._check_input(self)
 
     def __len__(self):
-        return 5 + len(list(self.others.keys()))
+        return self._length
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -112,6 +117,9 @@ class Transition:
         if t.is_tensor(self.reward):
             self.reward = self.reward.to(device)
         return self
+
+    def keys(self):
+        return self._keys
 
     @staticmethod
     def _check_input(trans):
@@ -250,9 +258,9 @@ class ReplayBuffer:
                 result.append(torch.tensor([float(item[k]) for item in batch], device=device).view(real_num, -1))
             elif k == "*":
                 # select custom keys
-                for remain_k in batch[0].others.keys():
+                for remain_k in batch[0].keys():
                     if remain_k not in ("state", "action", "next_state", "reward", "terminal"):
-                        result.append([item.others[remain_k] for item in batch])
+                        result.append([item[remain_k] for item in batch])
             else:
                 result.append([item[k] for item in batch])
         return real_num, tuple(result)

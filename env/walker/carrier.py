@@ -46,12 +46,6 @@ class Agent(Object):
         self.data = {"hull": None, "legs": None, "joints": None, "lidar": None,
                      "is_carrying": False}
 
-    def attr(self, item, change=None):
-        if change is not None:
-            self.data[item] = change[0]
-        else:
-            return self.data[item]
-
     def reset(self):
         self.data = {"hull": None, "legs": None, "joints": None, "lidar": None,
                      "is_carrying": False}

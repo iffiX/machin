@@ -162,6 +162,7 @@ if __name__ == "__main__":
             for i in range(local_step.get()):
                 timer.begin()
                 ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
+                ddpg.update_lr_scheduler()
                 writer.add_scalar("train_step_time", timer.end(), global_step.get())
 
         if render:

@@ -1,6 +1,9 @@
 import dill
 import functools as fc
-import torch.multiprocessing.pool as mpp
+import multiprocessing as mp
+import multiprocessing.util as util
+import torch.multiprocessing.pool as tmpp
+from multiprocessing.dummy import Process as TProcess
 
 from .queue import SimpleQueue
 
@@ -29,7 +32,7 @@ def proxy_zip_long(recurse, func, iterable):
         yield [dump] + list(args)
 
 
-class Pool(mpp.Pool):
+class Pool(tmpp.Pool):
     is_global = False
 
     def enable_global(self, is_global):
@@ -61,17 +64,17 @@ class Pool(mpp.Pool):
         Equivalent of `func(*args, **kwds)`.
         """
 
-        return mpp.Pool.apply(self, proxy_long,
-                              [dill.dumps(func, recurse=self.is_global)] + list(args), kwds)
+        return tmpp.Pool.apply(self, proxy_long,
+                               [dill.dumps(func, recurse=self.is_global)] + list(args), kwds)
 
     def map(self, func, iterable, chunksize=None):
         """
         Apply `func` to each element in `iterable`, collecting the results
         in a list that is returned.
         """
-        return mpp.Pool.map(self, proxy_short,
-                            fc.partial(proxy_zip_short, self.is_global)(func, iterable),
-                            chunksize)
+        return tmpp.Pool.map(self, proxy_short,
+                             fc.partial(proxy_zip_short, self.is_global)(func, iterable),
+                             chunksize)
 
     def starmap(self, func, iterable, chunksize=None):
         """
@@ -79,48 +82,68 @@ class Pool(mpp.Pool):
         be iterables as well and will be unpacked as arguments. Hence
         `func` and (a, b) becomes func(a, b).
         """
-        return mpp.Pool.starmap(self, proxy_long, 
-                                fc.partial(proxy_zip_long, self.is_global)(func, iterable),
-                                chunksize)
+        return tmpp.Pool.starmap(self, proxy_long,
+                                 fc.partial(proxy_zip_long, self.is_global)(func, iterable),
+                                 chunksize)
 
     def starmap_async(self, func, iterable, chunksize=None, callback=None,
                       error_callback=None):
         """
         Asynchronous version of `starmap()` method.
         """
-        return mpp.Pool.starmap_async(self, proxy_long,
-                                      fc.partial(proxy_zip_long, self.is_global)(func, iterable),
-                                      chunksize, callback, error_callback)
+        return tmpp.Pool.starmap_async(self, proxy_long,
+                                       fc.partial(proxy_zip_long, self.is_global)(func, iterable),
+                                       chunksize, callback, error_callback)
 
     def imap(self, func, iterable, chunksize=1):
         """
         Equivalent of `map()` -- can be MUCH slower than `Pool.map()`.
         """
-        return mpp.Pool.imap(self, proxy_short,
-                             fc.partial(proxy_zip_short, self.is_global)(func, iterable),
-                             chunksize)
+        return tmpp.Pool.imap(self, proxy_short,
+                              fc.partial(proxy_zip_short, self.is_global)(func, iterable),
+                              chunksize)
 
     def imap_unordered(self, func, iterable, chunksize=1):
         """
         Like `imap()` method but ordering of results is arbitrary.
         """
-        return mpp.Pool.imap_unordered(self, proxy_short,
-                                       fc.partial(proxy_zip_short, self.is_global)(func, iterable),
-                                       chunksize)
+        return tmpp.Pool.imap_unordered(self, proxy_short,
+                                        fc.partial(proxy_zip_short, self.is_global)(func, iterable),
+                                        chunksize)
 
     def apply_async(self, func, args=(), kwds={}, callback=None,
                     error_callback=None):
         """
         Asynchronous version of `apply()` method.
         """
-        return mpp.Pool.apply_async(self, proxy_short,
-                                    [dill.dumps(func, recurse=self.is_global)] + list(args), kwds)
+        return tmpp.Pool.apply_async(self, proxy_short,
+                                     [dill.dumps(func, recurse=self.is_global)] + list(args), kwds)
 
     def map_async(self, func, iterable, chunksize=None, callback=None,
                   error_callback=None):
         """
         Asynchronous version of `map()` method.
         """
-        return mpp.Pool.map(self, proxy_short,
-                            fc.partial(proxy_zip_short, self.is_global)(func, iterable),
-                            chunksize, callback, error_callback)
+        return tmpp.Pool.map(self, proxy_short,
+                             fc.partial(proxy_zip_short, self.is_global)(func, iterable),
+                             chunksize, callback, error_callback)
+
+
+class ThreadPool(mp.pool.ThreadPool):
+    def _repopulate_pool(self):
+        """Bring the number of pool processes up to the specified number,
+        for use after reaping workers which have exited.
+        """
+        for i in range(self._processes - len(self._pool)):
+            # changed worker -> clean_worker
+            args = (self._inqueue, self._outqueue,
+                    self._initializer,
+                    self._initargs, self._maxtasksperchild)
+            if hasattr(self, '_wrap_exception'):
+                args += (self._wrap_exception,)
+            w = self.Process(target=tmpp.clean_worker, args=args)
+            self._pool.append(w)
+            w.name = w.name.replace('Process', 'PoolWorker')
+            w.daemon = True
+            w.start()
+            util.debug('added worker')
