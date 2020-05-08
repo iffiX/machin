@@ -51,7 +51,7 @@ class Agent(Object):
                      "is_carrying": False}
 
     def get_fixtures(self):
-        return [self.data["hull"]] + self.data["legs"]
+        return [self.hull] + self.legs
 
 
 class ContactDetector(contactListener):

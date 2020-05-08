@@ -5,10 +5,9 @@ import torch.nn
 
 from .conf import Config, get_args, merge_config, \
     replace_config, save_config, load_config_dict
-from .env import Environment
 
 
-def prep_args(c: Config, save_env: Environment):
+def prep_args(c: Config, save_env):
     args = get_args()
     merge_config(c, args.conf)
 

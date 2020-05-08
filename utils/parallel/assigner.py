@@ -90,7 +90,7 @@ class ModelAssigner:
             used_devices = []
             for d in devices:
                 if d.type == "cuda" and d not in available_devices:
-                    print("Warning: device {} not available, removed.")
+                    print("Warning: device {} not available, removed.".format(d))
                 else:
                     used_devices.append(d)
             devices = used_devices
@@ -124,10 +124,10 @@ class ModelAssigner:
         model_num = len(models)
         placement = t.randn([model_num, device_num], requires_grad=True)
         optimizer = t.optim.Adam([placement], lr=update_rate)
-        model_size = t.tensor(sizes).view([1, model_num])
-        size_capacity = t.tensor(device_size_capacity).view([1, device_num])
+        model_size = t.tensor(sizes, dtype=t.float).view([1, model_num])
+        size_capacity = t.tensor(device_size_capacity, dtype=t.float).view([1, device_num])
         model_complexity = model_size
-        complexity_capacity = t.tensor(device_complexity_capacity).view([1, device_num])
+        complexity_capacity = t.tensor(device_complexity_capacity, dtype=t.float).view([1, device_num])
         model_conn = t.zeros([model_num, model_num])
         for dir, conn in model_connection.items():
             model_conn[dir[0], dir[1]] = conn

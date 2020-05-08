@@ -99,19 +99,18 @@ class Object:
         return self.attr(item)
 
     def __setattr__(self, key, value):
-        if key == "data":
+        if key != "data" and key != "attr" and key != "call":
+            self.attr(key, value)
+        elif key == "call":
+            super(Object, self).__setattr__(key, value)
+        elif key == "data":
             if isinstance(value, dict):
                 super(Object, self).__setattr__(key, value)
             else:
                 raise RuntimeError("The data attribute must be a dictionary.")
-        elif key == "attr":
+        else:
             raise RuntimeError("You should not set the attr property of an Object. "
                                "Please Override it in a sub class.")
-        else:
-            if hasattr(self, key):
-                super(Object, self).__setattr__(key, value)
-            else:
-                self.attr(key, value)
 
     def __setitem__(self, key, value):
         self.__setattr__(key, value)

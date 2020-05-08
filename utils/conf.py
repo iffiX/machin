@@ -4,7 +4,7 @@ from .helper_classes import Object
 
 
 class Config(Object):
-    restart_from_trial = None
+    pass
 
 
 def get_args():
