@@ -12,8 +12,9 @@ from utils.logging import default_logger as logger
 from utils.image import create_gif
 from utils.tensor_board import global_board
 from utils.helper_classes import Counter, Timer, Object
+from utils.conf import Config
 from utils.env import Environment
-from utils.conf import *
+from utils.prep import prep_args
 from utils.parallel import Pool, get_context
 
 from env.walker.carrier import BipedalMultiCarrier
@@ -46,19 +47,9 @@ c.profile_int = 50  # in episodes
 
 
 if __name__ == "__main__":
-    args = get_args()
-    merge_config(c, args.conf)
-
-    # preparations
     save_env = Environment(c.root_dir, restart_use_trial=c.restart_from_trial)
-    if c.restart_from_trial is not None:
-        r = c.restart_from_trial
-        replace_config(c, load_config_cdict(save_env.get_trial_config_file()))
-        save_env.clear_trial_train_log_dir()
-        # prevent overwriting
-        c.restart_from_trial = r
-    else:
-        save_config(c, save_env.get_trial_config_file())
+    prep_args(c, save_env)
+
     # save_env.remove_trials_older_than(diff_hour=1)
     global_board.init(save_env.get_trial_train_log_dir())
     writer = global_board.writer

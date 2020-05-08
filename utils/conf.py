@@ -4,7 +4,7 @@ from .helper_classes import Object
 
 
 class Config(Object):
-    pass
+    restart_from_trial = None
 
 
 def get_args():
@@ -36,7 +36,7 @@ def get_args():
     return args
 
 
-def load_config_cdict(json_file):
+def load_config_dict(json_file):
     """
     Get configs from a json file
 

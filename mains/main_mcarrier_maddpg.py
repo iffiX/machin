@@ -1,4 +1,3 @@
-import itertools as it
 import torch as t
 import torch.nn as nn
 from datetime import datetime as dt
@@ -10,9 +9,10 @@ from models.naive.env_walker import Actor
 from utils.logging import default_logger as logger
 from utils.image import create_gif
 from utils.tensor_board import global_board
-from utils.helper_classes import Counter, Timer, Object
+from utils.helper_classes import Counter, Timer
+from utils.conf import Config
 from utils.env import Environment
-from utils.conf import *
+from utils.prep import prep_args
 
 from env.walker.carrier import BipedalMultiCarrier
 
@@ -28,7 +28,7 @@ c.max_steps = 2000
 c.replay_size = 500000
 
 c.agent_num = 3
-c.sub_policy_num = 3
+c.sub_policy_num = 1
 c.explore_noise_params = (0, 0.2)
 c.q_increase_rate = 1
 c.q_decrease_rate = 1
@@ -72,19 +72,9 @@ class Critic(nn.Module):
 
 
 if __name__ == "__main__":
-    args = get_args()
-    merge_config(c, args.conf)
-
-    # preparations
     save_env = Environment(c.root_dir, restart_use_trial=c.restart_from_trial)
-    if c.restart_from_trial is not None:
-        r = c.restart_from_trial
-        replace_config(c, load_config_cdict(save_env.get_trial_config_file()))
-        save_env.clear_trial_train_log_dir()
-        # prevent overwriting
-        c.restart_from_trial = r
-    else:
-        save_config(c, save_env.get_trial_config_file())
+    prep_args(c, save_env)
+
     # save_env.remove_trials_older_than(diff_hour=1)
     global_board.init(save_env.get_trial_train_log_dir())
     writer = global_board.writer
@@ -94,17 +84,16 @@ if __name__ == "__main__":
     actor_t = NNW(Actor(observe_dim, action_dim, 1))
     critic = NNW(Critic(c.agent_num, observe_dim, action_dim))
     critic_t = NNW(Critic(c.agent_num, observe_dim, action_dim))
-
     logger.info("Networks created")
 
     ddpg = MADDPG(c.agent_num, actor, actor_t, critic, critic_t,
                   t.optim.Adam, nn.MSELoss(reduction='sum'),
                   sub_policy_num=c.sub_policy_num,
                   discount=0.99,
-                  update_rate=0.001,
+                  update_rate=0.005,
                   available_devices=["cuda:0"],
                   batch_size=c.ddpg_update_batch_size,
-                  learning_rate=1e-4,
+                  learning_rate=2e-4,
                   replay_size=c.replay_size,
                   replay_device="cpu")
 

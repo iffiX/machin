@@ -3,6 +3,25 @@ import re
 import torch
 import torch.nn
 
+from .conf import Config, get_args, merge_config, \
+    replace_config, save_config, load_config_dict
+from .env import Environment
+
+
+def prep_args(c: Config, save_env: Environment):
+    args = get_args()
+    merge_config(c, args.conf)
+
+    # preparations
+    if c.restart_from_trial is not None:
+        r = c.restart_from_trial
+        replace_config(c, load_config_dict(save_env.get_trial_config_file()))
+        save_env.clear_trial_train_log_dir()
+        # prevent overwriting
+        c.restart_from_trial = r
+    else:
+        save_config(c, save_env.get_trial_config_file())
+
 
 def prep_clear_dirs(dirs):
     """
