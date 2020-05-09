@@ -2,9 +2,9 @@ import torch as t
 import torch.nn as nn
 from datetime import datetime as dt
 
-from models.models.base import DynamicNeuralNetworkWrapper as NNW
+from models.models.base import DynamicModuleWrapper as MW
 from models.frameworks.maddpg import MADDPG
-from models.naive.env_walker import Actor
+from models.naive.env_walker_ddpg import Actor
 
 from utils.logging import default_logger as logger
 from utils.image import create_gif
@@ -54,20 +54,17 @@ class Critic(nn.Module):
         st_dim = state_dim * agent_num
         act_dim = action_dim * agent_num
 
-        self.fc1 = nn.Linear(st_dim, 1024)
-        self.fc2 = nn.Linear(1024 + act_dim, 512)
-        self.fc3 = nn.Linear(512, 300)
-        self.fc4 = nn.Linear(300, 1)
+        self.fc1 = nn.Linear(st_dim + act_dim, 1024)
+        self.fc2 = nn.Linear(1024, 512)
+        self.fc3 = nn.Linear(512, 1)
 
     # obs: batch_size * obs_dim
     def forward(self, all_states, all_actions):
         all_actions = t.flatten(all_actions, 1, -1)
         all_states = t.flatten(all_states, 1, -1)
-        q = t.relu(self.fc1(all_states))
-        q = t.cat([q, all_actions], dim=1)
+        q = t.relu(self.fc1(t.cat((all_states, all_actions), dim=1)))
         q = t.relu(self.fc2(q))
-        q = t.relu(self.fc3(q))
-        q = self.fc4(q)
+        q = self.fc3(q)
         return q
 
 
@@ -80,10 +77,10 @@ if __name__ == "__main__":
     writer = global_board.writer
     logger.info("Directories prepared.")
 
-    actor = NNW(Actor(observe_dim, action_dim, 1))
-    actor_t = NNW(Actor(observe_dim, action_dim, 1))
-    critic = NNW(Critic(c.agent_num, observe_dim, action_dim))
-    critic_t = NNW(Critic(c.agent_num, observe_dim, action_dim))
+    actor = MW(Actor(observe_dim, action_dim, 1))
+    actor_t = MW(Actor(observe_dim, action_dim, 1))
+    critic = MW(Critic(c.agent_num, observe_dim, action_dim))
+    critic_t = MW(Critic(c.agent_num, observe_dim, action_dim))
     logger.info("Networks created")
 
     ddpg = MADDPG(c.agent_num, actor, actor_t, critic, critic_t,

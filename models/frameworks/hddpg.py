@@ -1,23 +1,12 @@
-import time
-import random
-import inspect
-import numpy as np
-import torch
-import torch.nn as nn
-
-from .ddpg import DDPG, soft_update
-from ..models.base import NeuralNetworkModule, StaticNeuralNetworkWrapper
-from typing import Union
-
-from utils.visualize import visualize_graph
+from .ddpg import *
 
 
 class HDDPG(DDPG):
     def __init__(self,
-                 actor: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
-                 actor_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
-                 critic: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
-                 critic_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 actor: Union[NeuralNetworkModule, nn.Module],
+                 actor_target: Union[NeuralNetworkModule, nn.Module],
+                 critic: Union[NeuralNetworkModule, nn.Module],
+                 critic_target: Union[NeuralNetworkModule, nn.Module],
                  optimizer,
                  criterion,
                  q_increase_rate=1,
@@ -25,7 +14,7 @@ class HDDPG(DDPG):
                  learning_rate=0.001,
                  lr_scheduler=None,
                  lr_scheduler_params=None,
-                 batch_size=1,
+                 batch_size=100,
                  update_rate=0.005,
                  discount=0.99,
                  replay_size=100000,

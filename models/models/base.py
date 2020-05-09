@@ -81,7 +81,7 @@ class NeuralNetworkModule(nn.Module):
         pass
 
 
-def StaticNeuralNetworkWrapper(wrapped_module: nn.Module, input_device, output_device):
+def StaticModuleWrapper(wrapped_module: nn.Module, input_device, output_device):
     """
     Wrapped module could locate on multiple devices, but must not be moved.
     """
@@ -90,7 +90,7 @@ def StaticNeuralNetworkWrapper(wrapped_module: nn.Module, input_device, output_d
     return wrapped_module
 
 
-def DynamicNeuralNetworkWrapper(wrapped_module: nn.Module):
+def DynamicModuleWrapper(wrapped_module: nn.Module):
     """
     Wrapped module must locate on one single device, but could be moved around.
     """

@@ -3,9 +3,9 @@ import torch.nn as nn
 
 from datetime import datetime as dt
 
-from models.models.base import StaticNeuralNetworkWrapper as NNW
-from models.frameworks.ddpg import DDPG
-from models.naive.env_walker import Actor, Critic
+from models.models.base import StaticModuleWrapper as MW
+from models.frameworks.ddpg_td3 import DDPG_TD3
+from models.naive.env_walker_ddpg import Actor, Critic
 
 from utils.logging import default_logger as logger
 from utils.image import create_gif
@@ -23,7 +23,7 @@ action_dim = 4
 
 # configs
 c = Config()
-c.restart_from_trial = "2020_05_06_23_58_40"
+#c.restart_from_trial = "2020_05_06_21_50_57"
 c.max_episodes = 5000
 c.max_steps = 1000
 c.replay_size = 500000
@@ -31,7 +31,7 @@ c.replay_size = 500000
 # or: explore_noise_params = [(0, 0.2)] * action_dim
 c.explore_noise_params = (0, 0.2)
 c.device = "cuda:0"
-c.root_dir = "/data/AI/tmp/multi_agent/walker/naive_ddpg/"
+c.root_dir = "/data/AI/tmp/multi_agent/walker/naive_ddpg_td3/"
 
 # train configs
 # lr: learning rate, int: interval
@@ -50,28 +50,24 @@ if __name__ == "__main__":
     writer = global_board.writer
     logger.info("Directories prepared.")
 
-    # An example where each actor and critic is placed on a difeerent device
-    # actor = NNW(Actor(observe_dim, action_dim, 1), "cpu", "cpu")
-    # actor_t = NNW(Actor(observe_dim, action_dim, 1).to(device), device, device)
-    # critic = NNW(Critic(observe_dim, action_dim).to(device), device, device)
-    # critic_t = NNW(Critic(observe_dim, action_dim), "cpu", "cpu")
-
-    actor = NNW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
-    actor_t = NNW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
-    critic = NNW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
-    critic_t = NNW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
+    actor = MW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
+    actor_t = MW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
+    critic = MW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
+    critic_t = MW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
+    critic2 = MW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
+    critic2_t = MW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
 
     logger.info("Networks created")
 
     # default replay buffer storage is main cpu mem
     # when stored in main mem, takes about 0.65e-3 sec to move result from gpu to cpu,
-    ddpg = DDPG(actor, actor_t, critic, critic_t,
-                t.optim.Adam, nn.MSELoss(reduction='sum'),
-                replay_device=c.device,
-                discount=0.99,
-                update_rate=0.005,
-                batch_size=c.ddpg_update_batch_size,
-                learning_rate=0.001)
+    ddpg = DDPG_TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
+                    t.optim.Adam, nn.MSELoss(reduction='sum'),
+                    replay_device=c.device,
+                    discount=0.99,
+                    update_rate=0.005,
+                    batch_size=c.ddpg_update_batch_size,
+                    learning_rate=0.001)
 
     if c.restart_from_trial is not None:
         ddpg.load(save_env.get_trial_model_dir())

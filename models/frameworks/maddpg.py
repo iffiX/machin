@@ -4,16 +4,13 @@ import itertools
 import numpy as np
 
 from .ddpg import *
-from ..models.base import NeuralNetworkModule, StaticNeuralNetworkWrapper
-from ..noise.action_space_noise import *
-from typing import Union, Iterable
+from typing import Iterable
 
-from utils.visualize import visualize_graph
 from utils.parallel import ThreadPool, cpu_count
 from utils.parallel.assigner import ModelAssigner
 
 
-def average_parameter(target_param: t.Tensor, *params: Iterable[t.Tensor]):
+def average_parameters(target_param: torch.Tensor, *params: Iterable[torch.Tensor]):
     target_param.data.copy_(
         torch.mean(torch.stack([p.to(target_param.device) for p in params], dim=0), dim=0)
     )
@@ -24,10 +21,10 @@ def average_parameter(target_param: t.Tensor, *params: Iterable[t.Tensor]):
 class MADDPG(TorchFramework):
     def __init__(self,
                  agent_num,
-                 actor: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
-                 actor_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
-                 critic: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
-                 critic_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 actor: Union[NeuralNetworkModule, nn.Module],
+                 actor_target: Union[NeuralNetworkModule, nn.Module],
+                 critic: Union[NeuralNetworkModule, nn.Module],
+                 critic_target: Union[NeuralNetworkModule, nn.Module],
                  optimizer,
                  criterion,
                  available_devices: Union[list, None]=None,
@@ -35,7 +32,7 @@ class MADDPG(TorchFramework):
                  learning_rate=0.001,
                  lr_scheduler=None,
                  lr_scheduler_params=None,
-                 batch_size=1,
+                 batch_size=100,
                  update_rate=0.005,
                  discount=0.99,
                  replay_size=100000,
@@ -123,13 +120,13 @@ class MADDPG(TorchFramework):
     def act_with_noise(self, state, noise_param=(0.0, 1.0),
                        ratio=1.0, mode="uniform", use_target=False, index=-1):
         """
-        Use actor network to give a policy (with uniform noise added) to the current state.
+        Use actor network to give a policy (with noise added) to the current state.
 
         Args:
             noise_param: A single tuple or a list of tuples specifying noise params
             for each column (last dimension) of action.
         Returns:
-            Policy (with uniform noise) produced by actor.
+            Policy (with noise) produced by actor.
         """
         if mode == "uniform":
             return add_uniform_noise_to_action(self.act(state, use_target, index),
@@ -241,7 +238,7 @@ class MADDPG(TorchFramework):
                 soft_update(self.actor_targets[i], self.actors[i], self.update_rate)
                 soft_update(self.critic_targets[i], self.critics[i], self.update_rate)
 
-            return float(act_policy_loss), float(value_loss)
+            return act_policy_loss.item(), value_loss.item()
 
         all_loss = self.pool.map(update_inner, range(self.sub_policy_num))
         mean_loss = t.tensor(all_loss).mean(dim=0)
@@ -250,7 +247,7 @@ class MADDPG(TorchFramework):
             self.average_target_parameters()
 
         # returns action value and policy loss
-        return -float(mean_loss[0]), float(mean_loss[1])
+        return -mean_loss[0].item(), mean_loss[1].item()
 
     def update_lr_scheduler(self):
         if hasattr(self, "actor_lr_schs"):
@@ -273,7 +270,7 @@ class MADDPG(TorchFramework):
         with torch.no_grad():
             actor_params = [net.parameters() for net in self.actor_targets]
             critic_params = [net.parameters() for net in self.critic_targets]
-            self.pool.starmap(average_parameter, itertools.chain(zip(*actor_params), zip(*critic_params)))
+            self.pool.starmap(average_parameters, itertools.chain(zip(*actor_params), zip(*critic_params)))
 
     @staticmethod
     def bellman_function(reward, discount, next_value, terminal, *_):

@@ -3,10 +3,10 @@ import torch as t
 import torch.nn as nn
 from datetime import datetime as dt
 
-from models.models.base import StaticNeuralNetworkWrapper as NNW
+from models.models.base import StaticModuleWrapper as MW
 from models.noise.action_space_noise import add_normal_noise_to_action
 from models.frameworks.hddpg import HDDPG
-from models.naive.env_walker import Actor, Critic
+from models.naive.env_walker_ddpg import Actor, Critic
 
 from utils.logging import default_logger as logger
 from utils.image import create_gif
@@ -55,10 +55,10 @@ if __name__ == "__main__":
     writer = global_board.writer
     logger.info("Directories prepared.")
 
-    actor = NNW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
-    actor_t = NNW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
-    critic = NNW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
-    critic_t = NNW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
+    actor = MW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
+    actor_t = MW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
+    critic = MW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
+    critic_t = MW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
 
     # ctx = get_context("spawn")
     # pool = Pool(processes=2, context=ctx)

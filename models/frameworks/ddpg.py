@@ -1,283 +1,30 @@
-import random
-import inspect
 import torch
 import torch.nn as nn
-
-from .base import TorchFramework
-from ..models.base import NeuralNetworkModule, StaticNeuralNetworkWrapper
 from typing import Union, Dict
 
+from .base import TorchFramework
+from .utils import hard_update, soft_update, safe_call
+from .replay_buffer import Transition, ReplayBuffer
+
+from ..models.base import NeuralNetworkModule
 from ..noise.action_space_noise import *
 
-
-def soft_update(target_net: nn.Module,
-                source_net: nn.Module,
-                update_rate):
-    """
-    Soft update target network's parameters.
-
-    Args:
-        target_net: Target network to be updated.
-        source_net: Source network providing new parameters.
-        update_rate: Update rate.
-
-    Returns:
-        None
-    """
-    with torch.no_grad():
-        for target_param, param in zip(target_net.parameters(),
-                                       source_net.parameters()):
-            target_param.data.copy_(
-                target_param.data * (1.0 - update_rate) + param.data.to(target_param.device) * update_rate
-            )
-
-
-def hard_update(target_net: nn.Module,
-                source_net: nn.Module):
-    """
-    Hard update (directly copy) target network's parameters.
-
-    Args:
-        target_net: Target network to be updated.
-        source_net: Source network providing new parameters.
-    Returns:
-        None
-    """
-
-    for target_buffer, buffer in zip(target_net.buffers(),
-                                     source_net.buffers()):
-        target_buffer.data.copy_(buffer.data)
-    for target_param, param in zip(target_net.parameters(),
-                                   source_net.parameters()):
-        target_param.data.copy_(param.data)
-
-
-def safe_call(model, *named_args, required_argument=()):
-    """
-    Call a model and discard unnecessary arguments.
-
-    Any input tensor in named_args must not be contained inside any container,
-    such as list, dict, tuple, etc. Because they will be automatically moved
-    to the input device of the specified model.
-    """
-    input_device = model.input_device
-    args = inspect.getfullargspec(model.forward).args
-    args_dict = {}
-    if any(arg not in args for arg in required_argument):
-        missing = []
-        for arg in required_argument:
-            if arg not in args:
-                missing.append(arg)
-        raise RuntimeError("Model missing required argument field(s): {}, "
-                           "check your store_observe() function.".format(missing))
-    for na in named_args:
-        for k, v in na.items():
-            if k in args:
-                if t.is_tensor(v):
-                    args_dict[k] = v.to(input_device)
-                else:
-                    args_dict[k] = v
-    return model(**args_dict)
-
-
-class Transition:
-    def __init__(self,
-                 state: Dict[str, torch.Tensor],
-                 action: Dict[str, torch.Tensor],
-                 next_state: Dict[str, torch.Tensor],
-                 reward: Union[float, torch.Tensor],
-                 terminal: bool,
-                 **kwargs):
-        self._length = 5
-        self._keys = ["state", "action", "next_state", "reward", "terminal"] + list(kwargs.keys())
-
-        self.state = state
-        self.action = action
-        self.next_state = next_state
-        self.reward = reward
-        self.terminal = terminal
-        for k, v in kwargs.items():
-            self._length += 1
-            setattr(self, k, v)
-        self._check_input(self)
-
-    def __len__(self):
-        return self._length
-
-    def __getitem__(self, item):
-        return getattr(self, item)
-
-    def to(self, device):
-        for k, v in self.state.items():
-            self.state[k] = v.to(device)
-        for k, v in self.action.items():
-            self.action[k] = v.to(device)
-        for k, v in self.next_state.items():
-            self.next_state[k] = v.to(device)
-        if t.is_tensor(self.reward):
-            self.reward = self.reward.to(device)
-        return self
-
-    def keys(self):
-        return self._keys
-
-    @staticmethod
-    def _check_input(trans):
-        if any([not torch.is_tensor(t) for t in trans.state.values()]) \
-                or any([not torch.is_tensor(t) for t in trans.action.values()]) \
-                or any([not torch.is_tensor(t) for t in trans.next_state.values()]):
-            raise RuntimeError("State, action and next_state must be dictionaries of tensors.")
-        tensor_shapes = [t.shape for t in trans.state.values()] + \
-                        [t.shape for t in trans.action.values()] + \
-                        [t.shape for t in trans.next_state.values()]
-        if isinstance(trans.reward, float):
-            batch_size = 1
-        elif len(trans.reward.shape) == 2 and torch.is_tensor(trans.reward):
-            batch_size = trans.reward.shape[0]
-        else:
-            raise RuntimeError("Reward type must be a float value or a tensor of shape [batch_size, *]")
-        if not all([s[0] == batch_size for s in tensor_shapes]):
-            raise RuntimeError("Batch size of tensors in the transition object doesn't match")
-
-
-class ReplayBuffer:
-    def __init__(self, buffer_size, buffer_device="cpu"):
-        """
-        Create a replay buffer instance
-        Replay buffer stores a series of transition objects and functions
-        as a ring buffer. The value of "state", "action", and "next_state"
-        key must be a dictionary of tensors, the key of these tensors will
-        be passed to your actor network and critics network as keyword
-        arguments. You may store any additional info you need in the
-        transition object, Values of "reward" and other keys
-        will be passed to the reward function in DDPG.
-
-        During sampling, the tensors in "state", "action" and "next_state"
-        dictionaries, along with "reward", will be concatenated in dimension 0.
-        any other custom keys specified in **kwargs will not be concatenated.
-
-        Note:
-            You should not store any tensor inside **kwargs as they will not be
-            moved to the sample output device.
-
-        Args:
-            buffer_size: Maximum buffer size
-            buffer_device: Device where buffer is stored
-        """
-        self.buffer_size = buffer_size
-        self.buffer_device = buffer_device
-        self.buffer = []
-        self.index = 0
-
-    def append(self, transition: Union[Transition, Dict]):
-        """
-        Store a transition object to buffer.
-
-        Args:
-            transition: A transition object.
-        Returns:
-            None
-        """
-        if isinstance(transition, dict):
-            transition = Transition(**transition)
-        transition.to(self.buffer_device)
-
-        if self.size() != 0 and len(self.buffer[0]) != len(transition):
-            raise ValueError("Transition object length is not equal to objects stored by buffer!")
-        if self.size() > self.buffer_size:
-            # trim buffer to buffer_size
-            self.buffer = self.buffer[(self.size() - self.buffer_size):]
-        if self.size() == self.buffer_size:
-            self.buffer[self.index] = transition
-            self.index += 1
-            self.index %= self.buffer_size
-        else:
-            self.buffer.append(transition)
-
-    def size(self):
-        """
-        Returns:
-            Length of current buffer.
-        """
-        return len(self.buffer)
-
-    def clear(self):
-        self.buffer.clear()
-
-    def sample_batch(self, batch_size, concatenate=True, device=None, sample_keys=None):
-        """
-        Sample a random batch from replay buffer.
-
-        Args:
-            batch_size: Maximum size of the sample.
-            device:     Device to copy to.
-            sample_keys: If sample_keys is specified, then only specified keys
-                         of the transition object will be sampled and stacked.
-
-        Returns:
-            None if no batch is sampled.
-
-            Or a tuple of sampled results, the tensors in "state", "action" and
-            "next_state" dictionaries, along with "reward", will be concatenated
-            in dimension 0. If singular reward is float, it will be turned into
-            a (1, 1) tensor, then concatenated. Any other custom keys will not be
-            concatenated, just put together as lists.
-        """
-        if self.size() < batch_size:
-            batch = random.sample(self.buffer, self.size())
-            real_num = self.size()
-        else:
-            batch = random.sample(self.buffer, batch_size)
-            real_num = batch_size
-
-        if len(batch) == 0:
-            return 0, ()
-
-        if device is None:
-            device = self.buffer_device
-        if sample_keys is None:
-            sample_keys = batch[0].keys()
-
-        result = []
-
-        for k in sample_keys:
-            if k in ("state", "action", "next_state"):
-                tmp_dict = {}
-                for sub_k in batch[0][k].keys():
-                    if concatenate:
-                        tmp_dict[sub_k] = torch.cat([item[k][sub_k].to(device) for item in batch], dim=0)
-                    else:
-                        tmp_dict[sub_k] = [item[k][sub_k].to(device) for item in batch]
-                result.append(tmp_dict)
-            elif k == "reward":
-                if torch.is_tensor(batch[0][k]) and len(batch[0][k].shape) > 0:
-                    result.append(torch.cat([item[k].to(device) for item in batch], dim=0).view(real_num, -1))
-                else:
-                    result.append(torch.tensor([float(item[k]) for item in batch], device=device).view(real_num, -1))
-            elif k == "terminal":
-                result.append(torch.tensor([float(item[k]) for item in batch], device=device).view(real_num, -1))
-            elif k == "*":
-                # select custom keys
-                for remain_k in batch[0].keys():
-                    if remain_k not in ("state", "action", "next_state", "reward", "terminal"):
-                        result.append([item[remain_k] for item in batch])
-            else:
-                result.append([item[k] for item in batch])
-        return real_num, tuple(result)
+# in case you need to debug your network in ddpg
+from utils.visualize import visualize_graph
 
 
 class DDPG(TorchFramework):
     def __init__(self,
-                 actor: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
-                 actor_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
-                 critic: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
-                 critic_target: Union[NeuralNetworkModule, StaticNeuralNetworkWrapper],
+                 actor: Union[NeuralNetworkModule, nn.Module],
+                 actor_target: Union[NeuralNetworkModule, nn.Module],
+                 critic: Union[NeuralNetworkModule, nn.Module],
+                 critic_target: Union[NeuralNetworkModule, nn.Module],
                  optimizer,
                  criterion,
                  learning_rate=0.001,
                  lr_scheduler=None,
                  lr_scheduler_params=None,
-                 batch_size=1,
+                 batch_size=100,
                  update_rate=0.005,
                  discount=0.99,
                  replay_size=500000,
@@ -331,10 +78,10 @@ class DDPG(TorchFramework):
 
     def act_with_noise(self, state, noise_param=(0.0, 1.0), ratio=1.0, mode="uniform", use_target=False):
         """
-        Use actor network to give a policy (with uniform noise added) to the current state.
+        Use actor network to give a policy (with noise added) to the current state.
 
         Returns:
-            Policy (with uniform noise) produced by actor.
+            Policy (with noise) produced by actor.
         """
         if mode == "uniform":
             return add_uniform_noise_to_action(self.act(state, use_target), noise_param, ratio)
