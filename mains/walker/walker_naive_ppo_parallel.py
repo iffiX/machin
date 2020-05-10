@@ -147,21 +147,21 @@ if __name__ == "__main__":
                 tmp_observe[i - 1]["value"] = \
                     tmp_observe[i]["value"] * c.discount + tmp_observe[i - 1]["reward"]
 
-            if render:
-                create_gif(frames, save_env.get_trial_image_dir() + "/{}".format(episode))
-
-            return tmp_observe, total_reward, local_step.get()
+            return tmp_observe, total_reward, local_step.get(), frames
 
         results = pool.starmap(run_trial, zip(range(first_episode, last_episode+1), env))
 
         for result, episode_num in zip(results, range(first_episode, last_episode+1)):
-            tmp_observe, total_reward, local_step = result
+            tmp_observe, total_reward, local_step, frames = result
             logger.info("Sum reward: {}, episode={}".format(float(total_reward), episode_num))
             writer.add_scalar("episodic_sum_reward", float(total_reward), episode_num)
             writer.add_scalar("episode_length", local_step, episode_num)
 
             for obsrv in tmp_observe:
                 ppo.store_observe(obsrv)
+
+            if len(frames) != 0:
+                create_gif(frames, save_env.get_trial_image_dir() + "/{}".format(episode_num))
 
         logger.info("End episode {}-{} at {}".format(first_episode, last_episode,
                                                      dt.now().strftime("%m/%d-%H:%M:%S")))

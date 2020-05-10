@@ -41,7 +41,7 @@ c.ppo_update_batch_size = 100
 c.ppo_update_times = 50
 c.ppo_update_int = 5  # = the number of episodes stored in ppo replay buffer
 c.model_save_int = 100  # in episodes
-c.profile_int = 5  # in episodes
+c.profile_int = 50  # in episodes
 
 
 if __name__ == "__main__":
