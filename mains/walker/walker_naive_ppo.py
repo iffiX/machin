@@ -23,7 +23,7 @@ action_dim = 4
 
 # configs
 c = Config()
-#c.restart_from_trial = "2020_05_09_15_00_31"
+# c.restart_from_trial = "2020_05_09_15_00_31"
 c.max_episodes = 5000
 c.max_steps = 1000
 c.replay_size = 10000
@@ -34,11 +34,15 @@ c.root_dir = "/data/AI/tmp/multi_agent/walker/naive_ppo/"
 
 # train configs
 # lr: learning rate, int: interval
+c.discount = 0.99
+c.learning_rate = 1e-3
+c.entropy_weight = None
 c.ppo_update_batch_size = 100
 c.ppo_update_times = 50
-c.ppo_update_int = 5  # = the number of episodes are stored in ppo replay buffer
+c.ppo_update_int = 5  # = the number of episodes stored in ppo replay buffer
 c.model_save_int = 100  # in episodes
-c.profile_int = 50  # in episodes
+c.profile_int = 5  # in episodes
+
 
 if __name__ == "__main__":
     save_env = Environment(c.root_dir, restart_use_trial=c.restart_from_trial)
@@ -59,10 +63,11 @@ if __name__ == "__main__":
               t.optim.Adam, nn.MSELoss(reduction='sum'),
               replay_device=c.device,
               replay_size=c.replay_size,
-              discount=0.99,
+              entropy_weight=c.entropy_weight,
+              discount=c.discount,
               update_times=c.ppo_update_times,
               batch_size=c.ppo_update_batch_size,
-              learning_rate=0.001)
+              learning_rate=c.learning_rate)
 
     if c.restart_from_trial is not None:
         ppo.load(save_env.get_trial_model_dir())
@@ -83,9 +88,6 @@ if __name__ == "__main__":
         episode.count()
         logger.info("Begin episode {} at {}".format(episode, dt.now().strftime("%m/%d-%H:%M:%S")))
 
-        # environment initialization
-        env.reset()
-
         # render configuration
         if episode.get() % c.profile_int == 0:
             render = True
@@ -102,6 +104,7 @@ if __name__ == "__main__":
         total_reward = 0
         state, reward = t.tensor(env.reset(), dtype=t.float32, device=c.device), 0
 
+        tmp_observe = []
         while not episode_finished and local_step.get() <= c.max_steps:
             global_step.count()
             local_step.count()
@@ -111,7 +114,7 @@ if __name__ == "__main__":
                 old_state = state
 
                 # agent model inference
-                action, prob = ppo.act({"state": state.unsqueeze(0)})
+                action, prob, *_ = ppo.act({"state": state.unsqueeze(0)})
 
                 state, reward, episode_finished, _ = env.step(action[0].to("cpu"))
 
@@ -122,13 +125,13 @@ if __name__ == "__main__":
 
                 total_reward += reward
 
-                ppo.store_observe({"state": {"state": old_state.unsqueeze(0).clone()},
-                                   "action": {"action": action.clone()},
-                                   "next_state": {"state": state.unsqueeze(0).clone()},
-                                   "reward": float(reward),
-                                   "terminal": episode_finished or local_step.get() == c.max_steps,
-                                   "action_log_prob": float(prob)
-                                   })
+                tmp_observe.append({"state": {"state": old_state.unsqueeze(0).clone()},
+                                    "action": {"action": action.clone()},
+                                    "next_state": {"state": state.unsqueeze(0).clone()},
+                                    "reward": float(reward),
+                                    "terminal": episode_finished or local_step.get() == c.max_steps,
+                                    "action_log_prob": float(prob)
+                                    })
 
                 writer.add_scalar("action_min", t.min(action), global_step.get())
                 writer.add_scalar("action_mean", t.mean(action), global_step.get())
@@ -138,6 +141,15 @@ if __name__ == "__main__":
             writer.add_scalar("episodic_reward", reward, global_step.get())
             writer.add_scalar("episodic_sum_reward", total_reward, global_step.get())
             writer.add_scalar("episode_length", local_step.get(), global_step.get())
+
+        # ordinary sampling, calculate value for each observation
+        tmp_observe[-1]["value"] = tmp_observe[-1]["reward"]
+        for i in reversed(range(1, len(tmp_observe))):
+            tmp_observe[i - 1]["value"] = \
+                tmp_observe[i]["value"] * c.discount + tmp_observe[i - 1]["reward"]
+
+        for obsrv in tmp_observe:
+            ppo.store_observe(obsrv)
 
         logger.info("Sum reward: {}, episode={}".format(total_reward, episode))
 

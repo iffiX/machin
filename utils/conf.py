@@ -4,7 +4,8 @@ from .helper_classes import Object
 
 
 class Config(Object):
-    pass
+    def foo(self):
+        pass
 
 
 def get_args():
@@ -25,7 +26,7 @@ def get_args():
 
     config_dict = {}
     if args.config_file is not None:
-        config_dict = load_config_cdict(args.c)
+        config_dict = load_config_dict(args.c)
 
     if args.conf is not None:
         for env_str in args.conf:

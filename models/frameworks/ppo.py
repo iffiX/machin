@@ -154,7 +154,7 @@ class PPO(TorchFramework):
         return self.rpb
 
     def update(self, update_value=True, update_policy=True,
-               concatenate_samples=True, next_value_use_rollout=False):
+               concatenate_samples=True, next_value_use_rollout=True):
         """
         Args:
             next_value_use_rollout: use rollout values as next values instead of using critic net to

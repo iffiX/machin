@@ -35,7 +35,7 @@ def proxy_zip_long(recurse, func, iterable):
 class Pool(tmpp.Pool):
     is_global = False
 
-    def enable_global(self, is_global):
+    def enable_global_find(self, is_global):
         self.is_global = is_global
 
     def enable_copy_tensors(self, is_copy_tensors):

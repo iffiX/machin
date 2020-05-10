@@ -37,12 +37,13 @@ class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, max_action):
         super(Actor, self).__init__()
 
-        self.fc1 = nn.Linear(state_dim, 400)
-        self.fc2 = nn.Linear(400, 300)
-        self.fc_mu = nn.Linear(300, action_dim)
+        self.fc1 = nn.Linear(state_dim, 128)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc_mu = nn.Linear(128, action_dim)
+        self.fc_sigma = nn.Linear(128, action_dim)
         self.max_action = max_action
 
-    def forward(self, state):
+    def forward(self, state, action=None):
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
 
@@ -50,13 +51,18 @@ class Actor(nn.Module):
 
         # we assume that each dimension of your action is not correlated
         # therefore the covariance matrix is a positive definite diagonal matrix
-        diag = t.full(mu.shape, 0.2, device=mu.device)
+
+        # static, preset standard error
+        # diag = t.full(mu.shape, 0.5, device=mu.device)
+
+        # dynamic, trainable standard error
+        diag = softplus(self.fc_sigma(a))
         cov = t.diag_embed(diag)
-        dist = MultivariateNormal(mu, cov)
-        action = dist.sample()
-        action_log_prob = dist.log_prob(action)
-        action = action.clamp(-self.max_action, self.max_action)
-        return action.detach(), action_log_prob
+        a_dist = MultivariateNormal(mu, cov)
+        action = action if action is not None else a_dist.sample()
+        action_log_prob = a_dist.log_prob(action)
+        entropy = a_dist.entropy()
+        return action.detach(), action_log_prob.unsqueeze(1), entropy.mean()
 
 
 class Critic(nn.Module):
@@ -64,9 +70,9 @@ class Critic(nn.Module):
     def __init__(self, state_dim):
         super(Critic, self).__init__()
 
-        self.fc1 = nn.Linear(state_dim, 400)
-        self.fc2 = nn.Linear(400, 300)
-        self.fc3 = nn.Linear(300, 1)
+        self.fc1 = nn.Linear(state_dim, 128)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, 1)
 
     def forward(self, state):
         q = t.relu(self.fc1(state))

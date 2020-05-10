@@ -1,10 +1,10 @@
-import PIL
 import numpy as np
 import moviepy.editor as mpy
 import matplotlib.pyplot as plt
 
 from PIL import Image
 from typing import List
+from multiprocessing import get_context
 
 
 def show_image(image, show_normalized=True, pause_time=0.01, title=""):
@@ -43,6 +43,20 @@ def show_image(image, show_normalized=True, pause_time=0.01, title=""):
         plt.pause(pause_time)
 
 
+def _gif_writer(frames, path, fps):
+    for f in range(len(frames)):
+        if np.issubdtype(frames[f].dtype, np.integer):
+            frames[f] = frames[f].astype(np.uint8)
+        elif np.issubdtype(frames[f].dtype, np.floating):
+            frames[f] = (frames[f] * 255).astype(np.uint8)
+        if frames[f].shape == 2:
+            # consider as a grey scale image
+            frames[f] = np.stack([f, f, f], axis=-1)
+
+    clip = mpy.ImageSequenceClip(frames, fps=fps)
+    clip.write_gif(path + ".gif", fps=fps, verbose=False, logger=None)
+
+
 def create_gif(frames: List[np.array], path, fps=15):
     """
     Args:
@@ -55,18 +69,21 @@ def create_gif(frames: List[np.array], path, fps=15):
     """
     if len(frames) == 0:
         raise RuntimeWarning("Empty frames sequence, file {}.gif skipped".format(path))
+    p = get_context("spawn").Process(target=_gif_writer, args=(frames, path, fps))
+    p.daemon = True
+    p.start()
 
-    for f in range(len(frames)):
-        if np.issubdtype(frames[f].dtype, np.integer):
-            frames[f] = frames[f].astype(np.uint8)
-        elif np.issubdtype(frames[f].dtype, np.floating):
-            frames[f] = (frames[f] * 255).astype(np.uint8)
-        if frames[f].shape == 2:
-            # consider as a grey scale image
-            frames[f] = np.stack([f, f, f], axis=-1)
 
-    clip = mpy.ImageSequenceClip(frames, fps=fps)
-    clip.write_gif(path + ".gif", fps=fps)
+def _image_writer(image, path, extension):
+    if np.issubdtype(image.dtype, np.integer):
+        image = image.astype(np.uint8)
+    elif np.issubdtype(image.dtype, np.floating):
+        image = (image * 255).astype(np.uint8)
+    if image.shape == 2:
+        # consider as a grey scale image
+        image = np.stack([image, image, image], axis=-1)
+    image = Image.fromarray(image)
+    image.save(path + extension)
 
 
 def create_image(image: np.array, path, extension=".png"):
@@ -79,12 +96,6 @@ def create_image(image: np.array, path, extension=".png"):
         path: Path to save the image, without extension.
         extension: Image extension
     """
-    if np.issubdtype(image.dtype, np.integer):
-        image = image.astype(np.uint8)
-    elif np.issubdtype(image.dtype, np.floating):
-        image = (image * 255).astype(np.uint8)
-    if image.shape == 2:
-        # consider as a grey scale image
-        image = np.stack([image, image, image], axis=-1)
-    image = Image.fromarray(image)
-    image.save(path + extension)
+    p = get_context("spawn").Process(target=_image_writer, args=(image, path, extension))
+    p.daemon = True
+    p.start()

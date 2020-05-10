@@ -138,7 +138,7 @@ if __name__ == "__main__":
             writer.add_scalar("episodic_sum_reward", total_reward, global_step.get())
             writer.add_scalar("episode_length", local_step.get(), global_step.get())
 
-        # calculate value for each observation
+        # ordinary sampling, calculate value for each observation
         tmp_observe[-1]["value"] = tmp_observe[-1]["reward"]
         for i in reversed(range(1, len(tmp_observe))):
             tmp_observe[i - 1]["value"] = \
@@ -150,13 +150,11 @@ if __name__ == "__main__":
         writer.add_histogram("action_dist", normalize_seq_length(all_actions, 1000),
                              global_step.get())
 
-        action_dist = np.histogram(all_actions, bins=[0, 1, 2, 3, 4], density=True)[0].tolist()
-        logger.info("Action probability: [{:.2f}, {:.2f}, {:.2f}, {:.2f}]".format(*action_dist))
-        logger.info("Sum reward: {}, episode={}".format(total_reward, episode))
-
         if episode.get() % c.ppo_update_int == 0:
             timer.begin()
-            ppo.update(next_value_use_rollout=True)
+            ppo.update()
+            # use critic to evaluate the next value will make ppo converge very slowly
+            #ppo.update(next_value_use_rollout=False)
             ppo.update_lr_scheduler()
             writer.add_scalar("train_step_time", timer.end(), episode.get())
             logger.info("Train end, time = {:.2f} s, episode={}".format(timer.end(), episode))

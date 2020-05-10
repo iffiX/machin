@@ -35,7 +35,7 @@ class ConnectionWrapper(object):
     def send_bytes(self, bytes):
         self.conn.send_bytes(bytes)
 
-    def recv_bytes(self, timeout=10):
+    def recv_bytes(self, timeout=60):
         if self.conn.poll(timeout=timeout):
             return self.conn.recv_bytes()
         else:

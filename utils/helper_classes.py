@@ -2,17 +2,19 @@ import time
 
 
 class Counter:
-    def __init__(self):
-        self._count = 0
+    def __init__(self, start=0, step=1):
+        self._count = start
+        self._start = start
+        self._step = step
 
     def count(self):
-        self._count += 1
+        self._count += self._step
 
     def get(self):
         return self._count
 
     def reset(self):
-        self._count = 0
+        self._count = self._start
 
     def __lt__(self, other):
         return self._count < other
@@ -93,6 +95,13 @@ class Object:
 
     def __getattr__(self, item):
         # this function will be called if python cannot find an attribute
+        # Note: in order to make Object pickable, we must disable raise
+        # AttributeError when looking for special methods, such that when
+        # pickler is looking up __getstate__ function etc, this class will
+        # not return a None value
+        if isinstance(item, str) and item[:2] == item[-2:] == '__':
+            # skip non-existing dunder method lookups
+            raise AttributeError(item)
         return self.attr(item)
 
     def __getitem__(self, item):
