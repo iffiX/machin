@@ -33,14 +33,17 @@ class PPO(TorchFramework):
                  reward_func=None):
         """
         Initialize PPO framework.
-        Note: when given a state, actor must return two values:
+        Note: when given a state, (and an optional action) actor must at least return two
+        values:
         1. Action
             For contiguous environments, action must be of shape [batch_size, action_dim]
             and clamped to environment limits.
             For discreet environments, action must be of shape [batch_size, action_dim],
             it could be a categorical encoded integer, or a one hot vector.
 
-            Actions are not used during training in PPO framework.
+            Actions are given by samples during training in PPO framework. When actor is
+            given a batch of actions and states, it must evaluate the states, and return
+            the log likelihood of the given actions instead of re-sampling actions.
 
         2. Log likelihood of action (action probability)
             For contiguous environments, action's are not directly output by your actor,
@@ -55,6 +58,7 @@ class PPO(TorchFramework):
             Action probability must be differentiable, actor will receive its gradient from
             the gradient of action probability.
 
+        The third entropy value is optional:
         3. Entropy of action distribution (Optional)
             Entropy is usually calculated using dist.entropy(), it will be considered if you
             have specified the entropy_weight argument.
@@ -68,12 +72,12 @@ class PPO(TorchFramework):
                         self.mu_head = nn.Linear(100, 1)
                         self.sigma_head = nn.Linear(100, 1)
 
-                    def forward(self, x):
-                        x = t.relu(self.fc(x))
+                    def forward(self, state, action=None):
+                        x = t.relu(self.fc(state))
                         mu = 2.0 * t.tanh(self.mu_head(x))
                         sigma = F.softplus(self.sigma_head(x))
                         dist = Normal(mu, sigma)
-                        action = dist.sample()
+                        action = action if action is not None else dist.sample()
                         action_log_prob = dist.log_prob(action)
                         action_entropy = dist.entropy()
                         action = action.clamp(-2.0, 2.0)
@@ -111,9 +115,18 @@ class PPO(TorchFramework):
         Use actor network to give a policy to the current state.
 
         Returns:
-            Policy produced by actor.
+            Anything produced by actor.
         """
         return safe_call(self.actor, state)
+
+    def eval_act(self, state, action):
+        """
+        Use actor network to evaluate the log-likelihood of a given action in the current state.
+
+        Returns:
+            Anything produced by actor.
+        """
+        return safe_call(self.actor, state, action)
 
     def criticize(self, state):
         """
@@ -150,77 +163,68 @@ class PPO(TorchFramework):
         sum_act_policy_loss = 0
         sum_value_loss = 0
 
-        batch_size, state, action, reward, next_state, terminal, \
-        action_log_prob, next_value, others = [None for _ in range(9)]
+        if next_value_use_rollout:
+            batch_size, (state, action, reward, next_state, terminal,
+                         action_log_prob, target_value, *others) = \
+                self.rpb.sample_batch(self.batch_size,
+                                      sample_method="all",
+                                      concatenate=concatenate_samples,
+                                      sample_keys=["state", "action", "reward", "next_state",
+                                                   "terminal", "action_log_prob", "value", "*"],
+                                      additional_concat_keys=["action_log_prob", "value"])
+        else:
+            batch_size, (state, action, reward, next_state, terminal,
+                         action_log_prob, *others) = \
+                self.rpb.sample_batch(self.batch_size,
+                                      sample_method="all",
+                                      concatenate=concatenate_samples,
+                                      sample_keys=["state", "action", "reward", "next_state",
+                                                   "terminal", "action_log_prob", "*"],
+                                      additional_concat_keys=["action_log_prob"])
+            next_value = self.criticize(next_state)
+            target_value = self.reward_func(reward, self.discount, next_value, terminal, *others).detach()
 
-        target_value, value = None, None
+        # normalize target value
+        target_value = (target_value - target_value.mean()) / (target_value.std() + 1e-5)
 
-        def sample():
-            nonlocal self, batch_size, state, action, reward, next_state, terminal, \
-                     action_log_prob, next_value, others
-            nonlocal target_value, value
-            if next_value_use_rollout:
-                batch_size, (state, action, reward, next_state, terminal,
-                             action_log_prob, next_value, *others) = \
-                    self.rpb.sample_batch(self.batch_size, concatenate_samples,
-                                          sample_keys=["state", "action", "reward", "next_state",
-                                                       "terminal", "action_log_prob", "next_value", "*"],
-                                          additional_concat_keys=["action_log_prob", "next_value"])
-            else:
-                batch_size, (state, action, reward, next_state, terminal,
-                             action_log_prob, *others) = \
-                    self.rpb.sample_batch(self.batch_size, concatenate_samples,
-                                          sample_keys=["state", "action", "reward", "next_state",
-                                                       "terminal", "action_log_prob", "*"],
-                                          additional_concat_keys=["action_log_prob"])
-                next_value = next_value if next_value_use_rollout else self.criticize(next_state)
-
+        for i in range(self.update_times):
             value = self.criticize(state)
-            target_value = self.reward_func(reward, self.discount, next_value, terminal, *others)
+            with torch.no_grad():
+                advantage = target_value - value
 
-            # normalize target value
-            target_value = (target_value - target_value.mean()) / (target_value.std() + 1e-5)
+            if self.entropy_weight is not None:
+                new_action, new_action_log_prob, new_action_entropy = self.eval_act(state, action)
 
-        # Update actor network
-        if update_policy:
-            for i in range(self.update_times):
-                sample()
-                with torch.no_grad():
-                    advantage = target_value - value
+            else:
+                new_action, new_action_log_prob, *_ = self.eval_act(state, action)
 
-                if self.entropy_weight is None:
-                    new_action, new_action_log_prob, *_ = self.act(state)
+            new_action_log_prob = new_action_log_prob.view(batch_size, 1)
 
-                else:
-                    new_action, new_action_log_prob, new_action_entropy = self.act(state)
+            sim_ratio = t.exp(new_action_log_prob - action_log_prob.detach())
+            surr_loss_1 = sim_ratio * advantage
+            surr_loss_2 = t.clamp(sim_ratio, 1 - self.surr_clip, 1 + self.surr_clip) * advantage
 
-                sim_ratio = t.exp(new_action_log_prob - action_log_prob)
-                surr_loss_1 = sim_ratio * advantage
-                surr_loss_2 = t.clamp(sim_ratio, 1 - self.surr_clip, 1 + self.surr_clip) * advantage
+            act_policy_loss = -t.min(surr_loss_1, surr_loss_2)
 
-                act_policy_loss = -t.min(surr_loss_1, surr_loss_2)
+            if self.entropy_weight is not None:
+                act_policy_loss += self.entropy_weight * new_action_entropy.mean()
+            act_policy_loss = act_policy_loss.mean()
 
-                if self.entropy_weight is not None:
-                    act_policy_loss += self.entropy_weight * new_action_entropy
-                act_policy_loss = act_policy_loss.mean()
+            value_loss = self.criterion(target_value, value)
 
-                self.actor.zero_grad()
-                act_policy_loss.backward()
-                #nn.utils.clip_grad_norm_(self.actor.parameters(), self.grad_max)
-                self.actor_optim.step()
-                sum_act_policy_loss += act_policy_loss.item()
+            # Update actor network
+            self.actor.zero_grad()
+            act_policy_loss.backward()
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.grad_max)
+            self.actor_optim.step()
+            sum_act_policy_loss += act_policy_loss.item()
 
-        # Update critic network
-        if update_value:
-            for i in range(self.update_times):
-                sample()
-                value_loss = self.criterion(value, target_value)
-
-                self.critic.zero_grad()
-                value_loss.backward()
-                #nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_max)
-                self.critic_optim.step()
-                sum_value_loss += value_loss.item()
+            # Update critic network
+            self.critic.zero_grad()
+            value_loss.backward()
+            nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_max)
+            self.critic_optim.step()
+            sum_value_loss += value_loss.item()
 
         self.rpb.clear()
         return -sum_act_policy_loss, sum_value_loss

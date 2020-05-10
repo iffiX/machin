@@ -138,14 +138,38 @@ class ReplayBuffer:
     def clear(self):
         self.buffer.clear()
 
-    def sample_batch(self, batch_size, concatenate=True, device=None, sample_keys=None,
+    @staticmethod
+    def sample_method_random_unique(buffer, batch_size):
+        if len(buffer) < batch_size:
+            batch = random.sample(buffer, len(buffer))
+            real_num = len(buffer)
+        else:
+            batch = random.sample(buffer, batch_size)
+            real_num = batch_size
+        return batch, real_num
+
+    @staticmethod
+    def sample_method_random(buffer, batch_size):
+        indexes = [random.randint(0, len(buffer) - 1) for i in range(batch_size)]
+        batch = [buffer[i] for i in indexes]
+        return batch, batch_size
+
+    @staticmethod
+    def sample_method_all(buffer, _):
+        return buffer, len(buffer)
+
+    def sample_batch(self, batch_size, concatenate=True, device=None,
+                     sample_method="random_unique",
+                     sample_keys=None,
                      additional_concat_keys=None):
         """
         Sample a random batch from replay buffer.
 
         Args:
             batch_size: Maximum size of the sample.
-            concatenate: Whether concatenate state, action and next_state in dimentsion 0.
+            sample_method: Sample method, could be a string of "random", "random_unique",
+                           "all", or a function(list, batch_size) -> result, result_size.
+            concatenate: Whether concatenate state, action and next_state in dimension 0.
                          If True, return a tensor with dim[0] = batch_size.
                          If False, return a list of tensors with dim[0] = 1.
             device:      Device to copy to.
@@ -164,15 +188,11 @@ class ReplayBuffer:
             it will be turned into a (1, 1) tensor, then concatenated. Any other
             custom keys will not be concatenated, just put together as lists.
         """
-        if self.size() < batch_size:
-            batch = random.sample(self.buffer, self.size())
-            real_num = self.size()
-        else:
-            batch = random.sample(self.buffer, batch_size)
-            real_num = batch_size
-
-        if len(batch) == 0:
-            return 0, ()
+        if isinstance(sample_method, str):
+            if not hasattr(self, "sample_method_" + sample_method):
+                raise RuntimeError("Cannot find specified sample method: {}".format(sample_method))
+            sample_method = getattr(self, "sample_method_" + sample_method)
+        batch, batch_size = sample_method(self.buffer, batch_size)
 
         if device is None:
             device = self.buffer_device
@@ -182,7 +202,7 @@ class ReplayBuffer:
             additional_concat_keys = []
 
         result = []
-
+        used_keys = []
         for k in sample_keys:
             if k in self.main_attrs:
                 tmp_dict = {}
@@ -192,26 +212,34 @@ class ReplayBuffer:
                     else:
                         tmp_dict[sub_k] = [item[k][sub_k].to(device) for item in batch]
                 result.append(tmp_dict)
+                used_keys.append(k)
             elif k == "reward":
                 if torch.is_tensor(batch[0][k]) and len(batch[0][k].shape) > 0:
-                    result.append(torch.cat([item[k].to(device) for item in batch], dim=0).view(real_num, -1))
+                    result.append(torch.cat([item[k].to(device) for item in batch], dim=0)
+                                  .view(batch_size, -1))
                 else:
-                    result.append(torch.tensor([float(item[k]) for item in batch], device=device).view(real_num, -1))
+                    result.append(torch.tensor([float(item[k]) for item in batch], device=device)
+                                  .view(batch_size, -1))
+                used_keys.append(k)
             elif k == "terminal":
-                result.append(torch.tensor([float(item[k]) for item in batch], device=device).view(real_num, -1))
+                result.append(torch.tensor([float(item[k]) for item in batch], device=device)
+                              .view(batch_size, -1))
+                used_keys.append(k)
             elif k == "*":
                 # select custom keys
                 for remain_k in batch[0].keys():
-                    if remain_k not in ("state", "action", "next_state", "reward", "terminal"):
+                    if remain_k not in ("state", "action", "next_state", "reward", "terminal")\
+                            and remain_k not in used_keys:
                         if remain_k in additional_concat_keys:
                             result.append(torch.tensor([item[remain_k] for item in batch], device=device)
-                                          .view(real_num, -1))
+                                          .view(batch_size, -1))
                         else:
                             result.append([item[remain_k] for item in batch])
             else:
                 if k in additional_concat_keys:
                     result.append(torch.tensor([item[k] for item in batch], device=device)
-                                  .view(real_num, -1))
+                                  .view(batch_size, -1))
                 else:
                     result.append([item[k] for item in batch])
-        return real_num, tuple(result)
+                used_keys.append(k)
+        return batch_size, tuple(result)

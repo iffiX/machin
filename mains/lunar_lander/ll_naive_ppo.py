@@ -39,10 +39,10 @@ c.root_dir = "/data/AI/tmp/multi_agent/lunar_lander/naive_ppo/"
 # lr: learning rate, int: interval
 c.discount = 0.99
 c.learning_rate = 1e-3
-c.entropy_weight = None
+c.entropy_weight = 1e-2
 c.ppo_update_batch_size = 100
-c.ppo_update_times = 500
-c.ppo_update_int = 5  # = the number of episodes stored in ppo replay buffer
+c.ppo_update_times = 4
+c.ppo_update_int = 6  # = the number of episodes stored in ppo replay buffer
 c.model_save_int = 100  # in episodes
 c.profile_int = 50  # in episodes
 
@@ -139,10 +139,10 @@ if __name__ == "__main__":
             writer.add_scalar("episode_length", local_step.get(), global_step.get())
 
         # calculate value for each observation
-        tmp_observe[-1]["next_value"] = tmp_observe[-1]["reward"]
-        for i in range(len(tmp_observe) - 2, -1, -1):
-            tmp_observe[i]["next_value"] = \
-                tmp_observe[i+1]["next_value"] * c.discount + tmp_observe[i]["reward"]
+        tmp_observe[-1]["value"] = tmp_observe[-1]["reward"]
+        for i in reversed(range(1, len(tmp_observe))):
+            tmp_observe[i - 1]["value"] = \
+                tmp_observe[i]["value"] * c.discount + tmp_observe[i - 1]["reward"]
 
         for obsrv in tmp_observe:
             ppo.store_observe(obsrv)
@@ -157,7 +157,6 @@ if __name__ == "__main__":
         if episode.get() % c.ppo_update_int == 0:
             timer.begin()
             ppo.update(next_value_use_rollout=True)
-            #ppo.update()
             ppo.update_lr_scheduler()
             writer.add_scalar("train_step_time", timer.end(), episode.get())
             logger.info("Train end, time = {:.2f} s, episode={}".format(timer.end(), episode))

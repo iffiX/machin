@@ -9,19 +9,21 @@ class Actor(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Actor, self).__init__()
 
-        self.fc1 = nn.Linear(state_dim, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, action_dim)
+        self.fc1 = nn.Linear(state_dim, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, action_dim)
 
-    def forward(self, state):
+    def forward(self, state, action=None):
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         a = t.softmax(self.fc3(a), dim=1)
 
         a_dist = Categorical(probs=a)
-        action = a_dist.sample()
+        action = action.squeeze(1) if action is not None else a_dist.sample()
         entropy = a_dist.entropy()
-        return action.unsqueeze(0).detach(), a_dist.log_prob(action), entropy
+        return action.unsqueeze(1).detach(), \
+               a_dist.log_prob(action).unsqueeze(1), \
+               entropy.unsqueeze(1)
 
 
 class Critic(nn.Module):
@@ -29,9 +31,9 @@ class Critic(nn.Module):
     def __init__(self, state_dim):
         super(Critic, self).__init__()
 
-        self.fc1 = nn.Linear(state_dim, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 1)
+        self.fc1 = nn.Linear(state_dim, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, 1)
 
     def forward(self, state):
         q = t.relu(self.fc1(state))
