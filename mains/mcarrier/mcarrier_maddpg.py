@@ -4,14 +4,14 @@ from datetime import datetime as dt
 
 from models.models.base import DynamicModuleWrapper as MW
 from models.frameworks.maddpg import MADDPG
-from models.naive.env_walker_ddpg import Actor
+from models.naive.env_mcarrier_maddpg import Actor, Critic
 
 from utils.logging import default_logger as logger
 from utils.image import create_gif
 from utils.tensor_board import global_board
 from utils.helper_classes import Counter, Timer
 from utils.conf import Config
-from utils.env import Environment
+from utils.save_env import SaveEnv
 from utils.prep import prep_args
 
 from env.walker.carrier import BipedalMultiCarrier
@@ -45,31 +45,8 @@ c.model_save_int = 100  # in episodes
 c.profile_int = 50  # in episodes
 
 
-class Critic(nn.Module):
-    def __init__(self, agent_num, state_dim, action_dim):
-        super(Critic, self).__init__()
-        self.agent_num = agent_num
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        st_dim = state_dim * agent_num
-        act_dim = action_dim * agent_num
-
-        self.fc1 = nn.Linear(st_dim + act_dim, 1024)
-        self.fc2 = nn.Linear(1024, 512)
-        self.fc3 = nn.Linear(512, 1)
-
-    # obs: batch_size * obs_dim
-    def forward(self, all_states, all_actions):
-        all_actions = t.flatten(all_actions, 1, -1)
-        all_states = t.flatten(all_states, 1, -1)
-        q = t.relu(self.fc1(t.cat((all_states, all_actions), dim=1)))
-        q = t.relu(self.fc2(q))
-        q = self.fc3(q)
-        return q
-
-
 if __name__ == "__main__":
-    save_env = Environment(c.root_dir, restart_use_trial=c.restart_from_trial)
+    save_env = SaveEnv(c.root_dir, restart_use_trial=c.restart_from_trial)
     prep_args(c, save_env)
 
     # save_env.remove_trials_older_than(diff_hour=1)
