@@ -163,7 +163,10 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
 
     hardcore = False
 
-    def __init__(self, agent_num=1):
+    def __init__(self, agent_num=1, static_stop=False,
+                 punish_head_imbalance=True,
+                 punish_power_usage=True,
+                 punish_lose_contact=False):
         EzPickle.__init__(self)
         self.seed()
         self.viewer = None
@@ -178,6 +181,11 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
         self.scroll = 0.0
         self.lidar_step = 0
         self.not_moving_counter = 0
+
+        self.static_stop = static_stop
+        self.punish_head_imbalance = punish_head_imbalance
+        self.punish_power_usage = punish_power_usage
+        self.punish_lose_contact = punish_lose_contact
 
         # culmulative reward, shaping-prev_shaping = increased reward (or step reward)
         self.prev_sum_reward = None
@@ -612,21 +620,23 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
 
             # keep head straight
             # may not be beneficial for eventual result
-            # sum_reward -= 5.0 * abs(state[0])
+            if self.punish_head_imbalance:
+                sum_reward -= 5.0 * abs(state[0])
 
             # keep contact with cargo
             # may not be beneficial for eventual result
-            # if not agent.is_carrying:
-            #    sum_reward -= self.NOT_CARRYING_PUNISH
+            if self.punish_lose_contact and not agent.is_carrying:
+               sum_reward -= self.NOT_CARRYING_PUNISH
 
             agent_reward = sum_reward - self.prev_sum_reward[i]
             self.prev_sum_reward[i] = sum_reward
 
             ## punishment for using power
             # may cause local minimum (i.e. agents not moving)
-            # for a in action:
-            #     agent_reward -= 0.00035 * self.MOTORS_TORQUE * np.clip(np.abs(a), 0, 1)
-                # normalized to about -50.0 using heuristic, more optimal agent should spend less
+            # normalized to about -50.0 using heuristic, more optimal agent should spend less
+            if self.punish_power_usage:
+                for a in action:
+                    agent_reward -= 0.00035 * self.MOTORS_TORQUE * np.clip(np.abs(a), 0, 1)
 
             reward[i] = agent_reward
 
@@ -636,7 +646,7 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
         if self.cargo.linearVelocity.x / self.FPS < 1e-5 and \
                 all([ag.hull.linearVelocity.x / self.FPS < 1e-5 for ag in self.agents]):
             self.not_moving_counter += 1
-            if self.not_moving_counter >= 50:
+            if self.not_moving_counter >= 50 and self.static_stop:
                 print("Terminating session due to being static.")
                 is_finished = True
         else:

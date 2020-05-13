@@ -2,10 +2,10 @@ import os
 from datetime import datetime, timedelta
 from typing import Union
 
-from utils.prep import prep_dirs_default, prep_clear_dirs
+from utils.prep import prep_dirs_default, prep_clear_dirs, prep_create_dirs
 
 
-class Environment:
+class SaveEnv:
     def __init__(self,
                  env_root: str,
                  env_dirs: Union[dict, None]=None,
@@ -28,6 +28,9 @@ class Environment:
                                                      "%Y_%m_%d_%H_%M_%S")
         self._check_dirs()
         self._prep_dirs()
+
+    def create_dirs(self, dirs):
+        prep_create_dirs(dirs)
 
     def get_trial_root(self):
         return os.path.join(self.env_root,

@@ -84,7 +84,7 @@ if __name__ == "__main__":
     global_board.init(log_dir + "train_log")
     writer = global_board.writer
 
-    env = magent.GridWorld(generate_config(map_size), map_size=map_size)
+    env = magent.GridWorld(generate_combat_config(map_size), map_size=map_size)
     agent_num = int(np.sqrt(map_size * map_size * agent_ratio)) ** 2
     group1_handle, group2_handle = env.get_handles()
 
@@ -137,7 +137,7 @@ if __name__ == "__main__":
 
             # environment initialization
             env.reset()
-            generate_map(env, map_size, agent_ratio, group1_handle, group2_handle)
+            generate_combat_map(env, map_size, agent_ratio, group1_handle, group2_handle)
 
             # render configuration
             if episode.get() % profile_int == 0 and global_step.get() > ddpg_warmup_steps:

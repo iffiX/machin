@@ -12,7 +12,7 @@ from utils.image import create_gif
 from utils.tensor_board import global_board
 from utils.helper_classes import Counter, Timer
 from utils.conf import Config
-from utils.env import Environment
+from utils.save_env import SaveEnv
 from utils.prep import prep_args
 
 from env.walker.single_walker import BipedalWalker
@@ -42,7 +42,7 @@ c.model_save_int = 100  # in episodes
 c.profile_int = 50  # in episodes
 
 if __name__ == "__main__":
-    save_env = Environment(c.root_dir, restart_use_trial=c.restart_from_trial)
+    save_env = SaveEnv(c.root_dir, restart_use_trial=c.restart_from_trial)
     prep_args(c, save_env)
 
     # save_env.remove_trials_older_than(diff_hour=1)

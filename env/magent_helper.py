@@ -2,7 +2,7 @@ import numpy as np
 import env.magent as magent
 
 
-def generate_map(env, map_size, agent_ratio, left_agents_handle, right_agents_handle):
+def generate_combat_map(env, map_size, agent_ratio, left_agents_handle, right_agents_handle):
     """ generate a map, which consists of two squares of agents"""
     width = height = map_size
     init_num = map_size * map_size * agent_ratio
@@ -28,7 +28,7 @@ def generate_map(env, map_size, agent_ratio, left_agents_handle, right_agents_ha
     env.add_agents(right_agents_handle, method="custom", pos=pos)
 
 
-def generate_config(map_size):
+def generate_combat_config(map_size):
     gw = magent.gridworld
     cfg = gw.Config()
 
@@ -56,6 +56,27 @@ def generate_config(map_size):
     cfg.add_reward_rule(gw.Event(b, 'attack', a), receiver=b, value=0.2)
 
     return cfg
+
+
+def get_agent_io_shapes(config, map_size):
+    env = magent.GridWorld(config, map_size=map_size)
+    group_handles = env.get_handles()
+
+    shapes = []
+
+    for handle in group_handles:
+        # shape: (view_width, view_height, n_channel)
+        view_shape = env.get_view_space(handle)
+
+        # shape: (ID embedding + last action + last reward + relative pos)
+        feature_dim = env.get_feature_space(handle)[0]
+
+        # shape: (act,)
+        action_dim = env.get_action_space(handle)[0]
+
+        shapes.append((view_shape, feature_dim, action_dim))
+
+    return shapes
 
 
 def build_comm_network(id, pos, neighbor_num, agents):
