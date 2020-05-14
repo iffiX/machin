@@ -137,7 +137,7 @@ class MADDPG(TorchFramework):
         else:
             raise RuntimeError("Unknown noise type: " + str(mode))
 
-    def act_discreet(self, state, use_target=False):
+    def act_discreet(self, state, use_target=False, index=-1):
         """
         Use actor network to give a discreet policy to the current state.
 
@@ -146,17 +146,20 @@ class MADDPG(TorchFramework):
         Returns:
             Policy produced by actor.
         """
+        if index not in range(self.sub_policy_num):
+            index = np.random.randint(0, self.sub_policy_num)
+
         if use_target:
-            result = safe_call(self.actor_target, state)
+            result = safe_call(self.actor_targets[index], state)
         else:
-            result = safe_call(self.actor, state)
+            result = safe_call(self.actors[index], state)
 
         assert_output_is_probs(result)
         batch_size = result.shape[0]
         result = t.argmax(result, dim=1).view(batch_size, 1)
         return result
 
-    def act_discreet_with_noise(self, state, use_target=False):
+    def act_discreet_with_noise(self, state, use_target=False, index=-1):
         """
         Use actor network to give a policy (with noise added) to the current state.
 
@@ -165,10 +168,13 @@ class MADDPG(TorchFramework):
         Returns:
             Policy (with noise) produced by actor.
         """
+        if index not in range(self.sub_policy_num):
+            index = np.random.randint(0, self.sub_policy_num)
+
         if use_target:
-            result = safe_call(self.actor_target, state)
+            result = safe_call(self.actor_targets[index], state)
         else:
-            result = safe_call(self.actor, state)
+            result = safe_call(self.actors[index], state)
 
         assert_output_is_probs(result)
         dist = Categorical(result)

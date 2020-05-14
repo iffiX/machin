@@ -38,7 +38,6 @@ c.workers = 3
 c.discount = 0.99
 c.learning_rate = 3e-4
 c.entropy_weight = None
-c.ppo_update_batch_size = 100
 c.ppo_update_times = 80
 c.ppo_update_int = 5  # = the number of episodes stored in ppo replay buffer
 c.model_save_int = c.ppo_update_int * 20  # in episodes
@@ -69,7 +68,6 @@ if __name__ == "__main__":
               entropy_weight=c.entropy_weight,
               discount=c.discount,
               update_times=c.ppo_update_times,
-              batch_size=c.ppo_update_batch_size,
               learning_rate=c.learning_rate)
 
     if c.restart_from_trial is not None:

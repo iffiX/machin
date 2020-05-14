@@ -25,7 +25,6 @@ class PPO(TorchFramework):
                  learning_rate=0.001,
                  lr_scheduler=None,
                  lr_scheduler_params=None,
-                 batch_size=100,
                  update_times=50,
                  discount=0.99,
                  replay_size=5000,
@@ -84,7 +83,6 @@ class PPO(TorchFramework):
                         return action.detach(), action_log_prob, action_entropy
 
         """
-        self.batch_size = batch_size
         self.update_times = update_times
         self.discount = discount
         self.rpb = ReplayBuffer(replay_size, replay_device)
@@ -166,7 +164,7 @@ class PPO(TorchFramework):
         if next_value_use_rollout:
             batch_size, (state, action, reward, next_state, terminal,
                          action_log_prob, target_value, *others) = \
-                self.rpb.sample_batch(self.batch_size,
+                self.rpb.sample_batch(-1,
                                       sample_method="all",
                                       concatenate=concatenate_samples,
                                       sample_keys=["state", "action", "reward", "next_state",
@@ -175,7 +173,7 @@ class PPO(TorchFramework):
         else:
             batch_size, (state, action, reward, next_state, terminal,
                          action_log_prob, *others) = \
-                self.rpb.sample_batch(self.batch_size,
+                self.rpb.sample_batch(-1,
                                       sample_method="all",
                                       concatenate=concatenate_samples,
                                       sample_keys=["state", "action", "reward", "next_state",
