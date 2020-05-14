@@ -11,10 +11,10 @@ def generate_combat_map(env, map_size, agent_ratio, left_agents_handle, right_ag
     # Note: in position (x, y, 0) array, the last dimension is agent's initial direction
     # left
     n = init_num
-    side = int(np.sqrt(n)) * 2
+    side = int(np.sqrt(n))
     pos = []
-    for x in range(width // 2 - gap - side, width // 2 - gap - side + side, 2):
-        for y in range((height - side) // 2, (height - side) // 2 + side, 2):
+    for x in range(width // 2 - gap - side, width // 2 - gap):
+        for y in range((height - side) // 2, (height - side) // 2 + side):
             pos.append([x, y, 0])
     env.add_agents(left_agents_handle, method="custom", pos=pos)
 
@@ -22,8 +22,8 @@ def generate_combat_map(env, map_size, agent_ratio, left_agents_handle, right_ag
     n = init_num
     side = int(np.sqrt(n)) * 2
     pos = []
-    for x in range(width // 2 + gap, width // 2 + gap + side, 2):
-        for y in range((height - side) // 2, (height - side) // 2 + side, 2):
+    for x in range(width // 2 - gap - side, width // 2 - gap):
+        for y in range((height - side) // 2, (height - side) // 2 + side):
             pos.append([x, y, 0])
     env.add_agents(right_agents_handle, method="custom", pos=pos)
 

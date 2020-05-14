@@ -12,7 +12,7 @@ from utils.image import create_gif
 from utils.tensor_board import global_board
 from utils.helper_classes import Counter, Timer
 from utils.conf import Config
-from utils.env import Environment
+from utils.save_env import SaveEnv
 from utils.prep import prep_args
 from utils.parallel import get_context, Pool
 
@@ -26,27 +26,27 @@ action_dim = 4
 c = Config()
 # c.restart_from_trial = "2020_05_09_15_00_31"
 c.max_episodes = 5000
-c.max_steps = 1000
-c.replay_size = 10000
+c.max_steps = 1500
+c.replay_size = 4000
 
 c.device = "cuda:0"
 c.root_dir = "/data/AI/tmp/multi_agent/walker/naive_ppo_parallel/"
 
 # train configs
 # lr: learning rate, int: interval
-c.workers = 2
+c.workers = 3
 c.discount = 0.99
-c.learning_rate = 1e-3
+c.learning_rate = 3e-4
 c.entropy_weight = None
 c.ppo_update_batch_size = 100
-c.ppo_update_times = 50
+c.ppo_update_times = 80
 c.ppo_update_int = 5  # = the number of episodes stored in ppo replay buffer
 c.model_save_int = c.ppo_update_int * 20  # in episodes
 c.profile_int = 50  # in episodes
 
 
 if __name__ == "__main__":
-    save_env = Environment(c.root_dir, restart_use_trial=c.restart_from_trial)
+    save_env = SaveEnv(c.root_dir, restart_use_trial=c.restart_from_trial)
     prep_args(c, save_env)
 
     # save_env.remove_trials_older_than(diff_hour=1)
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     writer = global_board.writer
     logger.info("Directories prepared.")
 
-    actor = MW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
+    actor = MW(Actor(observe_dim, action_dim, 0.5).to(c.device), c.device, c.device)
     critic = MW(Critic(observe_dim).to(c.device), c.device, c.device)
     actor.share_memory()
     critic.share_memory()

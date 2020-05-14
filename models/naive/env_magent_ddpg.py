@@ -36,7 +36,7 @@ class Actor(nn.Module):
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, action_dim)
 
-    def forward(self, view, feature, action=None):
+    def forward(self, view, feature):
         if self.use_conv:
             v = t.relu(self.conv1(view))
             v = t.relu(self.conv2(v))
@@ -49,12 +49,7 @@ class Actor(nn.Module):
         a = t.relu(self.fc2(a))
         a = t.softmax(self.fc3(a), dim=1)
 
-        a_dist = Categorical(probs=a)
-        action = action.squeeze(1) if action is not None else a_dist.sample()
-        entropy = a_dist.entropy()
-        return action.unsqueeze(1).detach(), \
-               a_dist.log_prob(action).unsqueeze(1), \
-               entropy.unsqueeze(1)
+        return a
 
 
 class Critic(nn.Module):
@@ -88,7 +83,7 @@ class Critic(nn.Module):
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, 1)
 
-    def forward(self, view, feature):
+    def forward(self, view, feature, action):
         if self.use_conv:
             v = t.relu(self.conv1(view))
             v = t.relu(self.conv2(v))
@@ -97,7 +92,7 @@ class Critic(nn.Module):
             v = t.relu(self.fc1(view.flatten(start_dim=1)))
 
         v = t.relu(self.fc1(v))
-        a = t.cat([v, feature], dim=1)
+        a = t.cat([v, feature, action], dim=1)
         a = t.relu(self.fc2(a))
         a = self.fc3(a)
 

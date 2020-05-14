@@ -151,8 +151,8 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
 
     MAX_MOVE_REWARD = 500
     MAX_CARRY_REWARD = 500
-    GAME_OVER_PUNISH = 200
-    NOT_CARRYING_PUNISH = 50
+    GAME_OVER_PUNISH = 100
+    NOT_CARRYING_PUNISH = 25
 
     FRICTION = 2.5
 
@@ -164,7 +164,7 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
     hardcore = False
 
     def __init__(self, agent_num=1, static_stop=False,
-                 punish_head_imbalance=True,
+                 punish_imbalance=True,
                  punish_power_usage=True,
                  punish_lose_contact=False):
         EzPickle.__init__(self)
@@ -183,7 +183,7 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
         self.not_moving_counter = 0
 
         self.static_stop = static_stop
-        self.punish_head_imbalance = punish_head_imbalance
+        self.punish_imbalance = punish_imbalance
         self.punish_power_usage = punish_power_usage
         self.punish_lose_contact = punish_lose_contact
 
@@ -215,7 +215,7 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
         self.reset()
 
         action_range = np.array([1] * (4 * agent_num))
-        observe_range = np.array([np.inf] * (25 * agent_num))
+        observe_range = np.array([np.inf] * (28 * agent_num))
         # define action space and observation space in gym.Env
         self.action_space = spaces.Box(-action_range, action_range, dtype=np.float32)
         self.observation_space = spaces.Box(-observe_range, observe_range, dtype=np.float32)
@@ -492,7 +492,7 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
             position=(init_x, init_y),
             angle=0,
             fixtures=fixtureDef(
-                shape=polygonShape(box=(length/2, self.CARGO_HEIGHT/2)),
+                shape=polygonShape(box=(length / 2, self.CARGO_HEIGHT / 2)),
                 density=0.5,
                 friction=0.8,
                 restitution=0.0,
@@ -528,7 +528,6 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
 
         self._generate_cargo()
         self._generate_agents()
-
 
         self.draw_list = self.terrain + [self.cargo]
         for agent in self.agents:
@@ -620,13 +619,14 @@ class BipedalMultiCarrier(gym.Env, EzPickle):
 
             # keep head straight
             # may not be beneficial for eventual result
-            if self.punish_head_imbalance:
+            if self.punish_imbalance:
                 sum_reward -= 5.0 * abs(state[0])
+                sum_reward -= 5.0 * abs(state[14])
 
             # keep contact with cargo
             # may not be beneficial for eventual result
             if self.punish_lose_contact and not agent.is_carrying:
-               sum_reward -= self.NOT_CARRYING_PUNISH
+                sum_reward -= self.NOT_CARRYING_PUNISH
 
             agent_reward = sum_reward - self.prev_sum_reward[i]
             self.prev_sum_reward[i] = sum_reward

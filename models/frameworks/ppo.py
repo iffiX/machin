@@ -190,7 +190,7 @@ class PPO(TorchFramework):
         for i in range(self.update_times):
             value = self.criticize(state)
             with torch.no_grad():
-                advantage = target_value - value
+                advantage = target_value.to(value.device) - value
 
             if self.entropy_weight is not None:
                 new_action, new_action_log_prob, new_action_entropy = self.eval_act(state, action)
@@ -200,7 +200,8 @@ class PPO(TorchFramework):
 
             new_action_log_prob = new_action_log_prob.view(batch_size, 1)
 
-            sim_ratio = t.exp(new_action_log_prob - action_log_prob.detach())
+            sim_ratio = t.exp(new_action_log_prob -
+                              action_log_prob.to(new_action_log_prob.device).detach())
             surr_loss_1 = sim_ratio * advantage
             surr_loss_2 = t.clamp(sim_ratio, 1 - self.surr_clip, 1 + self.surr_clip) * advantage
 
@@ -210,7 +211,7 @@ class PPO(TorchFramework):
                 act_policy_loss += self.entropy_weight * new_action_entropy.mean()
             act_policy_loss = act_policy_loss.mean()
 
-            value_loss = self.criterion(target_value, value)
+            value_loss = self.criterion(target_value.to(value.device), value)
 
             # Update actor network
             self.actor.zero_grad()

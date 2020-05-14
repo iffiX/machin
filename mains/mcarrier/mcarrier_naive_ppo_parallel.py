@@ -36,15 +36,16 @@ c.root_dir = "/data/AI/tmp/multi_agent/mcarrier/naive_ppo_parallel/"
 
 # train configs
 # lr: learning rate, int: interval
-c.workers = 2
+c.workers = 5
 c.discount = 0.99
-c.learning_rate = 1e-4
+c.learning_rate = 3e-4
 c.entropy_weight = None
 c.ppo_update_batch_size = 100
 c.ppo_update_times = 50
 c.ppo_update_int = 5  # = the number of episodes stored in ppo replay buffer
 c.model_save_int = c.ppo_update_int * 20  # in episodes
 c.profile_int = 50  # in episodes
+
 
 if __name__ == "__main__":
     save_env = SaveEnv(c.root_dir, restart_use_trial=c.restart_from_trial)
@@ -93,7 +94,6 @@ if __name__ == "__main__":
         last_episode = episode.get() - 1
         logger.info("Begin episode {}-{} at {}".format(first_episode, last_episode,
                                                        dt.now().strftime("%m/%d-%H:%M:%S")))
-
 
         # begin trials
         def run_trial(episode_num):

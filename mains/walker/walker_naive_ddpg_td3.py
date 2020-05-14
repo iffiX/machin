@@ -5,6 +5,7 @@ from datetime import datetime as dt
 
 from models.models.base import StaticModuleWrapper as MW
 from models.frameworks.ddpg_td3 import DDPG_TD3
+from models.noise.action_space_noise import add_normal_noise_to_action
 from models.naive.env_walker_ddpg import Actor, Critic
 
 from utils.logging import default_logger as logger
@@ -30,6 +31,7 @@ c.replay_size = 500000
 
 # or: explore_noise_params = [(0, 0.2)] * action_dim
 c.explore_noise_params = (0, 0.2)
+c.policy_noise_params = (0, 0.2)
 c.device = "cuda:0"
 c.root_dir = "/data/AI/tmp/multi_agent/walker/naive_ddpg_td3/"
 
@@ -40,6 +42,11 @@ c.ddpg_update_batch_size = 100
 c.ddpg_warmup_steps = 200
 c.model_save_int = 100  # in episodes
 c.profile_int = 50  # in episodes
+
+
+def policy_noise(action):
+    return add_normal_noise_to_action(action, c.policy_noise_params)
+
 
 if __name__ == "__main__":
     save_env = SaveEnv(c.root_dir, restart_use_trial=c.restart_from_trial)
@@ -67,7 +74,8 @@ if __name__ == "__main__":
                     discount=0.99,
                     update_rate=0.005,
                     batch_size=c.ddpg_update_batch_size,
-                    learning_rate=0.001)
+                    learning_rate=0.001,
+                    policy_noise_func=policy_noise)
 
     if c.restart_from_trial is not None:
         ddpg.load(save_env.get_trial_model_dir())

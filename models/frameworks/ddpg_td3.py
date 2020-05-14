@@ -1,4 +1,5 @@
 from .ddpg import *
+from utils.logging import default_logger
 
 
 class DDPG_TD3(DDPG):
@@ -49,7 +50,7 @@ class DDPG_TD3(DDPG):
 
         self.reward_func = DDPG_TD3.bellman_function if reward_func is None else reward_func
         if policy_noise_func is None:
-            raise RuntimeWarning("Policy noise function is None, no policy noise will be applied during update!")
+            default_logger.warn("Policy noise function is None, no policy noise will be applied during update!" )
         self.policy_noise_func = DDPG_TD3.policy_noise_function if policy_noise_func is None else policy_noise_func
         self.action_trans_func = DDPG.action_transform_function if action_trans_func is None else action_trans_func
 

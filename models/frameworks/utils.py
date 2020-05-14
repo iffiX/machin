@@ -86,3 +86,13 @@ def safe_call(model, *named_args, required_argument=()):
                 else:
                     args_dict[k] = v
     return model(**args_dict)
+
+
+def assert_output_is_probs(tensor):
+    if tensor.dim() == 2 and \
+            torch.all(torch.abs(torch.sum(tensor, dim=1) - 1.0) < 1e-5) and \
+            torch.all(tensor > 0):
+        return
+    else:
+        raise RuntimeError("Input tensor is not a probability tensor, it must have a dimension of 2, a sum of 1.0"
+                           " for each row in dimension 1, and a positive value for each element.")

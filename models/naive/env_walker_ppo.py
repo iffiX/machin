@@ -19,7 +19,9 @@ class Actor(nn.Module):
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
 
-        mu = self.max_action * t.tanh(self.fc_mu(a))
+        # mu = self.max_action * t.tanh(self.fc_mu(a))
+
+        mu = self.fc_mu(a)
 
         # we assume that each dimension of your action is not correlated
         # therefore the covariance matrix is a positive definite diagonal matrix

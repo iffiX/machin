@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
+from torch.distributions import Categorical
 from typing import Union, Dict
 
 from .base import TorchFramework
-from .utils import hard_update, soft_update, safe_call
+from .utils import hard_update, soft_update, safe_call, assert_output_is_probs
 from .replay_buffer import Transition, ReplayBuffer
 
 from ..models.base import NeuralNetworkModule
@@ -89,6 +90,44 @@ class DDPG(TorchFramework):
             return add_normal_noise_to_action(self.act(state, use_target), noise_param, ratio)
         else:
             raise RuntimeError("Unknown noise type: " + str(mode))
+
+    def act_discreet(self, state, use_target=False):
+        """
+        Use actor network to give a discreet policy to the current state.
+
+        Note: actor network must output a probability tensor (softmax).
+
+        Returns:
+            Policy produced by actor.
+        """
+        if use_target:
+            result = safe_call(self.actor_target, state)
+        else:
+            result = safe_call(self.actor, state)
+
+        assert_output_is_probs(result)
+        batch_size = result.shape[0]
+        result = t.argmax(result, dim=1).view(batch_size, 1)
+        return result
+
+    def act_discreet_with_noise(self, state, use_target=False):
+        """
+        Use actor network to give a policy (with noise added) to the current state.
+
+        Note: actor network must output a probability tensor (softmax).
+
+        Returns:
+            Policy (with noise) produced by actor.
+        """
+        if use_target:
+            result = safe_call(self.actor_target, state)
+        else:
+            result = safe_call(self.actor, state)
+
+        assert_output_is_probs(result)
+        dist = Categorical(result)
+        batch_size = result.shape[0]
+        return dist.sample([batch_size, 1])
 
     def criticize(self, state, action, use_target=False):
         """
