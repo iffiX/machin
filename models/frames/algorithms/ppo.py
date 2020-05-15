@@ -2,13 +2,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from models.frames.buffers.replay_buffer import Transition, ReplayBuffer
+from models.nets.base import NeuralNetworkModule
+from models.noise.action_space_noise import *
+from typing import Union, Dict
 from .base import TorchFramework
 from .utils import safe_call
-from .replay_buffer import ReplayBuffer, Transition
-from ..models.base import NeuralNetworkModule
-from typing import Union, Dict
-
-from ..noise.action_space_noise import *
 
 from utils.visualize import visualize_graph
 
@@ -20,6 +19,7 @@ class PPO(TorchFramework):
                  optimizer,
                  criterion,
                  entropy_weight=None,
+                 value_weight=0.5,
                  surrogate_loss_clip=0.2,
                  gradient_max=np.inf,
                  learning_rate=0.001,
@@ -87,6 +87,7 @@ class PPO(TorchFramework):
         self.discount = discount
         self.rpb = ReplayBuffer(replay_size, replay_device)
 
+        self.value_weight = value_weight
         self.entropy_weight = entropy_weight
         self.surr_clip = surrogate_loss_clip
         self.grad_max = gradient_max
@@ -209,7 +210,7 @@ class PPO(TorchFramework):
                 act_policy_loss += self.entropy_weight * new_action_entropy.mean()
             act_policy_loss = act_policy_loss.mean()
 
-            value_loss = self.criterion(target_value.to(value.device), value)
+            value_loss = self.criterion(target_value.to(value.device), value) * self.value_weight
 
             # Update actor network
             self.actor.zero_grad()
@@ -226,7 +227,7 @@ class PPO(TorchFramework):
             sum_value_loss += value_loss.item()
 
         self.rpb.clear()
-        return -sum_act_policy_loss, sum_value_loss
+        return -sum_act_policy_loss / self.update_times, sum_value_loss / self.update_times
 
     def update_lr_scheduler(self):
         if hasattr(self, "actor_lr_sch"):

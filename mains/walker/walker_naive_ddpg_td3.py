@@ -3,8 +3,8 @@ import torch.nn as nn
 
 from datetime import datetime as dt
 
-from models.models.base import StaticModuleWrapper as MW
-from models.frameworks.ddpg_td3 import DDPG_TD3
+from models.nets.base import StaticModuleWrapper as MW
+from models.frames.algorithms.ddpg_td3 import DDPG_TD3
 from models.noise.action_space_noise import add_clipped_normal_noise_to_action
 from models.naive.env_walker_ddpg import Actor, Critic
 

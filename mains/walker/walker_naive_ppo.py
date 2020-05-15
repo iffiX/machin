@@ -3,8 +3,8 @@ import torch.nn as nn
 
 from datetime import datetime as dt
 
-from models.models.base import StaticModuleWrapper as MW
-from models.frameworks.ppo import PPO
+from models.nets.base import StaticModuleWrapper as MW
+from models.frames.algorithms.ppo import PPO
 from models.naive.env_walker_ppo import Actor, Critic
 
 from utils.logging import default_logger as logger

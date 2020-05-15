@@ -1,12 +1,11 @@
-import numpy as np
 import torch as t
 import torch.nn as nn
 import gym
 
 from datetime import datetime as dt
 
-from models.models.base import StaticModuleWrapper as MW
-from models.frameworks.ppo import PPO
+from models.nets.base import StaticModuleWrapper as MW
+from models.frames.algorithms.ppo import PPO
 from models.naive.env_lunar_lander_ppo import Actor, Critic
 
 from utils.logging import default_logger as logger
@@ -14,7 +13,7 @@ from utils.image import create_gif
 from utils.tensor_board import global_board, normalize_seq_length
 from utils.helper_classes import Counter, Timer
 from utils.conf import Config
-from utils.env import Environment
+from utils.save_env import SaveEnv
 from utils.prep import prep_args
 from utils.gym_env import disable_view_window
 
@@ -47,7 +46,7 @@ c.model_save_int = 100  # in episodes
 c.profile_int = 50  # in episodes
 
 if __name__ == "__main__":
-    save_env = Environment(c.root_dir, restart_use_trial=c.restart_from_trial)
+    save_env = SaveEnv(c.root_dir, restart_use_trial=c.restart_from_trial)
     prep_args(c, save_env)
 
     # save_env.remove_trials_older_than(diff_hour=1)
@@ -68,7 +67,6 @@ if __name__ == "__main__":
               entropy_weight=c.entropy_weight,
               discount=c.discount,
               update_times=c.ppo_update_times,
-              batch_size=c.ppo_update_batch_size,
               learning_rate=c.learning_rate)
 
     if c.restart_from_trial is not None:

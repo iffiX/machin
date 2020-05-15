@@ -3,8 +3,8 @@ import torch.nn as nn
 
 from datetime import datetime as dt
 
-from models.models.base import StaticModuleWrapper as MW
-from models.frameworks.ppo import PPO
+from models.nets.base import StaticModuleWrapper as MW
+from models.frames.algorithms.ppo import PPO
 from models.naive.env_walker_ppo import Actor, Critic
 
 from utils.logging import default_logger as logger
@@ -27,7 +27,7 @@ c = Config()
 # c.restart_from_trial = "2020_05_09_15_00_31"
 c.max_episodes = 5000
 c.max_steps = 1500
-c.replay_size = 4000
+c.replay_size = 10000
 
 c.device = "cuda:0"
 c.root_dir = "/data/AI/tmp/multi_agent/walker/naive_ppo_parallel/"
@@ -38,8 +38,8 @@ c.workers = 3
 c.discount = 0.99
 c.learning_rate = 3e-4
 c.entropy_weight = None
-c.ppo_update_times = 80
-c.ppo_update_int = 5  # = the number of episodes stored in ppo replay buffer
+c.ppo_update_times = 50
+c.ppo_update_int = 6  # = the number of episodes stored in ppo replay buffer
 c.model_save_int = c.ppo_update_int * 20  # in episodes
 c.profile_int = 50  # in episodes
 

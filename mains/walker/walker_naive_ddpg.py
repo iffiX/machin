@@ -4,7 +4,7 @@ import torch.nn as nn
 from datetime import datetime as dt
 
 from models.models.base import StaticModuleWrapper as MW
-from models.frameworks.ddpg import DDPG
+from models.frames.ddpg import DDPG
 from models.naive.env_walker_ddpg import Actor, Critic
 
 from utils.logging import default_logger as logger

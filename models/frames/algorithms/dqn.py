@@ -10,9 +10,6 @@ from .replay_buffer import Transition, ReplayBuffer
 from ..models.base import NeuralNetworkModule
 from ..noise.action_space_noise import *
 
-# in case you need to debug your network in ddpg
-from utils.visualize import visualize_graph
-
 
 class DQN(TorchFramework):
     def __init__(self,
@@ -24,23 +21,49 @@ class DQN(TorchFramework):
                  lr_scheduler=None,
                  lr_scheduler_params=None,
                  batch_size=100,
-                 update_rate=0.005,
+                 update_rate=1.0,
                  discount=0.99,
                  replay_size=500000,
                  replay_device="cpu",
-                 reward_func=None):
+                 reward_func=None,
+                 mode="double"):
         """
         Initialize DQN framework.
         Note: DQN is only available for discreet environments.
+        Note: Vanilla DQN only needs one network, so use the same model (which is used as qnet)
+              as the qnet_target.
+        Note: In order to implement dueling DQN, you should create two dense output layers
+              in your q network:
+
+                    self.fc_adv = nn.Linear(in_features=..., out_features=num_actions)
+                    self.fc_val = nn.Linear(in_features=..., out_features=1)
+
+              then in your forward() method, you should implement output as:
+
+                    adv = self.fc_adv(input)
+                    val = self.fc_val(input).expand(self.batch_sze, self.num_actions)
+                    return val + adv - \
+                           adv.mean(1).unsqueeze(1).expand(self.batch_size, self.num_actions)
+
+        Args:
+            mode: one of "vanilla", "fixed_target", "double"
         """
         self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
         self.rpb = ReplayBuffer(replay_size, replay_device)
 
+        if mode not in {"vanilla", "fixed_target", "double"}:
+            raise RuntimeError("Unknown DQN mode: {}".format(mode))
+        self.mode = mode
+
         self.qnet = qnet
-        self.qnet_target = qnet_target
+        if self.mode == "vanilla":
+            self.qnet_target = qnet
+        else:
+            self.qnet_target = qnet_target
         self.qnet_optim = optimizer(self.qnet.parameters(), learning_rate)
+
 
         # Make sure target and online networks have the same weight
         with torch.no_grad():
@@ -113,27 +136,64 @@ class DQN(TorchFramework):
             self.rpb.sample_batch(self.batch_size, concatenate_samples,
                                   sample_keys=["state", "action", "reward", "next_state", "terminal", "*"])
 
-        # Update qnet network first
-        # Generate value reference :math: `y_i` using target actor and target qnet
-        q_value = self.criticize(state)
-        action_value = q_value.gather(dim=1, index=action["action"])
+        if self.mode == "vanilla":
+            # target network is the same as the main network
+            q_value = self.criticize(state)
+            action_value = q_value.gather(dim=1, index=action["action"])
+            target_next_q_value = t.max(self.criticize(next_state), dim=1).values.unsqueeze(1)
+            y_i = self.reward_func(reward, self.discount, target_next_q_value, terminal, *others)
+            value_loss = self.criterion(action_value, y_i.to(action_value.device))
 
-        with torch.no_grad():
-            next_q_value = self.criticize(next_state)
-            target_next_q_value = self.criticize(next_state, True)
-            target_next_q_value = target_next_q_value.gather(dim=1, index=t.max(next_q_value, dim=1)[1].unsqueeze(1))
+            if update_value:
+                self.qnet.zero_grad()
+                value_loss.backward()
+                self.qnet_optim.step()
 
-        y_i = self.reward_func(reward, self.discount, target_next_q_value, terminal, *others)
-        value_loss = self.criterion(action_value, y_i.to(action_value.device))
+        elif self.mode == "fixed_target":
+            # Generate value reference :math: `y_i` using target actor and target qnet
+            q_value = self.criticize(state)
+            action_value = q_value.gather(dim=1, index=action["action"])
 
-        if update_value:
-            self.qnet.zero_grad()
-            value_loss.backward()
-            self.qnet_optim.step()
+            with torch.no_grad():
+                target_next_q_value = t.max(self.criticize(next_state, True), dim=1).values.unsqueeze(1)
 
-        # Update target networks
-        if update_targets:
-            soft_update(self.qnet_target, self.qnet, self.update_rate)
+            y_i = self.reward_func(reward, self.discount, target_next_q_value, terminal, *others)
+            value_loss = self.criterion(action_value, y_i.to(action_value.device))
+
+            if update_value:
+                self.qnet.zero_grad()
+                value_loss.backward()
+                self.qnet_optim.step()
+
+            # Update target networks
+            if update_targets:
+                soft_update(self.qnet_target, self.qnet, self.update_rate)
+
+        elif self.mode == "double":
+            # Generate value reference :math: `y_i` using target actor and target qnet
+            q_value = self.criticize(state)
+            action_value = q_value.gather(dim=1, index=action["action"])
+
+            with torch.no_grad():
+                next_q_value = self.criticize(next_state)
+                target_next_q_value = self.criticize(next_state, True)
+                target_next_q_value = target_next_q_value\
+                    .gather(dim=1, index=t.max(next_q_value, dim=1).indicies.unsqueeze(1))
+
+            y_i = self.reward_func(reward, self.discount, target_next_q_value, terminal, *others)
+            value_loss = self.criterion(action_value, y_i.to(action_value.device))
+
+            if update_value:
+                self.qnet.zero_grad()
+                value_loss.backward()
+                self.qnet_optim.step()
+
+            # Update target networks
+            if update_targets:
+                soft_update(self.qnet_target, self.qnet, self.update_rate)
+
+        else:
+            raise RuntimeError("Unknown DQN mode: {}".format(self.mode))
 
         # use .item() to prevent memory leakage
         return value_loss.item()

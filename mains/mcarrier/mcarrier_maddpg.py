@@ -2,8 +2,8 @@ import torch as t
 import torch.nn as nn
 from datetime import datetime as dt
 
-from models.models.base import DynamicModuleWrapper as MW
-from models.frameworks.maddpg import MADDPG
+from models.nets.base import StaticModuleWrapper as MW
+from models.frames.algorithms.maddpg import MADDPG
 from models.naive.env_mcarrier_maddpg import Actor, Critic
 
 from utils.logging import default_logger as logger

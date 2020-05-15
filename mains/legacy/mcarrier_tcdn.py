@@ -3,8 +3,8 @@ import torch as t
 import torch.nn as nn
 from torch.optim.lr_scheduler import LambdaLR
 
-from models.frameworks.ddpg_td3 import DDPG_TD3
-from models.frameworks.ddpg import DDPG
+from models.frames.ddpg_td3 import DDPG_TD3
+from models.frames.ddpg import DDPG
 from models.tcdn.actor import SwarmActor, WrappedActorNet
 from models.tcdn.critic import SwarmCritic, WrappedCriticNet
 from models.tcdn.negotiatior import SwarmNegotiator

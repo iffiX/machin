@@ -3,9 +3,9 @@ import torch as t
 import torch.nn as nn
 from datetime import datetime as dt
 
-from models.models.base import StaticModuleWrapper as MW
+from models.nets.base import StaticModuleWrapper as MW
+from models.frames.algorithms.hddpg import HDDPG
 from models.noise.action_space_noise import add_normal_noise_to_action
-from models.frameworks.hddpg import HDDPG
 from models.naive.env_walker_ddpg import Actor, Critic
 
 from utils.logging import default_logger as logger

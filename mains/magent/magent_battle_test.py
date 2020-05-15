@@ -83,7 +83,7 @@ if __name__ == "__main__":
         local_step = Counter()
         episode_finished = False
 
-        while not episode_finished and local_step.get() <= c.max_steps:
+        while not episode_finished and local_step.get() <= max_steps:
             local_step.count()
 
             with t.no_grad():
