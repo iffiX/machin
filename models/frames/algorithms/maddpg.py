@@ -200,7 +200,7 @@ class MADDPG(TorchFramework):
             return safe_call(self.critics[index], state, all_actions,
                              required_argument=("all_states", "all_actions"))
 
-    def store_observe(self, transition):
+    def store_transition(self, transition):
         """
         Add a transition sample to the replay buffer. Transition samples will be used in update()
         observe() is used during training.

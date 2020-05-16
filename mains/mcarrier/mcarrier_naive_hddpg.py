@@ -196,7 +196,7 @@ if __name__ == "__main__":
                 total_reward += reward
 
                 for ag in range(c.agent_num):
-                    ddpg.store_observe({
+                    ddpg.store_transition({
                         "state": {"state": old_state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0).clone()},
                         "action": {"action": actions[:, ag * action_dim:(ag + 1) * action_dim].clone()},
                         "next_state": {"state": state[ag * observe_dim: (ag + 1) * observe_dim].unsqueeze(0).clone()},

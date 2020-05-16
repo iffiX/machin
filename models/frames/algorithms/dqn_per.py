@@ -1,6 +1,7 @@
 from .dqn import *
 from models.frames.buffers.prioritized_replay_buffer import PrioritizedReplayBuffer
-
+from utils.logging import default_logger
+import torch.nn as nn
 
 class DQN_PER(DQN):
     def __init__(self,
@@ -33,6 +34,14 @@ class DQN_PER(DQN):
             reward_func=reward_func
         )
         self.rpb = PrioritizedReplayBuffer(replay_size, replay_device)
+        # reduction must be None
+        if not hasattr(self.criterion, "reduction"):
+            raise RuntimeError("Criterion must have the 'reduction' property")
+        else:
+            if self.criterion.reduction != "none":
+                default_logger.warn("The reduction property of criterion is not 'none', "
+                                    "automatically corrected.")
+                self.criterion.reduction = "none"
 
     def update(self, update_value=True, update_targets=True, concatenate_samples=True):
         """
@@ -57,7 +66,8 @@ class DQN_PER(DQN):
 
         y_i = self.reward_func(reward, self.discount, target_next_q_value, terminal, *others)\
                   .to(action_value.device)
-        value_loss = self.criterion(action_value, y_i)
+        value_loss = self.criterion(action_value, y_i) * t.from_numpy(is_weight).view([batch_size, 1])
+        value_loss = value_loss.mean()
 
         abs_error = t.sum(t.abs(action_value - y_i), dim=1).flatten().cpu().numpy()
         self.rpb.update_priority(abs_error, index)

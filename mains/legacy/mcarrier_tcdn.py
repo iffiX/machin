@@ -198,23 +198,23 @@ if __name__ == "__main__":
                     if old_samples is not None:
                         for old_sample, agent, r in zip(old_samples, agents, reward[0]):
                             sample = agent.get_sample()
-                            ddpg.store_observe({"state": {"history": old_sample[0],
+                            ddpg.store_transition({"state": {"history": old_sample[0],
                                                           "history_time_steps": old_sample[1],
                                                           "observation": old_sample[2],
                                                           "neighbor_observation": old_sample[3],
                                                           "neighbor_action_all": old_sample[4],
                                                           "negotiate_rate_all": old_sample[5],
-                                                          "time_step": old_sample[6]},
-                                                "action": {"action": agent.action},
-                                                "next_state": {"history": sample[0],
+                                                             "time_step": old_sample[6]},
+                                                   "action": {"action": agent.action},
+                                                   "next_state": {"history": sample[0],
                                                                "history_time_steps": sample[1],
                                                                "observation": sample[2],
                                                                "neighbor_observation": sample[3],
                                                                "neighbor_action_all": sample[4],
                                                                "negotiate_rate_all": sample[5],
                                                                "time_step": sample[6]},
-                                                "reward": float(r),
-                                                "terminal": episode_finished or local_step.get() == max_steps})
+                                                   "reward": float(r),
+                                                   "terminal": episode_finished or local_step.get() == max_steps})
 
 
                     writer.add_scalar("action_min", t.min(actions), global_step.get())

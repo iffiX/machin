@@ -108,7 +108,7 @@ class DQN(TorchFramework):
         else:
             return safe_call(self.qnet, state)
 
-    def store_observe(self, transition: Union[Transition, Dict]):
+    def store_transition(self, transition: Union[Transition, Dict]):
         """
         Add a transition sample to the replay buffer. Transition samples will be used in update()
         observe() is used during training.

@@ -140,14 +140,14 @@ if __name__ == "__main__":
                 total_reward += reward
 
                 for ag in range(c.agent_num):
-                    ddpg.store_observe({"state": {"state": old_state[:, ag].clone(),
+                    ddpg.store_transition({"state": {"state": old_state[:, ag].clone(),
                                                   "all_states": old_state.clone()},
                                         "action": {"all_actions": actions.clone()},
                                         "next_state": {"state": state[:, ag].clone(),
                                                        "all_states": state.clone()},
                                         "reward": float(reward[0][ag]),
                                         "index": ag,
-                                        "terminal": episode_finished or local_step.get() == c.max_steps})
+                                           "terminal": episode_finished or local_step.get() == c.max_steps})
 
                 writer.add_scalar("action_min", t.min(actions), global_step.get())
                 writer.add_scalar("action_mean", t.mean(actions), global_step.get())

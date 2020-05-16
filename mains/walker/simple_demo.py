@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
                 total_reward += reward
 
-                ddpg.store_observe({"state": {"state": old_state.unsqueeze(0).clone()},
+                ddpg.store_transition({"state": {"state": old_state.unsqueeze(0).clone()},
                                     "action": {"action": actions.clone()},
                                     "next_state": {"state": state.unsqueeze(0).clone()},
                                     "reward": float(reward),

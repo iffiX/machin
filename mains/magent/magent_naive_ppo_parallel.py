@@ -239,7 +239,7 @@ if __name__ == "__main__":
             writer.add_scalar("episode_length", local_step, episode_num)
 
             for obsrv in tmp_observe:
-                ppo.store_observe(obsrv)
+                ppo.store_transition(obsrv)
 
             # model serialization
             if episode_num % c.model_save_int == 0:

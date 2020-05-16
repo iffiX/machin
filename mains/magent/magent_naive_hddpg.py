@@ -218,7 +218,7 @@ if __name__ == "__main__":
                     tmp_observe[i - 1]["next_state"] = tmp_observe[i]["state"]
 
                 for record in tmp_observe:
-                    ddpg.store_observe(record)
+                    ddpg.store_transition(record)
 
         logger.info("Sum reward: {}, episode={}".format(total_reward, episode))
         writer.add_scalar("episodic_g1_sum_reward", total_reward[0], episode.get())

@@ -12,7 +12,7 @@ from .utils import safe_call
 from utils.visualize import visualize_graph
 
 
-class PPO(TorchFramework):
+class A2C(TorchFramework):
     def __init__(self,
                  actor: Union[NeuralNetworkModule, nn.Module],
                  critic: Union[NeuralNetworkModule, nn.Module],
@@ -20,7 +20,6 @@ class PPO(TorchFramework):
                  criterion,
                  entropy_weight=None,
                  value_weight=0.5,
-                 surrogate_loss_clip=0.2,
                  gradient_max=np.inf,
                  learning_rate=0.001,
                  lr_scheduler=None,
@@ -31,7 +30,7 @@ class PPO(TorchFramework):
                  replay_device="cpu",
                  reward_func=None):
         """
-        Initialize PPO framework.
+        Initialize A2C framework.
         Note: when given a state, (and an optional action) actor must at least return two
         values:
         1. Action
@@ -89,7 +88,6 @@ class PPO(TorchFramework):
 
         self.value_weight = value_weight
         self.entropy_weight = entropy_weight
-        self.surr_clip = surrogate_loss_clip
         self.grad_max = gradient_max
 
         self.actor = actor
@@ -103,9 +101,9 @@ class PPO(TorchFramework):
 
         self.criterion = criterion
 
-        self.reward_func = PPO.bellman_function if reward_func is None else reward_func
+        self.reward_func = A2C.bellman_function if reward_func is None else reward_func
 
-        super(PPO, self).__init__()
+        super(A2C, self).__init__()
         self.set_top(["actor", "critic"])
         self.set_restorable(["actor", "critic"])
 
@@ -136,7 +134,7 @@ class PPO(TorchFramework):
         """
         return safe_call(self.critic, state)
 
-    def store_transition(self, transition: Union[Transition, Dict]):
+    def store_observe(self, transition: Union[Transition, Dict]):
         """
         Add a transition sample to the replay buffer. Transition samples will be used in update()
         observe() is used during training.
@@ -192,19 +190,11 @@ class PPO(TorchFramework):
                 advantage = target_value.to(value.device) - value
 
             if self.entropy_weight is not None:
-                new_action, new_action_log_prob, new_action_entropy = self.eval_act(state, action)
-
+                new_action, _, new_action_entropy = self.eval_act(state, action)
             else:
-                new_action, new_action_log_prob, *_ = self.eval_act(state, action)
+                new_action, *_ = self.eval_act(state, action)
 
-            new_action_log_prob = new_action_log_prob.view(batch_size, 1)
-
-            sim_ratio = t.exp(new_action_log_prob -
-                              action_log_prob.to(new_action_log_prob.device).detach())
-            surr_loss_1 = sim_ratio * advantage
-            surr_loss_2 = t.clamp(sim_ratio, 1 - self.surr_clip, 1 + self.surr_clip) * advantage
-
-            act_policy_loss = -t.min(surr_loss_1, surr_loss_2)
+            act_policy_loss =
 
             if self.entropy_weight is not None:
                 act_policy_loss += self.entropy_weight * new_action_entropy.mean()

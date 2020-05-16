@@ -143,7 +143,7 @@ if __name__ == "__main__":
                 tmp_observe[i]["value"] * c.discount + tmp_observe[i - 1]["reward"]
 
         for obsrv in tmp_observe:
-            ppo.store_observe(obsrv)
+            ppo.store_transition(obsrv)
 
         writer.add_histogram("action_dist", normalize_seq_length(all_actions, 1000),
                              global_step.get())

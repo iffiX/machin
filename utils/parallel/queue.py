@@ -77,7 +77,7 @@ class SimpleQueue(object):
     def get(self):
         with self._rlock:
             res = self._reader.recv_bytes()
-        # unserialize the data after having released the lock
+        # deserialize the data after having released the lock
         return dill.loads(res)
 
     def put(self, obj):

@@ -251,3 +251,7 @@ class ReplayBuffer:
                     result.append([item[k] for item in batch])
                 used_keys.append(k)
         return tuple(result)
+
+    def __reduce__(self):
+        # for pickling
+        return self.__class__, (self.buffer_size, self.buffer_device, self.main_attrs)

@@ -231,18 +231,18 @@ if __name__ == "__main__":
                         for g in (0, 1):
                             for agent, old_sample, r in zip(groups[g], old_samples[g], reward[g]):
                                 sample = agent.get_sample()
-                                ddpg.store_observe({"state": {"history": old_sample[0],
+                                ddpg.store_transition({"state": {"history": old_sample[0],
                                                               "observation": old_sample[1],
                                                               "neighbor_observation": old_sample[2],
                                                               "neighbor_action_all": old_sample[3],
                                                               "negotiate_rate_all": old_sample[4]},
                                                     "action": {"action": agent.action},
-                                                    "next_state": {"history": sample[0],
+                                                       "next_state": {"history": sample[0],
                                                                    "observation": sample[1],
                                                                    "neighbor_observation": sample[2],
                                                                    "neighbor_action_all": sample[3],
                                                                    "negotiate_rate_all": sample[4]},
-                                                    "reward": r})
+                                                       "reward": r})
 
                 for agent in group1_agents:
                     agent.reset_negotiate()
