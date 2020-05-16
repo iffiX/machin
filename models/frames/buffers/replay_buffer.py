@@ -122,11 +122,14 @@ class ReplayBuffer:
             # trim buffer to buffer_size
             self.buffer = self.buffer[(self.size() - self.buffer_size):]
         if self.size() == self.buffer_size:
+            position = self.index
             self.buffer[self.index] = transition
             self.index += 1
             self.index %= self.buffer_size
         else:
             self.buffer.append(transition)
+            position = len(self.buffer) - 1
+        return position
 
     def size(self):
         """
@@ -201,6 +204,11 @@ class ReplayBuffer:
         if additional_concat_keys is None:
             additional_concat_keys = []
 
+        return batch_size, self.concatenate_batch(batch, batch_size, concatenate, device,
+                                                  sample_keys, additional_concat_keys)
+
+    def concatenate_batch(self, batch, batch_size, concatenate, device,
+                          sample_keys, additional_concat_keys):
         result = []
         used_keys = []
         for k in sample_keys:
@@ -228,7 +236,7 @@ class ReplayBuffer:
             elif k == "*":
                 # select custom keys
                 for remain_k in batch[0].keys():
-                    if remain_k not in ("state", "action", "next_state", "reward", "terminal")\
+                    if remain_k not in ("state", "action", "next_state", "reward", "terminal") \
                             and remain_k not in used_keys:
                         if remain_k in additional_concat_keys:
                             result.append(torch.tensor([item[remain_k] for item in batch], device=device)
@@ -242,4 +250,4 @@ class ReplayBuffer:
                 else:
                     result.append([item[k] for item in batch])
                 used_keys.append(k)
-        return batch_size, tuple(result)
+        return tuple(result)

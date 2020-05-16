@@ -1,4 +1,3 @@
-import itertools as it
 import torch as t
 import torch.nn as nn
 from datetime import datetime as dt
