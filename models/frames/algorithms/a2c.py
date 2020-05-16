@@ -5,7 +5,7 @@ import torch.nn as nn
 from models.frames.buffers.replay_buffer import Transition, ReplayBuffer
 from models.nets.base import NeuralNetworkModule
 from models.noise.action_space_noise import *
-from typing import Union, Dict
+from typing import Union, Dict, List
 from .base import TorchFramework
 from .utils import safe_call
 
@@ -21,14 +21,14 @@ class A2C(TorchFramework):
                  entropy_weight=None,
                  value_weight=0.5,
                  gradient_max=np.inf,
+                 gae_lambda=1.0,
                  learning_rate=0.001,
                  lr_scheduler=None,
                  lr_scheduler_params=None,
                  update_times=50,
                  discount=0.99,
                  replay_size=5000,
-                 replay_device="cpu",
-                 reward_func=None):
+                 replay_device="cpu"):
         """
         Initialize A2C framework.
         Note: when given a state, (and an optional action) actor must at least return two
@@ -88,7 +88,9 @@ class A2C(TorchFramework):
 
         self.value_weight = value_weight
         self.entropy_weight = entropy_weight
+        self.surr_clip = surrogate_loss_clip
         self.grad_max = gradient_max
+        self.gae_lambda = gae_lambda
 
         self.actor = actor
         self.critic = critic
@@ -100,8 +102,6 @@ class A2C(TorchFramework):
             self.critic_lr_sch = lr_scheduler(self.critic_optim, *lr_scheduler_params[1])
 
         self.criterion = criterion
-
-        self.reward_func = A2C.bellman_function if reward_func is None else reward_func
 
         super(A2C, self).__init__()
         self.set_top(["actor", "critic"])
@@ -134,87 +134,104 @@ class A2C(TorchFramework):
         """
         return safe_call(self.critic, state)
 
-    def store_observe(self, transition: Union[Transition, Dict]):
+    def store_transition(self, transition: Union[Transition, Dict]):
         """
         Add a transition sample to the replay buffer. Transition samples will be used in update()
         observe() is used during training.
         """
-        self.rpb.append(transition)
+        self.rpb.append(transition,
+                        required_keys=("state", "action", "next_state",
+                                       "reward", "value", "gae", "terminal"))
 
-    def set_reward_func(self, rf):
-        """
-        Set reward function, default reward function is bellman function with no extra inputs
-        """
-        self.reward_func = rf
+    def store_episode(self, episode: List[Union[Transition, Dict]]):
+        if not isinstance(episode[0], Transition):
+            episode = [Transition(**trans) for trans in episode]
+
+        episode[-1]["value"] = episode[-1].reward
+
+        # calculate value for each transition
+        for i in reversed(range(1, len(episode))):
+            episode[i - 1]["value"] = \
+                episode[i]["value"] * self.discount + episode[i - 1]["reward"]
+
+        # calculate advantage
+        if self.gae_lambda == 1.0:
+            for trans in episode:
+                trans["gae"] = trans["value"] - self.criticize(trans["state"]).item()
+        elif self.gae_lambda == 0.0:
+            for trans in episode:
+                trans["gae"] = trans["reward"] + \
+                               self.discount * (1 - trans["terminal"]) * \
+                               self.criticize(trans["next_state"]).item() \
+                               - self.criticize(trans["state"]).item()
+        else:
+            last_critic_value = 0
+            last_gae = 0
+            for trans in reversed(episode):
+                critic_value = self.criticize(trans["state"]).item()
+                gae_delta = trans["reward"] + self.discount * last_critic_value - critic_value
+                last_critic_value = critic_value
+                last_gae = trans["gae"] = last_gae * self.discount * self.gae_lambda + gae_delta
+
+        for trans in episode:
+            self.rpb.append(trans)
 
     def get_replay_buffer(self):
         return self.rpb
 
-    def update(self, update_value=True, update_policy=True,
-               concatenate_samples=True, next_value_use_rollout=True):
-        """
-        Args:
-            next_value_use_rollout: use rollout values as next values instead of using critic net to
-                                    estimate the next value
-        """
+    def update(self, update_value=True, update_policy=True, concatenate_samples=True):
         sum_act_policy_loss = 0
         sum_value_loss = 0
 
-        if next_value_use_rollout:
-            batch_size, (state, action, reward, next_state, terminal,
-                         action_log_prob, target_value, *others) = \
-                self.rpb.sample_batch(-1,
-                                      sample_method="all",
-                                      concatenate=concatenate_samples,
-                                      sample_keys=["state", "action", "reward", "next_state",
-                                                   "terminal", "action_log_prob", "value", "*"],
-                                      additional_concat_keys=["action_log_prob", "value"])
-        else:
-            batch_size, (state, action, reward, next_state, terminal,
-                         action_log_prob, *others) = \
-                self.rpb.sample_batch(-1,
-                                      sample_method="all",
-                                      concatenate=concatenate_samples,
-                                      sample_keys=["state", "action", "reward", "next_state",
-                                                   "terminal", "action_log_prob", "*"],
-                                      additional_concat_keys=["action_log_prob"])
-            next_value = self.criticize(next_state)
-            target_value = self.reward_func(reward, self.discount, next_value, terminal, *others).detach()
+        # sample a batch
+        batch_size, (state, action, reward, next_state,
+                     terminal, target_value, advantage, *others) = \
+            self.rpb.sample_batch(-1,
+                                  sample_method="all",
+                                  concatenate=concatenate_samples,
+                                  sample_keys=["state", "action", "reward", "next_state",
+                                               "terminal", "value", "gae", "*"],
+                                  additional_concat_keys=["value", "gae"])
 
         # normalize target value
         target_value = (target_value - target_value.mean()) / (target_value.std() + 1e-5)
 
         for i in range(self.update_times):
             value = self.criticize(state)
-            with torch.no_grad():
-                advantage = target_value.to(value.device) - value
 
             if self.entropy_weight is not None:
-                new_action, _, new_action_entropy = self.eval_act(state, action)
-            else:
-                new_action, *_ = self.eval_act(state, action)
+                new_action, new_action_log_prob, new_action_entropy = self.eval_act(state, action)
 
-            act_policy_loss =
+            else:
+                new_action, new_action_log_prob, *_ = self.eval_act(state, action)
+
+            new_action_log_prob = new_action_log_prob.view(batch_size, 1)
+
+            # calculate policy loss
+            act_policy_loss = -new_action_log_prob * advantage
 
             if self.entropy_weight is not None:
                 act_policy_loss += self.entropy_weight * new_action_entropy.mean()
+
             act_policy_loss = act_policy_loss.mean()
 
             value_loss = self.criterion(target_value.to(value.device), value) * self.value_weight
 
             # Update actor network
-            self.actor.zero_grad()
-            act_policy_loss.backward()
-            nn.utils.clip_grad_norm_(self.actor.parameters(), self.grad_max)
-            self.actor_optim.step()
-            sum_act_policy_loss += act_policy_loss.item()
+            if update_policy:
+                self.actor.zero_grad()
+                act_policy_loss.backward()
+                nn.utils.clip_grad_norm_(self.actor.parameters(), self.grad_max)
+                self.actor_optim.step()
+                sum_act_policy_loss += act_policy_loss.item()
 
             # Update critic network
-            self.critic.zero_grad()
-            value_loss.backward()
-            nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_max)
-            self.critic_optim.step()
-            sum_value_loss += value_loss.item()
+            if update_value:
+                self.critic.zero_grad()
+                value_loss.backward()
+                nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_max)
+                self.critic_optim.step()
+                sum_value_loss += value_loss.item()
 
         self.rpb.clear()
         return -sum_act_policy_loss / self.update_times, sum_value_loss / self.update_times
@@ -224,9 +241,3 @@ class A2C(TorchFramework):
             self.actor_lr_sch.step()
         if hasattr(self, "critic_lr_sch"):
             self.critic_lr_sch.step()
-
-    @staticmethod
-    def bellman_function(reward, discount, next_value, terminal, *_):
-        next_value = next_value.to(reward.device)
-        terminal = terminal.to(reward.device)
-        return reward + discount * (1 - terminal) * next_value

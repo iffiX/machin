@@ -42,6 +42,9 @@ class Transition:
     def keys(self):
         return self._keys
 
+    def has_keys(self, keys):
+        return all([k in self._keys for k in keys])
+
     def to(self, device):
         for k, v in self.state.items():
             self.state[k] = v.to(device)
@@ -103,17 +106,20 @@ class ReplayBuffer:
         self.index = 0
         self.main_attrs = {"state", "action", "next_state"} if main_attributes is None else main_attributes
 
-    def append(self, transition: Union[Transition, Dict]):
+    def append(self, transition: Union[Transition, Dict],
+               required_keys=("state", "action", "next_state", "reward", "terminal")):
         """
         Store a transition object to buffer.
 
         Args:
             transition: A transition object.
-        Returns:
-            None
+            required_keys: Required attributes.
         """
         if isinstance(transition, dict):
             transition = Transition(**transition)
+        if not transition.has_keys(required_keys):
+            missing_keys = set(required_keys) - set(transition.keys())
+            raise RuntimeError("Transition object missing keys: {}".format(missing_keys))
         transition.to(self.buffer_device)
 
         if self.size() != 0 and len(self.buffer[0]) != len(transition):

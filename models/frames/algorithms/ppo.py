@@ -1,18 +1,7 @@
-import numpy as np
-import torch
-import torch.nn as nn
-
-from models.frames.buffers.replay_buffer import Transition, ReplayBuffer
-from models.nets.base import NeuralNetworkModule
-from models.noise.action_space_noise import *
-from typing import Union, Dict
-from .base import TorchFramework
-from .utils import safe_call
-
-from utils.visualize import visualize_graph
+from .a2c import *
 
 
-class PPO(TorchFramework):
+class PPO(A2C):
     def __init__(self,
                  actor: Union[NeuralNetworkModule, nn.Module],
                  critic: Union[NeuralNetworkModule, nn.Module],
@@ -22,14 +11,14 @@ class PPO(TorchFramework):
                  value_weight=0.5,
                  surrogate_loss_clip=0.2,
                  gradient_max=np.inf,
+                 gae_lambda=1.0,
                  learning_rate=0.001,
                  lr_scheduler=None,
                  lr_scheduler_params=None,
                  update_times=50,
                  discount=0.99,
                  replay_size=5000,
-                 replay_device="cpu",
-                 reward_func=None):
+                 replay_device="cpu"):
         """
         Initialize PPO framework.
         Note: when given a state, (and an optional action) actor must at least return two
@@ -83,113 +72,43 @@ class PPO(TorchFramework):
                         return action.detach(), action_log_prob, action_entropy
 
         """
-        self.update_times = update_times
-        self.discount = discount
-        self.rpb = ReplayBuffer(replay_size, replay_device)
-
-        self.value_weight = value_weight
-        self.entropy_weight = entropy_weight
+        super(PPO, self).__init__(actor, critic, optimizer, criterion,
+                                  entropy_weight=entropy_weight,
+                                  value_weight=value_weight,
+                                  gradient_max=gradient_max,
+                                  gae_lambda=gae_lambda,
+                                  learning_rate=learning_rate,
+                                  lr_scheduler=lr_scheduler,
+                                  lr_scheduler_params=lr_scheduler_params,
+                                  update_times=update_times,
+                                  discount=discount,
+                                  replay_size=replay_size,
+                                  replay_device=replay_device)
         self.surr_clip = surrogate_loss_clip
-        self.grad_max = gradient_max
 
-        self.actor = actor
-        self.critic = critic
-        self.actor_optim = optimizer(self.actor.parameters(), learning_rate)
-        self.critic_optim = optimizer(self.critic.parameters(), learning_rate)
-
-        if lr_scheduler is not None:
-            self.actor_lr_sch = lr_scheduler(self.actor_optim, *lr_scheduler_params[0])
-            self.critic_lr_sch = lr_scheduler(self.critic_optim, *lr_scheduler_params[1])
-
-        self.criterion = criterion
-
-        self.reward_func = PPO.bellman_function if reward_func is None else reward_func
-
-        super(PPO, self).__init__()
-        self.set_top(["actor", "critic"])
-        self.set_restorable(["actor", "critic"])
-
-    def act(self, state):
-        """
-        Use actor network to give a policy to the current state.
-
-        Returns:
-            Anything produced by actor.
-        """
-        return safe_call(self.actor, state)
-
-    def eval_act(self, state, action):
-        """
-        Use actor network to evaluate the log-likelihood of a given action in the current state.
-
-        Returns:
-            Anything produced by actor.
-        """
-        return safe_call(self.actor, state, action)
-
-    def criticize(self, state):
-        """
-        Use critic network to evaluate current value.
-
-        Returns:
-            Value evaluated by critic.
-        """
-        return safe_call(self.critic, state)
-
-    def store_transition(self, transition: Union[Transition, Dict]):
-        """
-        Add a transition sample to the replay buffer. Transition samples will be used in update()
-        observe() is used during training.
-        """
-        self.rpb.append(transition)
-
-    def set_reward_func(self, rf):
-        """
-        Set reward function, default reward function is bellman function with no extra inputs
-        """
-        self.reward_func = rf
-
-    def get_replay_buffer(self):
-        return self.rpb
-
-    def update(self, update_value=True, update_policy=True,
-               concatenate_samples=True, next_value_use_rollout=True):
-        """
-        Args:
-            next_value_use_rollout: use rollout values as next values instead of using critic net to
-                                    estimate the next value
-        """
+    def update(self, update_value=True, update_policy=True, concatenate_samples=True):
         sum_act_policy_loss = 0
         sum_value_loss = 0
 
-        if next_value_use_rollout:
-            batch_size, (state, action, reward, next_state, terminal,
-                         action_log_prob, target_value, *others) = \
-                self.rpb.sample_batch(-1,
-                                      sample_method="all",
-                                      concatenate=concatenate_samples,
-                                      sample_keys=["state", "action", "reward", "next_state",
-                                                   "terminal", "action_log_prob", "value", "*"],
-                                      additional_concat_keys=["action_log_prob", "value"])
-        else:
-            batch_size, (state, action, reward, next_state, terminal,
-                         action_log_prob, *others) = \
-                self.rpb.sample_batch(-1,
-                                      sample_method="all",
-                                      concatenate=concatenate_samples,
-                                      sample_keys=["state", "action", "reward", "next_state",
-                                                   "terminal", "action_log_prob", "*"],
-                                      additional_concat_keys=["action_log_prob"])
-            next_value = self.criticize(next_state)
-            target_value = self.reward_func(reward, self.discount, next_value, terminal, *others).detach()
+        # sample a batch
+        batch_size, (state, action, reward, next_state, terminal,
+                     action_log_prob, target_value, advantage, *others) = \
+            self.rpb.sample_batch(-1,
+                                  sample_method="all",
+                                  concatenate=concatenate_samples,
+                                  sample_keys=["state", "action", "reward", "next_state", "terminal",
+                                               "action_log_prob", "value", "gae", "*"],
+                                  additional_concat_keys=["action_log_prob", "value", "gae"])
 
         # normalize target value
         target_value = (target_value - target_value.mean()) / (target_value.std() + 1e-5)
 
+        # Infer original action log probability
+        __, action_log_prob, *_ = self.eval_act(state, action)
+        action_log_prob = action_log_prob.view(batch_size, 1)
+
         for i in range(self.update_times):
             value = self.criticize(state)
-            with torch.no_grad():
-                advantage = target_value.to(value.device) - value
 
             if self.entropy_weight is not None:
                 new_action, new_action_log_prob, new_action_entropy = self.eval_act(state, action)
@@ -199,44 +118,37 @@ class PPO(TorchFramework):
 
             new_action_log_prob = new_action_log_prob.view(batch_size, 1)
 
-            sim_ratio = t.exp(new_action_log_prob -
-                              action_log_prob.to(new_action_log_prob.device).detach())
+            # calculate surrogate loss
+            sim_ratio = t.exp(new_action_log_prob - action_log_prob).detach()
+            advantage = advantage.to(sim_ratio.device)
             surr_loss_1 = sim_ratio * advantage
             surr_loss_2 = t.clamp(sim_ratio, 1 - self.surr_clip, 1 + self.surr_clip) * advantage
 
+            # calculate policy loss using surrogate loss
             act_policy_loss = -t.min(surr_loss_1, surr_loss_2)
 
             if self.entropy_weight is not None:
                 act_policy_loss += self.entropy_weight * new_action_entropy.mean()
+
             act_policy_loss = act_policy_loss.mean()
 
             value_loss = self.criterion(target_value.to(value.device), value) * self.value_weight
 
             # Update actor network
-            self.actor.zero_grad()
-            act_policy_loss.backward()
-            nn.utils.clip_grad_norm_(self.actor.parameters(), self.grad_max)
-            self.actor_optim.step()
-            sum_act_policy_loss += act_policy_loss.item()
+            if update_policy:
+                self.actor.zero_grad()
+                act_policy_loss.backward()
+                nn.utils.clip_grad_norm_(self.actor.parameters(), self.grad_max)
+                self.actor_optim.step()
+                sum_act_policy_loss += act_policy_loss.item()
 
             # Update critic network
-            self.critic.zero_grad()
-            value_loss.backward()
-            nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_max)
-            self.critic_optim.step()
-            sum_value_loss += value_loss.item()
+            if update_value:
+                self.critic.zero_grad()
+                value_loss.backward()
+                nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_max)
+                self.critic_optim.step()
+                sum_value_loss += value_loss.item()
 
         self.rpb.clear()
         return -sum_act_policy_loss / self.update_times, sum_value_loss / self.update_times
-
-    def update_lr_scheduler(self):
-        if hasattr(self, "actor_lr_sch"):
-            self.actor_lr_sch.step()
-        if hasattr(self, "critic_lr_sch"):
-            self.critic_lr_sch.step()
-
-    @staticmethod
-    def bellman_function(reward, discount, next_value, terminal, *_):
-        next_value = next_value.to(reward.device)
-        terminal = terminal.to(reward.device)
-        return reward + discount * (1 - terminal) * next_value

@@ -21,16 +21,21 @@ class ConnectionWrapper(object):
         self.copy_tensor = copy_tensor
 
     def send(self, obj):
+        self.send_bytes(self.send_dumps(obj))
+
+    def recv(self):
+        return self.recv_loads(self.recv_bytes())
+
+    def send_dumps(self, obj):
         if not self.copy_tensor:
             buf = io.BytesIO()
             ForkingPickler(buf, dill.HIGHEST_PROTOCOL).dump(obj)
-            self.send_bytes(buf.getvalue())
+            return buf.getvalue()
         else:
-            self.send_bytes(dill.dumps(obj))
+            return dill.dumps(obj)
 
-    def recv(self):
-        buf = self.recv_bytes()
-        return dill.loads(buf)
+    def recv_loads(self, str):
+        return dill.loads(str)
 
     def send_bytes(self, bytes):
         self.conn.send_bytes(bytes)
@@ -78,11 +83,11 @@ class SimpleQueue(object):
         with self._rlock:
             res = self._reader.recv_bytes()
         # deserialize the data after having released the lock
-        return dill.loads(res)
+        return self._reader.recv_loads(res)
 
     def put(self, obj):
         # serialize the data before acquiring the lock
-        obj = dill.dumps(obj)
+        obj = self._writer.send_dumps(obj)
         if self._wlock is None:
             # writes to a message oriented win32 pipe are atomic
             self._writer.send_bytes(obj)
