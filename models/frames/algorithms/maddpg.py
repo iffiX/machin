@@ -210,6 +210,10 @@ class MADDPG(TorchFramework):
         """
         self.rpb.append(transition)
 
+    def store_episode(self, episode: List[Union[Transition, Dict]]):
+        for trans in episode:
+            self.rpb.append(trans)
+
     def set_reward_func(self, rf):
         """
         Set reward function, default reward function is bellman function with no extra inputs

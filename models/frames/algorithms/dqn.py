@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical
-from typing import Union, Dict
+from typing import Union, Dict, List
 
 from models.frames.buffers.replay_buffer import Transition, ReplayBuffer
 from models.nets.base import NeuralNetworkModule
@@ -114,6 +114,10 @@ class DQN(TorchFramework):
         observe() is used during training.
         """
         self.rpb.append(transition)
+
+    def store_episode(self, episode: List[Union[Transition, Dict]]):
+        for trans in episode:
+            self.rpb.append(trans)
 
     def set_reward_func(self, rf):
         """

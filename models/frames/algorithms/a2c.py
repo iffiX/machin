@@ -88,7 +88,6 @@ class A2C(TorchFramework):
 
         self.value_weight = value_weight
         self.entropy_weight = entropy_weight
-        self.surr_clip = surrogate_loss_clip
         self.grad_max = gradient_max
         self.gae_lambda = gae_lambda
 

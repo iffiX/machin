@@ -3,6 +3,7 @@ from models.frames.buffers.prioritized_replay_buffer import PrioritizedReplayBuf
 from utils.logging import default_logger
 import torch.nn as nn
 
+
 class DQN_PER(DQN):
     def __init__(self,
                  qnet: Union[NeuralNetworkModule, nn.Module],

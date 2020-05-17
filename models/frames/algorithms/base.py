@@ -3,6 +3,7 @@ import warnings
 
 from utils.prep import prep_load_model
 
+
 class TorchFramework:
     def __init__(self):
         self._is_top = []
@@ -17,13 +18,18 @@ class TorchFramework:
 
     def set_restorable(self, restorable):
         """
-        Set restorable (load & save) modules.
+        Set restorable (loadable & savable) modules.
         """
         self._is_restorable = restorable
         return self
 
     def get_restorable(self):
         return self._is_restorable
+
+    def enable_multiprocessing(self):
+        for t in self._is_top:
+            model = getattr(self, t)
+            model.share_memory()
 
     def load(self, model_dir, network_map=None, version=-1):
         """
@@ -32,6 +38,7 @@ class TorchFramework:
         Args:
             model_dir: Save directory.
             network_map: Key is module name, value is saved name.
+            version: Version number of the save to be loaded.
 
         Note:
             An example of network map:
@@ -55,6 +62,7 @@ class TorchFramework:
         Args:
             model_dir: Save directory.
             network_map: Key is module name, value is saved name.
+            version: Version number of the new save.
         """
         network_map = {} if network_map is None else network_map
         if version == -1:
@@ -70,21 +78,3 @@ class TorchFramework:
                               RuntimeWarning)
                 torch.save(getattr(self, r).state_dict(),
                            model_dir + "/{}_{}.pt".format(r, version))
-
-    def eval(self):
-        for t in self._is_top:
-            getattr(self, t).eval()
-
-    def train(self):
-        for t in self._is_restorable:
-            getattr(self, t).train()
-
-    def to(self, device):
-        """
-        Move all modules to specified device.
-
-        Args:
-            device: torch.device class.
-        """
-        for t in self._is_top:
-            getattr(self, t).to(device)
