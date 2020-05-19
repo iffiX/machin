@@ -111,10 +111,10 @@ class PPO(A2C):
             value = self.criticize(state)
 
             if self.entropy_weight is not None:
-                new_action, new_action_log_prob, new_action_entropy = self.eval_act(state, action)
+                __, new_action_log_prob, new_action_entropy, *_ = self.eval_act(state, action)
 
             else:
-                new_action, new_action_log_prob, *_ = self.eval_act(state, action)
+                __, new_action_log_prob, *_ = self.eval_act(state, action)
 
             new_action_log_prob = new_action_log_prob.view(batch_size, 1)
 

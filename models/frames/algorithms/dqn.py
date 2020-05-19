@@ -44,8 +44,7 @@ class DQN(TorchFramework):
 
                     adv = self.fc_adv(input)
                     val = self.fc_val(input).expand(self.batch_sze, self.num_actions)
-                    return val + adv - \
-                           adv.mean(1).unsqueeze(1).expand(self.batch_size, self.num_actions)
+                    return val + adv - adv.mean(1, keepdim=True)
 
         Args:
             mode: one of "vanilla", "fixed_target", "double"

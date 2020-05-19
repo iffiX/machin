@@ -1,5 +1,5 @@
 from .dqn import *
-from models.frames.buffers.prioritized_replay_buffer import PrioritizedReplayBuffer
+from models.frames.buffers.prioritized_buffer import PrioritizedBuffer
 from utils.logging import default_logger
 import torch.nn as nn
 
@@ -34,7 +34,7 @@ class DQN_PER(DQN):
             replay_device=replay_device,
             reward_func=reward_func
         )
-        self.rpb = PrioritizedReplayBuffer(replay_size, replay_device)
+        self.rpb = PrioritizedBuffer(replay_size, replay_device)
         # reduction must be None
         if not hasattr(self.criterion, "reduction"):
             raise RuntimeError("Criterion must have the 'reduction' property")

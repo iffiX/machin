@@ -1,4 +1,5 @@
 import torch
+import torch as t
 import random
 from typing import Union, Dict
 
@@ -75,11 +76,11 @@ class Transition:
             raise RuntimeError("Batch size of tensors in the transition object doesn't match")
 
 
-class ReplayBuffer:
-    def __init__(self, buffer_size, buffer_device="cpu", main_attributes=None):
+class Buffer:
+    def __init__(self, buffer_size, buffer_device="cpu", main_attributes=None, *_, **__):
         """
-        Create a replay buffer instance
-        Replay buffer stores a series of transition objects and functions
+        Create a buffer instance
+        Buffer stores a series of transition objects and functions
         as a ring buffer. The value of "state", "action", and "next_state"
         key must be a dictionary of tensors, the key of these tensors will
         be passed to your actor network and critics network as keyword
@@ -170,9 +171,10 @@ class ReplayBuffer:
     def sample_batch(self, batch_size, concatenate=True, device=None,
                      sample_method="random_unique",
                      sample_keys=None,
-                     additional_concat_keys=None):
+                     additional_concat_keys=None,
+                     *_, **__):
         """
-        Sample a random batch from replay buffer.
+        Sample a random batch from buffer.
 
         Args:
             batch_size: Maximum size of the sample.

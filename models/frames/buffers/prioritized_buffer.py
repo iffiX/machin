@@ -1,6 +1,6 @@
 import numpy as np
-from typing import List, Union
-from .replay_buffer import *
+from typing import List
+from .buffer import *
 
 
 class WeightTree:
@@ -116,7 +116,7 @@ class WeightTree:
         weights = np.array(weights)
         indexes = np.array(indexes)
 
-        self.max_leaf = max(weights.max(), self.max_leaf)
+        self.max_leaf = max(np.max(weights), self.max_leaf)
 
         needs_update = indexes
         self.weights[indexes] = weights
@@ -143,7 +143,7 @@ class WeightTree:
             print(weights)
 
 
-class PrioritizedReplayBuffer(ReplayBuffer):
+class PrioritizedBuffer(Buffer):
     epsilon = 1e-2
     alpha = 0.6
     beta = 0.4
@@ -151,13 +151,13 @@ class PrioritizedReplayBuffer(ReplayBuffer):
     beta_increment_per_sampling = 0.001
 
     def __init__(self, buffer_size, buffer_device="cpu", main_attributes=None):
-        super(PrioritizedReplayBuffer, self).__init__(buffer_size, buffer_device, main_attributes)
+        super(PrioritizedBuffer, self).__init__(buffer_size, buffer_device, main_attributes)
         self.wt_tree = WeightTree(buffer_size)
 
     def _normalize_priority(self, priority):
         return (np.abs(priority) + self.epsilon) ** self.alpha
 
-    def append(self, transition: Union[Transition, Dict], priority: Union[float, None]=None):
+    def append(self, transition: Union[Transition, Dict], priority: Union[float, None] = None):
         """
         Store a transition object to buffer.
 
@@ -165,7 +165,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
             transition: A transition object.
             priority: Priority of transition.
         """
-        position = super(PrioritizedReplayBuffer, self).append(transition)
+        position = super(PrioritizedBuffer, self).append(transition)
         if priority is None:
             # the initialization method used in the original essay
             priority = self.wt_tree.get_leaf_max()
@@ -181,9 +181,9 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         self.wt_tree.update_leaf_batch(priorities, indexes)
 
     def sample_batch(self, batch_size, concatenate=True, device=None,
-                     sample_keys=None, additional_concat_keys=None):
+                     sample_keys=None, additional_concat_keys=None, *_, **__):
         """
-        Sample a random batch from priortized replay buffer.
+        Sample a random batch from priortized buffer.
 
         Args:
             batch_size: Maximum size of the sample.
@@ -233,5 +233,3 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         result = self.concatenate_batch(batch, batch_size, concatenate, device,
                                         sample_keys, additional_concat_keys)
         return batch_size, result, index, is_weight
-
-
