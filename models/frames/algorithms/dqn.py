@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.distributions import Categorical
 from typing import Union, Dict, List
 
-from models.frames.buffers.replay_buffer import Transition, ReplayBuffer
+from models.frames.buffers.buffer import Transition, Buffer
 from models.nets.base import NeuralNetworkModule
 from models.noise.action_space_noise import *
 
@@ -52,7 +52,7 @@ class DQN(TorchFramework):
         self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
-        self.rpb = ReplayBuffer(replay_size, replay_device)
+        self.rpb = Buffer(replay_size, replay_device)
 
         if mode not in {"vanilla", "fixed_target", "double"}:
             raise RuntimeError("Unknown DQN mode: {}".format(mode))

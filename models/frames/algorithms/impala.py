@@ -2,17 +2,14 @@ import numpy as np
 import torch as t
 import torch.nn as nn
 
-from torch.nn.parallel import DistributedDataParallel
 from models.frames.buffers.buffer_d import Transition, DistributedBuffer
 from models.nets.base import NeuralNetworkModule
 from typing import Union, Dict, List
-from copy import deepcopy
 from .base import TorchFramework
 from .utils import safe_call
 
 from utils.visualize import visualize_graph
-from utils.prep import prep_load_state_dict
-from utils.parallel.server import SimpleOrderedServer
+from utils.parallel.server import SimplePushPullServer
 
 
 def slice(dict, index, dim=1):
@@ -20,32 +17,6 @@ def slice(dict, index, dim=1):
     for k, v in dict.items():
         new_dict[k] = v.select(dim, index)
     return new_dict
-
-
-class IMPALA_DefaultPushPull:
-    def __init__(self, trainer_group):
-        self.server = SimpleOrderedServer(trainer_group)
-
-    def push(self, model, type):
-        if not hasattr(model, "pp_version"):
-            model.pp_version = 0
-        model = deepcopy(model).to("cpu")
-
-        need_sync = self.server.group.size() > 1 and \
-                    not isinstance(model, DistributedDataParallel)
-
-        if not self.server.push(
-                type, model.state_dict(),
-                version=model.pp_version + 1, prev_version=model.pp_version) and need_sync:
-            version, st_dict = self.server.pull(type)
-            model.load_state_dict(st_dict)
-            model.pp_version = version
-
-    def pull(self, model, type):
-        version, st_dict = self.server.pull(type)
-        if not hasattr(model, "pp_version") or model.pp_version < version:
-            prep_load_state_dict(model, st_dict)
-            model.pp_version = version
 
 
 class IMPALA_Buffer(DistributedBuffer):
@@ -118,7 +89,7 @@ class IMPALA(TorchFramework):
         self.critic_optim = optimizer(self.critic.parameters(), learning_rate)
 
         if push_function is None or pull_function is None:
-            self.pp = IMPALA_DefaultPushPull(trainer_group)
+            self.pp = SimplePushPullServer(trainer_group)
             self.pull_function = self.pp.pull
             self.push_function = self.pp.push
         else:

@@ -1,6 +1,10 @@
 from collections import OrderedDict
 from threading import Lock
+from copy import deepcopy
+from torch.nn.parallel import DistributedDataParallel
+
 from .distributed import Group
+from utils.prep import prep_load_state_dict
 
 
 class SimpleOrderedServer:
@@ -69,3 +73,29 @@ class SimpleOrderedServer:
             result = next(reversed(ref))
         self.lock.release()
         return result
+
+
+class SimplePushPullServer:
+    def __init__(self, group):
+        self.server = SimpleOrderedServer(group)
+
+    def push(self, model, type):
+        if not hasattr(model, "pp_version"):
+            model.pp_version = 0
+        model = deepcopy(model).to("cpu")
+
+        need_sync = self.server.group.size() > 1 and \
+                    not isinstance(model, DistributedDataParallel)
+
+        if not self.server.push(
+                type, model.state_dict(),
+                version=model.pp_version + 1, prev_version=model.pp_version) and need_sync:
+            version, st_dict = self.server.pull(type)
+            model.load_state_dict(st_dict)
+            model.pp_version = version
+
+    def pull(self, model, type):
+        version, st_dict = self.server.pull(type)
+        if not hasattr(model, "pp_version") or model.pp_version < version:
+            prep_load_state_dict(model, st_dict)
+            model.pp_version = version

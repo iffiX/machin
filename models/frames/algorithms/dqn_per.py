@@ -44,7 +44,7 @@ class DQN_PER(DQN):
                                     "automatically corrected.")
                 self.criterion.reduction = "none"
 
-    def update(self, update_value=True, update_targets=True, concatenate_samples=True):
+    def update(self, update_value=True, update_target=True, concatenate_samples=True):
         """
         Update network weights by sampling from replay buffer.
 
@@ -55,15 +55,15 @@ class DQN_PER(DQN):
             self.rpb.sample_batch(self.batch_size, concatenate_samples,
                                   sample_keys=["state", "action", "reward", "next_state", "terminal", "*"])
 
-        # Generate value reference :math: `y_i` using target actor and target qnet
-        q_value = self.criticize(state)
-        action_value = q_value.gather(dim=1, index=action["action"])
-
         with torch.no_grad():
             next_q_value = self.criticize(next_state)
             target_next_q_value = self.criticize(next_state, True)
             target_next_q_value = target_next_q_value\
                 .gather(dim=1, index=t.max(next_q_value, dim=1).indicies.unsqueeze(1))
+
+        # Generate value reference :math: `y_i` using target actor and target qnet
+        q_value = self.criticize(state)
+        action_value = q_value.gather(dim=1, index=action["action"])
 
         y_i = self.reward_func(reward, self.discount, target_next_q_value, terminal, *others)\
                   .to(action_value.device)
@@ -79,9 +79,8 @@ class DQN_PER(DQN):
             self.qnet_optim.step()
 
         # Update target networks
-        if update_targets:
+        if update_target:
             soft_update(self.qnet_target, self.qnet, self.update_rate)
 
         # use .item() to prevent memory leakage
         return value_loss.item()
-
