@@ -6,7 +6,7 @@ class NeuralNetworkModule(nn.Module):
     """
     Note: input device and output device are determined by module parameters,
           your input module / output module should not store parameters on
-          more than one devices, and you also should not move your output to
+          more than one device, and you also should not move your output to
           other devices other than your parameter storage device in forward().
     """
     def __init__(self):

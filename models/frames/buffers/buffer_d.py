@@ -1,10 +1,10 @@
+import torch as t
 import numpy as np
+import itertools as it
 
-from datetime import datetime as dt
-from collections import OrderedDict
-
-from .buffer import *
-from utils.parallel.distributed import *
+from .buffer import Buffer, Transition, Union, Dict
+from utils.parallel.distributed import Group
+from threading import Lock
 
 
 def _round_up(num):
@@ -12,7 +12,7 @@ def _round_up(num):
 
 
 class DistributedBuffer(Buffer):
-    def __init__(self, buffer_size, buffer_group=None, main_attributes=None, *_, **__):
+    def __init__(self, buffer_size, buffer_group: Group, main_attributes=None, *_, **__):
         """
         Create a distributed replay buffer instance.
 
@@ -44,57 +44,53 @@ class DistributedBuffer(Buffer):
             main_attributes: Major attributes where you can store tensors.
         """
         super(DistributedBuffer, self).__init__(buffer_size, "cpu", main_attributes)
-        self.buffer_group = buffer_group if buffer_group is not None else group.WORLD
-        self.buffer_group_head = 0
-        self.collect_cache = OrderedDict()
+        self.buffer_group = buffer_group
+        self.buffer_group.rpc_register_paired(self.__class__)
+        self.wr_lock = Lock()
 
     def all_size(self):
         """
         Returns:
             Total length of all buffers.
         """
-        local_size = torch.tensor(len(self.buffer))
-        all_reduce(local_size, group=self.buffer_group)
+        local_size = t.tensor(len(self.buffer), dtype=t.long)
+        self.buffer_group.all_reduce(local_size)
         return local_size.item()
 
-    def request_batch(self, batch_size, sample_method):
-        other_
-        self.collect_batch()
+    def append(self, transition: Union[Transition, Dict],
+               required_keys=("state", "action", "next_state", "reward", "terminal")):
+        self.wr_lock.acquire()
+        super(DistributedBuffer, self).append(transition, required_keys)
+        self.wr_lock.release()
+
+    def _request_batch(self, batch_size, sample_method):
+        # TODO: add timeout
+        future = [
+            self.buffer_group.rpc_paired_class_async(
+                p, self._reply_batch, self.__class__, args=(batch_size, sample_method)
+            )
+            for p in self._select_workers(batch_size)
+        ]
+        results = [fut.wait() for fut in future]
+        all_batch_size = sum([r[0] for r in results])
+        all_batch = list(it.chain([r[1] for r in results]))
+        return all_batch_size, all_batch
+
+    def _reply_batch(self, batch_size, sample_method):
         if isinstance(sample_method, str):
             if not hasattr(self, "sample_method_" + sample_method):
                 raise RuntimeError("Cannot find specified sample method: {}".format(sample_method))
             sample_method = getattr(self, "sample_method_" + sample_method)
 
-    def collect_batch(self):
-        if get_rank(self.buffer_group) != -1:
-            # if current process belongs to the buffer group
-            p_num = get_world_size(self.buffer_group)
+        p_num = self.buffer_group.size()
 
-            # sample raw local batch from local buffer
-            local_batch_size = _round_up(batch_size / p_num)
-            local_batch, local_batch_size = sample_method(self.buffer, local_batch_size)
+        # sample raw local batch from local buffer
+        local_batch_size = _round_up(batch_size / p_num)
+        self.wr_lock.acquire()
+        local_batch, local_batch_size = sample_method(self.buffer, local_batch_size)
+        self.wr_lock.release()
 
-            # determine local data to send
-            avail_size = torch.tensor(local_batch_size)
-            all_reduce(avail_size, group=self.buffer_group)
-            avail_size = avail_size.item()
-
-            batch_size = min(avail_size, batch_size)
-            # select_index is the final position of sample in gathered batches
-            select_index = torch.arange(batch_size).split(_round_up(batch_size / p_num))
-            select_index_pad = [t.tensor([], dtype=t.long) for _ in range(p_num - len(select_index))]
-            select_index = list(select_index) + select_index_pad
-            local_select_index = torch.tensor([])
-
-            scatter(local_select_index, select_index, src=0, group=self.buffer_group)
-
-            # exchange data
-            local_batch_size = local_select_index.shape[0]
-            local_batch = local_batch[:local_batch_size]
-            batch_size, batch = self._gather_batches(local_batch)
-
-            cur_time = int(dt.utcnow().timestamp())
-            self.collect_cache[(cur_time, batch_size)] = batch
+        return local_batch_size, local_batch
 
     def sample_batch(self, batch_size, concatenate=True, device=None,
                      sample_method="random_unique",
@@ -126,6 +122,8 @@ class DistributedBuffer(Buffer):
             it will be turned into a (1, 1) tensor, then concatenated. Any other
             custom keys will not be concatenated, just put together as lists.
         """
+        batch_size, batch = self._request_batch(batch_size, sample_method)
+
         if device is None:
             device = self.buffer_device
         if sample_keys is None:
@@ -133,13 +131,13 @@ class DistributedBuffer(Buffer):
         if additional_concat_keys is None:
             additional_concat_keys = []
 
-        return batch_size, self.concatenate_batch(batch, batch_size, concatenate, device,
-                                                  sample_keys, additional_concat_keys)
+        return batch_size, self.post_process_batch(batch, device, concatenate,
+                                                   sample_keys, additional_concat_keys)
 
-    def _gather_batches(self, batch):
-        return {}
+    def _select_workers(self, num):
+        workers = self.buffer_group.get_peer_ranks().copy()
+        np.random.shuffle(workers)
+        return workers[:num]
 
     def __reduce__(self):
-        # for pickling
-        return self.__class__, (self.buffer_size, self.buffer_device,
-                                self.buffer_group, self.main_attrs)
+        raise RuntimeError("Distributed buffer is not pickable, it is meant to be held per process!")

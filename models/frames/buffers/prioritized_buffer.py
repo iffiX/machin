@@ -157,15 +157,17 @@ class PrioritizedBuffer(Buffer):
     def _normalize_priority(self, priority):
         return (np.abs(priority) + self.epsilon) ** self.alpha
 
-    def append(self, transition: Union[Transition, Dict], priority: Union[float, None] = None):
+    def append(self, transition: Union[Transition, Dict], priority: Union[float, None] = None,
+               required_keys=("state", "action", "next_state", "reward", "terminal")):
         """
         Store a transition object to buffer.
 
         Args:
             transition: A transition object.
             priority: Priority of transition.
+            required_keys
         """
-        position = super(PrioritizedBuffer, self).append(transition)
+        position = super(PrioritizedBuffer, self).append(transition, required_keys)
         if priority is None:
             # the initialization method used in the original essay
             priority = self.wt_tree.get_leaf_max()
@@ -230,6 +232,6 @@ class PrioritizedBuffer(Buffer):
         if additional_concat_keys is None:
             additional_concat_keys = []
 
-        result = self.concatenate_batch(batch, batch_size, concatenate, device,
-                                        sample_keys, additional_concat_keys)
+        result = self.post_process_batch(batch, device, concatenate,
+                                         sample_keys, additional_concat_keys)
         return batch_size, result, index, is_weight

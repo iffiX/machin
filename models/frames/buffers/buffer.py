@@ -1,4 +1,3 @@
-import torch
 import torch as t
 import random
 from typing import Union, Dict
@@ -15,10 +14,10 @@ class Transition:
     """
 
     def __init__(self,
-                 state: Dict[str, torch.Tensor],
-                 action: Dict[str, torch.Tensor],
-                 next_state: Dict[str, torch.Tensor],
-                 reward: Union[float, torch.Tensor],
+                 state: Dict[str, t.Tensor],
+                 action: Dict[str, t.Tensor],
+                 next_state: Dict[str, t.Tensor],
+                 reward: Union[float, t.Tensor],
                  terminal: bool,
                  **kwargs):
         self._length = 5
@@ -32,6 +31,7 @@ class Transition:
         for k, v in kwargs.items():
             self._length += 1
             setattr(self, k, v)
+        self._copy()
         self._check_input(self)
 
     def __len__(self):
@@ -43,6 +43,10 @@ class Transition:
     def keys(self):
         return self._keys
 
+    def items(self):
+        for k in self._keys:
+            yield k, getattr(self, k)
+
     def has_keys(self, keys):
         return all([k in self._keys for k in keys])
 
@@ -53,22 +57,33 @@ class Transition:
             self.action[k] = v.to(device)
         for k, v in self.next_state.items():
             self.next_state[k] = v.to(device)
-        if torch.is_tensor(self.reward):
+        if t.is_tensor(self.reward):
             self.reward = self.reward.to(device)
+        return self
+
+    def _copy(self):
+        for k, v in self.state.items():
+            self.state[k] = v.clone().detach()
+        for k, v in self.action.items():
+            self.action[k] = v.clone().detach()
+        for k, v in self.next_state.items():
+            self.next_state[k] = v.clone().detach()
+        if t.is_tensor(self.reward):
+            self.reward = self.reward.clone().detach()
         return self
 
     @staticmethod
     def _check_input(trans):
-        if any([not torch.is_tensor(t) for t in trans.state.values()]) \
-                or any([not torch.is_tensor(t) for t in trans.action.values()]) \
-                or any([not torch.is_tensor(t) for t in trans.next_state.values()]):
+        if any([not t.is_tensor(tr) for tr in trans.state.values()]) \
+                or any([not t.is_tensor(tr) for tr in trans.action.values()]) \
+                or any([not t.is_tensor(tr) for tr in trans.next_state.values()]):
             raise RuntimeError("State, action and next_state must be dictionaries of tensors.")
-        tensor_shapes = [t.shape for t in trans.state.values()] + \
-                        [t.shape for t in trans.action.values()] + \
-                        [t.shape for t in trans.next_state.values()]
+        tensor_shapes = [ts.shape for ts in trans.state.values()] + \
+                        [ts.shape for ts in trans.action.values()] + \
+                        [ts.shape for ts in trans.next_state.values()]
         if isinstance(trans.reward, float):
             batch_size = 1
-        elif len(trans.reward.shape) == 2 and torch.is_tensor(trans.reward):
+        elif len(trans.reward.shape) == 2 and t.is_tensor(trans.reward):
             batch_size = trans.reward.shape[0]
         else:
             raise RuntimeError("Reward type must be a float value or a tensor of shape [batch_size, *]")
@@ -160,7 +175,7 @@ class Buffer:
 
     @staticmethod
     def sample_method_random(buffer, batch_size):
-        indexes = [random.randint(0, len(buffer) - 1) for i in range(batch_size)]
+        indexes = [random.randint(0, len(buffer) - 1) for _ in range(batch_size)]
         batch = [buffer[i] for i in indexes]
         return batch, batch_size
 
@@ -212,53 +227,60 @@ class Buffer:
         if additional_concat_keys is None:
             additional_concat_keys = []
 
-        return batch_size, self.concatenate_batch(batch, batch_size, concatenate, device,
-                                                  sample_keys, additional_concat_keys)
+        return batch_size, self.post_process_batch(batch, device, concatenate,
+                                                   sample_keys, additional_concat_keys)
 
-    def concatenate_batch(self, batch, batch_size, concatenate, device,
-                          sample_keys, additional_concat_keys):
+    def post_process_batch(self, batch, device, concatenate,
+                           sample_keys, additional_concat_keys):
         result = []
         used_keys = []
         for k in sample_keys:
             if k in self.main_attrs:
                 tmp_dict = {}
                 for sub_k in batch[0][k].keys():
-                    if concatenate:
-                        tmp_dict[sub_k] = torch.cat([item[k][sub_k].to(device) for item in batch], dim=0)
-                    else:
-                        tmp_dict[sub_k] = [item[k][sub_k].to(device) for item in batch]
+                    tmp_dict[sub_k] = self.make_tensor_from_batch(
+                        [item[k][sub_k].to(device) for item in batch],
+                        device, concatenate
+                    )
                 result.append(tmp_dict)
                 used_keys.append(k)
-            elif k == "reward":
-                if torch.is_tensor(batch[0][k]) and len(batch[0][k].shape) > 0:
-                    result.append(torch.cat([item[k].to(device) for item in batch], dim=0)
-                                  .view(batch_size, -1))
-                else:
-                    result.append(torch.tensor([float(item[k]) for item in batch], device=device)
-                                  .view(batch_size, -1))
-                used_keys.append(k)
-            elif k == "terminal":
-                result.append(torch.tensor([float(item[k]) for item in batch], device=device)
-                              .view(batch_size, -1))
+            elif k in ("reward", "terminal"):
+                result.append(self.make_tensor_from_batch(
+                    [item[k] for item in batch],
+                    device, concatenate
+                ))
                 used_keys.append(k)
             elif k == "*":
                 # select custom keys
                 for remain_k in batch[0].keys():
                     if remain_k not in ("state", "action", "next_state", "reward", "terminal") \
                             and remain_k not in used_keys:
-                        if remain_k in additional_concat_keys:
-                            result.append(torch.tensor([item[remain_k] for item in batch], device=device)
-                                          .view(batch_size, -1))
-                        else:
-                            result.append([item[remain_k] for item in batch])
+                        result.append(self.make_tensor_from_batch(
+                            [item[remain_k] for item in batch],
+                            device, concatenate and k in additional_concat_keys
+                        ))
             else:
-                if k in additional_concat_keys:
-                    result.append(torch.tensor([item[k] for item in batch], device=device)
-                                  .view(batch_size, -1))
-                else:
-                    result.append([item[k] for item in batch])
+                result.append(self.make_tensor_from_batch(
+                    [item[k] for item in batch],
+                    device, concatenate and k in additional_concat_keys
+                ))
                 used_keys.append(k)
         return tuple(result)
+
+    @staticmethod
+    def make_tensor_from_batch(batch, device, concatenate):
+        if len(batch) == 0:
+            return None
+        if concatenate:
+            item = batch[0]
+            batch_size = len(batch)
+            if t.is_tensor(item):
+                batch = [it.to(device) for it in batch]
+                return t.cat(batch, dim=0).to(device)
+            else:
+                return t.tensor(batch, device=device).view(batch_size, -1)
+        else:
+            return batch
 
     def __reduce__(self):
         # for pickling
