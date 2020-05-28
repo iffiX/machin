@@ -1,4 +1,5 @@
-from .buffer_d import Lock, Group
+from utils.parallel.distributed import Group
+from threading import Lock
 from .prioritized_buffer import *
 
 

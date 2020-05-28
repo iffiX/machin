@@ -1,4 +1,4 @@
-from typing import Union, Dict, List, Tuple, Callable
+from typing import Union, Dict, List, Tuple, Any, Callable
 from .transition import Transition, Scalar
 import torch as t
 import random
@@ -81,7 +81,7 @@ class Buffer:
 
     @staticmethod
     def sample_method_random_unique(buffer: List[Transition], batch_size: int) \
-            -> Tuple[List[Transition], int]:
+            -> Tuple[int, List[Transition]]:
         """
         Sample unique random samples from buffer.
 
@@ -94,11 +94,11 @@ class Buffer:
         else:
             batch = random.sample(buffer, batch_size)
             real_num = batch_size
-        return batch, real_num
+        return real_num, batch
 
     @staticmethod
     def sample_method_random(buffer: List[Transition], batch_size: int) \
-            -> Tuple[List[Transition], int]:
+            -> Tuple[int, List[Transition]]:
         """
         Sample random samples from buffer.
 
@@ -108,15 +108,15 @@ class Buffer:
         indexes = [random.randint(0, len(buffer) - 1)
                    for _ in range(batch_size)]
         batch = [buffer[i] for i in indexes]
-        return batch, batch_size
+        return batch_size, batch
 
     @staticmethod
     def sample_method_all(buffer: List[Transition], _) \
-            -> Tuple[List[Transition], int]:
+            -> Tuple[int, List[Transition]]:
         """
         Sample all samples from buffer. Always return the whole buffer.
         """
-        return buffer, len(buffer)
+        return len(buffer), buffer
 
     def sample_batch(self,
                      batch_size: int,
@@ -125,16 +125,15 @@ class Buffer:
                      sample_method: Union[Callable, str] = "random_unique",
                      sample_attrs: List[str] = None,
                      additional_concat_attrs: List[str] = None,
-                     *_, **__):
+                     *_, **__) -> Any:
         """
         Sample a random batch from buffer.
 
         Notes:
-            Default sample methods are defined as static class methods:
-
-            .. seealso:: :meth:`sample_method_random_unique`
-            .. seealso:: :meth:`sample_method_random`
-            .. seealso:: :meth:`sample_method_all`
+            Default sample methods are defined as static class methods.
+            .. seealso:: :meth:`Buffer.sample_method_random_unique`
+            .. seealso:: :meth:`Buffer.sample_method_random`
+            .. seealso:: :meth:`Buffer.sample_method_all`
 
         Notes:
             "Concatenation"
@@ -152,8 +151,7 @@ class Buffer:
             sample_method: Sample method, could be one of:
                            ``("random", "random_unique", "all")``,
                            or a function:
-                           ``func(list, batch_size)
-                           -> (result list, result_size)``
+                           ``func(list, batch_size)->(list, result_size)``
             concatenate: Whether concatenate state, action and next_state
                          in dimension 0.
                          If ``True``, for each value in dictionaries of major
@@ -188,7 +186,7 @@ class Buffer:
                 raise RuntimeError("Cannot find specified sample method: {}"
                                    .format(sample_method))
             sample_method = getattr(self, "sample_method_" + sample_method)
-        batch, batch_size = sample_method(self.buffer, batch_size)
+        batch_size, batch = sample_method(self.buffer, batch_size)
 
         if device is None:
             device = self.buffer_device
