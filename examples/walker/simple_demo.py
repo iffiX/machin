@@ -8,7 +8,7 @@ from models.frames.algorithms.ddpg import DDPG
 from models.naive.env_walker_ddpg import Actor, Critic
 
 from utils.logging import default_logger as logger
-from utils.image import create_gif
+from utils.image import create_gif_subproc
 from utils.tensor_board import global_board
 from utils.helper_classes import Counter, Timer
 from utils.conf import Config

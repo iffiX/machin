@@ -139,7 +139,7 @@ class DQN(TorchFramework):
         """
         batch_size, (state, action, reward, next_state, terminal, *others) = \
             self.rpb.sample_batch(self.batch_size, concatenate_samples,
-                                  sample_keys=["state", "action", "reward", "next_state", "terminal", "*"])
+                                  sample_attrs=["state", "action", "reward", "next_state", "terminal", "*"])
 
         if self.mode == "vanilla":
             # target network is the same as the main network

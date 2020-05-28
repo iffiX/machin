@@ -158,16 +158,16 @@ class PrioritizedBuffer(Buffer):
         return (np.abs(priority) + self.epsilon) ** self.alpha
 
     def append(self, transition: Union[Transition, Dict], priority: Union[float, None] = None,
-               required_keys=("state", "action", "next_state", "reward", "terminal")):
+               required_attrs=("state", "action", "next_state", "reward", "terminal")):
         """
         Store a transition object to buffer.
 
         Args:
             transition: A transition object.
             priority: Priority of transition.
-            required_keys
+            required_attrs
         """
-        position = super(PrioritizedBuffer, self).append(transition, required_keys)
+        position = super(PrioritizedBuffer, self).append(transition, required_attrs)
         if priority is None:
             # the initialization method used in the original essay
             priority = self.wt_tree.get_leaf_max()
@@ -183,7 +183,7 @@ class PrioritizedBuffer(Buffer):
         self.wt_tree.update_leaf_batch(priorities, indexes)
 
     def sample_batch(self, batch_size, concatenate=True, device=None,
-                     sample_keys=None, additional_concat_keys=None, *_, **__):
+                     sample_attrs=None, additional_concat_attrs=None, *_, **__):
         """
         Sample a random batch from priortized buffer.
 
@@ -193,9 +193,9 @@ class PrioritizedBuffer(Buffer):
                          If True, return a tensor with dim[0] = batch_size.
                          If False, return a list of tensors with dim[0] = 1.
             device:      Device to copy to.
-            sample_keys: If sample_keys is specified, then only specified keys
+            sample_attrs: If sample_keys is specified, then only specified keys
                          of the transition object will be sampled.
-            additional_concat_keys: additional custom keys needed to be concatenated, their
+            additional_concat_attrs: additional custom keys needed to be concatenated, their
                                     value must be int, float or any numerical value, and must
                                     not be tensors.
 
@@ -227,11 +227,11 @@ class PrioritizedBuffer(Buffer):
         # post processing
         if device is None:
             device = self.buffer_device
-        if sample_keys is None:
-            sample_keys = batch[0].keys()
-        if additional_concat_keys is None:
-            additional_concat_keys = []
+        if sample_attrs is None:
+            sample_attrs = batch[0].keys()
+        if additional_concat_attrs is None:
+            additional_concat_attrs = []
 
         result = self.post_process_batch(batch, device, concatenate,
-                                         sample_keys, additional_concat_keys)
+                                         sample_attrs, additional_concat_attrs)
         return batch_size, result, index, is_weight

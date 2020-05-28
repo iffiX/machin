@@ -116,13 +116,13 @@ class SAC(TorchFramework):
         observe() is used during training.
         """
         self.rpb.append(transition,
-                        required_keys=("state", "action", "next_state",
+                        required_attrs=("state", "action", "next_state",
                                        "reward", "terminal"))
 
     def store_episode(self, episode: List[Union[Transition, Dict]]):
         for trans in episode:
             self.rpb.append(trans,
-                            required_keys=("state", "action", "next_state",
+                            required_attrs=("state", "action", "next_state",
                                            "reward", "terminal"))
 
     def get_replay_buffer(self):
@@ -132,7 +132,7 @@ class SAC(TorchFramework):
                update_entropy_alpha=True, concatenate_samples=True):
         batch_size, (state, action, reward, next_state, terminal, *others) = \
             self.rpb.sample_batch(self.batch_size, concatenate_samples,
-                                  sample_keys=["state", "action", "reward", "next_state", "terminal", "*"])
+                                  sample_attrs=["state", "action", "reward", "next_state", "terminal", "*"])
 
         # Update critic network first
         # Generate value reference :math: `y_i` using target actor and target critic

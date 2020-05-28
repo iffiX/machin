@@ -32,8 +32,20 @@ def proxy_zip_long(recurse, func, iterable):
         yield [dump] + list(args)
 
 
-class Pool(tmpp.Pool):
+class Pool(mp.Pool):
     is_global = False
+    is_daemon = True
+
+    def __init__(self, processes=None, initializer=None, initargs=(),
+                 maxtasksperchild=None, context=None, is_daemon=True):
+        self.is_daemon = is_daemon
+        super(Pool, self).__init__(
+            processes=processes,
+            initializer=initializer,
+            initargs=initargs,
+            maxtasksperchild=maxtasksperchild,
+            context=context
+        )
 
     def enable_global_find(self, is_global):
         self.is_global = is_global
@@ -128,6 +140,27 @@ class Pool(tmpp.Pool):
                              fc.partial(proxy_zip_short, self.is_global)(func, iterable),
                              chunksize, callback, error_callback)
 
+    def _repopulate_pool(self):
+        """Bring the number of pool processes up to the specified number,
+        for use after reaping workers which have exited.
+        """
+        for i in range(self._processes - len(self._pool)):
+            # changed worker -> clean_worker
+            args = (self._inqueue, self._outqueue,
+                    self._initializer,
+                    self._initargs, self._maxtasksperchild)
+            if hasattr(self, '_wrap_exception'):
+                args += (self._wrap_exception,)
+            w = self.Process(target=tmpp.clean_worker, args=args)
+            self._pool.append(w)
+            w.name = w.name.replace('Process', 'PoolWorker')
+            w.daemon = self.is_daemon
+            w.start()
+            util.debug('added worker')
+
+    def size(self):
+        return len(self._pool)
+
 
 class ThreadPool(mp.pool.ThreadPool):
     def _repopulate_pool(self):
@@ -144,6 +177,8 @@ class ThreadPool(mp.pool.ThreadPool):
             w = self.Process(target=tmpp.clean_worker, args=args)
             self._pool.append(w)
             w.name = w.name.replace('Process', 'PoolWorker')
-            w.daemon = True
             w.start()
             util.debug('added worker')
+
+    def size(self):
+        return len(self._pool)

@@ -3,12 +3,13 @@ import torch.nn as nn
 
 from datetime import datetime as dt
 
-from models.models.base import StaticModuleWrapper as MW
-from models.frames.ddpg import DDPG
+from models.nets.base import StaticModuleWrapper as MW
+from models.frames.algorithms.ddpg_td3 import DDPG_TD3
+from models.noise.action_space_noise import add_clipped_normal_noise_to_action
 from models.naive.env_walker_ddpg import Actor, Critic
 
 from utils.logging import default_logger as logger
-from utils.image import create_gif
+from utils.image import create_gif_subproc
 from utils.tensor_board import global_board
 from utils.helper_classes import Counter, Timer
 from utils.conf import Config
@@ -23,15 +24,16 @@ action_dim = 4
 
 # configs
 c = Config()
-#c.restart_from_trial = "2020_05_06_23_58_40"
+#c.restart_from_trial = "2020_05_06_21_50_57"
 c.max_episodes = 5000
 c.max_steps = 1000
 c.replay_size = 500000
 
 # or: explore_noise_params = [(0, 0.2)] * action_dim
 c.explore_noise_params = (0, 0.2)
+c.policy_noise_params = (0, 1.0, -0.5, 0.5)
 c.device = "cuda:0"
-c.root_dir = "/data/AI/tmp/multi_agent/walker/naive_ddpg/"
+c.root_dir = "/data/AI/tmp/multi_agent/walker/naive_ddpg_td3/"
 
 # train configs
 # lr: learning rate, int: interval
@@ -40,6 +42,11 @@ c.ddpg_update_batch_size = 100
 c.ddpg_warmup_steps = 200
 c.model_save_int = 100  # in episodes
 c.profile_int = 50  # in episodes
+
+
+def policy_noise(action):
+    return t.clamp(add_clipped_normal_noise_to_action(action, c.policy_noise_params), -1, 1)
+
 
 if __name__ == "__main__":
     save_env = SaveEnv(c.root_dir, restart_use_trial=c.restart_from_trial)
@@ -50,28 +57,25 @@ if __name__ == "__main__":
     writer = global_board.writer
     logger.info("Directories prepared.")
 
-    # An example where each actor and critic is placed on a difeerent device
-    # actor = NNW(Actor(observe_dim, action_dim, 1), "cpu", "cpu")
-    # actor_t = NNW(Actor(observe_dim, action_dim, 1).to(device), device, device)
-    # critic = NNW(Critic(observe_dim, action_dim).to(device), device, device)
-    # critic_t = NNW(Critic(observe_dim, action_dim), "cpu", "cpu")
-
     actor = MW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
     actor_t = MW(Actor(observe_dim, action_dim, 1).to(c.device), c.device, c.device)
     critic = MW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
     critic_t = MW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
+    critic2 = MW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
+    critic2_t = MW(Critic(observe_dim, action_dim).to(c.device), c.device, c.device)
 
     logger.info("Networks created")
 
     # default replay buffer storage is main cpu mem
     # when stored in main mem, takes about 0.65e-3 sec to move result from gpu to cpu,
-    ddpg = DDPG(actor, actor_t, critic, critic_t,
-                t.optim.Adam, nn.MSELoss(reduction='sum'),
-                replay_device=c.device,
-                discount=0.99,
-                update_rate=0.005,
-                batch_size=c.ddpg_update_batch_size,
-                learning_rate=0.001)
+    ddpg = DDPG_TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
+                    t.optim.Adam, nn.MSELoss(reduction='sum'),
+                    replay_device=c.device,
+                    discount=0.99,
+                    update_rate=0.005,
+                    batch_size=c.ddpg_update_batch_size,
+                    learning_rate=0.001,
+                    policy_noise_func=policy_noise)
 
     if c.restart_from_trial is not None:
         ddpg.load(save_env.get_trial_model_dir())
@@ -156,12 +160,12 @@ if __name__ == "__main__":
         if global_step.get() > c.ddpg_warmup_steps:
             for i in range(local_step.get()):
                 timer.begin()
-                ddpg.update(update_policy=i % 2 == 0, update_target=i % 2 == 0)
+                ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
                 ddpg.update_lr_scheduler()
                 writer.add_scalar("train_step_time", timer.end(), global_step.get())
 
         if render:
-            create_gif(frames, save_env.get_trial_image_dir() + "/{}_{}".format(episode, global_step))
+            create_gif_subproc(frames, save_env.get_trial_image_dir() + "/{}_{}".format(episode, global_step))
 
         local_step.reset()
         episode_finished = False

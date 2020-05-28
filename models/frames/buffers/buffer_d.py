@@ -58,9 +58,9 @@ class DistributedBuffer(Buffer):
         return local_size.item()
 
     def append(self, transition: Union[Transition, Dict],
-               required_keys=("state", "action", "next_state", "reward", "terminal")):
+               required_attrs=("state", "action", "next_state", "reward", "terminal")):
         self.wr_lock.acquire()
-        super(DistributedBuffer, self).append(transition, required_keys)
+        super(DistributedBuffer, self).append(transition, required_attrs)
         self.wr_lock.release()
 
     def _request_batch(self, batch_size, sample_method):
@@ -94,8 +94,8 @@ class DistributedBuffer(Buffer):
 
     def sample_batch(self, batch_size, concatenate=True, device=None,
                      sample_method="random_unique",
-                     sample_keys=None,
-                     additional_concat_keys=None, *_, **__):
+                     sample_attrs=None,
+                     additional_concat_attrs=None, *_, **__):
         """
         Sample a random batch from replay buffer.
 
@@ -107,9 +107,9 @@ class DistributedBuffer(Buffer):
                          If True, return a tensor with dim[0] = batch_size.
                          If False, return a list of tensors with dim[0] = 1.
             device:      Device to copy to.
-            sample_keys: If sample_keys is specified, then only specified keys
+            sample_attrs: If sample_keys is specified, then only specified keys
                          of the transition object will be sampled.
-            additional_concat_keys: additional custom keys needed to be concatenated, their
+            additional_concat_attrs: additional custom keys needed to be concatenated, their
                                     value must be int, float or any numerical value, and must
                                     not be tensors.
 
@@ -126,13 +126,13 @@ class DistributedBuffer(Buffer):
 
         if device is None:
             device = self.buffer_device
-        if sample_keys is None:
-            sample_keys = batch[0].keys()
-        if additional_concat_keys is None:
-            additional_concat_keys = []
+        if sample_attrs is None:
+            sample_attrs = batch[0].keys()
+        if additional_concat_attrs is None:
+            additional_concat_attrs = []
 
         return batch_size, self.post_process_batch(batch, device, concatenate,
-                                                   sample_keys, additional_concat_keys)
+                                                   sample_attrs, additional_concat_attrs)
 
     def _select_workers(self, num):
         workers = self.buffer_group.get_peer_ranks().copy()

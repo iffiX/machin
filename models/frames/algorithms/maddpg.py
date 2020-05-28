@@ -238,7 +238,7 @@ class MADDPG(TorchFramework):
         """
         batch_size, (state, action, reward, next_state, terminal, agent_indexes, *others) = \
             self.rpb.sample_batch(self.batch_size,
-                                  sample_keys=["state", "action", "reward", "next_state", "terminal",
+                                  sample_attrs=["state", "action", "reward", "next_state", "terminal",
                                                "index", "*"])
 
         with torch.no_grad():

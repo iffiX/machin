@@ -172,9 +172,9 @@ class IMPALA(TorchFramework):
             self.rpb.sample_batch(self.batch_size,
                                   concatenate=True,
                                   device="cpu",
-                                  sample_keys=["state", "action", "reward", "next_state",
+                                  sample_attrs=["state", "action", "reward", "next_state",
                                                "terminal", "action_log_prob"],
-                                  additional_concat_keys=["action_log_prob"])
+                                  additional_concat_attrs=["action_log_prob"])
         step_len = reward.shape[1]
         term = t.zeros([batch_size], dtype=t.bool)
         values = []

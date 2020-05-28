@@ -41,7 +41,7 @@ class HDDPG(DDPG):
         """
         batch_size, (state, action, reward, next_state, terminal, *others) = \
             self.rpb.sample_batch(self.batch_size, concatenate_samples,
-                                  sample_keys=["state", "action", "reward", "next_state", "terminal", "*"])
+                                  sample_attrs=["state", "action", "reward", "next_state", "terminal", "*"])
 
         # Update critic network first
         # Generate value reference :math: `y_i` using target actor and target critic

@@ -9,7 +9,7 @@ from models.frames.algorithms.ppo import PPO
 from models.naive.env_lunar_lander_ppo import Actor, Critic
 
 from utils.logging import default_logger as logger
-from utils.image import create_gif
+from utils.image import create_gif_subproc
 from utils.tensor_board import global_board, normalize_seq_length
 from utils.helper_classes import Counter, Timer
 from utils.conf import Config
@@ -158,7 +158,7 @@ if __name__ == "__main__":
             logger.info("Train end, time = {:.2f} s, episode={}".format(timer.end(), episode))
 
         if render:
-            create_gif(frames, save_env.get_trial_image_dir() + "/{}_{}".format(episode, global_step))
+            create_gif_subproc(frames, save_env.get_trial_image_dir() + "/{}_{}".format(episode, global_step))
 
         local_step.reset()
         episode_finished = False

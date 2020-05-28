@@ -96,9 +96,9 @@ class PPO(A2C):
             self.rpb.sample_batch(-1,
                                   sample_method="all",
                                   concatenate=concatenate_samples,
-                                  sample_keys=["state", "action", "reward", "next_state", "terminal",
+                                  sample_attrs=["state", "action", "reward", "next_state", "terminal",
                                                "action_log_prob", "value", "gae", "*"],
-                                  additional_concat_keys=["action_log_prob", "value", "gae"])
+                                  additional_concat_attrs=["action_log_prob", "value", "gae"])
 
         # normalize target value
         target_value = (target_value - target_value.mean()) / (target_value.std() + 1e-5)

@@ -9,7 +9,7 @@ from models.noise.action_space_noise import add_normal_noise_to_action
 from models.naive.env_walker_ddpg import Actor, Critic
 
 from utils.logging import default_logger as logger
-from utils.image import create_gif
+from utils.image import create_gif_subproc
 from utils.tensor_board import global_board
 from utils.helper_classes import Counter, Timer, Object
 from utils.conf import Config
@@ -223,7 +223,7 @@ if __name__ == "__main__":
                 writer.add_scalar("train_step_time", timer.end(), global_step.get())
 
         if render:
-            create_gif(frames, save_env.get_trial_image_dir() + "/{}_{}".format(episode, global_step))
+            create_gif_subproc(frames, save_env.get_trial_image_dir() + "/{}_{}".format(episode, global_step))
 
         local_step.reset()
         episode_finished = False

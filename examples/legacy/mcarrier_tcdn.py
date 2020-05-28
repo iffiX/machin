@@ -11,7 +11,7 @@ from models.tcdn.negotiatior import SwarmNegotiator
 from models.tcdn.agent import SwarmAgent
 
 from utils.logging import default_logger as logger
-from utils.image import create_gif
+from utils.image import create_gif_subproc
 from utils.tensor_board import global_board
 from utils.helper_classes import Counter
 from utils.prep import prep_dirs_default
@@ -250,7 +250,7 @@ if __name__ == "__main__":
                                 format(i, ddpg_train_end - ddpg_train_begin, epoch, episode))
 
             if render:
-                create_gif(frames, "{}/log/images/{}_{}_{}".format(root_dir, epoch, episode, global_step.get()))
+                create_gif_subproc(frames, "{}/log/images/{}_{}_{}".format(root_dir, epoch, episode, global_step.get()))
 
             local_step.reset()
             episode_finished = False

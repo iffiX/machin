@@ -139,7 +139,7 @@ class A2C(TorchFramework):
         observe() is used during training.
         """
         self.rpb.append(transition,
-                        required_keys=("state", "action", "next_state",
+                        required_attrs=("state", "action", "next_state",
                                        "reward", "value", "gae", "terminal"))
 
     def store_episode(self, episode: List[Union[Transition, Dict]]):
@@ -188,9 +188,9 @@ class A2C(TorchFramework):
             self.rpb.sample_batch(-1,
                                   sample_method="all",
                                   concatenate=concatenate_samples,
-                                  sample_keys=["state", "action", "reward", "next_state",
+                                  sample_attrs=["state", "action", "reward", "next_state",
                                                "terminal", "value", "gae", "*"],
-                                  additional_concat_keys=["value", "gae"])
+                                  additional_concat_attrs=["value", "gae"])
 
         # normalize target value
         target_value = (target_value - target_value.mean()) / (target_value.std() + 1e-5)

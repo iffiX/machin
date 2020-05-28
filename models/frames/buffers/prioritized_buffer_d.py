@@ -10,11 +10,11 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
         self.wr_lock = Lock()
 
     def append(self, transition: Union[Transition, Dict], priority: Union[float, None] = None,
-               required_keys=("state", "action", "next_state", "reward", "terminal")):
+               required_attrs=("state", "action", "next_state", "reward", "terminal")):
         # TODO: batched append
         future = [self.buffer_group.rpc_paired_class_sync(
             p, self._reply_append, self.__class__,
-            args=(transition, priority, required_keys))
+            args=(transition, priority, required_attrs))
             for p in self.buffer_group.get_peer_ranks()
         ]
         results = [fut.wait() for fut in future]
@@ -44,12 +44,12 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             raise RuntimeError("Failed to perform update priority on process {}".format(failed))
 
     def sample_batch(self, batch_size, concatenate=True, device=None,
-                     sample_keys=None, additional_concat_keys=None, *_, **__):
+                     sample_attrs=None, additional_concat_attrs=None, *_, **__):
         worker = np.min(np.abs(np.array(self.buffer_group.get_peer_ranks()) -
                                self.buffer_group.get_cur_rank()))
         return self.buffer_group.rpc_paired_class_sync(worker, self._reply_sample, self.__class__,
                                                        args=(batch_size, concatenate, device,
-                                                             sample_keys, additional_concat_keys))
+                                                             sample_attrs, additional_concat_attrs))
 
     def _reply_clear(self):
         self.wr_lock.acquire()

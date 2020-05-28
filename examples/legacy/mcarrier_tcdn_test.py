@@ -9,7 +9,7 @@ from models.tcdn.negotiatior import SwarmNegotiator
 from models.tcdn.agent import SwarmAgent
 
 from utils.logging import default_logger as logger
-from utils.image import create_gif
+from utils.image import create_gif_subproc
 from utils.helper_classes import Counter
 from utils.args import get_args
 
@@ -147,6 +147,6 @@ if __name__ == "__main__":
         step_end = time.time()
         logger.info("Step {} completed in {:.3f} s".format(local_step, step_end - step_begin))
 
-    create_gif(frames, "{}/test".format(load_dir))
+    create_gif_subproc(frames, "{}/test".format(load_dir))
     episode_end = time.time()
     logger.info("Episode completed in {:.3f} s".format(episode_end - episode_begin))

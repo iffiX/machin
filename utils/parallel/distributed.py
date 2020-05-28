@@ -35,11 +35,11 @@ def _get_remote_paired_value(group_name, key):
         """.format(key, world.current_rank, world.current_name, group_name))
 
 
-def _world_singleton(cls, *args, **kw):
+def _world_singleton(cls, *args, **kwargs):
     def _world_singleton_wrapper():
         global world
         if world is None:
-            world = cls(*args, **kw)
+            world = cls(*args, **kwargs)
         else:
             raise RuntimeError("World could only be initialized once!")
 

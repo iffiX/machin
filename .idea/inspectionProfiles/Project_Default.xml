@@ -3,7 +3,7 @@
     <option name="myName" value="Project Default" />
     <inspection_tool class="DuplicatedCode" enabled="true" level="WEAK WARNING" enabled_by_default="true">
       <Languages>
-        <language minSize="46" name="Python" />
+        <language minSize="63" name="Python" />
       </Languages>
     </inspection_tool>
     <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
@@ -18,6 +18,8 @@
         <list>
           <option value="torch.distributed.rpc.*" />
           <option value="torch.distributed.ReduceOp" />
+          <option value="wrappers.openai_gym._init_envs.envs" />
+          <option value="wrappers.openai_gym._init_envs.env_idxs" />
         </list>
       </option>
     </inspection_tool>
