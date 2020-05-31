@@ -1,6 +1,9 @@
-from utils.parallel.distributed import Group
+from typing import Union, Dict, List, Any, Callable
 from threading import Lock
-from .buffer import *
+from .transition import Transition
+from .buffer import Buffer
+from utils.parallel.distributed import Group
+import torch as t
 import numpy as np
 import itertools as it
 

@@ -3,7 +3,6 @@ import functools as fc
 import multiprocessing as mp
 import multiprocessing.util as util
 import torch.multiprocessing.pool as tmpp
-from multiprocessing.dummy import Process as TProcess
 
 from .queue import SimpleQueue
 
