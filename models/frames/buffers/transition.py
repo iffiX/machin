@@ -198,6 +198,12 @@ class Transition(TransitionBase):
 
     Store one transition step of one agent.
     """
+    state = None  # type: Dict[str, t.Tensor]
+    action = None  # type: Dict[str, t.Tensor]
+    next_state = None  # type: Dict[str, t.Tensor]
+    reward = None  # type: Union[float, t.Tensor]
+    terminal = None  # type: bool
+
     def __init__(self,
                  state: Dict[str, t.Tensor],
                  action: Dict[str, t.Tensor],

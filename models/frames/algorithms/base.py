@@ -1,13 +1,19 @@
-import torch
-import warnings
+from typing import Dict, List
+from torchviz import make_dot
+import torch as t
 
 from utils.prep import prep_load_model
+from utils.logging import default_logger
 
 
 class TorchFramework:
+    """
+    Base framework for all algorithms
+    """
     def __init__(self):
         self._is_top = []
         self._is_restorable = []
+        self._visualized = set()
 
     def set_top(self, top):
         """
@@ -16,7 +22,7 @@ class TorchFramework:
         self._is_top = top
         return self
 
-    def set_restorable(self, restorable):
+    def set_restorable(self, restorable: List[str]):
         """
         Set restorable (loadable & savable) modules.
         """
@@ -24,16 +30,23 @@ class TorchFramework:
         return self
 
     def get_restorable(self):
+        """
+        Get restorable modules.
+        """
         return self._is_restorable
 
     def enable_multiprocessing(self):
-        for t in self._is_top:
-            model = getattr(self, t)
+        """
+        Enable multiprocessing for all modules.
+        """
+        for top in self._is_top:
+            model = getattr(self, top)
             model.share_memory()
 
-    def load(self, model_dir, network_map=None, version=-1):
+    def load(self, model_dir: str, network_map: Dict[str, str] = None,
+             version: int = -1):
         """
-        Load weights into modules.
+        Load models.
 
         Args:
             model_dir: Save directory.
@@ -41,8 +54,9 @@ class TorchFramework:
             version: Version number of the save to be loaded.
 
         Note:
-            An example of network map:
-            {"actor": "actor", "critic": "critic"}
+            An example of network map::
+
+            {"actor": "actor_file_name", "critic": "critic_file_name"}
         """
         network_map = {} if network_map is None else network_map
         restore_map = {}
@@ -50,14 +64,18 @@ class TorchFramework:
             if r in network_map:
                 restore_map[network_map[r]] = getattr(self, r)
             else:
-                warnings.warn("Load path for module \"{}\" is not specified, module name is used.".format(r),
-                              RuntimeWarning)
+                default_logger.warning(
+                    "Load path for module \"{}\" is not specified, "
+                    "module name is used.".format(r),
+                    RuntimeWarning
+                )
                 restore_map[r] = getattr(self, r)
         prep_load_model(model_dir, restore_map, version)
 
-    def save(self, model_dir, network_map=None, version=-1):
+    def save(self, model_dir: str, network_map: Dict[str, str] = None,
+             version: int = 0):
         """
-        Save module weights.
+        Save models.
 
         Args:
             model_dir: Save directory.
@@ -67,14 +85,23 @@ class TorchFramework:
         network_map = {} if network_map is None else network_map
         if version == -1:
             version = "default"
-            warnings.warn("You are using the default version to save, use custom version instead.",
-                          RuntimeWarning)
+            default_logger.warning(
+                "You are using the default version to save, "
+                "use custom version instead.")
         for r in self._is_restorable:
             if r in network_map:
-                torch.save(getattr(self, r).state_dict(),
-                           model_dir + "{}_{}.pt".format(network_map[r], version))
+                t.save(getattr(self, r).state_dict(),
+                       model_dir + "{}_{}.pt".format(network_map[r], version))
             else:
-                warnings.warn("Save name for module \"{}\" is not specified, module name is used.".format(r),
-                              RuntimeWarning)
-                torch.save(getattr(self, r).state_dict(),
-                           model_dir + "/{}_{}.pt".format(r, version))
+                default_logger.warning("Save name for module \"{}\" is not "
+                                       "specified, module name is used."
+                                       .format(r))
+                t.save(getattr(self, r).state_dict(),
+                       model_dir + "/{}_{}.pt".format(r, version))
+
+    def visualize_model(self, final_tensor: t.Tensor, name: str):
+        if name in self._visualized:
+            return
+        else:
+            g = make_dot(final_tensor)
+            g.view(filename=name + ".gv")

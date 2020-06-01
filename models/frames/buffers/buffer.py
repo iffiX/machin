@@ -4,7 +4,7 @@ import torch as t
 import random
 
 
-class Buffer:
+class Buffer(object):
     def __init__(self, buffer_size, buffer_device="cpu", *_, **__):
         """
         Create a buffer instance.

@@ -4,7 +4,7 @@ import torch.nn as nn
 from datetime import datetime as dt
 
 from models.nets.base import StaticModuleWrapper as MW
-from models.frames.algorithms.ddpg_td3 import DDPG_TD3
+from models.frames.algorithms.ddpg_td3 import TD3
 from models.noise.action_space_noise import add_clipped_normal_noise_to_action
 from models.naive.env_walker_ddpg import Actor, Critic
 
@@ -68,14 +68,14 @@ if __name__ == "__main__":
 
     # default replay buffer storage is main cpu mem
     # when stored in main mem, takes about 0.65e-3 sec to move result from gpu to cpu,
-    ddpg = DDPG_TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
-                    t.optim.Adam, nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    discount=0.99,
-                    update_rate=0.005,
-                    batch_size=c.ddpg_update_batch_size,
-                    learning_rate=0.001,
-                    policy_noise_func=policy_noise)
+    ddpg = TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
+               t.optim.Adam, nn.MSELoss(reduction='sum'),
+               replay_device=c.device,
+               discount=0.99,
+               update_rate=0.005,
+               batch_size=c.ddpg_update_batch_size,
+               learning_rate=0.001,
+               policy_noise_func=policy_noise)
 
     if c.restart_from_trial is not None:
         ddpg.load(save_env.get_trial_model_dir())

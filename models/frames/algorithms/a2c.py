@@ -1,15 +1,18 @@
-import numpy as np
-import torch
+from typing import Union, Dict, List, Tuple, Callable, Any
+from torch.distributions import Categorical
+import torch as t
 import torch.nn as nn
+import numpy as np
 
-from models.frames.buffers.replay_buffer import Transition, ReplayBuffer
+from models.frames.buffers.buffer import Transition, Buffer
 from models.nets.base import NeuralNetworkModule
-from models.noise.action_space_noise import *
-from typing import Union, Dict, List
+from models.noise.action_space_noise import \
+    add_normal_noise_to_action, \
+    add_clipped_normal_noise_to_action, \
+    add_uniform_noise_to_action, \
+    add_ou_noise_to_action
 from .base import TorchFramework
-from .utils import safe_call
-
-from utils.visualize import visualize_graph
+from .utils import hard_update, soft_update, safe_call, assert_output_is_probs
 
 
 class A2C(TorchFramework):
@@ -174,9 +177,6 @@ class A2C(TorchFramework):
 
         for trans in episode:
             self.rpb.append(trans)
-
-    def get_replay_buffer(self):
-        return self.rpb
 
     def update(self, update_value=True, update_policy=True, concatenate_samples=True):
         sum_act_policy_loss = 0

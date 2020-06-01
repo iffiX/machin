@@ -2,12 +2,14 @@
   <dictionary name="iffi">
     <words>
       <w>concatenatable</w>
+      <w>ddpg</w>
       <w>entropies</w>
       <w>idxs</w>
       <w>machin</w>
       <w>matplotlib</w>
       <w>ndarray</w>
       <w>obsrv</w>
+      <w>optim</w>
       <w>pickable</w>
       <w>probs</w>
       <w>pytorch</w>

@@ -11,6 +11,10 @@ class RoleDispatcherBase(ABC):
         pass
 
     @abstractmethod
+    def start(self):
+        pass
+
+    @abstractmethod
     def get_roles(self):
         pass
 
@@ -47,6 +51,9 @@ class RoleDispatcherSimple(RoleDispatcherBase):
             rank, world_size, roles, role_counts
         )
 
+    def start(self):
+        pass
+
     def get_roles(self):
         return self.roles
 
@@ -58,32 +65,37 @@ class RoleDispatcherSimple(RoleDispatcherBase):
 
 
 class RoleDispatcherElection(RoleDispatcherBase):
-    def __init__(self, rank, world_size, roles, role_counts,
+    def __init__(self, rank, world_size, role_names, role_nums,
                  election_group):
         self.elect_group = election_group
 
         self.lead_thread = Thread(target=self._task_lead_group)
         self.deal_fail_thread = Thread(target=self._task_deal_failure)
         self.has_failure_cond = Condition(Lock())
+        self.role_update_cond = Condition(Lock())
         self.assign_lock = Lock()
 
         self.dispatched_roles = []
         self.roles = []
         self.ranks = {}
         self.all_roles = set()
-        for role, role_count in zip(roles, role_counts):
+        for role, role_count in zip(role_names, role_nums):
             for idx in range(role):
                 self.all_roles.add((role, idx))
 
+        super(RoleDispatcherElection, self).__init__(
+            rank, world_size, role_names, role_nums
+        )
+
+    def start(self):
         self.lead_thread.start()
         self.deal_fail_thread.start()
         # Elect thread must be started before the elect group to
         # let it wait on the leader change signal.
-        election_group.start()
+        self.elect_group.start()
 
-        super(RoleDispatcherElection, self).__init__(
-            rank, world_size, roles, role_counts
-        )
+    def get_role_update_cond(self):
+        return self.role_update_cond
 
     def get_roles(self):
         return self.roles
@@ -191,6 +203,7 @@ class RoleDispatcherElection(RoleDispatcherBase):
 
     def _dispatch_roles(self, roles):
         self.roles += roles
+        self.role_update_cond.notify_all()
 
     def _update_ranks(self):
         future = []

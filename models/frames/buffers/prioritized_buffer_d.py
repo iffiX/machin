@@ -1,13 +1,13 @@
+from random import choice
 from typing import Union, Dict
 from threading import Lock
 from .transition import Transition
 from .prioritized_buffer import PrioritizedBuffer
-from utils.parallel.distributed import Group
-import numpy as np
+from utils.parallel.distributed import RpcGroup
 
 
 class DistributedPrioritizedBuffer(PrioritizedBuffer):
-    def __init__(self, buffer_size: int, buffer_group: Group, *_, **__):
+    def __init__(self, buffer_size: int, buffer_group: RpcGroup, *_, **__):
         """
         Create a distributed replay buffer instance.
 
@@ -34,7 +34,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
         super(DistributedPrioritizedBuffer, self) \
             .__init__(buffer_size, "cpu")
         self.buffer_group = buffer_group
-        self.buffer_group.rpc_register_paired(self.__class__)
+        self.buffer_group.rpc_register_paired(self.__class__, self)
         self.wr_lock = Lock()
 
     def append(self,
@@ -44,56 +44,55 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
                                "reward", "terminal")):
         # TODO: batched append
         future = [
-            self.buffer_group.rpc_paired_class_sync(
-                p, self._reply_append, self.__class__,
+            self.buffer_group.rpc_paired_class_async(
+                m, self._reply_append, self.__class__,
                 args=(transition, priority, required_attrs)
             )
-            for p in self.buffer_group.get_peer_ranks()
+            for m in self.buffer_group.get_group_members()
         ]
         results = [fut.wait() for fut in future]
         if not all(results):
-            failed = [p for p, status
-                      in zip(self.buffer_group.get_peer_ranks(), results)
+            failed = [m for m, status
+                      in zip(self.buffer_group.get_group_members(), results)
                       if not status]
-            raise RuntimeError("Failed to perform append on process {}"
+            raise RuntimeError("Failed to perform append on members {}"
                                .format(failed))
 
     def clear(self):
         future = [
-            self.buffer_group.rpc_paired_class_sync(
-                p, self._reply_clear, self.__class__
+            self.buffer_group.rpc_paired_class_async(
+                m, self._reply_clear, self.__class__
             )
-            for p in self.buffer_group.get_peer_ranks()
+            for m in self.buffer_group.get_group_members()
         ]
         results = [fut.wait() for fut in future]
         if not all(results):
-            failed = [p for p, status
-                      in zip(self.buffer_group.get_peer_ranks(), results)
+            failed = [m for m, status
+                      in zip(self.buffer_group.get_group_members(), results)
                       if not status]
-            raise RuntimeError("Failed to perform append on process {}"
+            raise RuntimeError("Failed to perform append on members {}"
                                .format(failed))
 
     def update_priority(self, priorities, indexes):
         future = [
-            self.buffer_group.rpc_paired_class_sync(
-                p, self._reply_update_priority, self.__class__,
+            self.buffer_group.rpc_paired_class_async(
+                m, self._reply_update_priority, self.__class__,
                 args=(priorities, indexes)
             )
-            for p in self.buffer_group.get_peer_ranks()
+            for m in self.buffer_group.get_group_members()
         ]
         results = [fut.wait() for fut in future]
         if not all(results):
-            failed = [p for p, status
-                      in zip(self.buffer_group.get_peer_ranks(), results)
+            failed = [m for m, status
+                      in zip(self.buffer_group.get_group_members(), results)
                       if not status]
-            raise RuntimeError("Failed to perform update priority on process {}"
+            raise RuntimeError("Failed to perform update priority on members {}"
                                .format(failed))
 
     def sample_batch(self, batch_size, concatenate=True, device=None,
                      sample_attrs=None, additional_concat_attrs=None, *_, **__):
-        worker = np.min(np.abs(np.array(self.buffer_group.get_peer_ranks()) -
-                               self.buffer_group.get_cur_rank()))
-        return self.buffer_group.rpc_paired_class_sync(
+        worker = choice(self.buffer_group.get_group_members())
+        return self.buffer_group.rpc_paired_class_async(
             worker, self._reply_sample, self.__class__,
             args=(batch_size, concatenate, device,
                   sample_attrs, additional_concat_attrs)

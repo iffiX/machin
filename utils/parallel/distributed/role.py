@@ -1,4 +1,4 @@
-class Role(object):
+class RoleBase(object):
     def __init__(self, index):
         self.role_index = index
 

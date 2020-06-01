@@ -1,1 +1,1 @@
-from .world import World, Group, Member
+from .world import World, CollectiveGroup, RpcGroup

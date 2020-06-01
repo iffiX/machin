@@ -2,7 +2,7 @@ from typing import Union, Dict, List, Any, Callable
 from threading import Lock
 from .transition import Transition
 from .buffer import Buffer
-from utils.parallel.distributed import Group
+from utils.parallel.distributed import RpcGroup
 import torch as t
 import numpy as np
 import itertools as it
@@ -13,7 +13,7 @@ def _round_up(num):
 
 
 class DistributedBuffer(Buffer):
-    def __init__(self, buffer_size: int, buffer_group: Group, *_, **__):
+    def __init__(self, buffer_size: int, buffer_group: RpcGroup, *_, **__):
         """
         Create a distributed replay buffer instance.
 
@@ -35,17 +35,30 @@ class DistributedBuffer(Buffer):
         """
         super(DistributedBuffer, self).__init__(buffer_size, "cpu")
         self.buffer_group = buffer_group
-        self.buffer_group.rpc_register_paired(self.__class__)
+        self.buffer_group.rpc_register_paired(self.__class__, self)
         self.wr_lock = Lock()
+
+    def size(self):
+        """
+        Returns:
+            Length of current buffer.
+        """
+        return len(self.buffer)
 
     def all_size(self):
         """
         Returns:
             Total length of all buffers.
         """
-        local_size = t.tensor(len(self.buffer), dtype=t.long)
-        self.buffer_group.all_reduce(local_size)
-        return local_size.item()
+        future = []
+        count = 0
+        for m in self.buffer_group.get_group_members():
+            future.append(self.buffer_group.rpc_paired_class_async(
+                m, self.size, self.__class__
+            ))
+        for fut in future:
+            count += fut.wait()
+        return count
 
     def append(self, transition: Union[Transition, Dict],
                required_attrs=("state", "action", "next_state",
@@ -97,10 +110,10 @@ class DistributedBuffer(Buffer):
 
         future = [
             self.buffer_group.rpc_paired_class_async(
-                p, self._reply_batch, self.__class__,
+                w, self._reply_batch, self.__class__,
                 args=(local_batch_size, batch_size, sample_method)
             )
-            for p in self._select_workers(batch_size)
+            for w in self._select_workers(batch_size)
         ]
 
         results = [fut.wait() for fut in future]
@@ -138,7 +151,7 @@ class DistributedBuffer(Buffer):
         """
         Randomly select a sub group of workers.
         """
-        workers = self.buffer_group.get_peer_ranks().copy()
+        workers = self.buffer_group.get_group_members().copy()
         np.random.shuffle(workers)
         return workers[:num]
 

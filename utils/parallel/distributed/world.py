@@ -1,6 +1,7 @@
 from time import sleep
 from datetime import timedelta
-from typing import Union, List, Dict, Any
+from threading import Thread, local
+from typing import Union, List, Tuple, Dict, Any
 from torch.distributed import rpc
 from .election import ElectionGroupStableRpc
 from .role_dispatcher import RoleDispatcherElection
@@ -8,6 +9,13 @@ import torch.distributed as dist
 import torch.distributed.distributed_c10d as dist_c10d
 
 WORLD = None  # type: Union[None, World]
+
+
+def _exec_role(role):
+    local.role = role
+    role.on_init()
+    role.main()
+    role.on_stop()
 
 
 def _call_method(method, inst_rref, *args, **kwargs):
@@ -52,6 +60,14 @@ def get_cur_rank():
     return WORLD.current_rank
 
 
+def get_cur_role():
+    """
+    Returns:
+        Current thread role (thread is a thread of current real process).
+    """
+    return local.role
+
+
 class RpcException(Exception):
     pass
 
@@ -61,7 +77,7 @@ class World:
     def __init__(self,
                  world_size: int,
                  current_rank: int,
-                 roles: Dict[str, Any],
+                 roles: Dict[str, Tuple[type, int]],
                  init_method: str = "tcp://localhost:9100",
                  rpc_timeout: int = 60,
                  rpc_threads: int = 4,
@@ -76,7 +92,10 @@ class World:
             rpc_threads:  Rpc recv/send thread num.
         """
         self.world_size = world_size
-        self.roles = [roles.keys(), roles.items()]
+        self.role_names = roles.keys()
+        self.role_classes = [it[0] for it in roles.values()]
+        self.role_nums = [it[1] for it in roles.values()]
+        self.role_threads = {}
 
         self.current_rank = current_rank
         self.ranks = [i for i in range(world_size)]
@@ -87,7 +106,7 @@ class World:
         else:
             self.rpc_role_dispatcher = RoleDispatcherElection(
                 current_rank, world_size,
-                self.roles[0], self.roles[1],
+                self.role_names, self.role_nums,
                 ElectionGroupStableRpc(
                     name="global",
                     member_ranks=self.ranks,
@@ -157,6 +176,18 @@ class World:
             Target group
         """
         return self.groups.get(group_name, None)
+
+    def start(self):
+        self.rpc_role_dispatcher.start()
+        while True:
+            self.rpc_role_dispatcher.get_role_update_cond().wait()
+            for role in self.rpc_role_dispatcher.get_roles():
+                if role not in self.role_threads:
+                    role_class = self.role_classes[role[0]]
+                    role_thread = Thread(target=_exec_role,
+                                         args=(role_class(role[1]),))
+                    role_thread.start()
+                    self.role_threads[role] = role_thread
 
     def __reduce__(self):
         raise RuntimeError("World is not pickable, create it per process!")
@@ -301,6 +332,8 @@ class RpcGroup:
         del timeout
 
         while True:
+            if not self.is_member(role):
+                raise RuntimeError("Target is not a member of the group.")
             role = self._get_real_name(role)
             try:
                 return rpc.remote(role,
