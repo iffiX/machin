@@ -12,6 +12,10 @@
     <option name="myDocStringFormat" value="Google" />
     <option name="renderExternalDocumentation" value="true" />
   </component>
+  <component name="ReSTService">
+    <option name="workdir" value="$MODULE_DIR$" />
+    <option name="DOC_DIR" value="$MODULE_DIR$" />
+  </component>
   <component name="TestRunnerService">
     <option name="projectConfiguration" value="pytest" />
     <option name="PROJECT_TEST_RUNNER" value="pytest" />
