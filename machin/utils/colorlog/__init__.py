@@ -2,11 +2,11 @@
 
 from __future__ import absolute_import
 from logging import *
-from utils.colorlog.colorlog import (
+from .colorlog import (
     escape_codes, default_log_colors,
     ColoredFormatter, LevelFormatter, TTYColoredFormatter)
 
-from utils.colorlog.logging import (
+from .logging import (
     basicConfig, root, getLogger, log,
     debug, info, warning, error, exception, critical, StreamHandler)
 

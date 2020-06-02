@@ -1,8 +1,8 @@
 from typing import Union, Dict, List, Any, Callable
 from threading import Lock
-from .transition import Transition
+from ..transition import Transition
 from .buffer import Buffer
-from utils.parallel.distributed import RpcGroup
+from machin.utils.parallel.distributed import RpcGroup
 import torch as t
 import numpy as np
 import itertools as it

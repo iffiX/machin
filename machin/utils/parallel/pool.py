@@ -31,7 +31,7 @@ def proxy_zip_long(recurse, func, iterable):
         yield [dump] + list(args)
 
 
-class Pool(mp.Pool):
+class Pool(mp.pool.Pool):
     is_global = False
     is_daemon = True
 

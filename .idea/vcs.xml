@@ -2,8 +2,5 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/env/magent-dev" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/machin/env/magent-dev" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/test/PPO-PyTorch" vcs="Git" />
   </component>
 </project>

@@ -1,5 +1,5 @@
 import torch as t
-from models.noise.generator import OrnsteinUhlenbeckNoiseGen
+from machin.frame.noise.generator import OrnsteinUhlenbeckNoiseGen
 
 default_ou_generator = None
 

@@ -1,5 +1,5 @@
 from typing import Union, Dict, List, Tuple, Any
-from .transition import Transition
+from ..transition import Transition
 from .buffer import Buffer
 import torch as t
 import numpy as np
@@ -298,7 +298,8 @@ class PrioritizedBuffer(Buffer):
         """
         Sample the most important batch from the prioritized buffer.
 
-        .. seealso:: :method:`machin.models.frames.buffers.Buffer.sample_batch`
+        See Also:
+             :meth:`machin.models.frames.buffers.Buffer.sample_batch`
 
         Args:
             batch_size: A hint size of the result sample. actual sample size

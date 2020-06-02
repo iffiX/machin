@@ -6,7 +6,8 @@
 Intro
 ==================================
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
+   :caption: Contents:
 
 Welcome to the main documentation of Machin. Machin is a reinforcement
 library purely based on pytorch, it is designed with three things in mind:
@@ -40,20 +41,20 @@ Installation
 TODO
 
 Tutorials and examples
-==================
+======================
 
 TODO
 
 API
 ==================
 .. toctree::
-   :maxdepth: 1
-   api/machin.env
-   api/machin.frames
-   api/machin.models
-   api/machin.utils
 
-Indices
+   api/machin.env.rst
+   api/machin.frame.rst
+   api/machin.models.rst
+   api/machin.utils.rst
+
+Indices and tables
 ==================
 
 * :ref:`genindex`

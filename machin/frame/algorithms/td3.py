@@ -1,4 +1,4 @@
-from utils.logging import default_logger
+from machin.utils.logging import default_logger
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .ddpg import *
 

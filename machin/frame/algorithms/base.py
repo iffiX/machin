@@ -2,8 +2,8 @@ from typing import Dict, List
 from torchviz import make_dot
 import torch as t
 
-from utils.prep import prep_load_model
-from utils.logging import default_logger
+from machin.utils.prep import prep_load_model
+from machin.utils.logging import default_logger
 
 
 class TorchFramework:

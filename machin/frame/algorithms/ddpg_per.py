@@ -1,5 +1,5 @@
-from models.frames.buffers.prioritized_buffer import PrioritizedBuffer
-from utils.logging import default_logger
+from machin.frame.buffers.prioritized_buffer import PrioritizedBuffer
+from machin.utils.logging import default_logger
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .ddpg import *
 

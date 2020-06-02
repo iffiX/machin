@@ -3,12 +3,12 @@ from threading import Lock
 from copy import deepcopy
 from torch.nn.parallel import DistributedDataParallel
 
-from .distributed import Group
-from utils.prep import prep_load_state_dict
+from .distributed import RpcGroup
+from machin.utils.prep import prep_load_state_dict
 
 
 class SimpleOrderedServer:
-    def __init__(self, group: Group, log_depth=1, *_, **__):
+    def __init__(self, group: RpcGroup, log_depth=1, *_, **__):
         """
         Currently, only one process is used, and provides no functionality
         for serialization, snapshot & log compaction, redundancy...

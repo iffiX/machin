@@ -6,7 +6,7 @@ from queue import Queue, Empty
 from torch.distributed import rpc
 from abc import ABC, abstractmethod
 from threading import Thread, Condition, Lock
-from utils.helper_classes import Timer, Counter
+from machin.utils.helper_classes import Timer, Counter
 
 
 class MType(Enum):

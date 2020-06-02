@@ -1,5 +1,5 @@
 from typing import Union, Dict, List, Tuple, Any, Callable
-from .transition import Transition, Scalar
+from ..transition import Transition, Scalar
 import torch as t
 import random
 
@@ -256,7 +256,7 @@ class Buffer(object):
         return tuple(result)
 
     @staticmethod
-    def make_tensor_from_batch(batch: List[Scalar, t.Tensor],
+    def make_tensor_from_batch(batch: List[Union[Scalar, t.Tensor]],
                                device: Union[str, t.device],
                                concatenate: bool):
         """
@@ -264,7 +264,9 @@ class Buffer(object):
         Will concatenate input tensors in dimension 0,
         Or create a tensor of size (batch_size, 1) for scalars.
 
-        .. seealso:: :meth:`sample_batch`
+        See Also:
+             :meth:`sample_batch`
+
         Args:
             batch: Batch data.
             device: Device to move data to

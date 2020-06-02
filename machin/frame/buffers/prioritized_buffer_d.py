@@ -1,9 +1,9 @@
 from random import choice
 from typing import Union, Dict
 from threading import Lock
-from .transition import Transition
+from ..transition import Transition
 from .prioritized_buffer import PrioritizedBuffer
-from utils.parallel.distributed import RpcGroup
+from machin.utils.parallel.distributed import RpcGroup
 
 
 class DistributedPrioritizedBuffer(PrioritizedBuffer):

@@ -1,7 +1,7 @@
 import torch as t
 
-from models.noise.generator import NormalNoiseGen
-from utils.logging import default_logger as logger
+from .generator import NormalNoiseGen
+from machin.utils.logging import default_logger as logger
 
 
 class AdaptiveParamNoiseSpec(object):
@@ -64,7 +64,8 @@ def _gen_perturb_hook(module, perturb_switch, reset_switch, perturb_gen):
 
 def perturb_model(model, device, perturb_switch, reset_switch,
                   distance_func=lambda x, y: t.dist(x, y, 2),
-                  desired_action_stddev=0.5, noise_distribution=NormalNoiseGen(0, 1.0)):
+                  desired_action_stddev=0.5,
+                  noise_distribution=NormalNoiseGen(0, 1.0, 0.2)):
     tmp_action = {}
     post_hooks = []
     param_noise_spec = AdaptiveParamNoiseSpec(desired_action_stddev=desired_action_stddev)

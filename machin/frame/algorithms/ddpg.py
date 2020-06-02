@@ -3,13 +3,13 @@ from torch.distributions import Categorical
 import torch as t
 import torch.nn as nn
 
-from models.frames.buffers.buffer import Transition, Buffer
-from models.nets.base import NeuralNetworkModule
-from models.noise.action_space_noise import \
+from machin.frame.buffers.buffer import Transition, Buffer
+from machin.frame.noise.action_space_noise import \
     add_normal_noise_to_action, \
     add_clipped_normal_noise_to_action, \
     add_uniform_noise_to_action, \
     add_ou_noise_to_action
+from machin.models.nets.base import NeuralNetworkModule
 from .base import TorchFramework
 from .utils import hard_update, soft_update, safe_call, assert_output_is_probs
 
@@ -178,7 +178,7 @@ class DDPG(TorchFramework):
         Use actor network to give a noisy action for the current state.
 
         See Also:
-             :mod:`machin.models.noise.action_space_noise`
+             :mod:`machin.frames.noise.action_space_noise`
 
         Args:
             state: Current state.
