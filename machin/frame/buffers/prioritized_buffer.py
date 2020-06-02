@@ -83,7 +83,7 @@ class WeightTree:
     def get_leaf_all_weights(self) -> np.ndarray:
         """
         Returns:
-            Current weights of all leaves, ``np.ndarray`` of shape (size).
+            Current weights of all leaves, ``np.ndarray`` of shape ``(size)``.
         """
         return self.weights[range(self.sizes[0])]
 
@@ -142,7 +142,7 @@ class WeightTree:
 
         Args:
             weight: New weight of the leaf.
-            index: Leaf index to update, must be in range [0, size].
+            index: Leaf index to update, must be in range ``[0, size]``.
         """
         self.max_leaf = max(weight, self.max_leaf)
         self.weights[index] = weight
@@ -167,7 +167,7 @@ class WeightTree:
 
         Args:
             weights: New weights of leaves.
-            indexes: Leaf indexes to update, must be in range [0, size].
+            indexes: Leaf indexes to update, must be in range ``[0, size]``.
         """
         if len(weights) != len(indexes):
             raise RuntimeError(
@@ -199,7 +199,7 @@ class WeightTree:
 
         Args:
             weights: All leaf weights. List or array length should be in range
-            [0, size].
+                ``[0, size]``.
         """
         if len(weights) != self.size:
             raise RuntimeError("Weights size must match buffer size!")
@@ -238,10 +238,10 @@ class PrioritizedBuffer(Buffer):
                 to be sampled.
                 When ``alpha = 1``, all samples are drawn uniformly according
                 to their weight.
-            beta: Bias correcting weight. When ``beta = 1``, it can fully
-                correct the bias introduced by prioritized replay, Used during
+            beta: Bias correcting weight. When ``beta = 1``, bias introduced
+                by prioritized replay will be corrected. Used during
                 importance weight calculation:
-                :math:`w_j=(N \\dot P(j))^{-\\beta}/max_i w_i`
+                :math:`w_j=(N \\cdot P(j))^{-\\beta}/max_i w_i`
             beta_increment_per_sampling:
                 Beta increase step size, will gradually increase ``beta`` to 1.
         """

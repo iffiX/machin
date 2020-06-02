@@ -13,9 +13,7 @@ class Buffer(object):
         as a ring buffer.
 
         See Also:
-            :class:`machin.frame.transition.TransitionBase`
-
-            :class:`.transition.Transition`
+            :class:`.Transition`
 
 
         During sampling, the tensors in "state", "action" and "next_state"
@@ -89,8 +87,8 @@ class Buffer(object):
         """
         Sample unique random samples from buffer.
 
-        Notes:
-            Sampled size could be any value from 0 to batch_size.
+        Note:
+            Sampled size could be any value from 0 to ``batch_size``.
         """
         if len(buffer) < batch_size:
             batch = random.sample(buffer, len(buffer))
@@ -106,8 +104,8 @@ class Buffer(object):
         """
         Sample random samples from buffer.
 
-        Notes:
-            Sampled size could be any value from 0 to batch_size.
+        Note:
+            Sampled size could be any value from 0 to ``batch_size``.
         """
         indexes = [random.randint(0, len(buffer) - 1)
                    for _ in range(batch_size)]
@@ -133,13 +131,16 @@ class Buffer(object):
         """
         Sample a random batch from buffer.
 
-        Notes:
+        See Also:
             Default sample methods are defined as static class methods.
-            .. seealso:: :meth:`Buffer.sample_method_random_unique`
-            .. seealso:: :meth:`Buffer.sample_method_random`
-            .. seealso:: :meth:`Buffer.sample_method_all`
 
-        Notes:
+            :meth:`.Buffer.sample_method_random_unique`
+
+            :meth:`.Buffer.sample_method_random`
+
+            :meth:`.Buffer.sample_method_all`
+
+        Note:
             "Concatenation"
             means ``torch.cat([...], dim=0)`` for tensors,
             and ``torch.tensor([...]).view(batch_size, 1)`` for scalars.
@@ -213,8 +214,6 @@ class Buffer(object):
                            additional_concat_attrs: List[str]):
         """
         Post-process (concatenate) sampled batch.
-
-        .. seealso:: :meth:`sample_batch`
         """
         result = []
         used_keys = []
@@ -265,11 +264,8 @@ class Buffer(object):
                                concatenate: bool):
         """
         Make a tensor from a batch of data.
-        Will concatenate input tensors in dimension 0,
+        Will concatenate input tensors in dimension 0.
         Or create a tensor of size (batch_size, 1) for scalars.
-
-        See Also:
-             :meth:`sample_batch`
 
         Args:
             batch: Batch data.

@@ -28,7 +28,7 @@ class DistributedBuffer(Buffer):
         any other custom keys specified in ``**kwargs`` will not be
         concatenated.
 
-        .. seealso:: :class:`Buffer`
+        .. seealso:: :class:`.Buffer`
 
         Args:
             buffer_size: Maximum local buffer size.
@@ -126,6 +126,7 @@ class DistributedBuffer(Buffer):
         """
         Rpc function executed by buffer holders, will sample requested batch
         size.
+
         Args:
             batch_size: Size of batch to sample.
             sample_method: Sample method.
