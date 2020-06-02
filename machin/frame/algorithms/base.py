@@ -48,15 +48,14 @@ class TorchFramework:
         """
         Load models.
 
+        An example of network map::
+
+            {"actor": "actor_file_name", "critic": "critic_file_name"}
+
         Args:
             model_dir: Save directory.
             network_map: Key is module name, value is saved name.
             version: Version number of the save to be loaded.
-
-        Note:
-            An example of network map::
-
-            {"actor": "actor_file_name", "critic": "critic_file_name"}
         """
         network_map = {} if network_map is None else network_map
         restore_map = {}

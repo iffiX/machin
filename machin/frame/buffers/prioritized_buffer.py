@@ -13,19 +13,29 @@ class WeightTree:
         """
         Initialize a weight tree.
 
-        Notes: Weights must be positive.
+        Note:
+            Weights must be positive.
 
-        Notes: Weight tree is stored as a flattened, full binary tree in a
-               ``np.ndarray``. The lowest level of leaves comes first, the
-               highest root node is stored at last.
+        Note:
+            Weight tree is stored as a flattened, full binary tree in a
+            ``np.ndarray``. The lowest level of leaves comes first, the
+            highest root node is stored at last.
 
-               Eg: Tree with weights: [[1, 2, 3, 4], [3, 7], [11]]
-                   will be stored as: [1, 2, 3, 4, 3, 7, 11]
+            Example:
 
-        Notes: Performance On i7-6700HQ (M: Million):
+            Tree with weights: ``[[1, 2, 3, 4], [3, 7], [11]]``
+
+            will be stored as: ``[1, 2, 3, 4, 3, 7, 11]``
+
+        Note:
+            Performance On i7-6700HQ (M: Million):
+
             90ms for building a tree with 10M elements.
+
             230ms for looking up 10M elements in a tree with 10M elements.
+
             20ms for 1M element batched update in a tree with 10M elements.
+
             240ms for 1M element single update in a tree with 10M elements.
 
         Args:
@@ -73,7 +83,7 @@ class WeightTree:
     def get_leaf_all_weights(self) -> np.ndarray:
         """
         Returns:
-            Current weights of all leaves, ``np.ndarray`` of shape (size)
+            Current weights of all leaves, ``np.ndarray`` of shape (size).
         """
         return self.weights[range(self.sizes[0])]
 
@@ -98,7 +108,7 @@ class WeightTree:
     def find_leaf_index(self, weight: Union[float, List[float], np.ndarray]):
         """
         Find leaf indexes given weight. Weight must be in range
-        :math:`[0, weight_sum]`
+        :math:`[0, weight\\_sum]`
 
         Args:
             weight: Weight(s) used to query leaf index(es).
@@ -222,7 +232,7 @@ class PrioritizedBuffer(Buffer):
             epsilon: A small positive constant used to prevent edge-case
                 zero weight transitions from never being visited.
             alpha: Prioritization weight. Used during transition sampling:
-                :math:`j \\tilde P(j)=p_{j}^{\\alpha} /
+                :math:`j \\sim P(j)=p_{j}^{\\alpha} / \
                         \\sum_i p_{i}^{\\alpha}`.
                 When ``alpha = 0``, all samples have the same probability
                 to be sampled.

@@ -19,19 +19,19 @@ class TransitionBase(object):
                  sub_data: Iterable[Union[Scalar, t.Tensor]],
                  custom_data: Iterable[Any]):
         """
-        Notes:
+        Note:
             Major attributes store things like state, action, next_states, etc.
-            They are usually concatenated by their dictionary keys during
+            They are usually **concatenated by their dictionary keys** during
             sampling, and passed as keyword arguments to actors, critics, etc.
 
             Sub attributes store things like terminal states, reward, etc.
-            They are usually concatenated directly during sampling, and used
+            They are usually **concatenated directly** during sampling, and used
             in different algorithms.
 
             Custom attributes store not concatenatable values, usually user
             specified states, used in models or as special arguments in
             different algorithms. They will be collected together as a list
-            during sampling, no further concatenation is performed.
+            during sampling, **no further concatenation is performed**.
 
         Args:
             major_attr: A list of major attribute names.
@@ -220,7 +220,7 @@ class Transition(TransitionBase):
             terminal: Whether environment has reached terminal state.
             **kwargs: Custom attributes.
 
-        Notes:
+        Note:
             You should not store any tensor inside ``**kwargs`` as they will
             not be moved to the sample output device.
         """

@@ -25,7 +25,8 @@ class DistributedBuffer(Buffer):
 
         During sampling, the tensors in "state", "action" and "next_state"
         dictionaries, along with "reward", will be concatenated in dimension 0.
-        any other custom keys specified in **kwargs will not be concatenated.
+        any other custom keys specified in ``**kwargs`` will not be
+        concatenated.
 
         .. seealso:: :class:`Buffer`
 

@@ -36,8 +36,8 @@ class Counter:
 
 
 class Switch:
-    def __init__(self):
-        self._on = False
+    def __init__(self, state=False):
+        self._on = state
 
     def flip(self):
         self._on = not self._on
@@ -53,8 +53,8 @@ class Switch:
 
 
 class Trigger:
-    def __init__(self):
-        self._on = False
+    def __init__(self, state=False):
+        self._on = state
 
     def flip(self):
         self._on = not self._on

@@ -41,7 +41,7 @@ class DDPG(TorchFramework):
                  visualize: bool = False,
                  **__):
         """
-        Notes:
+        Note:
             Your optimizer will be called as::
 
                 optimizer(network.parameters(), learning_rate)
@@ -61,17 +61,19 @@ class DDPG(TorchFramework):
                     predicted_value.view(batch_size, 1)
                 )
 
-        Notes:
+        Note:
             The action transform function is used to transform the output
             of actor to the input of critic.
-
             Action transform function must accept:
-                1. Raw action from the actor model.
-                2. Concatenated :attr:``Transition.next_state``.
-                3. Any other concatenated lists of custom keys from
-                    :class:``Transition``.
+
+              1. Raw action from the actor model.
+              2. Concatenated :attr:`.Transition.next_state`.
+              3. Any other concatenated lists of custom keys from \
+                  :class:`.Transition`.
+
             and returns:
-                1. Something with the same form as :attr:``Transition.action``
+
+              1. Something with the same form as :attr:`.Transition.action`
 
         Args:
             actor: Actor network module.
@@ -88,13 +90,16 @@ class DDPG(TorchFramework):
                 rate scheduler.
             batch_size: Batch size used during training.
             update_rate: :math:`\\tau` used to update target networks.
-                Target parameters are updated as
-                :math:`\\theta_t = \\theta * \\tao + \\theta_t * (1 - \\tao)`.
-            discount: :math`\\gamma` used in the bellman function.
+                Target parameters are updated as:
+
+                :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
+
+            discount: :math:`\\gamma` used in the bellman function.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
             replay_device: Device where the replay buffer locates on, Not
                 compatible with ``replay_buffer``.
+            replay_buffer: Custom replay buffer.
             reward_func: Reward function used in training.
             action_trans_func: Action transform function, used to transform
                 the raw output of your actor, by default it is:
@@ -152,7 +157,7 @@ class DDPG(TorchFramework):
             use_target: bool = False,
             **__):
         """
-        Use actor network to give a action for the current state.
+        Use actor network to produce an action for the current state.
 
         Args:
             state: Current state.
@@ -175,7 +180,7 @@ class DDPG(TorchFramework):
                        use_target=False,
                        **__):
         """
-        Use actor network to give a noisy action for the current state.
+        Use actor network to produce an noisy action for the current state.
 
         See Also:
              :mod:`machin.frames.noise.action_space_noise`
@@ -215,7 +220,7 @@ class DDPG(TorchFramework):
                      use_target: bool = False,
                      **__):
         """
-        Use actor network to give a discreet action for the current state.
+        Use actor network to produce an discreet action for the current state.
 
         Notes:
             actor network must output a probability tensor, of shape
@@ -245,7 +250,8 @@ class DDPG(TorchFramework):
                                 use_target: bool = False,
                                 **__):
         """
-        Use actor network to give a noisy discreet action for the current state.
+        Use actor network to produce a noisy discreet action for
+        the current state.
 
         Notes:
             actor network must output a probability tensor, of shape

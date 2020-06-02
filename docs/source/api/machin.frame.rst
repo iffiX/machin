@@ -1,17 +1,109 @@
-machin.frames
+machin.frame
 =============
-.. automodule:: machin.frame.algorithms
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
-.. automodule:: machin.frame.buffers
-   :members:
-   :undoc-members:
-   :show-inheritance:
+algorithms
++++++++++++++++++
 
-.. automodule:: machin.frame.noise
-   :members:
-   :undoc-members:
-   :show-inheritance:
+Base
+-----------------------------
+.. automodule:: machin.frame.algorithms.base
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
+DDPG
+-----------------------------
+.. automodule:: machin.frame.algorithms.ddpg
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+DDPG with prioritized replay
+-----------------------------
+.. automodule:: machin.frame.algorithms.ddpg_per
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+TD3
+-----------------------------
+.. automodule:: machin.frame.algorithms.td3
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+Hysterical DDPG
+-----------------------------
+.. automodule:: machin.frame.algorithms.hddpg
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+buffers
++++++++++++++
+
+Buffer
+-----------------------------
+.. automodule:: machin.frame.buffers.buffer
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+Distributed buffer
+-----------------------------
+.. automodule:: machin.frame.buffers.buffer_d
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+Prioritized buffer
+-----------------------------
+.. autoclass:: machin.frame.buffers.prioritized_buffer.PrioritizedBuffer
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+Weight tree
+_____________________________
+.. autoclass:: machin.frame.buffers.prioritized_buffer.WeightTree
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+Distributed prioritized buffer
+------------------------------
+.. automodule:: machin.frame.buffers.prioritized_buffer_d
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+noise
++++++++++++++
+
+action_space_noise
+------------------------------
+.. automodule:: machin.frame.noise.action_space_noise
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+generator
+------------------------------
+.. automodule:: machin.frame.noise.generator
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+param_space_noise
+------------------------------
+.. automodule:: machin.frame.noise.param_space_noise
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+transition
++++++++++++++
+.. automodule:: machin.frame.transition
+    :members:
+    :undoc-members:
+    :show-inheritance:

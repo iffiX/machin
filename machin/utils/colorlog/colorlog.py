@@ -69,17 +69,17 @@ class ColoredFormatter(logging.Formatter):
         ``{key}_log_color``, using the value to select from a different
         ``log_colors`` set.
 
-        :Parameters:
-        - fmt (str): The format string to use
-        - datefmt (str): A format string for the date
-        - log_colors (dict):
-            A mapping of log level names to color names
-        - reset (bool):
-            Implicitly append a color reset to all records unless False
-        - style ('%' or '{' or '$'):
-            The format style to use. (*No meaning prior to Python 3.2.*)
-        - secondary_log_colors (dict):
-            Map secondary ``log_color`` attributes. (*New in version 2.6.*)
+        Args:
+            fmt (str): The format string to use
+            datefmt (str): A format string for the date
+            log_colors (dict): A mapping of log level names to color names
+            reset (bool):
+                Implicitly append a color reset to all records unless False
+            style ('%' or '{' or '$'):
+                The format style to use. (*No meaning prior to Python 3.2.*)
+            secondary_log_colors (dict):
+                Map secondary ``log_color`` attributes. (*New in version 2.6.*)
+
         """
         if fmt is None:
             if sys.version_info > (3, 2):
@@ -140,21 +140,25 @@ class LevelFormatter(ColoredFormatter):
         Supports fmt as a dict. All other args are passed on to the
         ``colorlog.ColoredFormatter`` constructor.
 
-        :Parameters:
-        - fmt (dict):
-            A mapping of log levels (represented as strings, e.g. 'WARNING') to
-            different formatters. (*New in version 2.7.0)
-        (All other parameters are the same as in colorlog.ColoredFormatter)
+        See Also:
+            colorlog.ColoredFormatter
 
-        Example:
+        Args:
+            fmt (dict): A mapping of log levels
+                (represented as strings, e.g. 'WARNING') to
+                different formatters. (New in version 2.7.0)
 
-        formatter = colorlog.LevelFormatter(fmt={
-            'DEBUG':'%(log_color)s%(msg)s (%(module)s:%(lineno)d)',
-            'INFO': '%(log_color)s%(msg)s',
-            'WARNING': '%(log_color)sWARN: %(msg)s (%(module)s:%(lineno)d)',
-            'ERROR': '%(log_color)sERROR: %(msg)s (%(module)s:%(lineno)d)',
-            'CRITICAL': '%(log_color)sCRIT: %(msg)s (%(module)s:%(lineno)d)',
-        })
+
+        Example::
+
+            formatter = colorlog.LevelFormatter(fmt={
+                'DEBUG':'%(log_color)s%(msg)s (%(module)s:%(lineno)d)',
+                'INFO': '%(log_color)s%(msg)s',
+                'WARNING': '%(log_color)sWARN: %(msg)s (%(module)s:%(lineno)d)',
+                'ERROR': '%(log_color)sERROR: %(msg)s (%(module)s:%(lineno)d)',
+                'CRITICAL': '%(log_color)sCRIT: %(msg)s (%(module)s:%(lineno)d)',
+            })
+
         """
         if sys.version_info > (2, 7):
             super(LevelFormatter, self).__init__(

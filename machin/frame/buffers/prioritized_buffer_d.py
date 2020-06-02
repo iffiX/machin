@@ -1,15 +1,17 @@
 from random import choice
-from typing import Union, Dict
+from typing import Union, Dict, List, Tuple, Any
 from threading import Lock
 from ..transition import Transition
 from .prioritized_buffer import PrioritizedBuffer
 from machin.utils.parallel.distributed import RpcGroup
+import numpy as np
+import torch as t
 
 
 class DistributedPrioritizedBuffer(PrioritizedBuffer):
     def __init__(self, buffer_size: int, buffer_group: RpcGroup, *_, **__):
         """
-        Create a distributed replay buffer instance.
+        Create a distributed prioritized replay buffer instance.
 
         To avoid issues caused by tensor device difference, all transition
         objects are stored in device "cpu".
@@ -23,7 +25,8 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
 
         During sampling, the tensors in "state", "action" and "next_state"
         dictionaries, along with "reward", will be concatenated in dimension 0.
-        any other custom keys specified in **kwargs will not be concatenated.
+        any other custom keys specified in ``**kwargs`` will not be
+        concatenated.
 
         .. seealso:: :class:`PrioritizedBuffer`
 
@@ -42,6 +45,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
                priority: Union[float, None] = None,
                required_attrs=("state", "action", "next_state",
                                "reward", "terminal")):
+        # DOC INHERITED
         # TODO: batched append
         future = [
             self.buffer_group.rpc_paired_class_async(
@@ -59,6 +63,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
                                .format(failed))
 
     def clear(self):
+        # DOC INHERITED
         future = [
             self.buffer_group.rpc_paired_class_async(
                 m, self._reply_clear, self.__class__
@@ -73,7 +78,8 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             raise RuntimeError("Failed to perform append on members {}"
                                .format(failed))
 
-    def update_priority(self, priorities, indexes):
+    def update_priority(self, priorities: np.ndarray, indexes: np.ndarray):
+        # DOC INHERITED
         future = [
             self.buffer_group.rpc_paired_class_async(
                 m, self._reply_update_priority, self.__class__,
@@ -89,8 +95,14 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             raise RuntimeError("Failed to perform update priority on members {}"
                                .format(failed))
 
-    def sample_batch(self, batch_size, concatenate=True, device=None,
-                     sample_attrs=None, additional_concat_attrs=None, *_, **__):
+    def sample_batch(self,
+                     batch_size: int,
+                     concatenate: bool = True,
+                     device: Union[str, t.device] = None,
+                     sample_attrs: List[str] = None,
+                     additional_concat_attrs: List[str] = None,
+                     *_, **__) -> Tuple[Any, Any, np.ndarray, np.ndarray]:
+        # DOC INHERITED
         worker = choice(self.buffer_group.get_group_members())
         return self.buffer_group.rpc_paired_class_async(
             worker, self._reply_sample, self.__class__,

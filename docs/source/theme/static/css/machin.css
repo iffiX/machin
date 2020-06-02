@@ -99,6 +99,9 @@ a:visited {
     border-right: inset thick #ff0000;
 }
 
+.wy-menu-vertical li span.toctree-expand {
+    color: #fff;
+}
 
 /* BEGIN colors of buttons */
 .btn {
@@ -129,6 +132,38 @@ a:visited {
 }
 /* END colors of buttons */
 
+/* BEGIN colors of code and various note boxes*/
+.rst-content dl:not(.docutils) tt.descname,
+.rst-content dl:not(.docutils) tt.descclassname,
+.rst-content dl:not(.docutils) tt.descname,
+.rst-content dl:not(.docutils) code.descname,
+.rst-content dl:not(.docutils) tt.descclassname,
+.rst-content dl:not(.docutils) code.descclassname,
+.rst-content dl:not(.docutils) dt > .sig-paren {
+    color: #ee6622;
+}
+
+.rst-content dl:not(.docutils) dt {
+    color: #f8ac3f;
+}
+
+.rst-content dl:not(.docutils) dt > .sig-param {
+    color: #aaa;
+}
+
+.rst-content dl:not(.docutils) dl dt {
+    color: #aaa;
+}
+
+code, .rst-content dl:not(.docutils) code {
+    border: none;
+    color: #aaa;
+    background-color: #3e3e3e;
+}
+
+span[id*='MathJax-Span'] {
+    color: #ddd;
+}
 /*
     <dl> Defines a definition list.
     <dt> Defines a term/item in a definition list.
@@ -162,6 +197,43 @@ a:visited {
     background-color: #3e3e3e;
     border: none;
 }
+
+/**
+    highlight boxes inside notes, warnings etc, lighter gray.
+ */
+.rst-content .note div[class^=highlight] *,
+.rst-content .attention div[class^=highlight] *,
+.rst-content .caution div[class^=highlight] *,
+.rst-content .danger div[class^=highlight] *,
+.rst-content .error div[class^=highlight] *,
+.rst-content .hint div[class^=highlight] *,
+.rst-content .important div[class^=highlight] *,
+.rst-content .tip div[class^=highlight] *,
+.rst-content .warning div[class^=highlight] *,
+.rst-content .seealso div[class^=highlight] *,
+.rst-content .admonition-todo div[class^=highlight] *,
+.rst-content .admonition div[class^=highlight] * {
+    background-color: #4f4f4f !important;
+}
+
+/**
+    code inside notes, warnings etc, lighter gray.
+ */
+.rst-content .note code,
+.rst-content .attention code,
+.rst-content .caution code,
+.rst-content .danger code,
+.rst-content .error code,
+.rst-content .hint code,
+.rst-content .important code,
+.rst-content .tip code,
+.rst-content .warning code,
+.rst-content .seealso code,
+.rst-content .admonition-todo code,
+.rst-content .admonition code {
+    background-color: #4f4f4f !important;
+}
+/* END colors of code and various note boxes*/
 
 /* BEGIN colors of different info boxes */
 .wy-alert.wy-alert-danger,
@@ -359,7 +431,21 @@ a:visited {
 .rst-content .wy-alert-neutral.warning,
 .rst-content .wy-alert-neutral.seealso,
 .rst-content .wy-alert-neutral.admonition-todo,
-.rst-content .wy-alert-neutral.admonition {
+.rst-content .wy-alert-neutral.admonition,
+.wy-alert,
+.rst-content .note,
+.rst-content .attention,
+.rst-content .caution,
+.rst-content .danger,
+.rst-content .error,
+.rst-content .hint,
+.rst-content .important,
+.rst-content .tip,
+.rst-content .warning,
+.rst-content .seealso,
+.rst-content .admonition-todo,
+.rst-content .admonition
+{
     background: #3e3e3e;
 }
 
@@ -389,7 +475,8 @@ a:visited {
 .rst-content .wy-alert-neutral.warning .admonition-title,
 .rst-content .wy-alert-neutral.seealso .admonition-title,
 .rst-content .wy-alert-neutral.admonition-todo .admonition-title,
-.rst-content .wy-alert-neutral.admonition .admonition-title {
+.rst-content .wy-alert-neutral.admonition .admonition-title,
+.wy-alert-title, .rst-content .admonition-title {
     color: #ddd;
     background: #6cca51
 }
@@ -427,32 +514,3 @@ a:visited {
 }
 /* END colors of different info boxes */
 
-/* BEGIN colors of code */
-.rst-content dl:not(.docutils) tt.descname,
-.rst-content dl:not(.docutils) tt.descclassname,
-.rst-content dl:not(.docutils) tt.descname,
-.rst-content dl:not(.docutils) code.descname,
-.rst-content dl:not(.docutils) tt.descclassname,
-.rst-content dl:not(.docutils) code.descclassname,
-.rst-content dl:not(.docutils) dt > .sig-paren {
-    color: #ee6622;
-}
-
-.rst-content dl:not(.docutils) dt {
-    color: #f8ac3f;
-}
-
-.rst-content dl:not(.docutils) dt > .sig-param {
-    color: #aaa;
-}
-
-.rst-content dl:not(.docutils) dl dt {
-    color: #aaa;
-}
-
-code, .rst-content dl:not(.docutils) code {
-    border: none;
-    color: #aaa;
-    background-color: #3e3e3e;
-}
-/* END colors of code */

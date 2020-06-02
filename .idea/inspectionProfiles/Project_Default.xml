@@ -6,6 +6,13 @@
         <language minSize="91" name="Python" />
       </Languages>
     </inspection_tool>
+    <inspection_tool class="PyPep8Inspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="W605" />
+        </list>
+      </option>
+    </inspection_tool>
     <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
       <option name="ignoredErrors">
         <list>
@@ -20,6 +27,7 @@
           <option value="torch.distributed.ReduceOp" />
           <option value="wrappers.openai_gym._init_envs.envs" />
           <option value="wrappers.openai_gym._init_envs.env_idxs" />
+          <option value="tuple.__sub__" />
         </list>
       </option>
     </inspection_tool>

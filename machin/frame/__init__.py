@@ -1,3 +1,3 @@
-from . import algorithms, buffers, noise
+from . import algorithms, buffers, noise, transition
 
-__all__ = ["algorithm", "buffer", "noise"]
+__all__ = ["algorithms", "buffers", "noise", "transition"]

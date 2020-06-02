@@ -36,7 +36,6 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
     'sphinx.ext.coverage',
-    'sphinx.ext.imgmath',
     'sphinx.ext.mathjax',
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
@@ -50,10 +49,22 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-#exclude_patterns = []
+exclude_patterns = []
 
-#autodoc_default_options = {'special-members': '__call__, __getitem__, __len__'}
+# Both the class’ and the __init__ method’s docstring are concatenated
+# and inserted.
+autoclass_content = 'both'
+autodoc_default_options = {
+    #'special-members': '__call__, __getitem__, __len__'
+}
+autodoc_member_order = 'groupwise'  # 'bysource', 'alphabetical'
+autodoc_typehints = "description"
+# autodoc_dumb_docstring = True
 
+# same as autoclass_content = 'both',
+# but __init__ signature is also documented, not beautiful.
+# napoleon_include_init_with_doc = True
+# napoleon_use_admonition_for_examples = True
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for

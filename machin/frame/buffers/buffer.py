@@ -12,12 +12,16 @@ class Buffer(object):
         Buffer stores a series of transition objects and functions
         as a ring buffer.
 
-        .. seealso:: :class:`.transition.TransitionBase`
-        .. seealso:: :class:`.transition.Transition`
+        See Also:
+            :class:`machin.frame.transition.TransitionBase`
+
+            :class:`.transition.Transition`
+
 
         During sampling, the tensors in "state", "action" and "next_state"
         dictionaries, along with "reward", will be concatenated in dimension 0.
-        any other custom keys specified in **kwargs will not be concatenated.
+        any other custom keys specified in ``**kwargs`` will not be
+        concatenated.
 
         Args:
             buffer_size: Maximum buffer size.
