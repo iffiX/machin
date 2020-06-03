@@ -4,7 +4,7 @@ from ..buffers.prioritized_buffer_d import DistributedPrioritizedBuffer
 from utils.parallel.server import SimplePushPullServer
 
 
-class DQN_APEX(DQN_PER):
+class DQNApex(DQNPer):
     def __init__(self,
                  qnet: Union[NeuralNetworkModule, nn.Module],
                  qnet_target: Union[NeuralNetworkModule, nn.Module],
@@ -23,7 +23,7 @@ class DQN_APEX(DQN_PER):
                  replay_size=50000000,
                  replay_device="cpu",
                  reward_func=None):
-        super(DQN_APEX, self).__init__(qnet, qnet_target, optimizer, criterion,
+        super(DQNApex, self).__init__(qnet, qnet_target, optimizer, criterion,
                                        learning_rate=learning_rate,
                                        lr_scheduler=lr_scheduler,
                                        lr_scheduler_params=lr_scheduler_params,
@@ -49,24 +49,24 @@ class DQN_APEX(DQN_PER):
             self.pull_function(self.qnet_target, "qnet_target")
         else:
             self.pull_function(self.qnet, "qnet")
-        return super(DQN_APEX, self).act_discreet(state, use_target)
+        return super(DQNApex, self).act_discreet(state, use_target)
 
     def act_discreet_with_noise(self, state, use_target=False):
         if use_target:
             self.pull_function(self.qnet_target, "qnet_target")
         else:
             self.pull_function(self.qnet, "qnet")
-        return super(DQN_APEX, self).act_discreet_with_noise(state, use_target)
+        return super(DQNApex, self).act_discreet_with_noise(state, use_target)
 
     def criticize(self, state, use_target=False):
         if use_target:
             self.pull_function(self.qnet_target, "qnet_target")
         else:
             self.pull_function(self.qnet, "qnet")
-        return super(DQN_APEX, self).criticize(state, use_target)
+        return super(DQNApex, self).criticize(state, use_target)
 
     def update(self, update_value=True, update_target=True, concatenate_samples=True):
-        result = super(DQN_APEX, self).update(update_value, update_target, concatenate_samples)
+        result = super(DQNApex, self).update(update_value, update_target, concatenate_samples)
         if update_target:
             self.push_function(self.qnet_target, "qnet_target")
         if update_value:
@@ -74,7 +74,7 @@ class DQN_APEX(DQN_PER):
         return result
 
 
-class DDPG_APEX(DDPG_PER):
+class DDPGApex(DDPGPer):
     def __init__(self,
                  actor: Union[NeuralNetworkModule, nn.Module],
                  actor_target: Union[NeuralNetworkModule, nn.Module],
@@ -96,7 +96,7 @@ class DDPG_APEX(DDPG_PER):
                  replay_device="cpu",
                  reward_func=None,
                  action_trans_func=None):
-        super(DDPG_APEX, self).__init__(actor, actor_target, critic, critic_target,
+        super(DDPGApex, self).__init__(actor, actor_target, critic, critic_target,
                                         optimizer, criterion,
                                         learning_rate=learning_rate,
                                         lr_scheduler=lr_scheduler,
@@ -124,24 +124,24 @@ class DDPG_APEX(DDPG_PER):
             self.pull_function(self.actor_target, "actor_target")
         else:
             self.pull_function(self.actor, "actor")
-        return super(DDPG_APEX, self).act_discreet(state, use_target)
+        return super(DDPGApex, self).act_discreet(state, use_target)
 
     def act_discreet_with_noise(self, state, use_target=False):
         if use_target:
             self.pull_function(self.actor_target, "actor_target")
         else:
             self.pull_function(self.actor, "actor")
-        return super(DDPG_APEX, self).act_discreet_with_noise(state, use_target)
+        return super(DDPGApex, self).act_discreet_with_noise(state, use_target)
 
     def criticize(self, state, action, use_target=False):
         if use_target:
             self.pull_function(self.critic_target, "critic_target")
         else:
             self.pull_function(self.critic, "critic")
-        return super(DDPG_APEX, self).criticize(state, action, use_target)
+        return super(DDPGApex, self).criticize(state, action, use_target)
 
     def update(self, update_value=True, update_policy=True, update_target=True, concatenate_samples=True):
-        result = super(DDPG_APEX, self).update(update_value, update_policy,
+        result = super(DDPGApex, self).update(update_value, update_policy,
                                                update_target, concatenate_samples)
         if update_target:
             self.push_function(self.critic_target, "critic_target")

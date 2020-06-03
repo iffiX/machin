@@ -42,12 +42,13 @@ class DDPGPer(DDPG):
             discount=discount,
             replay_size=replay_size,
             replay_device=replay_device,
-            replay_buffer=replay_buffer,
+            replay_buffer=(PrioritizedBuffer(replay_size, replay_device)
+                           if replay_buffer is None
+                           else replay_buffer),
             reward_func=reward_func,
             action_trans_func=action_trans_func,
             visualize=visualize
         )
-        self.rpb = PrioritizedBuffer(replay_size, replay_device)
         # reduction must be None
         if not hasattr(self.criterion, "reduction"):
             raise RuntimeError("Criterion must have the 'reduction' property")
@@ -62,21 +63,10 @@ class DDPGPer(DDPG):
     def update(self,
                update_value=True,
                update_policy=True,
-               update_targets=True,
+               update_target=True,
                concatenate_samples=True,
                **__):
-        """
-        Update network weights by sampling from replay buffer.
-
-        Args:
-            update_value: Whether update the Q network.
-            update_policy: Whether update the actor network.
-            update_targets: Whether update targets.
-            concatenate_samples: Whether concatenate the samples.
-
-        Returns:
-            (mean value of estimated policy value, value loss)
-        """
+        # DOC INHERITED
         (batch_size,
          (state, action, reward, next_state, terminal, *others),
          index, is_weight) = \
@@ -96,15 +86,19 @@ class DDPGPer(DDPG):
                                                      next_state, *others)
             next_value = self.criticize(next_state, next_action, True)
             next_value = next_value.view(batch_size, -1)
-            y_i = self.reward_func(reward, self.discount, next_value, terminal,
-                                   *others)
+            y_i = self.reward_func(reward, self.discount, next_value,
+                                   terminal, *others)
 
         # critic loss
         cur_value = self.criticize(state, action)
-        value_loss = \
-            self.criterion(cur_value, y_i.to(cur_value.device)) * \
-            t.from_numpy(is_weight).view([batch_size, 1])
+        value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
+        value_loss = (value_loss *
+                      t.from_numpy(is_weight).view([batch_size, 1])
+                      .to(value_loss.device))
         value_loss = value_loss.mean()
+
+        if self.visualize:
+            self.visualize_model(value_loss, "critic")
 
         # actor loss
         cur_action = self.action_transform_func(self.act(state), state, *others)
@@ -116,7 +110,10 @@ class DDPGPer(DDPG):
 
         # update priority
         abs_error = t.sum(t.abs(act_value - y_i), dim=1).flatten().cpu().numpy()
-        self.rpb.update_priority(abs_error, index)
+        self.replay_buffer.update_priority(abs_error, index)
+
+        if self.visualize:
+            self.visualize_model(act_policy_loss, "actor")
 
         if update_value:
             self.critic.zero_grad()
@@ -129,7 +126,7 @@ class DDPGPer(DDPG):
             self.actor_optim.step()
 
         # Update target networks
-        if update_targets:
+        if update_target:
             soft_update(self.actor_target, self.actor, self.update_rate)
             soft_update(self.critic_target, self.critic, self.update_rate)
 

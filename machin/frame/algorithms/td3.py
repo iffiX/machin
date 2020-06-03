@@ -8,6 +8,11 @@ class TD3(DDPG):
     TD3 framework. Which adds a additional pair of critic and target critic
     network to DDPG.
     """
+
+    _is_top = ["actor", "critic", "critic2",
+               "actor_target", "critic_target", "critic2_target"]
+    _is_restorable = ["actor_target", "critic_target", "critic2_target"]
+
     def __init__(self,
                  actor: Union[NeuralNetworkModule, nn.Module],
                  actor_target: Union[NeuralNetworkModule, nn.Module],
@@ -35,11 +40,40 @@ class TD3(DDPG):
                  **__):
         """
         Args:
+            actor: Actor network module.
+            actor_target: Target actor network module.
+            critic: Critic network module.
+            critic_target: Target critic network module.
             critic2: The second critic network module.
             critic2_target: The second target critic network module.
+            optimizer: Optimizer used to optimize ``actor`` and ``critic``.
+            criterion: Critierion used to evaluate the value loss.
+            learning_rate: Learning rate of the optimizer, not compatible with
+                ``lr_scheduler``.
+            lr_scheduler: Learning rate scheduler of ``optimizer``.
+            lr_scheduler_args: Arguments of the learning rate scheduler.
+            lr_scheduler_kwargs: Keyword arguments of the learning
+                rate scheduler.
+            batch_size: Batch size used during training.
+            update_rate: :math:`\\tau` used to update target networks.
+                Target parameters are updated as:
+
+                :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
+
+            discount: :math:`\\gamma` used in the bellman function.
+            replay_size: Replay buffer size. Not compatible with
+                ``replay_buffer``.
+            replay_device: Device where the replay buffer locates on, Not
+                compatible with ``replay_buffer``.
+            replay_buffer: Custom replay buffer.
+            reward_func: Reward function used in training.
+            action_trans_func: Action transform function, used to transform
+                the raw output of your actor, by default it is:
+                ``lambda act: {"action": act}``
+            visualize: Whether visualize the network flow in the first pass.
 
         See Also:
-            :class:`machin.models.frames.algorithms.DDPG`
+            :class:`.DDPG`
         """
         super(TD3, self).__init__(
             actor, actor_target, critic, critic_target, optimizer, criterion,
@@ -81,10 +115,6 @@ class TD3(DDPG):
                                   if policy_noise_func is None
                                   else policy_noise_func)
 
-        self.set_top(["actor", "critic", "critic2",
-                      "actor_target", "critic_target", "critic2_target"])
-        self.set_restorable(["actor_target", "critic_target", "critic2_target"])
-
     def criticize2(self,
                    state: Dict[str, Any],
                    action: Dict[str, Any],
@@ -97,10 +127,10 @@ class TD3(DDPG):
         Args:
             state: Current state.
             action: Current action.
-            use_target: Whether use the target network.
+            use_target: Whether to use the target network.
 
         Returns:
-            Value evaluated by critic.
+            Value of shape ``[batch_size, 1]``.
         """
         if use_target:
             return safe_call(self.critic2_target, state, action)
@@ -110,15 +140,10 @@ class TD3(DDPG):
     def update(self,
                update_value=True,
                update_policy=True,
-               update_targets=True,
+               update_target=True,
                concatenate_samples=True,
                **__):
-        """
-        Update network weights by sampling from replay buffer.
-
-        Returns:
-            (mean value of estimated policy value, value loss)
-        """
+        # DOC INHERITED
         batch_size, (state, action, reward, next_state, terminal, *others) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
@@ -178,7 +203,7 @@ class TD3(DDPG):
             self.actor_optim.step()
 
         # Update target networks
-        if update_targets:
+        if update_target:
             soft_update(self.actor_target, self.actor, self.update_rate)
             soft_update(self.critic_target, self.critic, self.update_rate)
             soft_update(self.critic2_target, self.critic2, self.update_rate)
@@ -193,7 +218,20 @@ class TD3(DDPG):
 
     def load(self, model_dir: str, network_map: Dict[str, str] = None,
              version: int = -1):
-        # DOC INHERITED
+        """
+        Load models.
+
+        An example of network map::
+
+            {"actor_target": "actor_target_file_name",
+             "critic_target": "critic_target_file_name",
+             "critic2_target": "critic2_target_file_name"}
+
+        Args:
+            model_dir: Save directory.
+            network_map: Key is module name, value is saved name.
+            version: Version number of the save to be loaded.
+        """
         TorchFramework.load(self, model_dir, network_map, version)
         with t.no_grad():
             hard_update(self.actor, self.actor_target)

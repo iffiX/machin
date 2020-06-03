@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
         if episode.get() > 5:
             for i in range(local_step.get()):
-                ddpg.update(update_policy=i % 2 == 0, update_targets=i % 2 == 0)
+                ddpg.update(update_policy=i % 2 == 0, update_target=i % 2 == 0)
 
         local_step.reset()
         episode_finished = False

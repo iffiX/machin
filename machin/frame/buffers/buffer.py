@@ -154,7 +154,7 @@ class Buffer(object):
             batch_size: A hint size of the result sample. actual sample size
                         depends on your sample method.
             sample_method: Sample method, could be one of:
-                           ``("random", "random_unique", "all")``,
+                           ``"random", "random_unique", "all"``,
                            or a function:
                            ``func(list, batch_size)->(list, result_size)``
             concatenate: Whether concatenate state, action and next_state

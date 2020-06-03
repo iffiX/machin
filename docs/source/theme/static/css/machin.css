@@ -323,7 +323,9 @@ span[id*='MathJax-Span'] {
 .rst-content .warning .admonition-title,
 .rst-content .wy-alert-warning.seealso .admonition-title,
 .rst-content .admonition-todo .admonition-title,
-.rst-content .wy-alert-warning.admonition .admonition-title {
+.rst-content .wy-alert-warning.admonition .admonition-title,
+.rst-content .important .wy-alert-title,
+.rst-content .important .admonition-title {
     background: #ee6622
 }
 
@@ -396,7 +398,7 @@ span[id*='MathJax-Span'] {
 .rst-content .wy-alert-success.danger .wy-alert-title,
 .rst-content .wy-alert-success.error .wy-alert-title,
 .rst-content .hint .wy-alert-title,
-.rst-content .important .wy-alert-title,
+
 .rst-content .tip .wy-alert-title,
 .rst-content .wy-alert-success.warning .wy-alert-title,
 .rst-content .wy-alert-success.seealso .wy-alert-title,
@@ -410,7 +412,6 @@ span[id*='MathJax-Span'] {
 .rst-content .wy-alert-success.danger .admonition-title,
 .rst-content .wy-alert-success.error .admonition-title,
 .rst-content .hint .admonition-title,
-.rst-content .important .admonition-title,
 .rst-content .tip .admonition-title,
 .rst-content .wy-alert-success.warning .admonition-title,
 .rst-content .wy-alert-success.seealso .admonition-title,

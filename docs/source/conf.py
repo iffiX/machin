@@ -15,6 +15,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join('..', '..')))
 
 import machin
+import torch
 
 # -- Project information -----------------------------------------------------
 
@@ -65,6 +66,7 @@ autodoc_typehints = "description"
 # but __init__ signature is also documented, not beautiful.
 # napoleon_include_init_with_doc = True
 # napoleon_use_admonition_for_examples = True
+
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for

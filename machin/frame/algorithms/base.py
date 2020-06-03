@@ -10,30 +10,18 @@ class TorchFramework:
     """
     Base framework for all algorithms
     """
+    _is_top = []
+    _is_restorable = []
+
     def __init__(self):
-        self._is_top = []
-        self._is_restorable = []
         self._visualized = set()
 
-    def set_top(self, top):
-        """
-        Set top level modules.
-        """
-        self._is_top = top
-        return self
-
-    def set_restorable(self, restorable: List[str]):
-        """
-        Set restorable (loadable & savable) modules.
-        """
-        self._is_restorable = restorable
-        return self
-
-    def get_restorable(self):
+    @classmethod
+    def get_restorable(cls):
         """
         Get restorable modules.
         """
-        return self._is_restorable
+        return cls._is_restorable
 
     def enable_multiprocessing(self):
         """
@@ -48,10 +36,8 @@ class TorchFramework:
         """
         Load models.
 
-        An example of network map::
-
-            {"actor": "actor_file_name", "critic": "critic_file_name"}
-
+        Note:
+            ``network_map`` is the same as ``save()``.
         Args:
             model_dir: Save directory.
             network_map: Key is module name, value is saved name.
@@ -75,6 +61,13 @@ class TorchFramework:
              version: int = 0):
         """
         Save models.
+
+        An example of network map::
+
+            {"restorable_model_1": "file_name_1",
+             "restorable_model_2": "file_name_2"}
+
+        Get keys by calling ``<Class name>.get_restorable()``
 
         Args:
             model_dir: Save directory.

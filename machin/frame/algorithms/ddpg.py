@@ -9,7 +9,7 @@ from machin.frame.noise.action_space_noise import \
     add_clipped_normal_noise_to_action, \
     add_uniform_noise_to_action, \
     add_ou_noise_to_action
-from machin.models.nets.base import NeuralNetworkModule
+from machin.model.nets.base import NeuralNetworkModule
 from .base import TorchFramework
 from .utils import hard_update, soft_update, safe_call, assert_output_is_probs
 
@@ -18,6 +18,10 @@ class DDPG(TorchFramework):
     """
     DDPG framework.
     """
+
+    _is_top = ["actor", "critic", "actor_target", "critic_target"]
+    _is_restorable = ["actor_target", "critic_target"]
+
     def __init__(self,
                  actor: Union[NeuralNetworkModule, nn.Module],
                  actor_target: Union[NeuralNetworkModule, nn.Module],
@@ -148,8 +152,6 @@ class DDPG(TorchFramework):
                                       else action_trans_func)
 
         super(DDPG, self).__init__()
-        self.set_top(["actor", "critic", "actor_target", "critic_target"])
-        self.set_restorable(["actor_target", "critic_target"])
 
     def act(self,
             state: Dict[str, Any],
@@ -164,7 +166,7 @@ class DDPG(TorchFramework):
             use_target: Whether use the target network.
 
         Returns:
-            Action returned by actor
+            Action of shape ``[batch_size, action_dim]``.
         """
         if use_target:
             return safe_call(self.actor_target, state)
@@ -180,10 +182,10 @@ class DDPG(TorchFramework):
                        use_target=False,
                        **__):
         """
-        Use actor network to produce an noisy action for the current state.
+        Use actor network to produce a noisy action for the current state.
 
         See Also:
-             :mod:`machin.frames.noise.action_space_noise`
+             :mod:`machin.frame.noise.action_space_noise`
 
         Args:
             state: Current state.
@@ -194,7 +196,7 @@ class DDPG(TorchFramework):
             use_target: Whether use the target network.
 
         Returns:
-            Action (with noise) produced by actor.
+            Noisy action of shape ``[batch_size, action_dim]``.
         """
         if mode == "uniform":
             return add_uniform_noise_to_action(
@@ -220,7 +222,7 @@ class DDPG(TorchFramework):
                      use_target: bool = False,
                      **__):
         """
-        Use actor network to produce an discreet action for the current state.
+        Use actor network to produce a discreet action for the current state.
 
         Notes:
             actor network must output a probability tensor, of shape
@@ -229,10 +231,10 @@ class DDPG(TorchFramework):
 
         Args:
             state: Current state.
-            use_target: Whether use the target network.
+            use_target: Whether to use the target network.
 
         Returns:
-            Action produced by actor.
+            Action of shape ``[batch_size, 1]``.
         """
         if use_target:
             result = safe_call(self.actor_target, state)
@@ -260,10 +262,10 @@ class DDPG(TorchFramework):
 
         Args:
             state: Current state.
-            use_target: Whether use the target network.
+            use_target: Whether to use the target network.
 
         Returns:
-            Policy (with noise) produced by actor.
+            Noisy action of shape ``[batch_size, 1]``.
         """
         if use_target:
             result = safe_call(self.actor_target, state)
@@ -287,10 +289,10 @@ class DDPG(TorchFramework):
         Args:
             state: Current state.
             action: Current action.
-            use_target: Whether use the target network.
+            use_target: Whether to use the target network.
 
         Returns:
-            Value evaluated by critic.
+            Value of shape ``[batch_size, 1]``.
         """
         if use_target:
             return safe_call(self.critic_target, state, action)
@@ -307,7 +309,7 @@ class DDPG(TorchFramework):
 
     def store_episode(self, episode: List[Union[Transition, Dict]]):
         """
-        Add a transition sample to the replay buffer.
+        Add a full episode of transition samples to the replay buffer.
         """
         for trans in episode:
             self.replay_buffer.append(trans, required_attrs=(
@@ -317,7 +319,7 @@ class DDPG(TorchFramework):
     def update(self,
                update_value=True,
                update_policy=True,
-               update_targets=True,
+               update_target=True,
                concatenate_samples=True,
                **__):
         """
@@ -326,11 +328,11 @@ class DDPG(TorchFramework):
         Args:
             update_value: Whether update the Q network.
             update_policy: Whether update the actor network.
-            update_targets: Whether update targets.
+            update_target: Whether update targets.
             concatenate_samples: Whether concatenate the samples.
 
         Returns:
-            (mean value of estimated policy value, value loss)
+            mean value of estimated policy value, value loss
         """
         batch_size, (state, action, reward, next_state, terminal, *others) = \
             self.replay_buffer.sample_batch(self.batch_size,
@@ -381,7 +383,7 @@ class DDPG(TorchFramework):
             self.actor_optim.step()
 
         # Update target networks
-        if update_targets:
+        if update_target:
             soft_update(self.actor_target, self.actor, self.update_rate)
             soft_update(self.critic_target, self.critic, self.update_rate)
 
@@ -399,7 +401,19 @@ class DDPG(TorchFramework):
 
     def load(self, model_dir: str, network_map: Dict[str, str] = None,
              version: int = -1):
-        # DOC INHERITED
+        """
+        Load models.
+
+        An example of network map::
+
+            {"actor_target": "actor_target_file_name",
+             "critic_target": "critic_target_file_name"}
+
+        Args:
+            model_dir: Save directory.
+            network_map: Key is module name, value is saved name.
+            version: Version number of the save to be loaded.
+        """
         super(DDPG, self).load(model_dir, network_map, version)
         with t.no_grad():
             hard_update(self.actor, self.actor_target)

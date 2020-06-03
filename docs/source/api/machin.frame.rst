@@ -18,6 +18,13 @@ DDPG
     :undoc-members:
     :show-inheritance:
 
+Hysterical DDPG
+-----------------------------
+.. automodule:: machin.frame.algorithms.hddpg
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 DDPG with prioritized replay
 -----------------------------
 .. automodule:: machin.frame.algorithms.ddpg_per
@@ -32,9 +39,30 @@ TD3
     :undoc-members:
     :show-inheritance:
 
-Hysterical DDPG
------------------------------
-.. automodule:: machin.frame.algorithms.hddpg
+DQN, Fixed-Target DQN, Dueling DQN, Double DQN
+----------------------------------------------
+.. automodule:: machin.frame.algorithms.dqn
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+DQN with prioritized replay
+------------------------------
+.. automodule:: machin.frame.algorithms.dqn_per
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+RAINBOW
+------------------------------
+.. automodule:: machin.frame.algorithms.rainbow
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+A2C
+------------------------------
+.. automodule:: machin.frame.algorithms.a2c
     :members:
     :undoc-members:
     :show-inheritance:

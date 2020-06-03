@@ -59,9 +59,11 @@ class TransitionBase(object):
     def __getitem__(self, item):
         return getattr(self, item)
 
+    def __setitem__(self, key, value):
+        object.__setattr__(key, value)
+
     def __setattr__(self, key, value):
-        raise RuntimeError("You should not set any attributes of a Transition"
-                           " instance after initialization!")
+        object.__setattr__(key, value)
 
     @property
     def major_attr(self):

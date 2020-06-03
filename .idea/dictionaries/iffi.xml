@@ -2,6 +2,7 @@
   <dictionary name="iffi">
     <words>
       <w>concatenatable</w>
+      <w>cuda</w>
       <w>ddpg</w>
       <w>entropies</w>
       <w>idxs</w>
@@ -13,6 +14,8 @@
       <w>pickable</w>
       <w>probs</w>
       <w>pytorch</w>
+      <w>qnet</w>
+      <w>reparameterization</w>
       <w>restorable</w>
       <w>rref</w>
     </words>

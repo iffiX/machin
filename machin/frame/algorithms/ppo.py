@@ -93,12 +93,12 @@ class PPO(A2C):
         # sample a batch
         batch_size, (state, action, reward, next_state, terminal,
                      action_log_prob, target_value, advantage, *others) = \
-            self.rpb.sample_batch(-1,
-                                  sample_method="all",
-                                  concatenate=concatenate_samples,
-                                  sample_attrs=["state", "action", "reward", "next_state", "terminal",
+            self.replay_buffer.sample_batch(-1,
+                                            sample_method="all",
+                                            concatenate=concatenate_samples,
+                                            sample_attrs=["state", "action", "reward", "next_state", "terminal",
                                                "action_log_prob", "value", "gae", "*"],
-                                  additional_concat_attrs=["action_log_prob", "value", "gae"])
+                                            additional_concat_attrs=["action_log_prob", "value", "gae"])
 
         # normalize target value
         target_value = (target_value - target_value.mean()) / (target_value.std() + 1e-5)
@@ -150,5 +150,5 @@ class PPO(A2C):
                 self.critic_optim.step()
                 sum_value_loss += value_loss.item()
 
-        self.rpb.clear()
+        self.replay_buffer.clear()
         return -sum_act_policy_loss / self.update_times, sum_value_loss / self.update_times
