@@ -1,6 +1,6 @@
 from PIL import Image
 from typing import List
-from .parallel import get_context, Group
+from .parallel import get_context
 import numpy as np
 import moviepy.editor as mpy
 import matplotlib.pyplot as plt
@@ -90,39 +90,12 @@ def create_video_subproc(frames: List[np.array],
     Create video with a subprocess, since it takes a lot of time for ``moviepy``
     to encode the video file.
 
-    .. seealso:: :func: `create_video`
+    See Also:
+         :func:`.create_video`
 
-    Notes:
+    Note:
         if ``daemon`` is true, then this function cannot be used in a
         daemonic subprocess.
-
-    Args:
-        frames: A list of numpy arrays of shape (H, W, C) or (H, W), and with
-            ``dtype`` = any float or any int.
-            When a frame is float type, its value range should be [0, 1].
-            When a frame is integer type, its value range should be [0, 255].
-        path: Path to save the video, without extension.
-        extension: File extension.
-        fps: frames per second.
-        daemon: Whether launching the saving process as a daemonic process.
-    """
-    if len(frames) == 0:
-        raise RuntimeWarning("Empty frames sequence, file {} skipped"
-                             .format(path + extension))
-    p = get_context("spawn").Process(target=create_video,
-                                     args=(frames, path, extension, fps))
-    p.daemon = daemon
-    p.start()
-
-
-def create_video_group(frames: List[np.array],
-                       path: str,
-                       group: Group,
-                       extension: str = ".gif",
-                       fps=15):
-    """
-    Create video with a delegated group member.
-    .. seealso:: :func: `create_video`
 
     Args:
         frames: A list of numpy arrays of shape (H, W, C) or (H, W), and with
@@ -166,7 +139,14 @@ def create_image(image: np.array, path: str, extension=".png"):
 
 def create_image_subproc(image: np.array, path, extension=".png", daemon=True):
     """
-    .. seealso:: :func: `create_image`
+    Create image with a subprocess.
+
+    See Also:
+         :func:`.create_image`
+
+    Note:
+        if ``daemon`` is true, then this function cannot be used in a
+        daemonic subprocess.
 
     Args:
         image: A numpy array of shape (H, W, C) or (H, W), and with

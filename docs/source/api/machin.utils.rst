@@ -43,3 +43,17 @@ media
    :members:
    :undoc-members:
    :show-inheritance:
+
+prepare
++++++++++++++++++
+.. automodule:: machin.utils.prepare
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+save_env
++++++++++++++++++
+.. automodule:: machin.utils.save_env
+   :members:
+   :undoc-members:
+   :show-inheritance:

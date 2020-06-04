@@ -10,7 +10,7 @@ import torch as t
 import torch.nn as nn
 
 from .distributed import RpcGroup
-from machin.utils.prep import prep_load_state_dict
+from machin.utils.prepare import prep_load_state_dict
 
 
 class SimpleOrderedServer:

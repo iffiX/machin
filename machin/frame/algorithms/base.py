@@ -1,8 +1,8 @@
-from typing import Dict, List
+from typing import Dict
 from torchviz import make_dot
 import torch as t
 
-from machin.utils.prep import prep_load_model
+from machin.utils.prepare import prep_load_model
 from machin.utils.logging import default_logger
 
 

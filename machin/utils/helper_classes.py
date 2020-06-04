@@ -8,12 +8,21 @@ class Counter:
         self._step = step
 
     def count(self):
+        """
+        Move counter forward by ``step``
+        """
         self._count += self._step
 
     def get(self):
+        """
+        Get the internal number of counter.
+        """
         return self._count
 
     def reset(self):
+        """
+        Reset the counter.
+        """
         self._count = self._start
 
     def __lt__(self, other):
@@ -36,40 +45,51 @@ class Counter:
 
 
 class Switch:
-    def __init__(self, state=False):
+    def __init__(self, state: bool = False):
+        """
+        Args:
+            state: Internal state, ``True`` for on, ``False`` for off.
+        """
         self._on = state
 
     def flip(self):
+        """
+        Inverse the internal state.
+        """
         self._on = not self._on
 
-    def get(self):
+    def get(self) -> bool:
+        """
+        Returns:
+            state of switch.
+        """
         return self._on
 
     def on(self):
+        """
+        Set to on.
+        """
         self._on = True
 
     def off(self):
+        """
+        Set to off.
+        """
         self._on = False
 
 
-class Trigger:
-    def __init__(self, state=False):
-        self._on = state
-
-    def flip(self):
-        self._on = not self._on
-
+class Trigger(Switch):
     def get(self):
+        """
+        Get the state of trigger, will also set trigger to off.
+
+        Returns:
+            state of trigger.
+        """
         on = self._on
         if self._on:
             self._on = False
         return on
-
-    def on(self):
-        self._on = True
-
-    def off(self):
-        self._on = False
 
 
 class Timer:
@@ -77,13 +97,28 @@ class Timer:
         self._last = time.time()
 
     def begin(self):
+        """
+        Begin timing.
+        """
         self._last = time.time()
 
     def end(self):
+        """
+        Returns:
+            Curent time difference since last ``begin()``
+        """
         return time.time() - self._last
 
 
 class Object:
+    """
+    An generic object class, which stores a dictionary internally, and you
+    can access and set its keys by accessing and seting attributes of the
+    object.
+
+    Attributes:
+        data: Internal dictionary.
+    """
     def __init__(self, data=None):
         if data is None:
             data = {}
@@ -93,6 +128,10 @@ class Object:
         return self.call(*args, **kwargs)
 
     def call(self, *args, **kwargs):
+        """
+        the implementation of ``Object.__call__``, override it to
+        customize call behavior.
+        """
         pass
 
     def __getattr__(self, item):
