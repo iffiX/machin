@@ -486,6 +486,9 @@ class RpcGroup:
     def get_group_members(self):
         return self.group_roles
 
+    def get_cur_role(self):
+        return get_cur_role()
+
     @staticmethod
     def _get_real_name(role):
         if isinstance(role, str):

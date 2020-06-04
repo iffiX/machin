@@ -137,7 +137,8 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             self.qnet_target = qnet
         else:
             self.qnet_target = qnet_target
-        self.qnet_optim = optimizer(self.qnet.parameters(), learning_rate)
+        self.qnet_optim = optimizer(self.qnet.parameters(),
+                                    lr=learning_rate)
         self.replay_buffer = (Buffer(replay_size, replay_device)
                               if replay_buffer is None
                               else replay_buffer)
@@ -163,7 +164,6 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
     def act_discreet(self,
                      state: Dict[str, Any],
-                     *_,
                      use_target: bool = False,
                      **__):
         """
@@ -187,7 +187,6 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
     def act_discreet_with_noise(self,
                                 state: Dict[str, Any],
-                                *_,
                                 use_target: bool = False,
                                 **__):
         """
@@ -213,7 +212,6 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
     def criticize(self,
                   state: Dict[str, Any],
-                  *_,
                   use_target: bool = False,
                   **__):
         """

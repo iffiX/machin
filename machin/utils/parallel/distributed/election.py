@@ -52,7 +52,7 @@ class ElectionGroupSimple(ElectionGroupBase):
         pass
 
     def get_leader(self):
-        pass
+        return self.leader_rank
 
     def is_leader(self):
         return self.rank == self.leader_rank

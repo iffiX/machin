@@ -1,5 +1,6 @@
 from .a2c import *
-from utils.parallel import Pool, SimpleQueue, current_process
+from machin.utils.parallel.server import PushPullGradServer, RpcGroup
+from machin.utils.helper_classes import Switch
 
 
 class A3C(A2C):
@@ -9,64 +10,119 @@ class A3C(A2C):
     def __init__(self,
                  actor: Union[NeuralNetworkModule, nn.Module],
                  critic: Union[NeuralNetworkModule, nn.Module],
-                 optimizer,
-                 criterion,
-                 worker_num=2,
+                 optimizer: Callable,
+                 criterion: Callable,
+                 *_,
+                 grad_server_group: RpcGroup = None,
+                 grad_servers: Tuple[Any, Any] = None,
+                 lr_scheduler: Callable = None,
+                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
+                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
+                 learning_rate=0.001,
                  entropy_weight=None,
                  value_weight=0.5,
                  gradient_max=np.inf,
                  gae_lambda=1.0,
-                 learning_rate=0.001,
-                 lr_scheduler=None,
-                 lr_scheduler_params=None,
-                 update_times=50,
                  discount=0.99,
-                 replay_size=5000,
-                 replay_device="cpu"):
-        # DOC INHERITED
+                 update_times=50,
+                 replay_size: int = 500000,
+                 replay_device: Union[str, t.device] = "cpu",
+                 replay_buffer: Buffer = None,
+                 visualize: bool = False,
+                 **__):
+        """
+        See Also:
+            :class:`.A2C`
+
+        Args:
+            actor: Actor network module.
+            critic: Critic network module.
+            optimizer: Optimizer used to optimize ``actor`` and ``critic``.
+            criterion: Critierion used to evaluate the value loss.
+            grad_server_group: Gradient sync server group, actor and critic will
+                share the same sync group.
+            grad_servers: Custom gradient sync servers, the first server is for
+                actor, and the second one is for critic.
+            lr_scheduler: Learning rate scheduler of ``optimizer``.
+            lr_scheduler_args: Arguments of the learning rate scheduler.
+            lr_scheduler_kwargs: Keyword arguments of the learning
+                rate scheduler.
+            learning_rate: Learning rate of the optimizer, not compatible with
+                ``lr_scheduler``.
+            entropy_weight: Weight of entropy in your loss function, a positive
+                entropy weight will minimize entropy, while a negative one will
+                maximize entropy.
+            value_weight: Weight of critic value loss.
+            gradient_max: Maximum gradient.
+            gae_lambda: :math:`\\lambda` used in generalized advantage
+                estimation.
+            discount: :math:`\\gamma` used in the bellman function.
+            update_times: Number of update iterations per sample period. Buffer
+                will be cleared after ``update()``
+            replay_size: Replay buffer size. Not compatible with
+                ``replay_buffer``.
+            replay_device: Device where the replay buffer locates on, Not
+                compatible with ``replay_buffer``.
+            replay_buffer: Custom replay buffer.
+            visualize: Whether visualize the network flow in the first pass.
+        """
         super(A3C, self).__init__(actor, critic, optimizer, criterion,
+                                  lr_scheduler=lr_scheduler,
+                                  lr_scheduler_args=lr_scheduler_args,
+                                  lr_scheduler_kwargs=lr_scheduler_kwargs,
+                                  learning_rate=learning_rate,
                                   entropy_weight=entropy_weight,
                                   value_weight=value_weight,
                                   gradient_max=gradient_max,
                                   gae_lambda=gae_lambda,
-                                  learning_rate=learning_rate,
-                                  lr_scheduler=lr_scheduler,
-                                  lr_scheduler_params=lr_scheduler_params,
-                                  update_times=update_times,
                                   discount=discount,
+                                  update_times=update_times,
                                   replay_size=replay_size,
-                                  replay_device=replay_device)
-        self.actor.share_memory()
-        self.critic.share_memory()
-        self.worker_pool = Pool(worker_num)
-        self.worker_pool.enable_global_find(True)
-        # For safety reasons, use full tensor copy rather than reference.
-        # Usually in a3c, tensor copy between workers and the main process
-        # is extremely rare.
-        self.worker_pool.enable_copy_tensors(True)
-
-        # send & recv are from the perspective of the parent process
-        # ie. send to workers and recv from workers
-        self.send_message_queue = SimpleQueue(self.worker_pool._ctx)
-        self.recv_message_queue = SimpleQueue(self.worker_pool._ctx)
-
-    def run_workers(self, worker_func):
-        self.worker_pool.map(worker_func)
-
-    def send(self, message):
-        """
-        Send additional message between parent and workers. Designed for logging purpose.
-        """
-        if current_process().name == 'MainProcess':
-            self.send_message_queue.put(message)
+                                  replay_device=replay_device,
+                                  replay_buffer=replay_buffer,
+                                  visualize=visualize)
+        if grad_servers is None:
+            self.actor_grad_server = PushPullGradServer(
+                group=grad_server_group
+            )
+            self.critic_grad_server = PushPullGradServer(
+                group=grad_server_group
+            )
         else:
-            self.recv_message_queue.put(message)
+            self.actor_grad_server, self.critic_grad_server = \
+                grad_servers[0], grad_servers[1]
+        self._disable_sync = Switch()
 
-    def recv(self):
-        """
-        Receive message from parent or workers. Designed for logging purpose.
-        """
-        if current_process().name == 'MainProcess':
-            return self.recv_message_queue.get()
-        else:
-            return self.send_message_queue.get()
+    def act(self, state: Dict[str, Any], pull: bool = True, **__):
+        # DOC INHERITED
+        if pull and not self._disable_sync.get():
+            self.actor_grad_server.pull(self.actor)
+        return safe_call(self.actor, state)
+
+    def eval_act(self,
+                 state: Dict[str, Any],
+                 action: Dict[str, Any],
+                 pull: bool = True,
+                 **__):
+        # DOC INHERITED
+        if pull and not self._disable_sync.get():
+            self.actor_grad_server.pull(self.actor)
+        return safe_call(self.actor, state, action)
+
+    def criticize(self, state: Dict[str, Any], *_, pull=True, **__):
+        # DOC INHERITED
+        if pull and not self._disable_sync.get():
+            self.critic_grad_server.pull(self.critic)
+        return safe_call(self.critic, state)
+
+    def update(self,
+               update_value=True,
+               update_policy=True,
+               concatenate_samples=True,
+               **__):
+        # DOC INHERITED
+        self._disable_sync.on()
+        self.update(update_value, update_policy, concatenate_samples)
+        self._disable_sync.off()
+        self.actor_grad_server.push(self.actor)
+        self.critic_grad_server.push(self.critic)

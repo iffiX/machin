@@ -84,8 +84,10 @@ class Timer:
 
 
 class Object:
-    def __init__(self):
-        super(Object, self).__setattr__("data", {})
+    def __init__(self, data=None):
+        if data is None:
+            data = {}
+        super(Object, self).__setattr__("data", data)
 
     def __call__(self, *args, **kwargs):
         return self.call(*args, **kwargs)

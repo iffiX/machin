@@ -118,7 +118,6 @@ class TD3(DDPG):
     def criticize2(self,
                    state: Dict[str, Any],
                    action: Dict[str, Any],
-                   *_,
                    use_target=False,
                    **__):
         """

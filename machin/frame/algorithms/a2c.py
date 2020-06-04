@@ -161,8 +161,10 @@ class A2C(TorchFramework):
 
         self.actor = actor
         self.critic = critic
-        self.actor_optim = optimizer(self.actor.parameters(), learning_rate)
-        self.critic_optim = optimizer(self.critic.parameters(), learning_rate)
+        self.actor_optim = optimizer(self.actor.parameters(),
+                                     lr=learning_rate)
+        self.critic_optim = optimizer(self.critic.parameters(),
+                                      lr=learning_rate)
         self.replay_buffer = (Buffer(replay_size, replay_device)
                               if replay_buffer is None
                               else replay_buffer)

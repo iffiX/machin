@@ -30,6 +30,7 @@
           <option value="wrappers.openai_gym._init_envs.env_idxs" />
           <option value="tuple.__sub__" />
           <option value="machin.frame.transition.Transition.__setitem__" />
+          <option value="torch.Tensor.copy_" />
         </list>
       </option>
     </inspection_tool>

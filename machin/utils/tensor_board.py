@@ -18,7 +18,10 @@ class TensorBoard:
 
 
 def normalize_seq_length(seq, length):
-    return np.tile(np.array(seq), int(np.ceil(length / len(seq))))[:length].tolist()
+    return np.tile(
+        np.array(seq),
+        int(np.ceil(length / len(seq)))
+    )[:length].tolist()
 
 
 global_board = TensorBoard()

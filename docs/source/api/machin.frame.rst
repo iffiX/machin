@@ -67,6 +67,20 @@ A2C
     :undoc-members:
     :show-inheritance:
 
+A3C
+------------------------------
+.. automodule:: machin.frame.algorithms.a3c
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+PPO
+------------------------------
+.. automodule:: machin.frame.algorithms.ppo
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 buffers
 +++++++++++++
 

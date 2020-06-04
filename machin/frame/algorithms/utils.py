@@ -21,7 +21,8 @@ def soft_update(target_net: nn.Module,
         for target_param, param in zip(target_net.parameters(),
                                        source_net.parameters()):
             target_param.data.copy_(
-                target_param.data * (1.0 - update_rate) + param.data.to(target_param.device) * update_rate
+                target_param.data * (1.0 - update_rate) +
+                param.data.to(target_param.device) * update_rate
             )
 
 
@@ -62,7 +63,8 @@ def safe_call(model, *named_args, required_argument=()):
     Returns:
         Whatever returned by your module.
     """
-    if not hasattr(model, "input_device") or not hasattr(model, "output_device"):
+    if (not hasattr(model, "input_device") or
+            not hasattr(model, "output_device")):
         raise RuntimeError("Wrap your model of type nn.Module with one of: \n"
                            "1. StaticModuleWrapper from models.models.base \n"
                            "2. DynamicModuleWrapper from models.models.base \n"
@@ -94,5 +96,7 @@ def assert_output_is_probs(tensor):
             torch.all(tensor > 0):
         return
     else:
-        raise RuntimeError("Input tensor is not a probability tensor, it must have a dimension of 2, a sum of 1.0"
-                           " for each row in dimension 1, and a positive value for each element.")
+        raise RuntimeError("Input tensor is not a probability tensor, it must "
+                           "have a dimension of 2, a sum of 1.0 for each row in"
+                           " dimension 1, and a positive value for each "
+                           "element.")

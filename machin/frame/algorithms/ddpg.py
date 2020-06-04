@@ -119,8 +119,10 @@ class DDPG(TorchFramework):
         self.actor_target = actor_target
         self.critic = critic
         self.critic_target = critic_target
-        self.actor_optim = optimizer(self.actor.parameters(), learning_rate)
-        self.critic_optim = optimizer(self.critic.parameters(), learning_rate)
+        self.actor_optim = optimizer(self.actor.parameters(),
+                                     lr=learning_rate)
+        self.critic_optim = optimizer(self.critic.parameters(),
+                                      lr=learning_rate)
         self.replay_buffer = (Buffer(replay_size, replay_device)
                               if replay_buffer is None
                               else replay_buffer)
@@ -155,7 +157,6 @@ class DDPG(TorchFramework):
 
     def act(self,
             state: Dict[str, Any],
-            *_,
             use_target: bool = False,
             **__):
         """
@@ -175,11 +176,10 @@ class DDPG(TorchFramework):
 
     def act_with_noise(self,
                        state: Dict[str, Any],
-                       *_,
                        noise_param: Tuple = (0.0, 1.0),
                        ratio: float = 1.0,
                        mode: str = "uniform",
-                       use_target=False,
+                       use_target: bool = False,
                        **__):
         """
         Use actor network to produce a noisy action for the current state.
@@ -218,7 +218,6 @@ class DDPG(TorchFramework):
 
     def act_discreet(self,
                      state: Dict[str, Any],
-                     *_,
                      use_target: bool = False,
                      **__):
         """
@@ -248,7 +247,6 @@ class DDPG(TorchFramework):
 
     def act_discreet_with_noise(self,
                                 state: Dict[str, Any],
-                                *_,
                                 use_target: bool = False,
                                 **__):
         """
@@ -280,8 +278,7 @@ class DDPG(TorchFramework):
     def criticize(self,
                   state: Dict[str, Any],
                   action: Dict[str, Any],
-                  *_,
-                  use_target=False,
+                  use_target: bool = False,
                   **__):
         """
         Use critic network to evaluate current value.
@@ -326,10 +323,10 @@ class DDPG(TorchFramework):
         Update network weights by sampling from replay buffer.
 
         Args:
-            update_value: Whether update the Q network.
-            update_policy: Whether update the actor network.
-            update_target: Whether update targets.
-            concatenate_samples: Whether concatenate the samples.
+            update_value: Whether to update the Q network.
+            update_policy: Whether to update the actor network.
+            update_target: Whether to update targets.
+            concatenate_samples: Whether to concatenate the samples.
 
         Returns:
             mean value of estimated policy value, value loss

@@ -49,10 +49,8 @@ API
 ==================
 .. toctree::
 
-   api/machin.env.rst
-   api/machin.frame.rst
-   api/machin.models.rst
-   api/machin.utils.rst
+   api/index.rst
+
 
 Indices and tables
 ==================

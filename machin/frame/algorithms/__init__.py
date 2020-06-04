@@ -12,19 +12,19 @@ from .ddpg_per import DDPGPer
 
 #from .apex import DQNApex, DDPGApex
 
-#from .a2c import A2C
-#from .a3c import A3C
-#from .ppo import PPO
+from .a2c import A2C
+from .a3c import A3C
+from .ppo import PPO
 
 #from .impala import IMPALA
-#from .sac import SAC
+from .sac import SAC
 
 __all__ = [
     "TorchFramework",
     "DQN", "DQNPer", "RAINBOW",
     "DDPG", "HDDPG", "TD3", "DDPGPer",
-    #"A2C", "A3C", "PPO",
-    #"SAC",
+    "A2C", "A3C", "PPO",
+    "SAC",
     #"DQNApex", "DDPGApex", "IMPALA",
     #"MADDPG",
 ]
