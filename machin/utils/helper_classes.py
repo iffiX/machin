@@ -135,13 +135,13 @@ class Object:
         pass
 
     def __getattr__(self, item):
-        # this function will be called if python cannot find an attribute
-        # Note: in order to make Object pickable, we must disable raise
-        # AttributeError when looking for special methods, such that when
-        # pickler is looking up __getstate__ function etc, this class will
-        # not return a None value
+        # This function will be called if python cannot find an attribute
+        # Note: in order to make Object pickable, we must raise AttributeError
+        # when looking for special methods, such that when pickler is looking
+        # up a non-existing __getstate__ function etc, this class will
+        # not return a None value because self.attr(item) will return None.
         if isinstance(item, str) and item[:2] == item[-2:] == '__':
-            # skip non-existing dunder method lookups
+            # skip non-existing special method lookups
             raise AttributeError(item)
         return self.attr(item)
 
@@ -159,8 +159,8 @@ class Object:
             else:
                 raise RuntimeError("The data attribute must be a dictionary.")
         else:
-            raise RuntimeError("You should not set the attr property of an Object. "
-                               "Please Override it in a sub class.")
+            raise RuntimeError("You should not set the attr property of an "
+                               "Object. Please Override it in a sub class.")
 
     def __setitem__(self, key, value):
         self.__setattr__(key, value)

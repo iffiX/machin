@@ -1,11 +1,20 @@
+"""
+Attributes:
+    default_board: The default global board.
+"""
 import numpy as np
 from tensorboardX import SummaryWriter
-from .helper_classes import Counter
 
 
 class TensorBoard:
-    writer = None
-    counter = Counter()
+    """
+    Create a tensor board object.
+
+    Attributes:
+        writer: ``SummaryWriter`` of package ``tensorboardX``.
+    """
+    def __init__(self):
+        self.writer = None
 
     def init(self, *writer_args):
         if self.writer is None:
@@ -13,7 +22,10 @@ class TensorBoard:
         else:
             raise RuntimeError("Writer has been initialized!")
 
-    def is_inited(self):
+    def is_inited(self) -> bool:
+        """
+        Returns: whether the board has been initialized with a writer.
+        """
         return not self.writer is None
 
 
@@ -24,4 +36,4 @@ def normalize_seq_length(seq, length):
     )[:length].tolist()
 
 
-global_board = TensorBoard()
+default_board = TensorBoard()

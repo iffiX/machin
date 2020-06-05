@@ -107,6 +107,42 @@ class AttentionBlock(NeuralNetworkModule):
         return t.cat((input, tmp), dim=2), rel.detach(), raw.detach()
 
 
+class AttentionBlock(NeuralNetworkModule):
+    def __init__(self, in_channels, key_size, value_size, device):
+        super(AttentionBlock, self).__init__()
+        self.linear_query = nn.Linear(in_channels, key_size).to(device)
+        self.linear_keys = nn.Linear(in_channels, key_size).to(device)
+        self.linear_values = nn.Linear(in_channels, value_size).to(device)
+        self.sqrt_key_size = m.sqrt(key_size)
+
+        self.set_input_module(self.linear_query)
+
+    def forward(self, input: t.Tensor, time_steps: Union[t.Tensor, None]):
+        # input is dim (N, T, in_channels)
+        # time steps is dim (N, T)
+
+        length = input.shape[1]
+
+        if time_steps is None:
+            mask = t.ones([length, length], dtype=t.uint8, device=input.device)\
+                    .triu(diagonal=1)
+        else:
+            # upper diagnoal
+            mask = time_steps.unsqueeze(dim=2) < time_steps.unsqueeze(dim=1)
+
+        keys = self.linear_keys(input)  # shape: (N, T, key_size)
+        query = self.linear_query(input)  # shape: (N, T, key_size)
+        values = self.linear_values(input)  # shape: (N, T, value_size)
+        raw = t.bmm(query, t.transpose(keys, 1, 2))  # shape: (N, T, T)
+        tmp = raw.clone()
+        tmp.masked_fill_(mask, -float('inf'))
+        rel = t.softmax(tmp / self.sqrt_key_size, dim=1)  # shape: (N, T, T)
+        tmp = t.bmm(rel, values)  # shape: (N, T, value_size)
+
+        # shapes: (N, T, in_channels + value_size), (N, T, T), (N, T, T)
+        return t.cat((input, tmp), dim=2), rel.detach(), raw.detach()
+
+
 class TCDNNet(NeuralNetworkModule):
     def __init__(self, in_channels, out_channels, seq_length, additional_length=0,
                  att_layer=(16, 16),

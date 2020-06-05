@@ -144,7 +144,7 @@ if __name__ == "__main__":
 
             return tmp_observe, total_reward, local_step.get(), frames
 
-        results = pool.map(run_trial, range(first_episode, last_episode+1))
+        results = pool.map(run_trial, range(first_episode, last_episode + 1))
 
         for result, episode_num in zip(results, range(first_episode, last_episode+1)):
             tmp_observe, total_reward, local_step, frames = result

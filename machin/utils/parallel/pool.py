@@ -1,42 +1,51 @@
-import dill
-import functools as fc
-import multiprocessing as mp
-import multiprocessing.util as util
-import torch.multiprocessing.pool as tmpp
+import multiprocessing.pool as pool
+from torch.multiprocessing.pool import clean_worker
 
+import dill
 from .queue import SimpleQueue
 
 
-def proxy_short(x):
-    func_str, *args = x
-    func = dill.loads(func_str)
-    return func(*args)
-
-
-def proxy_long(func_str, *args, **kwargs):
+def proxy_caller(input_):
+    """
+    Call a serialized function and return results.
+    """
+    func_str, args, kwargs = input_
     func = dill.loads(func_str)
     return func(*args, **kwargs)
 
 
-def proxy_zip_short(recurse, func, iterable):
+def proxy_dumper(recurse, func, args_list, kwargs_list=None):
+    """
+    Serialize a function so it can be called.
+
+    Returns:
+        List[function string, arguments...]
+    """
+    # recurse will enable context variable saving
     dump = dill.dumps(func, protocol=dill.HIGHEST_PROTOCOL, recurse=recurse)
-    for arg in iterable:
-        yield dump, arg
+    if kwargs_list is not None:
+        for args, kwargs in zip(args_list, kwargs_list):
+            yield [dump, args, kwargs]
+    else:
+        for args in args_list:
+            yield [dump, args, {}]
 
 
-def proxy_zip_long(recurse, func, iterable):
-    dump = dill.dumps(func, protocol=dill.HIGHEST_PROTOCOL, recurse=recurse)
-    for args in iterable:
-        # recurese will enable contect variable saving
-        yield [dump] + list(args)
+class Pool(pool.Pool):
+    """
+    Enhanced multiprocessing pool for pytorch, provides:
+     1. Support for lambdas and local functions.
+     2. Ability to select the tensor serialize scheme.
+     3. Ability to get the number of workers.
+    """
 
-
-class Pool(mp.pool.Pool):
-    is_global = False
-    is_daemon = True
+    # Multiprocessing pool is badly written.
+    # python IDEs will complain a lot.
 
     def __init__(self, processes=None, initializer=None, initargs=(),
-                 maxtasksperchild=None, context=None, is_daemon=True):
+                 maxtasksperchild=None, context=None,
+                 is_global=True, is_daemon=True):
+        self.is_global = is_global
         self.is_daemon = is_daemon
         super(Pool, self).__init__(
             processes=processes,
@@ -46,138 +55,153 @@ class Pool(mp.pool.Pool):
             context=context
         )
 
-    def enable_global_find(self, is_global):
-        self.is_global = is_global
-
-    def enable_copy_tensors(self, is_copy_tensors):
-        self._inqueue.set_copy(is_copy_tensors)
-        self._outqueue.set_copy(is_copy_tensors)
-
     def _setup_queues(self):
-        """
-        There seems to be a bug in the Queue implementation of python3, but SimpleQueue works fine
-        in get():
-
-        if block and timeout is None:
-            with self._rlock:
-                res = self._recv_bytes()
-            self._sem.release()
-        If the queue is empty, ValueError: semaphore or lock released too many times will be raised
-        """
-
         self._inqueue = SimpleQueue(ctx=self._ctx)
         self._outqueue = SimpleQueue(ctx=self._ctx)
-        self._quick_put = self._inqueue._writer.send
-        self._quick_get = self._outqueue._reader.recv
+        self._quick_put = self._inqueue.quick_put
+        self._quick_get = self._outqueue.quick_get
 
-    def apply(self, func, args=(), kwds={}):
-        """
-        Equivalent of `func(*args, **kwds)`.
-        """
+    def apply(self, func, args=(), kwds=None):
+        # DOC INHERITED
+        if kwds is None:
+            kwds = {}
+        return pool.Pool.apply(self, proxy_caller,
+                               [dill.dumps(func, recurse=self.is_global),
+                                args, kwds])
 
-        return tmpp.Pool.apply(self, proxy_long,
-                               [dill.dumps(func, recurse=self.is_global)] + list(args), kwds)
+    def apply_async(self, func, args=(), kwds=None, callback=None,
+                    error_callback=None):
+        # DOC INHERITED
+        if kwds is None:
+            kwds = {}
+        return pool.Pool.apply_async(self, proxy_caller,
+                                     [dill.dumps(func, recurse=self.is_global),
+                                      args, kwds])
 
-    def map(self, func, iterable, chunksize=None):
-        """
-        Apply `func` to each element in `iterable`, collecting the results
-        in a list that is returned.
-        """
-        return tmpp.Pool.map(self, proxy_short,
-                             fc.partial(proxy_zip_short, self.is_global)(func, iterable),
+    def map(self, func, iterable, chunksize):
+        # DOC INHERITED
+        return pool.Pool.map(self, proxy_caller,
+                             proxy_dumper(
+                                 self.is_global,
+                                 func,
+                                 [(arg,) for arg in iterable]
+                             ),
                              chunksize)
 
+    def map_async(self, func, iterable, chunksize=None, callback=None,
+                  error_callback=None):
+        # DOC INHERITED
+        return pool.Pool.map_async(self, proxy_caller,
+                                   proxy_dumper(
+                                       self.is_global,
+                                       func,
+                                       [(arg,) for arg in iterable]
+                                   ),
+                                   chunksize, callback, error_callback)
+
+    def imap(self, func, iterable, chunksize=1):
+        # DOC INHERITED
+        return pool.Pool.imap(self, proxy_caller,
+                              proxy_dumper(
+                                  self.is_global,
+                                  func,
+                                  [(arg,) for arg in iterable]
+                              ),
+                              chunksize)
+
+    def imap_unordered(self, func, iterable, chunksize=1):
+        # DOC INHERITED
+        return pool.Pool.imap_unordered(self, proxy_caller,
+                                        proxy_dumper(
+                                            self.is_global,
+                                            func,
+                                            [(arg,) for arg in iterable]
+                                        ),
+                                        chunksize)
+
     def starmap(self, func, iterable, chunksize=None):
-        """
-        Like `map()` method but the elements of the `iterable` are expected to
-        be iterables as well and will be unpacked as arguments. Hence
-        `func` and (a, b) becomes func(a, b).
-        """
-        return tmpp.Pool.starmap(self, proxy_long,
-                                 fc.partial(proxy_zip_long, self.is_global)(func, iterable),
+        # DOC INHERITED
+        return pool.Pool.starmap(self, proxy_caller,
+                                 proxy_dumper(
+                                     self.is_global,
+                                     func,
+                                     iterable
+                                 ),
                                  chunksize)
 
     def starmap_async(self, func, iterable, chunksize=None, callback=None,
                       error_callback=None):
-        """
-        Asynchronous version of `starmap()` method.
-        """
-        return tmpp.Pool.starmap_async(self, proxy_long,
-                                       fc.partial(proxy_zip_long, self.is_global)(func, iterable),
+        # DOC INHERITED
+        return pool.Pool.starmap_async(self, proxy_caller,
+                                       proxy_dumper(
+                                           self.is_global,
+                                           func,
+                                           iterable
+                                       ),
                                        chunksize, callback, error_callback)
 
-    def imap(self, func, iterable, chunksize=1):
-        """
-        Equivalent of `map()` -- can be MUCH slower than `Pool.map()`.
-        """
-        return tmpp.Pool.imap(self, proxy_short,
-                              fc.partial(proxy_zip_short, self.is_global)(func, iterable),
-                              chunksize)
-
-    def imap_unordered(self, func, iterable, chunksize=1):
-        """
-        Like `imap()` method but ordering of results is arbitrary.
-        """
-        return tmpp.Pool.imap_unordered(self, proxy_short,
-                                        fc.partial(proxy_zip_short, self.is_global)(func, iterable),
-                                        chunksize)
-
-    def apply_async(self, func, args=(), kwds={}, callback=None,
-                    error_callback=None):
-        """
-        Asynchronous version of `apply()` method.
-        """
-        return tmpp.Pool.apply_async(self, proxy_short,
-                                     [dill.dumps(func, recurse=self.is_global)] + list(args), kwds)
-
-    def map_async(self, func, iterable, chunksize=None, callback=None,
-                  error_callback=None):
-        """
-        Asynchronous version of `map()` method.
-        """
-        return tmpp.Pool.map(self, proxy_short,
-                             fc.partial(proxy_zip_short, self.is_global)(func, iterable),
-                             chunksize, callback, error_callback)
-
     def _repopulate_pool(self):
-        """Bring the number of pool processes up to the specified number,
+        """
+        Bring the number of pool processes up to the specified number,
         for use after reaping workers which have exited.
         """
-        for i in range(self._processes - len(self._pool)):
+        for _ in range(self._processes - len(self._pool)):
             # changed worker -> clean_worker
             args = (self._inqueue, self._outqueue,
                     self._initializer,
                     self._initargs, self._maxtasksperchild)
             if hasattr(self, '_wrap_exception'):
                 args += (self._wrap_exception,)
-            w = self.Process(target=tmpp.clean_worker, args=args)
-            self._pool.append(w)
-            w.name = w.name.replace('Process', 'PoolWorker')
-            w.daemon = self.is_daemon
-            w.start()
-            util.debug('added worker')
+            worker = self.Process(target=clean_worker, args=args)
+            self._pool.append(worker)
+            worker.name = worker.name.replace('Process', 'PoolWorker')
+            worker.daemon = self.is_daemon
+            worker.start()
+            pool.util.debug('added worker')
 
     def size(self):
+        """
+        Returns:
+            The number of workers in pool.
+        """
         return len(self._pool)
 
+    def __reduce__(self):
+        raise RuntimeError("Process pool is not reducible.")
 
-class ThreadPool(mp.pool.ThreadPool):
+
+class ThreadPool(pool.ThreadPool):
+    """
+    A typical thread pool, provides:
+    1. Ability to get the number of workers.
+    """
+    # Multiprocessing pool is badly written.
+    # python IDEs will complain a lot.
+
     def _repopulate_pool(self):
-        """Bring the number of pool processes up to the specified number,
+        """
+        Bring the number of pool processes up to the specified number,
         for use after reaping workers which have exited.
         """
-        for i in range(self._processes - len(self._pool)):
+        for _ in range(self._processes - len(self._pool)):
             # changed worker -> clean_worker
             args = (self._inqueue, self._outqueue,
                     self._initializer,
                     self._initargs, self._maxtasksperchild)
             if hasattr(self, '_wrap_exception'):
                 args += (self._wrap_exception,)
-            w = self.Process(target=tmpp.clean_worker, args=args)
-            self._pool.append(w)
-            w.name = w.name.replace('Process', 'PoolWorker')
-            w.start()
-            util.debug('added worker')
+            worker = self.Process(target=clean_worker, args=args)
+            self._pool.append(worker)
+            worker.name = worker.name.replace('Process', 'PoolWorker')
+            worker.start()
+            pool.util.debug('added worker')
 
     def size(self):
+        """
+        Returns:
+            The number of workers in pool.
+        """
         return len(self._pool)
+
+    def __reduce__(self):
+        raise RuntimeError("Thread pool is not reducible.")

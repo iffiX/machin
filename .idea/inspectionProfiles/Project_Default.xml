@@ -31,6 +31,23 @@
           <option value="tuple.__sub__" />
           <option value="machin.frame.transition.Transition.__setitem__" />
           <option value="torch.Tensor.copy_" />
+          <option value="restart_use_trial" />
+          <option value="multiprocessing.pool.util" />
+          <option value="machin.utils.parallel.pool.ThreadPool.Process" />
+          <option value="machin.utils.parallel.pool.ThreadPool._processes" />
+          <option value="machin.utils.parallel.pool.ThreadPool._inqueue" />
+          <option value="machin.utils.parallel.pool.ThreadPool._initializer" />
+          <option value="machin.utils.parallel.pool.ThreadPool._initargs" />
+          <option value="machin.utils.parallel.pool.ThreadPool._outqueue" />
+          <option value="machin.utils.parallel.pool.ThreadPool._maxtasksperchild" />
+          <option value="machin.utils.parallel.pool.ThreadPool._pool" />
+          <option value="machin.utils.parallel.pool.Pool._processes" />
+          <option value="machin.utils.parallel.pool.Pool._pool" />
+          <option value="machin.utils.parallel.pool.Pool._initializer" />
+          <option value="machin.utils.parallel.pool.Pool._initargs" />
+          <option value="machin.utils.parallel.pool.Pool._maxtasksperchild" />
+          <option value="machin.utils.parallel.pool.Pool.Process" />
+          <option value="machin.utils.parallel.pool.Pool._ctx" />
         </list>
       </option>
     </inspection_tool>
