@@ -14,7 +14,7 @@ class CasualConv1d(NeuralNetworkModule):
         padding = dilation * (kernel_size - 1)
         self.conv1d = nn.Conv1d(in_channels, out_channels, kernel_size, stride,
                                 padding, dilation, groups, bias).to(device)
-
+        nn.Conv2d
         self.set_input_module(self.conv1d)
 
     def forward(self, input: t.Tensor):

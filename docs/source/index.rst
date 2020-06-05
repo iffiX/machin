@@ -6,7 +6,7 @@
 Intro
 ==================================
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 1
    :caption: Contents:
 
 Welcome to the main documentation of Machin. Machin is a reinforcement
@@ -48,6 +48,7 @@ TODO
 API
 ==================
 .. toctree::
+   :maxdepth: 2
 
    api/index.rst
 

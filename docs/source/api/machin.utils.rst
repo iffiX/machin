@@ -13,12 +13,7 @@ distributed
 
 server
 -----------------
-.. automodule:: machin.utils.parallel.server.ordered_server
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: machin.utils.parallel.server.param_server
+.. automodule:: machin.utils.parallel.server
    :members:
    :undoc-members:
    :show-inheritance:

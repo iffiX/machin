@@ -3,30 +3,58 @@ from datetime import timedelta
 from threading import Thread, local
 from typing import Union, List, Tuple, Dict, Any
 from torch.distributed import rpc
-from .election import ElectionGroupStableRpc
-from .role_dispatcher import RoleDispatcherElection
+
 import torch.distributed as dist
 import torch.distributed.distributed_c10d as dist_c10d
+
+from .election import ElectionGroupStableRpc
+from .role_dispatcher import RoleDispatcherElection
 
 WORLD = None  # type: Union[None, World]
 
 
+def _copy_doc(from_func):
+    """
+    Used by collective group to copy documents from torch.
+    """
+    import io
+    import sys
+
+    def _decorator(func):
+        if 'sphinx' in sys.modules:
+            src_doc = from_func.__doc__
+            lines = io.StringIO(src_doc)
+            # remove the group line
+            src_doc = "".join([line for line in lines if "group" not in line])
+            func.__doc__ = src_doc
+        return func
+    return _decorator
+
+
 def _exec_role(role):
+    # role thread executor.
     local.role = role
     role.on_init()
     role.main()
     role.on_stop()
 
 
-def _call_method(method, inst_rref, *args, **kwargs):
+def _rpc_call_method(method, inst, *args, **kwargs):
+    # Call a method function of a class, ``inst`` is a class instance
+    return method(inst, *args, **kwargs)
+
+
+def _rpc_call_remote_method(method, inst_rref, *args, **kwargs):
+    # Call a method function of a class,
+    # ``inst_rref`` is a class instance wrapped by ``RRef``
     return method(inst_rref.local_value(), *args, **kwargs)
 
 
-def _call_nn_module(nn_module, *args, **kwargs):
+def _rpc_call_nn_module(nn_module, *args, **kwargs):
     return nn_module(*args, **kwargs)
 
 
-def _get_remote_paired_value(group_name, key):
+def _rpc_get_remote_paired_value(group_name, key):
     # TODO: dump other paired maps of the same group
     global WORLD
     paired_map = WORLD.groups[group_name].group_paired_map
@@ -40,6 +68,7 @@ def _get_remote_paired_value(group_name, key):
 
 
 def _world_singleton(cls, *args, **kwargs):
+    # Decorator used to makesure that there is only one world instance.
     def _world_singleton_wrapper():
         global WORLD
         if WORLD is None:
@@ -69,11 +98,17 @@ def get_cur_role():
 
 
 class RpcException(Exception):
+    """
+    Rpc exception class.
+    """
     pass
 
 
 @_world_singleton
 class World:
+    """
+    The distributed world.
+    """
     def __init__(self,
                  world_size: int,
                  current_rank: int,
@@ -87,14 +122,18 @@ class World:
         Args:
             world_size:   Size of distributed world.
             current_rank: A unique rank of current process.
+            roles: A list of roles executed by all processes.
             init_method:  Backend initialization method.
             rpc_timeout:  Global rpc call timeout in seconds.
             rpc_threads:  Rpc recv/send thread num.
+            rpc_role_dispatcher: Rpc role dispatch, by default it is
+                :class:`~machin.utils.parallel.distributed.\
+RoleDispatcherElection` and uses :class:`machin.utils.parallel.\
+distributed.ElectionGroupStableRpc` as its internal election implementation.
         """
         self.world_size = world_size
-        self.role_names = roles.keys()
-        self.role_classes = [it[0] for it in roles.values()]
-        self.role_nums = [it[1] for it in roles.values()]
+        self.role_dict = roles
+        # Maps role Tuple[str, int] to threads
         self.role_threads = {}
 
         self.current_rank = current_rank
@@ -104,9 +143,11 @@ class World:
         if rpc_role_dispatcher is not None:
             self.rpc_role_dispatcher = rpc_role_dispatcher
         else:
+            role_names = list(roles.keys())
+            role_nums = [val[1] for val in roles.values()]
             self.rpc_role_dispatcher = RoleDispatcherElection(
                 current_rank, world_size,
-                self.role_names, self.role_nums,
+                role_names, role_nums,
                 ElectionGroupStableRpc(
                     name="global",
                     member_ranks=self.ranks,
@@ -115,7 +156,7 @@ class World:
                 )
             )
 
-        # "<rank-number>" is used as the unique name
+        # "<rank-number>" is used as the unique name.
         rpc.init_rpc("{}".format(self.current_rank),
                      rank=current_rank,
                      world_size=world_size,
@@ -124,6 +165,18 @@ class World:
                          num_send_recv_threads=rpc_threads,
                          rpc_timeout=timedelta(seconds=rpc_timeout)
                      ))
+
+        # Start role dispatching.
+        self.rpc_role_dispatcher.start()
+        while True:
+            self.rpc_role_dispatcher.get_role_update_cond().wait()
+            for role in self.rpc_role_dispatcher.get_roles():
+                if role not in self.role_threads:
+                    role_class = self.role_dict[role[0]][0]
+                    role_thread = Thread(target=_exec_role,
+                                         args=(role_class(role[1]),))
+                    role_thread.start()
+                    self.role_threads[role] = role_thread
 
     def create_collective_group(self,
                                 group_name: str,
@@ -177,37 +230,38 @@ class World:
         """
         return self.groups.get(group_name, None)
 
-    def start(self):
-        self.rpc_role_dispatcher.start()
-        while True:
-            self.rpc_role_dispatcher.get_role_update_cond().wait()
-            for role in self.rpc_role_dispatcher.get_roles():
-                if role not in self.role_threads:
-                    role_class = self.role_classes[role[0]]
-                    role_thread = Thread(target=_exec_role,
-                                         args=(role_class(role[1]),))
-                    role_thread.start()
-                    self.role_threads[role] = role_thread
-
     def __reduce__(self):
         raise RuntimeError("World is not pickable, create it per process!")
 
 
 class CollectiveGroup:
+    """
+    A thin wrapper of collective communication primitives of
+    ``torch.distributed``, the only difference is that ``irecv``
+    now supports to recv from any src
+    """
     def __init__(self, group, current_relative_rank):
+        """
+        Do not do it your self, use :meth:`~machin.utils.parallel\
+.distributed.World.create_collective_group` instead.
+        """
         self.group = group
         self.current_rank = current_relative_rank
         self.destroyed = False
 
+    @_copy_doc(dist.send)
     def send(self, tensor, dst, tag=0):
         return dist.send(tensor, dst, self.group, tag)
 
+    @_copy_doc(dist.recv)
     def recv(self, tensor, src=None, tag=0):
         return dist.recv(tensor, src, self.group, tag)
 
+    @_copy_doc(dist.isend)
     def isend(self, tensor, dst, tag=0):
         return dist.isend(tensor, dst, self.group, tag)
 
+    @_copy_doc(dist.irecv)
     def irecv(self, tensor, src=None, tag=0):
         # pylint: disable=protected-access
 
@@ -239,33 +293,47 @@ class CollectiveGroup:
                 pg.recv([tensor], group_src_rank, tag).wait()
             return src
 
+    @_copy_doc(dist.broadcast)
     def broadcast(self, tensor, async_op=False):
         return dist.broadcast(tensor, self.current_rank, self.group, async_op)
 
+    @_copy_doc(dist.all_reduce)
     def all_reduce(self, tensor, op=dist.ReduceOp.SUM, async_op=False):
         return dist.all_reduce(tensor, op, self.group, async_op)
 
+    @_copy_doc(dist.reduce)
     def reduce(self, tensor, dst, op=dist.ReduceOp.SUM, async_op=False):
         return dist.reduce(tensor, dst, op, self.group, async_op)
 
+    @_copy_doc(dist.all_gather)
     def all_gather(self, tensor_list, tensor, async_op=False):
         return dist.all_gather(tensor_list, tensor, self.group, async_op)
 
+    @_copy_doc(dist.gather)
     def gather(self, tensor, gather_list, dst=0, async_op=False):
         return dist.gather(tensor, gather_list, dst, self.group, async_op)
 
+    @_copy_doc(dist.scatter)
     def scatter(self, tensor, scatter_list=None, src=0, async_op=False):
         return dist.scatter(tensor, scatter_list, src, self.group, async_op)
 
+    @_copy_doc(dist.barrier)
     def barrier(self, async_op=False):
         return dist.barrier(self.group, async_op)
 
     def destroy(self):
+        """
+        Destroy this collective communication group.
+        """
         if not self.destroyed:
             dist.destroy_process_group(self.group)
             self.destroyed = True
 
     def size(self):
+        """
+        Returns:
+            collective group size.
+        """
         return dist.get_world_size(self.group)
 
     def __reduce__(self):
@@ -282,9 +350,24 @@ class RpcGroup:
         self.group_paired_map = {}
         self.destroyed = False
 
-    def rpc_sync(self, to, func,
+    def rpc_sync(self, to: str, func,
                  timeout=-1, retry=True, require_in_group=True,
                  args=(), kwargs=None):
+        """
+        Synchronous rpc call.
+
+        Args:
+            to: Role name, e.g.: "some_role:10".
+            func: Some function.
+            timeout: Call timeout.
+            retry: Whether to retry until success after timeout.
+            require_in_group: Whether require the call target to be in group.
+            args: Arguments.
+            kwargs: Key arguments.
+
+        Returns:
+            Function results.
+        """
         return self._rpc_normal_call(rpc.rpc_sync, to, func,
                                      timeout, retry, require_in_group,
                                      args, kwargs)
@@ -292,6 +375,21 @@ class RpcGroup:
     def rpc_async(self, to, func,
                   timeout=-1, retry=True, require_in_group=True,
                   args=(), kwargs=None):
+        """
+        Asynchronous rpc call.
+
+        Args:
+            to: Role name, e.g.: "some_role:10".
+            func: Some function.
+            timeout: Call timeout.
+            retry: Whether to retry until success after timeout.
+            require_in_group: Whether require the call target to be in group.
+            args: Arguments.
+            kwargs: Key arguments.
+
+        Returns:
+            A rpc future object you can call ``.wait()`` on.
+        """
         return self._rpc_normal_call(rpc.rpc_async, to, func,
                                      timeout, retry, require_in_group,
                                      args, kwargs)
@@ -299,6 +397,21 @@ class RpcGroup:
     def rpc_remote(self, to, func,
                    timeout=-1, retry=True, require_in_group=True,
                    args=(), kwargs=None):
+        """
+        Remote rpc call.
+
+        Args:
+            to: Role name, e.g.: "some_role:10".
+            func: Some function.
+            timeout: Call timeout.
+            retry: Whether to retry until success after timeout.
+            require_in_group: Whether require the call target to be in group.
+            args: Arguments.
+            kwargs: Key arguments.
+
+        Returns:
+            A ``RRef`` object.
+        """
         return self._rpc_normal_call(rpc.remote, to, func,
                                      timeout, retry, require_in_group,
                                      args, kwargs)
@@ -316,31 +429,35 @@ class RpcGroup:
         """
         self.group_paired_map[name] = value
 
-    def rpc_get_paired(self, role, name, timeout=-1, retry=True):
+    def rpc_get_paired(self, target, name, timeout=-1, retry=True):
         """
-
         Args:
-            role:
-            name:
-            timeout:
-            retry:
+            target: Role name, e.g.: "some_role:10".
+            name: Name of the paired value to get.
+            timeout: Call timeout.
+            retry: Whether to retry until success after timeout.
 
         Returns:
+            An RRef to the paired value.
 
+        Raises:
+            :class:`.RpcException` if not found.
         """
         # TODO: add timeout
         del timeout
 
         while True:
-            if not self.is_member(role):
+            if not self.is_member(target):
                 raise RuntimeError("Target is not a member of the group.")
-            role = self._get_real_name(role)
+            rpc_target = self._get_real_name(target)
             try:
-                return rpc.remote(role,
-                                  _get_remote_paired_value,
+                return rpc.remote(rpc_target,
+                                  _rpc_get_remote_paired_value,
                                   args=(self.group_name, name))
             except RuntimeError:
-                WORLD.rpc_role_dispatcher.notify_failure(role)
+                WORLD.rpc_role_dispatcher.notify_failure(
+                    self._parse_role(target)
+                )
                 if not retry:
                     break
                 sleep(0.1)
@@ -348,6 +465,23 @@ class RpcGroup:
     def rpc_paired_class_sync(self, to, cls_method, name,
                               timeout=-1, retry=True, require_in_group=True,
                               args=(), kwargs=None):
+        """
+        Call the specified ``cls_method`` on ``to`` using ``name`` to find
+        the class instance.
+
+        Args:
+            to: Role name, e.g.: "some_role:10".
+            cls_method: Class method, e.g.:``some_class.some_method``
+            name: Class instance name.
+            timeout: Call timeout.
+            retry: Whether to retry until success after timeout.
+            require_in_group: Whether require the call target to be in group.
+            args: Arguments.
+            kwargs: Key arguments.
+
+        See Also:
+            :meth:`.RpcGroup.rpc_sync`
+        """
         return self._rpc_paired_class_call(rpc.rpc_sync, to, cls_method, name,
                                            timeout, retry, require_in_group,
                                            args, kwargs)
@@ -355,6 +489,23 @@ class RpcGroup:
     def rpc_paired_class_async(self, to, cls_method, name,
                                timeout=-1, retry=True, require_in_group=True,
                                args=(), kwargs=None):
+        """
+        Call the specified ``cls_method`` on ``to`` using ``name`` to find
+        the class instance.
+
+        Args:
+            to: Role name, e.g.: "some_role:10".
+            cls_method: Class method, e.g.:``some_class.some_method``
+            name: Class instance name.
+            timeout: Call timeout.
+            retry: Whether to retry until success after timeout.
+            require_in_group: Whether require the call target to be in group.
+            args: Arguments.
+            kwargs: Key arguments.
+
+        See Also:
+            :meth:`.RpcGroup.rpc_async`
+        """
         return self._rpc_paired_class_call(rpc.rpc_async, to, cls_method, name,
                                            timeout, retry, require_in_group,
                                            args, kwargs)
@@ -362,6 +513,23 @@ class RpcGroup:
     def rpc_paired_class_remote(self, to, cls_method, name,
                                 timeout=-1, retry=True, require_in_group=True,
                                 args=(), kwargs=None):
+        """
+        Call the specified ``cls_method`` on ``to`` using ``name`` to find
+        the class instance.
+
+        Args:
+            to: Role name, e.g.: "some_role:10".
+            cls_method: Class method, e.g.:``some_class.some_method``
+            name: Class instance name.
+            timeout: Call timeout.
+            retry: Whether to retry until success after timeout.
+            require_in_group: Whether require the call target to be in group.
+            args: Arguments.
+            kwargs: Key arguments.
+
+        See Also:
+            :meth:`.RpcGroup.rpc_remote`
+        """
         return self._rpc_paired_class_call(rpc.remote, to, cls_method, name,
                                            timeout, retry, require_in_group,
                                            args, kwargs)
@@ -371,6 +539,22 @@ class RpcGroup:
                                   retry=True,
                                   require_in_group=True,
                                   args=(), kwargs=None):
+        """
+        Run the forward pass on ``to`` using ``name`` to find
+        the model instance.
+
+        Args:
+            to: Role name, e.g.: "some_role:10".
+            name: Model instance name.
+            timeout: Call timeout.
+            retry: Whether to retry until success after timeout.
+            require_in_group: Whether require the call target to be in group.
+            args: Arguments.
+            kwargs: Key arguments.
+
+        See Also:
+            :meth:`.RpcGroup.rpc_sync`
+        """
         return self._rpc_paired_nn_module_call(rpc.rpc_sync, to, name,
                                                timeout, retry, require_in_group,
                                                args, kwargs)
@@ -380,6 +564,22 @@ class RpcGroup:
                                    retry=True,
                                    require_in_group=True,
                                    args=(), kwargs=None):
+        """
+        Run the forward pass on ``to`` using ``name`` to find
+        the model instance.
+
+        Args:
+            to: Role name, e.g.: "some_role:10".
+            name: Model instance name.
+            timeout: Call timeout.
+            retry: Whether to retry until success after timeout.
+            require_in_group: Whether require the call target to be in group.
+            args: Arguments.
+            kwargs: Key arguments.
+
+        See Also:
+            :meth:`.RpcGroup.rpc_async`
+        """
         return self._rpc_paired_nn_module_call(rpc.rpc_async, to, name,
                                                timeout, retry, require_in_group,
                                                args, kwargs)
@@ -389,6 +589,22 @@ class RpcGroup:
                                     retry=True,
                                     require_in_group=True,
                                     args=(), kwargs=None):
+        """
+        Run the forward pass on ``to`` using ``name`` to find
+        the model instance.
+
+        Args:
+            to: Role name, e.g.: "some_role:10".
+            name: Model instance name.
+            timeout: Call timeout.
+            retry: Whether to retry until success after timeout.
+            require_in_group: Whether require the call target to be in group.
+            args: Arguments.
+            kwargs: Key arguments.
+
+        See Also:
+            :meth:`.RpcGroup.rpc_remote`
+        """
         return self._rpc_paired_nn_module_call(rpc.remote, to, name,
                                                timeout, retry, require_in_group,
                                                args, kwargs)
@@ -404,18 +620,20 @@ class RpcGroup:
         while True:
             if require_in_group and not self.is_member(to):
                 raise RuntimeError("RPC target is not a member of group.")
-            to = self._get_real_name(to)
+            rpc_to = self._get_real_name(to)
             args = list(args)
             try:
                 if hasattr(func, "__self__"):
                     # instance rref, instance might be builtin or user-defined
                     args = [func, func.__self__] + args
-                    return rpc_method(to, _call_method, args=args,
+                    return rpc_method(rpc_to, _rpc_call_method, args=args,
                                       kwargs=kwargs)
                 else:
-                    return rpc_method(to, func, args=args, kwargs=kwargs)
+                    return rpc_method(rpc_to, func, args=args, kwargs=kwargs)
             except RuntimeError:
-                WORLD.rpc_role_dispatcher.notify_failure(to)
+                WORLD.rpc_role_dispatcher.notify_failure(
+                    self._parse_role(to)
+                )
                 if not retry:
                     break
                 sleep(0.1)
@@ -431,14 +649,17 @@ class RpcGroup:
         while True:
             if require_in_group and not self.is_member(to):
                 raise RuntimeError("RPC target is not a member of group.")
-            to = self._get_real_name(to)
+            rpc_to = self._get_real_name(to)
             if hasattr(cls_method, "__self__"):
                 inst_rref = self.rpc_get_paired(to, name)
                 args = tuple([cls_method, inst_rref] + list(args))
                 try:
-                    return rpc_method(_call_method, args=args, kwargs=kwargs)
+                    return rpc_method(rpc_to, _rpc_call_remote_method,
+                                      args=args, kwargs=kwargs)
                 except RuntimeError:
-                    WORLD.rpc_role_dispatcher.notify_failure(to)
+                    WORLD.rpc_role_dispatcher.notify_failure(
+                        self._parse_role(to)
+                    )
                     if not retry:
                         break
                     sleep(0.1)
@@ -457,18 +678,24 @@ class RpcGroup:
         while True:
             if require_in_group and not self.is_member(to):
                 raise RuntimeError("RPC target is not a member of group.")
-            to = self._get_real_name(to)
+            rpc_to = self._get_real_name(to)
             nnm_rref = self.rpc_get_paired(to, name)
             args = tuple([nnm_rref] + list(args))
             try:
-                return rpc_method(_call_nn_module, args=args, kwargs=kwargs)
+                return rpc_method(rpc_to, _rpc_call_nn_module,
+                                  args=args, kwargs=kwargs)
             except RuntimeError:
-                WORLD.rpc_role_dispatcher.notify_failure(to)
+                WORLD.rpc_role_dispatcher.notify_failure(
+                    self._parse_role(to)
+                )
                 if not retry:
                     break
                 sleep(0.1)
 
     def destroy(self):
+        """
+        Destroy the rpc group.
+        """
         if not self.destroyed:
             if len(WORLD.groups) == 1:
                 rpc.shutdown(True)
@@ -478,24 +705,48 @@ class RpcGroup:
             self.destroyed = True
 
     def size(self):
+        """
+        Get the number of roles in group.
+        """
         return len(self.group_roles)
 
-    def is_member(self, role):
-        return role in self.group_roles
+    def is_member(self, role: str) -> bool:
+        """
+        Check whether ``role`` is a group member.
 
-    def get_group_members(self):
+        Args:
+            role: A string like "some_role:10"
+        """
+        return self._parse_role(role) in self.group_roles
+
+    def get_group_members(self) -> List[Tuple[str, int]]:
+        """
+        Returns:
+            A list of group members (roles).
+        """
         return self.group_roles
 
-    def get_cur_role(self):
+    @staticmethod
+    def get_cur_role():
+        """
+        Returns:
+            Current role of the executor thread.
+        """
         return get_cur_role()
 
-    @staticmethod
-    def _get_real_name(role):
-        if isinstance(role, str):
-            role = list(role.split(':'))
-            role[1] = int(role[1])
-            role = tuple(role)
+    @classmethod
+    def _get_real_name(cls, role: str) -> str:
+        # get the real rpc process name used in rpc api call
+        role = cls._parse_role(role)
         return str(WORLD.rpc_role_dispatcher.get_rank(role))
+
+    @staticmethod
+    def _parse_role(role: str) -> Tuple:
+        # parse a role string "some_role:10" to tuple ("some_role", 10)
+        role = list(role.split(':'))
+        role[1] = int(role[1])
+        role = tuple(role)
+        return role
 
     def __reduce__(self):
         raise RuntimeError("Group is not pickable, create it per process!")
