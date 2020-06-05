@@ -1,7 +1,7 @@
 from time import sleep
 from datetime import timedelta
 from threading import Thread, local
-from typing import Union, List, Tuple, Dict, Any
+from typing import Union, List, Tuple, Dict, Any, Callable
 from torch.distributed import rpc
 
 import torch.distributed as dist
@@ -350,7 +350,8 @@ class RpcGroup:
         self.group_paired_map = {}
         self.destroyed = False
 
-    def rpc_sync(self, to: str, func,
+    def rpc_sync(self,
+                 to: str, func: Callable,
                  timeout=-1, retry=True, require_in_group=True,
                  args=(), kwargs=None):
         """
@@ -372,7 +373,8 @@ class RpcGroup:
                                      timeout, retry, require_in_group,
                                      args, kwargs)
 
-    def rpc_async(self, to, func,
+    def rpc_async(self,
+                  to: str, func: Callable,
                   timeout=-1, retry=True, require_in_group=True,
                   args=(), kwargs=None):
         """
@@ -394,7 +396,8 @@ class RpcGroup:
                                      timeout, retry, require_in_group,
                                      args, kwargs)
 
-    def rpc_remote(self, to, func,
+    def rpc_remote(self,
+                   to: str, func: Callable,
                    timeout=-1, retry=True, require_in_group=True,
                    args=(), kwargs=None):
         """
@@ -416,7 +419,7 @@ class RpcGroup:
                                      timeout, retry, require_in_group,
                                      args, kwargs)
 
-    def rpc_register_paired(self, name, value):
+    def rpc_register_paired(self, name: Any, value: Any):
         """
         Register a paired value to current process group.
 
@@ -429,7 +432,7 @@ class RpcGroup:
         """
         self.group_paired_map[name] = value
 
-    def rpc_get_paired(self, target, name, timeout=-1, retry=True):
+    def rpc_get_paired(self, target: str, name: Any, timeout=-1, retry=True):
         """
         Args:
             target: Role name, e.g.: "some_role:10".
@@ -462,7 +465,8 @@ class RpcGroup:
                     break
                 sleep(0.1)
 
-    def rpc_paired_class_sync(self, to, cls_method, name,
+    def rpc_paired_class_sync(self,
+                              to: str, cls_method: Callable, name: Any,
                               timeout=-1, retry=True, require_in_group=True,
                               args=(), kwargs=None):
         """
@@ -486,7 +490,8 @@ class RpcGroup:
                                            timeout, retry, require_in_group,
                                            args, kwargs)
 
-    def rpc_paired_class_async(self, to, cls_method, name,
+    def rpc_paired_class_async(self,
+                               to: str, cls_method: Callable, name: Any,
                                timeout=-1, retry=True, require_in_group=True,
                                args=(), kwargs=None):
         """
@@ -510,7 +515,8 @@ class RpcGroup:
                                            timeout, retry, require_in_group,
                                            args, kwargs)
 
-    def rpc_paired_class_remote(self, to, cls_method, name,
+    def rpc_paired_class_remote(self,
+                                to: str, cls_method: Callable, name: Any,
                                 timeout=-1, retry=True, require_in_group=True,
                                 args=(), kwargs=None):
         """
@@ -534,10 +540,9 @@ class RpcGroup:
                                            timeout, retry, require_in_group,
                                            args, kwargs)
 
-    def rpc_paired_nn_module_sync(self, to, name,
-                                  timeout=-1,
-                                  retry=True,
-                                  require_in_group=True,
+    def rpc_paired_nn_module_sync(self,
+                                  to: str, name: Any,
+                                  timeout=-1, retry=True, require_in_group=True,
                                   args=(), kwargs=None):
         """
         Run the forward pass on ``to`` using ``name`` to find
@@ -559,9 +564,9 @@ class RpcGroup:
                                                timeout, retry, require_in_group,
                                                args, kwargs)
 
-    def rpc_paired_nn_module_async(self, to, name,
-                                   timeout=-1,
-                                   retry=True,
+    def rpc_paired_nn_module_async(self,
+                                   to: str, name: Any,
+                                   timeout=-1, retry=True,
                                    require_in_group=True,
                                    args=(), kwargs=None):
         """
@@ -584,9 +589,9 @@ class RpcGroup:
                                                timeout, retry, require_in_group,
                                                args, kwargs)
 
-    def rpc_paired_nn_module_remote(self, to, name,
-                                    timeout=-1,
-                                    retry=True,
+    def rpc_paired_nn_module_remote(self,
+                                    to: str, name: Any,
+                                    timeout=-1, retry=True,
                                     require_in_group=True,
                                     args=(), kwargs=None):
         """

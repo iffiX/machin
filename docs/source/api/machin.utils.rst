@@ -46,13 +46,6 @@ queue
    :undoc-members:
    :show-inheritance:
 
-server
------------------
-.. automodule:: machin.utils.parallel.server
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 checker
 +++++++++++++++++
 .. automodule:: machin.utils.checker
