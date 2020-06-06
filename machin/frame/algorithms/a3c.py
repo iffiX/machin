@@ -1,6 +1,6 @@
 from .a2c import *
-from machin.utils.parallel.server import PushPullGradServer
-from machin.utils.parallel.distributed import RpcGroup
+from machin.parallel.server import PushPullGradServer
+from machin.parallel.distributed import RpcGroup
 from machin.utils.helper_classes import Switch
 
 

@@ -1,6 +1,6 @@
 from PIL import Image
 from typing import List
-from .parallel import get_context
+from machin.parallel import get_context
 import numpy as np
 import moviepy.editor as mpy
 import matplotlib.pyplot as plt

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from threading import Lock
 from random import choice
-from machin.utils.parallel.distributed import RpcGroup
+from machin.parallel.distributed import RpcGroup
 
 
 class OrderedServerBase(ABC):

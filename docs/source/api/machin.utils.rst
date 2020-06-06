@@ -1,51 +1,6 @@
 machin.utils
 =============
 
-parallel
-+++++++++++++++++
-
-distributed
------------------
-.. automodule:: machin.utils.parallel.distributed
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-server
------------------
-.. automodule:: machin.utils.parallel.server
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-assigner
------------------
-.. automodule:: machin.utils.parallel.assigner
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-pickle
------------------
-.. automodule:: machin.utils.parallel.pickle
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-pool
------------------
-.. automodule:: machin.utils.parallel.pool
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-queue
------------------
-.. automodule:: machin.utils.parallel.queue
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 checker
 +++++++++++++++++
 .. automodule:: machin.utils.checker

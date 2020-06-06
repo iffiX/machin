@@ -110,7 +110,7 @@ class ElectionGroupSimple(ElectionGroupBase):
 class MType(Enum):
     """
     Message types used in
-    :class:`~machin.utils.parallel.distributed.election.ElectionGroupStableBase`
+    :class:`~machin.parallel.distributed.election.ElectionGroupStableBase`
     """
     START = 0
     OK = 1

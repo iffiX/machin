@@ -127,8 +127,8 @@ class World:
             rpc_timeout:  Global rpc call timeout in seconds.
             rpc_threads:  Rpc recv/send thread num.
             rpc_role_dispatcher: Rpc role dispatch, by default it is
-                :class:`~machin.utils.parallel.distributed.\
-RoleDispatcherElection` and uses :class:`machin.utils.parallel.\
+                :class:`~machin.parallel.distributed.\
+RoleDispatcherElection` and uses :class:`machin.parallel.\
 distributed.ElectionGroupStableRpc` as its internal election implementation.
         """
         self.world_size = world_size
@@ -242,7 +242,7 @@ class CollectiveGroup:
     """
     def __init__(self, group, current_relative_rank):
         """
-        Do not do it your self, use :meth:`~machin.utils.parallel\
+        Do not do it your self, use :meth:`~machin.parallel\
 .distributed.World.create_collective_group` instead.
         """
         self.group = group

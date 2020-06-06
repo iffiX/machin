@@ -8,8 +8,8 @@ from machin.model.nets.base import NeuralNetworkModule
 from .base import TorchFramework
 from .utils import safe_call
 
-from machin.utils.parallel.server import PushPullModelServer
-from machin.utils.parallel.distributed import RpcGroup
+from machin.parallel.server import PushPullModelServer
+from machin.parallel.distributed import RpcGroup
 
 
 def _slice(attr_dict, index, dim=1):

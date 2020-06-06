@@ -48,6 +48,7 @@
           <option value="machin.utils.parallel.pool.Pool._maxtasksperchild" />
           <option value="machin.utils.parallel.pool.Pool.Process" />
           <option value="machin.utils.parallel.pool.Pool._ctx" />
+          <option value="torch.multiprocessing.reductions.ForkingPickler" />
         </list>
       </option>
     </inspection_tool>

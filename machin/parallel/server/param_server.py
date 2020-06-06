@@ -7,7 +7,7 @@ from random import choice
 import torch as t
 import torch.nn as nn
 
-from machin.utils.parallel.distributed import RpcGroup
+from machin.parallel.distributed import RpcGroup
 from machin.utils.prepare import prep_load_state_dict
 from .ordered_server import OrderedServerBase, SimpleOrderedServer
 
@@ -31,7 +31,7 @@ class PushPullModelServer:
         Args:
             group: Server group.
             master: The relative rpc rank of the master server in
-                the default :class:`~machin.utils.parallel.server.\
+                the default :class:`~machin.parallel.server.\
 ordered_server.SimpleOrderedServer` implementation.
             server: Custom ordered server, mutually exclusive with
                 ``master``.
@@ -134,7 +134,7 @@ class PushPullGradServer:
                 which collects reduced gradients from slave reducers and
                 perform the final reduction.
             model_master: The relative rpc rank of the master server in
-                the default :class:`~machin.utils.parallel.server.\
+                the default :class:`~machin.parallel.server.\
 ordered_server.SimpleOrderedServer` implementation.
             server: Custom ordered server, mutually exclusive with
                 ``master``.

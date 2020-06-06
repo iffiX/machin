@@ -6,3 +6,4 @@ API
    machin.frame.rst
    machin.model.rst
    machin.utils.rst
+   machin.parallel.rst

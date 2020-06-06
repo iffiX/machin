@@ -3,7 +3,7 @@ from typing import Union, Dict, List, Tuple, Any
 from threading import Lock
 from ..transition import Transition
 from .prioritized_buffer import PrioritizedBuffer
-from machin.utils.parallel.distributed import RpcGroup
+from machin.parallel.distributed import RpcGroup
 import numpy as np
 import torch as t
 

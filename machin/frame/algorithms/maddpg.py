@@ -3,8 +3,8 @@ import itertools
 import numpy as np
 from machin.frame.transition import TransitionBase
 from machin.utils.logging import default_logger
-from machin.utils.parallel.pool import Pool
-from machin.utils.parallel.assigner import ModelAssigner
+from machin.parallel.pool import Pool
+from machin.parallel.assigner import ModelAssigner
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .ddpg import *
 

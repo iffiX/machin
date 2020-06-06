@@ -1,8 +1,8 @@
 from .dqn_per import *
 from .ddpg_per import *
 from ..buffers.prioritized_buffer_d import DistributedPrioritizedBuffer
-from machin.utils.parallel.server import PushPullModelServer
-from machin.utils.parallel.distributed import RpcGroup
+from machin.parallel.server import PushPullModelServer
+from machin.parallel.distributed import RpcGroup
 
 
 class DQNApex(DQNPer):
