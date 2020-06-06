@@ -36,8 +36,13 @@ class TorchFramework:
         """
         Load models.
 
-        Note:
-            ``network_map`` is the same as ``save()``.
+        An example of network map::
+
+            {"restorable_model_1": "file_name_1",
+             "restorable_model_2": "file_name_2"}
+
+        Get keys by calling ``<Class name>.get_restorable()``
+
         Args:
             model_dir: Save directory.
             network_map: Key is module name, value is saved name.

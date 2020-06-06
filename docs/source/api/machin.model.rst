@@ -1,6 +1,6 @@
-machin.models
+machin.model
 =============
-.. automodule:: machin.models
+.. automodule:: machin.model
    :members:
    :undoc-members:
    :show-inheritance:

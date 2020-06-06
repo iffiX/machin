@@ -32,11 +32,14 @@ class RAINBOW(DQN):
         RAINBOW framework is described in
         `this <https://arxiv.org/abs/1710.02298>`__ essay.
 
+        See Also:
+            :class:`.DQN`
+
         Args:
             qnet: Q network module.
             qnet_target: Target Q network module.
             optimizer: Optimizer used to optimize ``actor`` and ``critic``.
-            criterion: Critierion used to evaluate the value loss.
+            criterion: Criterion used to evaluate the value loss.
             value_min: Minimum of value domain.
             value_max: Maximum of value domain.
             learning_rate: Learning rate of the optimizer, not compatible with
@@ -60,9 +63,6 @@ class RAINBOW(DQN):
             reward_func: Reward function used in training.
             mode: one of ``"vanilla", "fixed_target", "double"``.
             visualize: Whether visualize the network flow in the first pass.
-
-        See Also:
-            :class:`.DQN`
         """
         super(RAINBOW, self).__init__(
             qnet, qnet_target, optimizer, criterion,

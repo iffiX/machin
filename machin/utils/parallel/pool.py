@@ -44,9 +44,10 @@ class Pool(pool.Pool):
 
     def __init__(self, processes=None, initializer=None, initargs=(),
                  maxtasksperchild=None, context=None,
-                 is_global=True, is_daemon=True):
+                 is_global=True, is_daemon=True, is_copy_tensors=True):
         self.is_global = is_global
         self.is_daemon = is_daemon
+        self.is_copy_tensors = is_copy_tensors
         super(Pool, self).__init__(
             processes=processes,
             initializer=initializer,
@@ -56,8 +57,10 @@ class Pool(pool.Pool):
         )
 
     def _setup_queues(self):
-        self._inqueue = SimpleQueue(ctx=self._ctx)
-        self._outqueue = SimpleQueue(ctx=self._ctx)
+        self._inqueue = SimpleQueue(ctx=self._ctx,
+                                    copy_tensor=self.is_copy_tensors)
+        self._outqueue = SimpleQueue(ctx=self._ctx,
+                                     copy_tensor=self.is_copy_tensors)
         self._quick_put = self._inqueue.quick_put
         self._quick_get = self._outqueue.quick_get
 
@@ -78,7 +81,7 @@ class Pool(pool.Pool):
                                      [dill.dumps(func, recurse=self.is_global),
                                       args, kwds])
 
-    def map(self, func, iterable, chunksize):
+    def map(self, func, iterable, chunksize=None):
         # DOC INHERITED
         return pool.Pool.map(self, proxy_caller,
                              proxy_dumper(

@@ -26,13 +26,13 @@ class A2C(TorchFramework):
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
-                 learning_rate=0.001,
-                 entropy_weight=None,
-                 value_weight=0.5,
-                 gradient_max=np.inf,
-                 gae_lambda=1.0,
-                 discount=0.99,
-                 update_times=50,
+                 learning_rate: float = 0.001,
+                 entropy_weight: float = None,
+                 value_weight: float = 0.5,
+                 gradient_max: float = np.inf,
+                 gae_lambda: float = 1.0,
+                 discount: float = 0.99,
+                 update_times: int = 50,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
@@ -127,7 +127,7 @@ class A2C(TorchFramework):
             actor: Actor network module.
             critic: Critic network module.
             optimizer: Optimizer used to optimize ``actor`` and ``critic``.
-            criterion: Critierion used to evaluate the value loss.
+            criterion: Criterion used to evaluate the value loss.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
@@ -330,8 +330,7 @@ class A2C(TorchFramework):
             act_policy_loss = -(new_action_log_prob *
                                 advantage.to(new_action_log_prob.device))
 
-            if (self.entropy_weight is not None and
-                    new_action_entropy is not None):
+            if new_action_entropy is not None:
                 act_policy_loss += (self.entropy_weight *
                                     new_action_entropy.mean())
 
@@ -339,6 +338,9 @@ class A2C(TorchFramework):
 
             value_loss = (self.criterion(target_value.to(value.device), value) *
                           self.value_weight)
+
+            if self.visualize:
+                self.visualize_model(act_policy_loss, "actor")
 
             # Update actor network
             if update_policy:
@@ -349,6 +351,9 @@ class A2C(TorchFramework):
                 )
                 self.actor_optim.step()
                 sum_act_policy_loss += act_policy_loss.item()
+
+            if self.visualize:
+                self.visualize_model(value_loss, "critic")
 
             # Update critic network
             if update_value:

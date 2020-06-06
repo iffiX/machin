@@ -62,6 +62,28 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             raise RuntimeError("Failed to perform append on members {}"
                                .format(failed))
 
+    def size(self):
+        """
+        Returns:
+            Length of current local buffer.
+        """
+        return len(self.buffer)
+
+    def all_size(self):
+        """
+        Returns:
+            Total length of all buffers.
+        """
+        future = []
+        count = 0
+        for m in self.buffer_group.get_group_members():
+            future.append(self.buffer_group.rpc_paired_class_async(
+                m, self.size, self.__class__
+            ))
+        for fut in future:
+            count += fut.wait()
+        return count
+
     def clear(self):
         # DOC INHERITED
         future = [

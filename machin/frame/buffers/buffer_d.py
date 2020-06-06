@@ -42,9 +42,25 @@ class DistributedBuffer(Buffer):
     def size(self):
         """
         Returns:
-            Length of current buffer.
+            Length of current local buffer.
         """
         return len(self.buffer)
+
+    def clear(self):
+        # DOC INHERITED
+        future = [
+            self.buffer_group.rpc_paired_class_async(
+                m, self._reply_clear, self.__class__
+            )
+            for m in self.buffer_group.get_group_members()
+        ]
+        results = [fut.wait() for fut in future]
+        if not all(results):
+            failed = [m for m, status
+                      in zip(self.buffer_group.get_group_members(), results)
+                      if not status]
+            raise RuntimeError("Failed to perform clear on members {}"
+                               .format(failed))
 
     def all_size(self):
         """
@@ -148,6 +164,12 @@ class DistributedBuffer(Buffer):
         self.wr_lock.release()
 
         return local_batch_size, local_batch
+
+    def _reply_clear(self, transition, priority, required_keys):
+        self.wr_lock.acquire()
+        super(DistributedBuffer, self).clear()
+        self.wr_lock.release()
+        return True
 
     def _select_workers(self, num: int):
         """

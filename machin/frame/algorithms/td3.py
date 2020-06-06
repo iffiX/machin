@@ -39,6 +39,9 @@ class TD3(DDPG):
                  visualize: bool = False,
                  **__):
         """
+        See Also:
+            :class:`.DDPG`
+
         Args:
             actor: Actor network module.
             actor_target: Target actor network module.
@@ -46,8 +49,8 @@ class TD3(DDPG):
             critic_target: Target critic network module.
             critic2: The second critic network module.
             critic2_target: The second target critic network module.
-            optimizer: Optimizer used to optimize ``actor`` and ``critic``.
-            criterion: Critierion used to evaluate the value loss.
+            optimizer: Optimizer used to optimize ``actor``, ``critic``,
+            criterion: Criterion used to evaluate the value loss.
             learning_rate: Learning rate of the optimizer, not compatible with
                 ``lr_scheduler``.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
@@ -71,9 +74,6 @@ class TD3(DDPG):
                 the raw output of your actor, by default it is:
                 ``lambda act: {"action": act}``
             visualize: Whether visualize the network flow in the first pass.
-
-        See Also:
-            :class:`.DDPG`
         """
         super(TD3, self).__init__(
             actor, actor_target, critic, critic_target, optimizer, criterion,
@@ -217,20 +217,7 @@ class TD3(DDPG):
 
     def load(self, model_dir: str, network_map: Dict[str, str] = None,
              version: int = -1):
-        """
-        Load models.
-
-        An example of network map::
-
-            {"actor_target": "actor_target_file_name",
-             "critic_target": "critic_target_file_name",
-             "critic2_target": "critic2_target_file_name"}
-
-        Args:
-            model_dir: Save directory.
-            network_map: Key is module name, value is saved name.
-            version: Version number of the save to be loaded.
-        """
+        # DOC INHERITED
         TorchFramework.load(self, model_dir, network_map, version)
         with t.no_grad():
             hard_update(self.actor, self.actor_target)

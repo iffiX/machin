@@ -29,10 +29,9 @@ class SAC(TorchFramework):
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
-                 target_entropy=None,
-                 initial_entropy_alpha=1.0,
-                 value_weight=0.5,
-                 gradient_max=np.inf,
+                 target_entropy: float = None,
+                 initial_entropy_alpha: float = 1.0,
+                 gradient_max: float = np.inf,
                  batch_size: int = 100,
                  update_rate: float = 0.005,
                  learning_rate: float = 0.001,
@@ -45,39 +44,70 @@ class SAC(TorchFramework):
                  visualize: bool = False,
                  **__):
         """
+        See Also:
+            :class:`.A2C`
+            :class:`.DDPG`
+
+        Important:
+            when given a state, and an optional, action actor must
+            at least return two values, similar to the actor structure
+            described in :class:`.A2C`. You may use the same actor model
+            here.
+
+            However, Compared to other actor-critic methods, SAC embeds the
+            entropy term into its reward function directly, rather than adding
+            the entropy term to actor's loss function. Therefore, we do not need
+            the actor network to output a entropy as its third returned result.
+
+            The SAC algorithm uses Q network as critics, so please reference
+            :class:`.DDPG` for the requirements and the definition of
+            ``action_trans_func``.
+
         Args:
-            actor:
-            critic:
-            critic_target:
-            critic2:
-            critic2_target:
-            optimizer:
-            criterion:
+            actor: Actor network module.
+            critic: Critic network module.
+            critic_target: Target critic network module.
+            critic2: The second critic network module.
+            critic2_target: The second target critic network module.
+            optimizer: Optimizer used to optimize ``actor``, ``critic`` and
+                ``critic2``.
+            criterion: Criterion used to evaluate the value loss.
             *_:
-            lr_scheduler:
-            lr_scheduler_args:
-            lr_scheduler_kwargs:
-            target_entropy:
-            initial_entropy_alpha:
-            value_weight:
-            gradient_max:
-            batch_size:
-            update_rate:
-            learning_rate:
-            discount:
-            replay_size:
-            replay_device:
-            replay_buffer:
-            reward_func:
-            action_trans_func:
-            visualize:
+            lr_scheduler: Learning rate scheduler of ``optimizer``.
+            lr_scheduler_args: Arguments of the learning rate scheduler.
+            lr_scheduler_kwargs: Keyword arguments of the learning
+                rate scheduler.
+            target_entropy: Target entropy weight :math:`\\alpha` used in
+                the SAC soft value function:
+                :math:`V_{soft}(s_t) = \\mathbb{E}_{q_t\\sim\\pi}[\
+                                        Q_{soft}(s_t,a_t) - \
+                                        \\alpha log\\pi(a_t|s_t)]`
+            initial_entropy_alpha: Initial entropy weight :math:`\\alpha`
+            gradient_max: Maximum gradient.
+            batch_size: Batch size used during training.
+            update_rate: :math:`\\tau` used to update target networks.
+                Target parameters are updated as:
+
+                :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
+            learning_rate: Learning rate of the optimizer, not compatible with
+                ``lr_scheduler``.
+            discount: :math:`\\gamma` used in the bellman function.
+            replay_size: Replay buffer size. Not compatible with
+                ``replay_buffer``.
+            replay_device: Device where the replay buffer locates on, Not
+                compatible with ``replay_buffer``.
+            replay_buffer: Custom replay buffer.
+            reward_func: Reward function used in training.
+            action_trans_func: Action transform function, used to transform
+                the raw output of your actor, by default it is:
+                ``lambda act: {"action": act}``
+            visualize: Whether visualize the network flow in the first pass.
             **__:
         """
         self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
         self.visualize = visualize
-        self.value_weight = value_weight
         self.entropy_alpha = t.tensor(initial_entropy_alpha,
                                       requires_grad=True).view(1)
         self.grad_max = gradient_max
@@ -124,10 +154,10 @@ class SAC(TorchFramework):
 
         self.criterion = criterion
 
-        self.reward_func = (SAC._bellman_function
+        self.reward_func = (SAC.bellman_function
                             if reward_func is None
                             else reward_func)
-        self.action_trans_func = (SAC._action_transform_function
+        self.action_trans_func = (SAC.action_transform_function
                                   if action_trans_func is None
                                   else action_trans_func)
 
@@ -244,6 +274,9 @@ class SAC(TorchFramework):
         value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
         value_loss2 = self.criterion(cur_value2, y_i.to(cur_value.device))
 
+        if self.visualize:
+            self.visualize_model(value_loss, "critic")
+
         if update_value:
             self.critic.zero_grad()
             value_loss.backward()
@@ -264,6 +297,9 @@ class SAC(TorchFramework):
         # but optimizer workers by minimizing the target
         act_policy_loss = ((self.entropy_alpha * cur_action_log_prob) -
                            act_value).mean()
+
+        if self.visualize:
+            self.visualize_model(act_policy_loss, "actor")
 
         if update_policy:
             self.actor.zero_grad()
@@ -295,31 +331,18 @@ class SAC(TorchFramework):
             self.critic_lr_sch.step()
 
     def load(self, model_dir, network_map=None, version=-1):
-        """
-        Load models.
-
-        An example of network map::
-
-            {"actor": "actor_file_name",
-             "critic_target": "critic_target_file_name",
-             "critic2_target": "critic2_target_file_name"}
-
-        Args:
-            model_dir: Save directory.
-            network_map: Key is module name, value is saved name.
-            version: Version number of the save to be loaded.
-        """
+        # DOC INHERITED
         super(SAC, self).load(model_dir, network_map, version)
         with t.no_grad():
             hard_update(self.critic, self.critic_target)
             hard_update(self.critic, self.critic2_target)
 
     @staticmethod
-    def _action_transform_function(raw_output_action, *_):
+    def action_transform_function(raw_output_action, *_):
         return {"action": raw_output_action}
 
     @staticmethod
-    def _bellman_function(reward, discount, next_value, terminal, *_):
+    def bellman_function(reward, discount, next_value, terminal, *_):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * (1 - terminal) * next_value

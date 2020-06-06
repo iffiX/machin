@@ -79,15 +79,15 @@ class DDPG(TorchFramework):
 
               1. Something with the same form as :attr:`.Transition.action`
 
+            by default it is :meth:`.DDPG.action_transform_function`
+
         Args:
             actor: Actor network module.
             actor_target: Target actor network module.
             critic: Critic network module.
             critic_target: Target critic network module.
             optimizer: Optimizer used to optimize ``actor`` and ``critic``.
-            criterion: Critierion used to evaluate the value loss.
-            learning_rate: Learning rate of the optimizer, not compatible with
-                ``lr_scheduler``.
+            criterion: Criterion used to evaluate the value loss.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
@@ -97,7 +97,8 @@ class DDPG(TorchFramework):
                 Target parameters are updated as:
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
-
+            learning_rate: Learning rate of the optimizer, not compatible with
+                ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
@@ -106,8 +107,7 @@ class DDPG(TorchFramework):
             replay_buffer: Custom replay buffer.
             reward_func: Reward function used in training.
             action_trans_func: Action transform function, used to transform
-                the raw output of your actor, by default it is:
-                ``lambda act: {"action": act}``
+                the raw output of your actor.
             visualize: Whether visualize the network flow in the first pass.
         """
         self.batch_size = batch_size
@@ -136,7 +136,7 @@ class DDPG(TorchFramework):
             self.actor_lr_sch = lr_scheduler(
                 self.actor_optim,
                 *lr_scheduler_args[0],
-                **lr_scheduler_kwargs[0],
+                **lr_scheduler_kwargs[0]
             )
             self.critic_lr_sch = lr_scheduler(
                 self.critic_optim,
@@ -146,10 +146,10 @@ class DDPG(TorchFramework):
 
         self.criterion = criterion
 
-        self.reward_func = (DDPG._bellman_function
+        self.reward_func = (DDPG.bellman_function
                             if reward_func is None
                             else reward_func)
-        self.action_transform_func = (DDPG._action_transform_function
+        self.action_transform_func = (DDPG.action_transform_function
                                       if action_trans_func is None
                                       else action_trans_func)
 
@@ -398,30 +398,18 @@ class DDPG(TorchFramework):
 
     def load(self, model_dir: str, network_map: Dict[str, str] = None,
              version: int = -1):
-        """
-        Load models.
-
-        An example of network map::
-
-            {"actor_target": "actor_target_file_name",
-             "critic_target": "critic_target_file_name"}
-
-        Args:
-            model_dir: Save directory.
-            network_map: Key is module name, value is saved name.
-            version: Version number of the save to be loaded.
-        """
+        # DOC INHERITED
         super(DDPG, self).load(model_dir, network_map, version)
         with t.no_grad():
             hard_update(self.actor, self.actor_target)
             hard_update(self.critic, self.critic_target)
 
     @staticmethod
-    def _action_transform_function(raw_output_action, *_):
+    def action_transform_function(raw_output_action: Any, *_):
         return {"action": raw_output_action}
 
     @staticmethod
-    def _bellman_function(reward, discount, next_value, terminal, *_):
+    def bellman_function(reward, discount, next_value, terminal, *_):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * (1 - terminal) * next_value

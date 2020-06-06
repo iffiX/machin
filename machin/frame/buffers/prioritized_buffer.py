@@ -279,6 +279,13 @@ class PrioritizedBuffer(Buffer):
             priority = self.wt_tree.get_leaf_max()
         self.wt_tree.update_leaf(self._normalize_priority(priority), position)
 
+    def size(self):
+        """
+        Returns:
+            Length of current buffer.
+        """
+        return len(self.buffer)
+
     def clear(self):
         """
         Clear and resets the buffer to its initial state.
@@ -309,7 +316,7 @@ class PrioritizedBuffer(Buffer):
         Sample the most important batch from the prioritized buffer.
 
         See Also:
-             :meth:`machin.models.frames.buffers.Buffer.sample_batch`
+             :meth:`.Buffer.sample_batch`
 
         Args:
             batch_size: A hint size of the result sample. actual sample size

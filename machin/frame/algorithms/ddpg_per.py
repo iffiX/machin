@@ -7,6 +7,15 @@ from .ddpg import *
 class DDPGPer(DDPG):
     """
     DDPG with prioritized experience replay.
+
+    Warning:
+        Your criterion must return a tensor of shape ``[batch_size,1]``
+        when given two tensors of shape ``[batch_size,1]``, since we
+        need to multiply the loss with importance sampling weight
+        element-wise.
+
+        If you are using loss modules given by pytorch. It is always
+        safe to use them without any modification.
     """
     def __init__(self,
                  actor: Union[NeuralNetworkModule, nn.Module],
@@ -14,7 +23,7 @@ class DDPGPer(DDPG):
                  critic: Union[NeuralNetworkModule, nn.Module],
                  critic_target: Union[NeuralNetworkModule, nn.Module],
                  optimizer: Callable,
-                 criterion: Callable,
+                 criterion,
                  *_,
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
@@ -53,12 +62,14 @@ class DDPGPer(DDPG):
         if not hasattr(self.criterion, "reduction"):
             raise RuntimeError("Criterion must have the 'reduction' property")
         else:
-            if self.criterion.reduction != "none":
-                default_logger.warning(
-                    "The reduction property of criterion is not 'none', "
-                    "automatically corrected."
-                )
-                self.criterion.reduction = "none"
+            if hasattr(self.criterion, "reduction"):
+                # A loss defined in ``torch.nn.modules.loss``
+                if self.criterion.reduction != "none":
+                    default_logger.warning(
+                        "The reduction property of criterion is not 'none', "
+                        "automatically corrected."
+                    )
+                    self.criterion.reduction = "none"
 
     def update(self,
                update_value=True,

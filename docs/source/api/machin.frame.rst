@@ -81,6 +81,34 @@ PPO
     :undoc-members:
     :show-inheritance:
 
+SAC
+------------------------------
+.. automodule:: machin.frame.algorithms.sac
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+APEX
+------------------------------
+.. automodule:: machin.frame.algorithms.apex
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+IMPALA
+------------------------------
+.. automodule:: machin.frame.algorithms.impala
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+MADDPG
+------------------------------
+.. automodule:: machin.frame.algorithms.maddpg
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 buffers
 +++++++++++++
 

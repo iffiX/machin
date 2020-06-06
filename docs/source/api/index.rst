@@ -4,5 +4,5 @@ API
 
    machin.env.rst
    machin.frame.rst
-   machin.models.rst
+   machin.model.rst
    machin.utils.rst

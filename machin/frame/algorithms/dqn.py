@@ -99,8 +99,8 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         Args:
             qnet: Q network module.
             qnet_target: Target Q network module.
-            optimizer: Optimizer used to optimize ``actor`` and ``critic``.
-            criterion: Critierion used to evaluate the value loss.
+            optimizer: Optimizer used to optimize ``qnet``.
+            criterion: Criterion used to evaluate the value loss.
             learning_rate: Learning rate of the optimizer, not compatible with
                 ``lr_scheduler``.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
@@ -156,7 +156,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
         self.criterion = criterion
 
-        self.reward_func = (DQN._bellman_function
+        self.reward_func = (DQN.bellman_function
                             if reward_func is None
                             else reward_func)
 
@@ -367,24 +367,13 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             self.qnet_lr_sch.step()
 
     def load(self, model_dir, network_map=None, version=-1):
-        """
-        Load models.
-
-        An example of network map::
-
-            {"qnet_target": "qnet_target_file_name"}
-
-        Args:
-            model_dir: Save directory.
-            network_map: Key is module name, value is saved name.
-            version: Version number of the save to be loaded.
-        """
+        # DOC INHERITED
         super(DQN, self).load(model_dir, network_map, version)
         with t.no_grad():
             hard_update(self.qnet, self.qnet_target)
 
     @staticmethod
-    def _bellman_function(reward, discount, next_value, terminal, *_):
+    def bellman_function(reward, discount, next_value, terminal, *_):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * (1 - terminal) * next_value

@@ -14,14 +14,14 @@ class PPO(A2C):
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
-                 learning_rate=0.001,
-                 entropy_weight=None,
-                 value_weight=0.5,
-                 surrogate_loss_clip=0.2,
-                 gradient_max=np.inf,
-                 gae_lambda=1.0,
-                 discount=0.99,
-                 update_times=50,
+                 learning_rate: float = 0.001,
+                 entropy_weight: float = None,
+                 value_weight: float = 0.5,
+                 surrogate_loss_clip: float = 0.2,
+                 gradient_max: float = np.inf,
+                 gae_lambda: float = 1.0,
+                 discount: float = 0.99,
+                 update_times: int = 50,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
@@ -82,7 +82,12 @@ class PPO(A2C):
                                   visualize=visualize)
         self.surr_clip = surrogate_loss_clip
 
-    def update(self, update_value=True, update_policy=True, concatenate_samples=True):
+    def update(self,
+               update_value=True,
+               update_policy=True,
+               concatenate_samples=True,
+               **__):
+        # DOC INHERITED
         sum_act_policy_loss = 0
         sum_value_loss = 0
 
@@ -92,12 +97,19 @@ class PPO(A2C):
             self.replay_buffer.sample_batch(-1,
                                             sample_method="all",
                                             concatenate=concatenate_samples,
-                                            sample_attrs=["state", "action", "reward", "next_state", "terminal",
-                                               "action_log_prob", "value", "gae", "*"],
-                                            additional_concat_attrs=["action_log_prob", "value", "gae"])
+                                            sample_attrs=[
+                                                "state", "action", "reward",
+                                                "next_state", "terminal",
+                                                "action_log_prob", "value",
+                                                "gae", "*"],
+                                            additional_concat_attrs=[
+                                                "action_log_prob", "value",
+                                                "gae"
+                                            ])
 
         # normalize target value
-        target_value = (target_value - target_value.mean()) / (target_value.std() + 1e-5)
+        target_value = ((target_value - target_value.mean()) /
+                        (target_value.std() + 1e-5))
 
         # Infer original action log probability
         __, action_log_prob, *_ = self.eval_act(state, action)
@@ -107,10 +119,12 @@ class PPO(A2C):
             value = self.criticize(state)
 
             if self.entropy_weight is not None:
-                __, new_action_log_prob, new_action_entropy, *_ = self.eval_act(state, action)
+                __, new_action_log_prob, new_action_entropy, *_ = \
+                    self.eval_act(state, action)
 
             else:
                 __, new_action_log_prob, *_ = self.eval_act(state, action)
+                new_action_entropy = None
 
             new_action_log_prob = new_action_log_prob.view(batch_size, 1)
 
@@ -118,33 +132,48 @@ class PPO(A2C):
             sim_ratio = t.exp(new_action_log_prob - action_log_prob).detach()
             advantage = advantage.to(sim_ratio.device)
             surr_loss_1 = sim_ratio * advantage
-            surr_loss_2 = t.clamp(sim_ratio, 1 - self.surr_clip, 1 + self.surr_clip) * advantage
+            surr_loss_2 = t.clamp(sim_ratio,
+                                  1 - self.surr_clip,
+                                  1 + self.surr_clip) * advantage
 
             # calculate policy loss using surrogate loss
             act_policy_loss = -t.min(surr_loss_1, surr_loss_2)
 
-            if self.entropy_weight is not None:
-                act_policy_loss += self.entropy_weight * new_action_entropy.mean()
+            if new_action_entropy is not None:
+                act_policy_loss += (self.entropy_weight *
+                                    new_action_entropy.mean())
 
             act_policy_loss = act_policy_loss.mean()
 
-            value_loss = self.criterion(target_value.to(value.device), value) * self.value_weight
+            value_loss = (self.criterion(target_value.to(value.device), value) *
+                          self.value_weight)
+
+            if self.visualize:
+                self.visualize_model(act_policy_loss, "actor")
 
             # Update actor network
             if update_policy:
                 self.actor.zero_grad()
                 act_policy_loss.backward()
-                nn.utils.clip_grad_norm_(self.actor.parameters(), self.grad_max)
+                nn.utils.clip_grad_norm_(
+                    self.actor.parameters(), self.grad_max
+                )
                 self.actor_optim.step()
                 sum_act_policy_loss += act_policy_loss.item()
+
+            if self.visualize:
+                self.visualize_model(value_loss, "critic")
 
             # Update critic network
             if update_value:
                 self.critic.zero_grad()
                 value_loss.backward()
-                nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_max)
+                nn.utils.clip_grad_norm_(
+                    self.critic.parameters(), self.grad_max
+                )
                 self.critic_optim.step()
                 sum_value_loss += value_loss.item()
 
         self.replay_buffer.clear()
-        return -sum_act_policy_loss / self.update_times, sum_value_loss / self.update_times
+        return (-sum_act_policy_loss / self.update_times,
+                sum_value_loss / self.update_times)

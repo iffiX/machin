@@ -343,6 +343,9 @@ class CollectiveGroup:
         self.destroy()
 
 
+RoleHandle = Union[str, Tuple[str, int]]
+
+
 class RpcGroup:
     def __init__(self, group_name, group_roles):
         self.group_name = group_name
@@ -351,7 +354,7 @@ class RpcGroup:
         self.destroyed = False
 
     def rpc_sync(self,
-                 to: str, func: Callable,
+                 to: RoleHandle, func: Callable,
                  timeout=-1, retry=True, require_in_group=True,
                  args=(), kwargs=None):
         """
@@ -374,14 +377,14 @@ class RpcGroup:
                                      args, kwargs)
 
     def rpc_async(self,
-                  to: str, func: Callable,
+                  to: RoleHandle, func: Callable,
                   timeout=-1, retry=True, require_in_group=True,
                   args=(), kwargs=None):
         """
         Asynchronous rpc call.
 
         Args:
-            to: Role name, e.g.: "some_role:10".
+            to: Role name "some_role:10" or role tuple ("some_role", 10).
             func: Some function.
             timeout: Call timeout.
             retry: Whether to retry until success after timeout.
@@ -397,14 +400,14 @@ class RpcGroup:
                                      args, kwargs)
 
     def rpc_remote(self,
-                   to: str, func: Callable,
+                   to: RoleHandle, func: Callable,
                    timeout=-1, retry=True, require_in_group=True,
                    args=(), kwargs=None):
         """
         Remote rpc call.
 
         Args:
-            to: Role name, e.g.: "some_role:10".
+            to: Role name "some_role:10" or role tuple ("some_role", 10).
             func: Some function.
             timeout: Call timeout.
             retry: Whether to retry until success after timeout.
@@ -432,10 +435,11 @@ class RpcGroup:
         """
         self.group_paired_map[name] = value
 
-    def rpc_get_paired(self, target: str, name: Any, timeout=-1, retry=True):
+    def rpc_get_paired(self, target: RoleHandle, name: Any,
+                       timeout=-1, retry=True):
         """
         Args:
-            target: Role name, e.g.: "some_role:10".
+            target: Role name "some_role:10" or role tuple ("some_role", 10).
             name: Name of the paired value to get.
             timeout: Call timeout.
             retry: Whether to retry until success after timeout.
@@ -466,7 +470,7 @@ class RpcGroup:
                 sleep(0.1)
 
     def rpc_paired_class_sync(self,
-                              to: str, cls_method: Callable, name: Any,
+                              to: RoleHandle, cls_method: Callable, name: Any,
                               timeout=-1, retry=True, require_in_group=True,
                               args=(), kwargs=None):
         """
@@ -474,7 +478,7 @@ class RpcGroup:
         the class instance.
 
         Args:
-            to: Role name, e.g.: "some_role:10".
+            to: Role name "some_role:10" or role tuple ("some_role", 10).
             cls_method: Class method, e.g.:``some_class.some_method``
             name: Class instance name.
             timeout: Call timeout.
@@ -491,7 +495,7 @@ class RpcGroup:
                                            args, kwargs)
 
     def rpc_paired_class_async(self,
-                               to: str, cls_method: Callable, name: Any,
+                               to: RoleHandle, cls_method: Callable, name: Any,
                                timeout=-1, retry=True, require_in_group=True,
                                args=(), kwargs=None):
         """
@@ -499,7 +503,7 @@ class RpcGroup:
         the class instance.
 
         Args:
-            to: Role name, e.g.: "some_role:10".
+            to: Role name "some_role:10" or role tuple ("some_role", 10).
             cls_method: Class method, e.g.:``some_class.some_method``
             name: Class instance name.
             timeout: Call timeout.
@@ -516,7 +520,7 @@ class RpcGroup:
                                            args, kwargs)
 
     def rpc_paired_class_remote(self,
-                                to: str, cls_method: Callable, name: Any,
+                                to: RoleHandle, cls_method: Callable, name: Any,
                                 timeout=-1, retry=True, require_in_group=True,
                                 args=(), kwargs=None):
         """
@@ -524,7 +528,7 @@ class RpcGroup:
         the class instance.
 
         Args:
-            to: Role name, e.g.: "some_role:10".
+            to: Role name "some_role:10" or role tuple ("some_role", 10).
             cls_method: Class method, e.g.:``some_class.some_method``
             name: Class instance name.
             timeout: Call timeout.
@@ -541,7 +545,7 @@ class RpcGroup:
                                            args, kwargs)
 
     def rpc_paired_nn_module_sync(self,
-                                  to: str, name: Any,
+                                  to: RoleHandle, name: Any,
                                   timeout=-1, retry=True, require_in_group=True,
                                   args=(), kwargs=None):
         """
@@ -549,7 +553,7 @@ class RpcGroup:
         the model instance.
 
         Args:
-            to: Role name, e.g.: "some_role:10".
+            to: Role name "some_role:10" or role tuple ("some_role", 10).
             name: Model instance name.
             timeout: Call timeout.
             retry: Whether to retry until success after timeout.
@@ -565,7 +569,7 @@ class RpcGroup:
                                                args, kwargs)
 
     def rpc_paired_nn_module_async(self,
-                                   to: str, name: Any,
+                                   to: RoleHandle, name: Any,
                                    timeout=-1, retry=True,
                                    require_in_group=True,
                                    args=(), kwargs=None):
@@ -574,7 +578,7 @@ class RpcGroup:
         the model instance.
 
         Args:
-            to: Role name, e.g.: "some_role:10".
+            to: Role name "some_role:10" or role tuple ("some_role", 10).
             name: Model instance name.
             timeout: Call timeout.
             retry: Whether to retry until success after timeout.
@@ -590,7 +594,7 @@ class RpcGroup:
                                                args, kwargs)
 
     def rpc_paired_nn_module_remote(self,
-                                    to: str, name: Any,
+                                    to: RoleHandle, name: Any,
                                     timeout=-1, retry=True,
                                     require_in_group=True,
                                     args=(), kwargs=None):
@@ -599,7 +603,7 @@ class RpcGroup:
         the model instance.
 
         Args:
-            to: Role name, e.g.: "some_role:10".
+            to: Role name "some_role:10" or role tuple ("some_role", 10).
             name: Model instance name.
             timeout: Call timeout.
             retry: Whether to retry until success after timeout.
@@ -746,7 +750,10 @@ class RpcGroup:
         return str(WORLD.rpc_role_dispatcher.get_rank(role))
 
     @staticmethod
-    def _parse_role(role: str) -> Tuple:
+    def _parse_role(role: RoleHandle) -> Tuple:
+        if (isinstance(role, tuple) and len(role) == 2 and
+                isinstance(role[0], str) and isinstance(role[1], int)):
+            return role
         # parse a role string "some_role:10" to tuple ("some_role", 10)
         role = list(role.split(':'))
         role[1] = int(role[1])

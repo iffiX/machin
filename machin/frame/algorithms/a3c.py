@@ -19,13 +19,13 @@ class A3C(A2C):
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
-                 learning_rate=0.001,
-                 entropy_weight=None,
-                 value_weight=0.5,
-                 gradient_max=np.inf,
-                 gae_lambda=1.0,
-                 discount=0.99,
-                 update_times=50,
+                 learning_rate: float = 0.001,
+                 entropy_weight: float = None,
+                 value_weight: float = 0.5,
+                 gradient_max: float = np.inf,
+                 gae_lambda: float = 1.0,
+                 discount: float = 0.99,
+                 update_times: int = 50,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
@@ -39,7 +39,7 @@ class A3C(A2C):
             actor: Actor network module.
             critic: Critic network module.
             optimizer: Optimizer used to optimize ``actor`` and ``critic``.
-            criterion: Critierion used to evaluate the value loss.
+            criterion: Criterion used to evaluate the value loss.
             grad_server_group: Gradient sync server group, actor and critic will
                 share the same sync group.
             grad_servers: Custom gradient sync servers, the first server is for
