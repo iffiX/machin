@@ -4,6 +4,7 @@
 	</a>
 </div>
 ---
+
 [![Read the Docs](https://img.shields.io/readthedocs/machin)](https://machin.readthedocs.io/en/latest/)
 
 **Machin** is a reinforcement library purely based on pytorch. It is designed to be **readable**, **reusable** and **extendable**.
