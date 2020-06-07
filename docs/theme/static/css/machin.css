@@ -27,7 +27,7 @@ body {
 }
 
 hr {
-    border-top: #800000;
+    border-top-color: #4a4a4a;
 }
 
 h1, h2, h3 {
@@ -155,7 +155,9 @@ a:visited {
     color: #aaa;
 }
 
-code, .rst-content dl:not(.docutils) code {
+code,
+.rst-content dl:not(.docutils) code,
+.rst-content tt, .rst-content code {
     border: none;
     color: #aaa;
     background-color: #3e3e3e;

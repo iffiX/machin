@@ -15,7 +15,6 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join('..', '..')))
 
 import machin
-import torch
 
 # -- Project information -----------------------------------------------------
 
@@ -75,7 +74,7 @@ autodoc_typehints = "description"
 html_theme = 'theme'
 html_logo = '_static/icon_title.svg'
 html_favicon = '_static/favicon.png'
-html_theme_path = ['.']
+html_theme_path = ['../']
 
 html_theme_options = {
     'canonical_url': '',

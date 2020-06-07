@@ -38,11 +38,12 @@ class ParallelWrapperBase(ABC):
     @abstractmethod
     def seed(self, seed: Union[int, List[int], None] = None) -> List[int]:
         """
-        Set the seed(s) for all environment(s).
+        Set seed(s) for all environment(s).
+
         Args:
             seed: A single integer seed for all environments,
-                  or a list of integers for each environment,
-                  or None for default seed.
+                or a list of integers for each environment,
+                or None for default seed.
 
         Returns:
             New seed of each environment.

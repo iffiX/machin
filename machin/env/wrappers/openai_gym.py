@@ -2,8 +2,9 @@ import gym
 import numpy as np
 from itertools import repeat
 from typing import Tuple
-from env.utils.openai_gym import disable_view_window
-from utils.parallel import Pool, get_context
+from ..utils.openai_gym import disable_view_window
+from machin.parallel.pool import Pool
+from machin.parallel import get_context
 from .base import *
 
 disable_view_window()
@@ -196,8 +197,7 @@ class ParallelWrapperPool(ParallelWrapperBase):
             self.pool_size = pool_size
         else:
             ctx = get_context("spawn")
-            pool = Pool(context=ctx, is_daemon=False)
-            pool.enable_global_find(False)
+            pool = Pool(context=ctx, is_daemon=False, is_global=False)
             self.pool = pool
             self.pool_size = pool_size = pool.size()
 
@@ -345,4 +345,23 @@ class ParallelWrapperPool(ParallelWrapperBase):
 
 class ParallelWrapperGroup(ParallelWrapperBase):
     # TODO: implement parallel wrapper based on process group
-    raise NotImplementedError
+    def reset(self, idx: Union[int, List[int], None] = None) -> Any:
+        raise NotImplementedError
+
+    def step(self, action, idx: Union[int, List[int], None] = None) -> Any:
+        raise NotImplementedError
+
+    def seed(self, seed: Union[int, List[int], None] = None) -> List[int]:
+        raise NotImplementedError
+
+    def render(self, *args, **kwargs) -> Any:
+        raise NotImplementedError
+
+    def close(self) -> Any:
+        raise NotImplementedError
+
+    def active(self) -> List[int]:
+        raise NotImplementedError
+
+    def size(self) -> int:
+        raise NotImplementedError
