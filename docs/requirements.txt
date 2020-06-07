@@ -10,3 +10,6 @@ dill
 GPUtil
 Pillow
 tensorboardX
+sphinx=3.0.3
+sphinx-autodoc-typehints=1.10.3
+sphinx-rtd-theme=0.4.3
