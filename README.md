@@ -3,7 +3,7 @@
 		<img width="auto" height="200px" src="https://machin.readthedocs.io/en/latest/_static/icon.svg">
 	</a>
 </div>
----
+
 
 [![Read the Docs](https://img.shields.io/readthedocs/machin)](https://machin.readthedocs.io/en/latest/)
 
@@ -72,7 +72,7 @@ Machin is reproducible, because for each release, our test framework will direct
 
 ### Documentation?
 ---
-See [here](https://machin.readthedocs.io/)! Examples are located in [examples](https://github.com/iffiX/machin/tree/master/examples)
+See [here](https://machin.readthedocs.io/)! Examples are located in [examples](https://github.com/iffiX/machin/tree/master/examples).
 
 ### Installation!
 ---
