@@ -51,6 +51,7 @@ setuptools.setup(
         "psutil",
         "numpy",
         "torch>=1.5.0",
+        "torchviz",
         "moviepy",
         "matplotlib",
         "colorlog",
