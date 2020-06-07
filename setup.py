@@ -7,7 +7,7 @@ root = path.abspath(path.dirname(__file__))
 with open(path.join(root, "machin", "__init__.py")) as f:
     version = re.search(r"__version__ = \"(.*?)\"", f.read()).group(1)
 
-with open("README.md", mode="r", encoding="utff") as desc:
+with open("README.md", mode="r", encoding="utf8") as desc:
     long_description = desc.read()
 
 setuptools.setup(
