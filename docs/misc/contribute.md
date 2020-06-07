@@ -32,14 +32,12 @@ keyword arguments. A great example is the
 from napoleon, an extension of sphinx the doc builder.
 
 Finally, after so much hard work, do not forget to use pylint to check your code, 
-`PEP8` style must be conformed, since we do not want to some code like the ones
-below from the `rlpyt` library:
-![bad_rlpyt_code](https://github.com/iffiX/machin/blob/master/docs/img/bad_rlpyt_code.png)
+`PEP8` style must be conformed.
 
 You would be such a awesome coder if you can keep these rules in your mind! 
 
 #### Test your code
-Finally, the great test! you can run the following command to run all existing
+The great test at last! you can run the following command to run all existing
 tests coming along with the Machin library. This test command also includes 
 training networks.
 ```

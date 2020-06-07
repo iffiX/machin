@@ -13,7 +13,7 @@ WARNING: currently Machin is in its early development stage, tests, code coverag
 **Machin** is a reinforcement library purely based on pytorch. It is designed to be **readable**, **reusable** and **extendable**.
 
 
-### Supported algorithms? 
+### Supported algorithms
 ---
 Currently Machin has implemented the following algorithms, the list is still growing:
 
@@ -48,17 +48,17 @@ Currently Machin has implemented the following algorithms, the list is still gro
 * [QMIX (multi agent)](https://arxiv.org/abs/1803.11485)
 * Model-based methods
 
-### Features?
+### Features
 ---
 #### 1. Readable
 
-The initial development drive for the Machin library originates from one common plague of reinforcement learning libraries such as the famous [rlpyt](https://github.com/astooke/rlpyt), [ray](https://github.com/ray-project/ray), and [baselines](https://github.com/openai/baselines): **complexity**. Why cannot someone just provide a simple, clear implementation of RL algorithms without those layers upon layers of **abstraction**, **inter-dependence**,  and **obscured apis**? 
+The initial development drive for the Machin library originates from one common plague of reinforcement learning libraries such as the famous [rlpyt](https://github.com/astooke/rlpyt), [ray](https://github.com/ray-project/ray), and [baselines](https://github.com/openai/baselines): **complexity**. Machin tries to just provide a simple, clear implementation of RL algorithms and bring as little obstacles to users as possible.
 
 Therefore, Machin is designed with minimial abstractions and come with a very detailed document, as well as various tutorials to help you build your own program.
 
 #### 2. Reusable
 
-Machin takes a similar approach to that of pytorch, encasulating algorithms, data structures in their own classes. Users do not need to setup a series of `data collectors`, `trainers`, `runners`, `samplers`... to use them, **just import**! Although Machin do provide some parallel wrappers to aid you construct high-performance programs, **you are still the operator of your dataflow**! 
+Machin takes a similar approach to that of pytorch, encasulating algorithms, data structures in their own classes. Users do not need to setup a series of `data collectors`, `trainers`, `runners`, `samplers`... to use them, **just import**. Although Machin do provide some parallel wrappers to aid you construct high-performance programs, **you are still the operator of your dataflow**.
 
 The only restriction placed on your models is their input / output format, however, these restrictions are minimal, and can still be customized to make Machin work happily. 
 
@@ -73,11 +73,11 @@ Apart from rpc, Machin also provides enhancements on multiprocessing pools so th
 Machin is reproducible, because for each release, our test framework will directly train every RL framework, if any framework cannot reach the target score, the test will fail directly.
 
 
-### Documentation?
+### Documentation
 ---
-See [here](https://machin.readthedocs.io/)! Examples are located in [examples](https://github.com/iffiX/machin/tree/master/examples).
+See [here](https://machin.readthedocs.io/). Examples are located in [examples](https://github.com/iffiX/machin/tree/master/examples).
 
-### Installation!
+### Installation
 ---
 Machin is hosted on [PyPI](https://pypi.org/project/machin/). Python >= 3.5 and PyTorch >= 1.5.0 is required. You may install the Machin library by simply typing:
 ```
