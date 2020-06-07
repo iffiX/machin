@@ -25,7 +25,7 @@ pip3 install -e .
 All code in Machin must be **readable**, therefore we require you write your
 code in the [google python style](http://google.github.io/styleguide/pyguide.html).
 
-You must also document your code, we require you to give detailed signatures 
+You also must document your code, we require you to give detailed signatures 
 using the `typing` builtin library for all of your arguments as well as 
 keyword arguments. A great example is the 
 [google style docstring](https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html)
@@ -33,8 +33,6 @@ from napoleon, an extension of sphinx the doc builder.
 
 Finally, after so much hard work, do not forget to use pylint to check your code, 
 `PEP8` style must be conformed.
-
-You would be such a awesome coder if you can keep these rules in your mind! 
 
 #### Test your code
 The great test at last! you can run the following command to run all existing
@@ -67,8 +65,8 @@ class TestClass:
         assert hasattr(x, "check")
 ```
 #### Submit a pull request
-Finally, you may submit a pull request! We truly appreciate your help,
-Travis will automatically test your code and we will review your code.
+Submit a pull request in the end! We truly appreciate your help,
+Travis will automatically test your code and we will review your code as soon as possible.
 
 #### Build the documents
 In order to build the documents, you must install `requirements.txt` in `/docs`
@@ -77,4 +75,4 @@ in your venv, and execute:
 cd docs
 make html
 ```
-This command will build your documents in `docs/build`
+This command will build your documents in `docs/build`.
