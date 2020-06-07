@@ -5,7 +5,12 @@ from .base import \
 
 from .resnet import ResNet
 
+from . import base
+from . import resnet
+
 __all__ = ["NeuralNetworkModule",
            "dynamic_module_wrapper",
            "static_module_wrapper",
-           "ResNet"]
+           "ResNet",
+           "base",
+           "resnet"]

@@ -48,6 +48,7 @@ setuptools.setup(
         "Programming Language :: Python :: 3.8",
     ],
     install_requires=[
+        "gym",
         "psutil",
         "numpy",
         "torch>=1.5.0",

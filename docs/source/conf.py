@@ -59,6 +59,7 @@ autodoc_default_options = {
 }
 autodoc_member_order = 'groupwise'  # 'bysource', 'alphabetical'
 autodoc_typehints = "description"
+autodoc_mock_imports = [""]
 # autodoc_dumb_docstring = True
 
 # same as autoclass_content = 'both',

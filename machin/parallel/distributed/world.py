@@ -353,9 +353,6 @@ class RpcGroup:
         self.group_paired_map = {}
         self.destroyed = False
 
-    def gen_unique_name(self):
-        uuid_ = uuid.uui
-
     def rpc_sync(self,
                  to: RoleHandle, func: Callable,
                  timeout=-1, retry=True, require_in_group=True,
