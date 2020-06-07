@@ -23,7 +23,7 @@ copyright = '2020, Iffi'
 author = 'Iffi'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1'
+release = machin.__version__
 
 
 # -- General configuration ---------------------------------------------------
