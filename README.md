@@ -7,6 +7,9 @@
 
 [![Read the Docs](https://img.shields.io/readthedocs/machin)](https://machin.readthedocs.io/en/latest/)
 
+WARNING: currently Machin is in its early development stage, tests, code coverage, doc, examples are not complete.
+
+
 **Machin** is a reinforcement library purely based on pytorch. It is designed to be **readable**, **reusable** and **extendable**.
 
 
