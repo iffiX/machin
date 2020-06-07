@@ -90,7 +90,8 @@ Any contribution would be great, don't hesitate to submit a PR request to us! Pl
 
 ### Issues
 ---
-If you have any issues, please use the template markdown files in [docs/misc](https://github.com/iffiX/machin/tree/master/docs/misc) folder and  format your issue before opening a new one. We would try our best to respond to your feature requests and problems.
+If you have any issues, please use the template markdown files in [.github/ISSUE_TEMPLATE](https://github.com/iffiX/machin/tree/master/.github/ISSUE_TEMPLATE) 
+folder and  format your issue before opening a new one. We would try our best to respond to your feature requests and problems.
 
 ### Citing
 ---
