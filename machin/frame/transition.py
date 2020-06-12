@@ -41,17 +41,19 @@ class TransitionBase(object):
             sub_data: Data of sub attributes.
             custom_data: Data of custom attributes.
         """
+        self._inited = False
         self._major_attr = list(major_attr)
         self._sub_attr = list(sub_attr)
         self._custom_attr = list(custom_attr)
         self._keys = self._major_attr + self._sub_attr + self._custom_attr
-        self._length = self._major_attr + self._sub_attr + self._custom_attr
+        self._length = len(self._keys)
 
         for attr, data in zip(chain(major_attr, sub_attr, custom_attr),
                               chain(major_data, sub_data, custom_data)):
             object.__setattr__(self, attr, data)
+        # will trigger _check_validity in __setattr__
+        self._inited = True
         self._copy_and_detach()
-        self._check_validity()
 
     def __len__(self):
         return self._length
@@ -60,10 +62,13 @@ class TransitionBase(object):
         return getattr(self, item)
 
     def __setitem__(self, key, value):
-        object.__setattr__(key, value)
+        object.__setattr__(self, key, value)
+        self._check_validity()
 
     def __setattr__(self, key, value):
-        object.__setattr__(key, value)
+        object.__setattr__(self, key, value)
+        if self._inited:
+            self._check_validity()
 
     @property
     def major_attr(self):
