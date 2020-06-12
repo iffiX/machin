@@ -1,32 +1,19 @@
-import gym
-import numpy as np
 from itertools import repeat
-from typing import Tuple
-from ..utils.openai_gym import disable_view_window
-from machin.parallel.pool import Pool
-from machin.parallel import get_context
+from typing import Tuple, Callable
+from threading import Lock
+from multiprocessing import get_context
+
+import gym
+import dill
+import numpy as np
+
+from machin.parallel.exception import ExceptionWithTraceback
+from machin.parallel.queue import SimpleQueue
+
 from .base import *
+from ..utils.openai_gym import disable_view_window
 
 disable_view_window()
-
-
-def _call_gym_env_method(rank, all_env_idx, method, args=(), kwargs=None):
-    if kwargs is None:
-        kwargs = {}
-    hold = set(_init_envs.env_idxs[rank])
-    use = hold.intersection(set(all_env_idx))
-    for idx in use:
-        env = _init_envs.envs[rank][idx]
-        if hasattr(env, method):
-            return getattr(env, method)(*args, **kwargs)
-
-
-def _init_envs(rank, envs, env_idxs):
-    _init_envs.envs = dict()
-    _init_envs.env_idxs = dict()
-    # use rank to avoid overwriting when using ThreadPool
-    _init_envs.envs[rank] = {i: e for i, e in zip(env_idxs, envs)}
-    _init_envs.env_idxs[rank] = env_idxs
 
 
 class GymTerminationError(Exception):
@@ -43,22 +30,24 @@ class ParallelWrapperDummy(ParallelWrapperBase):
 
     For debug purpose only.
     """
-    def __init__(self, envs: List[gym.Env]):
+    def __init__(self, env_creators: List[Callable[[int], gym.Env]]):
         """
         Args:
-            envs: List of gym environments.
+            env_creators: List of gym environment creators, used to create
+                environments, accepts a index as your environment id.
         """
         super(ParallelWrapperDummy, self).__init__()
-        self._envs = envs
+        self._envs = [ec(i) for ec, i in zip(env_creators,
+                                             range(len(env_creators)))]
         self._terminal = np.zeros([len(self._envs)], dtype=np.bool)
 
-    def reset(self, idx: Union[int, List[int]] = None) -> np.ndarray:
+    def reset(self, idx: Union[int, List[int]] = None) -> List[object]:
         """
         Returns:
-            Batched gym states, the first dimension is environment size.
+            A list of gym states.
         """
         if idx is None:
-            obsrv = np.stack([e.reset() for e in self._envs])
+            obsrv = [e.reset() for e in self._envs]
             self._terminal = np.zeros([self.size()], dtype=np.bool)
         else:
             obsrv = []
@@ -69,8 +58,10 @@ class ParallelWrapperDummy(ParallelWrapperBase):
                 self._terminal[i] = False
         return obsrv
 
-    def step(self, action: np.ndarray, idx: Union[int, List[int]] = None) \
-            -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def step(self,
+             action: Union[np.ndarray, List[Any]],
+             idx: Union[int, List[int]] = None) \
+            -> Tuple[List[object], np.ndarray, np.ndarray, List[dict]]:
         """
         Let specified environment(s) run one time step. Specified environments
         must be active and have not reached terminal states before.
@@ -81,7 +72,7 @@ class ParallelWrapperDummy(ParallelWrapperBase):
             idx: Indexes of selected environments, default is all.
 
         Returns:
-            Stacked observation, reward, terminal, info in ``np.ndarray``
+            Observation, reward, terminal, and diagnostic info.
         """
         if idx is None:
             idx = list(range(self.size()))
@@ -97,10 +88,10 @@ class ParallelWrapperDummy(ParallelWrapperBase):
         result = [e.step(a) for e, a in zip(envs, action)]
         obsrv, reward, terminal, info = zip(*result)
 
-        obsrv = np.stack(obsrv)
+        obsrv = list(obsrv)
         reward = np.stack(reward)
         terminal = np.stack(terminal)
-        info = np.stack(info)
+        info = list(info)
 
         self._terminal[idx] |= terminal
 
@@ -175,63 +166,76 @@ class ParallelWrapperDummy(ParallelWrapperBase):
         """
         return len(self._envs)
 
+    @property
+    def action_space(self) -> Any:
+        # DOC INHERITED
+        return self._envs[0].action_space
 
-class ParallelWrapperPool(ParallelWrapperBase):
+    @property
+    def observation_space(self) -> Any:
+        # DOC INHERITED
+        return self._envs[0].observation_space
+
+
+# noinspection PyBroadException
+class ParallelWrapperSubProc(ParallelWrapperBase):
     """
-    Parallel wrapper based on thread pool or subprocess pool for gym
-    environments. Environments are passed to processes/threads in pool
-    during ``__init__()``, further operations on environments will only
-    use indexes of environments.
+    Parallel wrapper based on sub processes.
     """
-    def __init__(self, envs: List[gym.Env], pool=None, pool_size=None) -> None:
+    def __init__(self, env_creators: List[Callable[[int], gym.Env]]) -> None:
         """
         Args:
-            envs: List of gym environments.
-            pool: A pool of workers, by default it is a subprocess pool.
-            pool_size: Number of workers in the pool
+            env_creators: List of gym environment creators, used to create
+                environments on sub process workers, accepts a index as your
+                environment id.
         """
-        super(ParallelWrapperPool, self).__init__()
+        super(ParallelWrapperSubProc, self).__init__()
+        self.workers = []
 
-        if pool is not None and pool_size is not None:
-            self.pool = pool
-            self.pool_size = pool_size
-        else:
-            ctx = get_context("spawn")
-            pool = Pool(context=ctx, is_daemon=False, is_global=False)
-            self.pool = pool
-            self.pool_size = pool_size = pool.size()
+        # Some environments will hang or collapse when using fork context.
+        # E.g.: in "CarRacing-v0". pyglet used by gym will have render problems.
+        ctx = get_context("spawn")
+        self.cmd_queues = [SimpleQueue(ctx=ctx)
+                           for _ in range(len(env_creators))]
+        self.result_queue = SimpleQueue(ctx=ctx)
+        for cmd_queue, ec, env_idx in zip(self.cmd_queues,
+                                          env_creators,
+                                          range(len(env_creators))):
+            # lambda & local function creators must be serialized by dill,
+            # the default pickler in spawn context doesn't work.
+            self.workers.append(
+                ctx.Process(target=self._worker,
+                            args=(cmd_queue, self.result_queue,
+                                  dill.dumps(ec), env_idx))
+            )
 
-        self.env_size = env_size = len(envs)
+        for worker in self.workers:
+            worker.daemon = True
+            worker.start()
 
-        # delegate environments to workers
-        chunk_size = int(np.ceil(env_size / pool_size))
-        env_idxs = list(range(env_size))
-        env_chunks = [envs[i:i + chunk_size]
-                      for i in range(0, env_size, chunk_size)]
-        env_idx_chunks = [env_idxs[i:i + chunk_size]
-                          for i in range(0, env_size, chunk_size)]
-
-        # initialize the pool, store environments and their indexes
-        # as a member of function _init_envs()
-        self.pool.starmap(_init_envs,
-                          zip(range(pool_size), env_chunks, env_idx_chunks))
+        self.env_size = env_size = len(env_creators)
+        self._cmd_lock = Lock()
+        self._closed = False
+        tmp_env = env_creators[0](0)
+        self._action_space = tmp_env.action_space
+        self._obsrv_space = tmp_env.observation_space
+        tmp_env.close()
         self._terminal = np.zeros([env_size], dtype=np.bool)
 
-    def reset(self, idx: Union[int, List[int]] = None) -> np.ndarray:
+    def reset(self, idx: Union[int, List[int]] = None) -> List[object]:
         """
         Returns:
-            Batched gym states, the first dimension is environment size.
+            A list of gym states.
         """
         env_idxs = self._select_envs(idx)
         self._terminal[env_idxs] = False
-        obsrv = np.stack(
-            self.pool.starmap(_call_gym_env_method,
-                              zip(*self._process(env_idxs), repeat("reset")))
-        )
-        return obsrv
+        with self._cmd_lock:
+            return self._call_gym_env_method(env_idxs, "reset")
 
-    def step(self, action: np.ndarray, idx: Union[int, List[int]] = None) \
-            -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def step(self,
+             action: Union[np.ndarray, List[Any]],
+             idx: Union[int, List[int]] = None) \
+            -> Tuple[List[object], np.ndarray, np.ndarray, List[dict]]:
         """
         Let specified environment(s) run one time step. Specified environments
         must be active and have not reached terminal states before.
@@ -242,22 +246,20 @@ class ParallelWrapperPool(ParallelWrapperBase):
             idx: Indexes of selected environments, default is all.
 
         Returns:
-            observation, reward, terminal, info
+            Observation, reward, terminal, and diagnostic info.
         """
         env_idxs = self._select_envs(idx)
         if len(action) != len(env_idxs):
             raise ValueError("Action number must match environment number!")
 
-        result = self.pool.starmap(
-            _call_gym_env_method,
-            zip(*self._process(env_idxs), repeat("step"), action)
-        )
-        obsrv, reward, terminal, info = zip(*result)
+        with self._cmd_lock:
+            result = self._call_gym_env_method(env_idxs, "step",
+                                               [(act,) for act in action])
 
-        obsrv = np.stack(obsrv)
-        reward = np.stack(reward)
-        terminal = np.stack(terminal)
-        info = np.stack(info)
+        obsrv = [r[0] for r in result]
+        reward = np.stack([r[1] for r in result])
+        terminal = np.stack([r[2] for r in result])
+        info = [r[3] for r in result]
 
         self._terminal[env_idxs] |= terminal
 
@@ -281,11 +283,9 @@ class ParallelWrapperPool(ParallelWrapperBase):
         if np.isscalar(seed) or seed is None:
             seed = [seed] * self.size()
         env_idxs = self._select_envs()
-        result = self.pool.starmap(
-            _call_gym_env_method,
-            zip(*self._process(env_idxs), repeat("seed"), seed)
-        )
-        return result
+        with self._cmd_lock:
+            return self._call_gym_env_method(env_idxs, "seed",
+                                             [(sd,) for sd in seed])
 
     def render(self, idx: Union[int, List[int]] = None,
                *args, **kwargs) -> List[np.ndarray]:
@@ -300,24 +300,26 @@ class ParallelWrapperPool(ParallelWrapperBase):
             (H, W, 3).
         """
         env_idxs = self._select_envs(idx)
-        rendered = self.pool.starmap(
-            _call_gym_env_method,
-            zip(*self._process(env_idxs),
-                repeat("render"),
-                repeat(()),
-                repeat({"mode": "rgb_array"}))
-        )
-        return rendered
+        with self._cmd_lock:
+            return self._call_gym_env_method(
+                env_idxs, "render",
+                kwargs=list(repeat({"mode": "rgb_array"}, len(env_idxs)))
+            )
 
     def close(self) -> None:
         """
-        Close all environments.
+        Close all environments, including the wrapper.
         """
-        env_idxs = self._select_envs()
-        self.pool.starmap(
-            _call_gym_env_method,
-            zip(*self._process(env_idxs), repeat("close"))
-        )
+        with self._cmd_lock:
+            if self._closed:
+                return
+            self._closed = True
+            env_idxs = self._select_envs()
+            self._call_gym_env_method(env_idxs, "close")
+            for cmd_queue in self.cmd_queues:
+                cmd_queue.quick_put(None)
+            for worker in self.workers:
+                worker.join()
 
     def active(self) -> List[int]:
         """
@@ -331,6 +333,16 @@ class ParallelWrapperPool(ParallelWrapperBase):
         """
         return self.env_size
 
+    @property
+    def action_space(self) -> Any:
+        # DOC INHERITED
+        return self._action_space
+
+    @property
+    def observation_space(self) -> Any:
+        # DOC INHERITED
+        return self._obsrv_space
+
     def _select_envs(self, idx=None):
         if idx is None:
             idx = list(range(self.env_size))
@@ -339,29 +351,71 @@ class ParallelWrapperPool(ParallelWrapperBase):
                 idx = [idx]
         return idx
 
-    def _process(self, idx):
-        return range(self.pool_size), idx
+    def _call_gym_env_method(self, env_idxs, method, args=None, kwargs=None):
+        if args is None:
+            args = [() for _ in range(len(env_idxs))]
+        if kwargs is None:
+            kwargs = [{} for _ in range(len(env_idxs))]
 
+        result = {}
+        # Check whether any process has exited with error code:
+        for worker, worker_id in zip(self.workers, range(len(self.workers))):
+            if worker.exitcode is None:
+                continue
+            if worker.exitcode == 2:
+                raise RuntimeError(
+                    "Worker {} failed to create environment."
+                    .format(worker_id)
+                )
+            elif worker.exitcode != 0:
+                raise RuntimeError(
+                    "Worker {} exited with code {}."
+                    .format(worker_id, worker.exitcode)
+                )
 
-class ParallelWrapperGroup(ParallelWrapperBase):
-    # TODO: implement parallel wrapper based on process group
-    def reset(self, idx: Union[int, List[int], None] = None) -> Any:
-        raise NotImplementedError
+        for env_idx, i in zip(env_idxs, range(len(env_idxs))):
+            self.cmd_queues[env_idx].quick_put((method, args[i], kwargs[i]))
+        while len(result) < len(env_idxs):
+            e_idx, success, res = self.result_queue.get()
+            if success:
+                result[e_idx] = res
+            else:
+                raise res
+        return [result[e_idx] for e_idx in env_idxs]
 
-    def step(self, action, idx: Union[int, List[int], None] = None) -> Any:
-        raise NotImplementedError
+    @staticmethod
+    def _worker(cmd_queue: SimpleQueue,
+                result_queue: SimpleQueue,
+                env_creator, env_idx):
+        env = None
+        try:
+            env = dill.loads(env_creator)(env_idx)
+        except Exception:
+            # Something has gone wrong during environment creation,
+            # exit with error.
+            exit(2)
+        try:
+            while True:
+                try:
+                    command = cmd_queue.quick_get(timeout=1e-3)
+                except TimeoutError:
+                    continue
 
-    def seed(self, seed: Union[int, List[int], None] = None) -> List[int]:
-        raise NotImplementedError
-
-    def render(self, *args, **kwargs) -> Any:
-        raise NotImplementedError
-
-    def close(self) -> Any:
-        raise NotImplementedError
-
-    def active(self) -> List[int]:
-        raise NotImplementedError
-
-    def size(self) -> int:
-        raise NotImplementedError
+                try:
+                    if command is not None:
+                        method, args, kwargs = command
+                    else:
+                        # End of all tasks signal received
+                        cmd_queue.close()
+                        result_queue.close()
+                        break
+                    result = getattr(env, method)(*args, **kwargs)
+                    result_queue.put((env_idx, True, result))
+                except Exception as e:
+                    # Something has gone wrong during execution, serialize
+                    # the exception and send it back to master.
+                    result_queue.put((env_idx, False,
+                                      ExceptionWithTraceback(e)))
+        except KeyboardInterrupt:
+            cmd_queue.close()
+            result_queue.close()

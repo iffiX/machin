@@ -1,5 +1,5 @@
 from typing import Any
-from multiprocessing import context, connection
+from multiprocessing import context, connection, get_context
 import sys
 import dill
 import torch as t
@@ -55,17 +55,20 @@ class SimpleQueue(object):
         See Also:
             :func:`.dump_tensor`
         """
-
+        if ctx is None:
+            # get default context
+            ctx = get_context()
         self._reader, self._writer = connection.Pipe(duplex=False)
         self._reader = ConnectionWrapper(self._reader)
         self._writer = ConnectionWrapper(self._writer)
-        self._r_lock = ctx.Lock()
+        # _rlock will be used by _help_stuff_finish() of multiprocessing.Pool
+        self._rlock = ctx.Lock()
         self._poll = self._reader.poll
         self._copy_tensor = copy_tensor
         if sys.platform == 'win32':
-            self._w_lock = None
+            self._wlock = None
         else:
-            self._w_lock = ctx.Lock()
+            self._wlock = ctx.Lock()
 
     def empty(self):
         """
@@ -74,14 +77,18 @@ class SimpleQueue(object):
         """
         return not self._poll()
 
+    def close(self):
+        self._reader.close()
+        self._writer.close()
+
     def __getstate__(self):
         context.assert_spawning(self)
-        return self._reader, self._writer, self._r_lock, self._w_lock
+        return self._reader, self._writer, self._rlock, self._wlock
 
     def __setstate__(self, state):
-        (self._reader, self._writer, self._r_lock, self._w_lock) = state
+        (self._reader, self._writer, self._rlock, self._wlock) = state
 
-    def get(self):
+    def get(self, timeout=None):
         """
         Get an object from the queue. This api is required by
         ``multiprocessing.pool`` to perform inter-process
@@ -94,8 +101,8 @@ class SimpleQueue(object):
         Returns:
             Any object.
         """
-        with self._r_lock:
-            res = self._reader.recv_bytes()
+        with self._rlock:
+            res = self._reader.recv_bytes(timeout)
         # deserialize the data after having released the lock
         return dill.loads(res)
 
@@ -117,14 +124,14 @@ class SimpleQueue(object):
             obj = dump_tensor(obj, self._copy_tensor)
         else:
             obj = dill.dumps(obj)
-        if self._w_lock is None:
+        if self._wlock is None:
             # writes to a message oriented win32 pipe are atomic
             self._writer.send_bytes(obj)
         else:
-            with self._w_lock:
+            with self._wlock:
                 self._writer.send_bytes(obj)
 
-    def quick_get(self):
+    def quick_get(self, timeout=None):
         """
         Get an object from the queue.
 
@@ -136,7 +143,7 @@ class SimpleQueue(object):
         Returns:
             Any object.
         """
-        res = self._reader.recv_bytes()
+        res = self._reader.recv_bytes(timeout)
         return dill.loads(res)
 
     def quick_put(self, obj: Any):
@@ -155,6 +162,9 @@ class SimpleQueue(object):
         else:
             obj = dill.dumps(obj)
         self._writer.send_bytes(obj)
+
+    def __del__(self):
+        self.close()
 
 
 __all__ = ["SimpleQueue"]

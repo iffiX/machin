@@ -1,5 +1,5 @@
 from multiprocessing import get_context, get_start_method
-from . import distributed, server, assigner, pickle, pool, queue
+from . import distributed, server, assigner, exception, pickle, pool, queue
 
 __all__ = [
     "get_context",
@@ -7,6 +7,7 @@ __all__ = [
     "distributed",
     "server",
     "assigner",
+    "exception",
     "pickle",
     "pool",
     "queue"

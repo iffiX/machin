@@ -4,6 +4,12 @@ from typing import Union, List, Any
 
 class ParallelWrapperBase(ABC):
     def __init__(self, *_, **__):
+        """
+        Note:
+            Parallel wrapper is designed to wrap the same kind of environments,
+            they may have different parameters, but must have the same action
+            and observation space.
+        """
         pass
 
     @abstractmethod
@@ -67,7 +73,8 @@ class ParallelWrapperBase(ABC):
     @abstractmethod
     def active(self) -> List[int]:
         """
-        Returns: Indexes of active environments.
+        Returns:
+            Indexes of active environments.
         """
         pass
 
@@ -75,6 +82,24 @@ class ParallelWrapperBase(ABC):
     def size(self) -> int:
         """
         Returns:
-             Number of environments.
+            Number of environments.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def action_space(self) -> Any:
+        """
+        Returns:
+            Action space descriptor.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def observation_space(self) -> Any:
+        """
+        Returns:
+            Observation space descriptor.
         """
         pass
