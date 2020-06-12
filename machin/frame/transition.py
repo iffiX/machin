@@ -86,6 +86,7 @@ class TransitionBase(object):
         """
         Returns:
             All attribute names in current transition object.
+            Ordered in: "major_attrs, sub_attrs, custom_attrs"
         """
         return self._keys
 
@@ -225,17 +226,19 @@ class Transition(TransitionBase):
             next_state: Next observed state.
             reward: Reward of agent.
             terminal: Whether environment has reached terminal state.
-            **kwargs: Custom attributes.
+            **kwargs: Custom attributes. They are ordered in the alphabetic
+                order (provided by ``sort()``) when you call ``keys()``.
 
         Note:
             You should not store any tensor inside ``**kwargs`` as they will
             not be moved to the sample output device.
         """
+        custom_keys = sorted(kwargs.keys())
         super(Transition, self).__init__(
             major_attr=["state", "action", "next_state"],
             sub_attr=["reward", "terminal"],
-            custom_attr=kwargs.keys(),
+            custom_attr=custom_keys,
             major_data=[state, action, next_state],
             sub_data=[reward, terminal],
-            custom_data=kwargs.values()
+            custom_data=[kwargs[k] for k in custom_keys]
         )

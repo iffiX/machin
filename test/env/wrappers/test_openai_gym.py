@@ -30,6 +30,7 @@ def prepare_envs(env_list):
 
 def should_skip(spec):
     # From gym/envs/tests/spec_list.py
+    # Used to check whether a gym environment should be tested.
 
     # We skip tests for envs that require dependencies or are otherwise
     # troublesome to run frequently
@@ -93,7 +94,9 @@ def envs():
 
 
 class TestParallelWrapperDummy(object):
+    ########################################################################
     # Test for ParallelWrapperDummy.reset
+    ########################################################################
     param_test_reset = [
         (None, ENV_NUM),
         (choice(range(ENV_NUM)), 1),
@@ -114,7 +117,9 @@ class TestParallelWrapperDummy(object):
                     "Required observation form: {}, Actual observation: {}" \
                     .format(str(dummy_wrapper.observation_space), obsrv)
 
+    ########################################################################
     # Test for ParallelWrapperDummy.step
+    ########################################################################
     param_test_step = [
         (None, ENV_NUM),
         (choice(range(ENV_NUM)), 1),
@@ -141,7 +146,9 @@ class TestParallelWrapperDummy(object):
                     "Required observation form: {}, Actual observation: {}" \
                     .format(str(dummy_wrapper.observation_space), obsrv)
 
+    ########################################################################
     # Test for ParallelWrapperDummy.seed
+    ########################################################################
     param_test_seed = [
         None,
         choice(range(ENV_NUM)),
@@ -157,7 +164,9 @@ class TestParallelWrapperDummy(object):
             dummy_wrapper.close()
             assert len(seeds) == ENV_NUM
 
+    ########################################################################
     # Test for ParallelWrapperDummy.render
+    ########################################################################
     param_test_render = [
         (None, ENV_NUM),
         (choice(range(ENV_NUM)), 1),
@@ -176,13 +185,17 @@ class TestParallelWrapperDummy(object):
             assert isinstance(rendered[0], np.ndarray)
             assert rendered[0].ndim == 3 and rendered[0].shape[-1] == 3
 
+    ########################################################################
     # Test for ParallelWrapperDummy.close
+    ########################################################################
     def test_close(self, envs):
         for env_list in envs:
             dummy_wrapper = openai_gym.ParallelWrapperDummy(env_list)
             dummy_wrapper.close()
 
+    ########################################################################
     # Test for ParallelWrapperDummy.active
+    ########################################################################
     def test_active(self, envs):
         for env_list in envs:
             dummy_wrapper = openai_gym.ParallelWrapperDummy(env_list)
@@ -191,6 +204,9 @@ class TestParallelWrapperDummy(object):
             dummy_wrapper.close()
             assert len(active) == ENV_NUM
 
+    ########################################################################
+    # Test for ParallelWrapperDummy.size
+    ########################################################################
     def test_size(self, envs):
         dummy_wrapper = openai_gym.ParallelWrapperDummy(envs[0])
         assert dummy_wrapper.size() == ENV_NUM
@@ -198,7 +214,9 @@ class TestParallelWrapperDummy(object):
 
 
 class TestParallelWrapperSubProc(object):
+    ########################################################################
     # Test for ParallelWrapperSubProc.reset
+    ########################################################################
     param_test_reset = [
         (None, ENV_NUM),
         (choice(range(ENV_NUM)), 1),
@@ -219,7 +237,9 @@ class TestParallelWrapperSubProc(object):
                     "Required observation form: {}, Actual observation: {}" \
                     .format(str(subproc_wrapper.observation_space), obsrv)
 
+    ########################################################################
     # Test for ParallelWrapperSubProc.step
+    ########################################################################
     param_test_step = [
         (None, ENV_NUM),
         (choice(range(ENV_NUM)), 1),
@@ -246,7 +266,9 @@ class TestParallelWrapperSubProc(object):
                     "Required observation form: {}, Actual observation: {}" \
                     .format(str(subproc_wrapper.observation_space), obsrv)
 
+    ########################################################################
     # Test for ParallelWrapperSubProc.seed
+    ########################################################################
     param_test_seed = [
         None,
         choice(range(ENV_NUM)),
@@ -262,7 +284,9 @@ class TestParallelWrapperSubProc(object):
             subproc_wrapper.close()
             assert len(seeds) == ENV_NUM
 
+    ########################################################################
     # Test for ParallelWrapperSubProc.render
+    ########################################################################
     param_test_render = [
         (None, ENV_NUM),
         (choice(range(ENV_NUM)), 1),
@@ -281,13 +305,17 @@ class TestParallelWrapperSubProc(object):
             assert isinstance(rendered[0], np.ndarray)
             assert rendered[0].ndim == 3 and rendered[0].shape[-1] == 3
 
+    ########################################################################
     # Test for ParallelWrapperSubProc.close
+    ########################################################################
     def test_close(self, envs):
         for env_list in envs:
             subproc_wrapper = openai_gym.ParallelWrapperSubProc(env_list)
             subproc_wrapper.close()
 
+    ########################################################################
     # Test for ParallelWrapperSubProc.active
+    ########################################################################
     def test_active(self, envs):
         for env_list in envs:
             subproc_wrapper = openai_gym.ParallelWrapperSubProc(env_list)

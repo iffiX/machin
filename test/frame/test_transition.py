@@ -5,6 +5,9 @@ import torch as t
 
 
 class TestTransitionBase(object):
+    ########################################################################
+    # Test for TransitionBase.__init__
+    ########################################################################
     param_test_init = [
         ([("ma1", {"ma1_1": None})], [("sa1", 1)], [("ca", None)],
          ValueError, "is a invalid tensor"),
@@ -72,6 +75,9 @@ class TestTransitionBase(object):
                                sub_data=[s[1] for s in sub],
                                custom_data=[c[1] for c in custom])
 
+    ########################################################################
+    # Test for TransitionBase.__len__
+    ########################################################################
     param_test_len = [
         ([("ma1", {"ma1_1": t.zeros([2, 2])}),
           ("ma2", {"ma2_1": t.zeros([2, 3])})],
@@ -90,6 +96,9 @@ class TestTransitionBase(object):
                             custom_data=[c[1] for c in custom])
         assert len(tb) == length
 
+    ########################################################################
+    # Test for TransitionBase.__setattr__, __setitem__ and __getitem__
+    ########################################################################
     param_test_set_get = [
         ([("ma1", {"ma1_1": t.zeros([2, 2])}),
           ("ma2", {"ma2_1": t.zeros([2, 3])})],
@@ -114,6 +123,10 @@ class TestTransitionBase(object):
         assert t.all(tb[key] == value)
         assert t.all(getattr(tb, key) == value)
 
+    ########################################################################
+    # Test for TransitionBase.major_attr, custom_attr, keys, has_keys
+    # and items
+    ########################################################################
     param_test_attr = [
         ([("ma1", {"ma1_1": t.zeros([2, 2])}),
           ("ma2", {"ma2_1": t.zeros([2, 3])})],
@@ -152,18 +165,26 @@ class TestTransitionBase(object):
          [("ca", None)]),
     ]
 
+    ########################################################################
+    # Test for TransitionBase.to
+    ########################################################################
     @pytest.mark.parametrize("major,sub,custom", param_test_attr)
-    def test_to(self, major, sub, custom):
+    def test_to(self, major, sub, custom, pytestconfig):
         tb = TransitionBase(major_attr=[m[0] for m in major],
                             sub_attr=[s[0] for s in sub],
                             custom_attr=[c[0] for c in custom],
                             major_data=[m[1] for m in major],
                             sub_data=[s[1] for s in sub],
                             custom_data=[c[1] for c in custom])
-        tb.to("cuda:0")
+        from colorlog import getLogger
+        logger = getLogger("")
+        tb.to(pytestconfig.getoption("gpu_device"))
 
 
 class TestTransition(object):
+    ########################################################################
+    # Test for Transition.__init__
+    ########################################################################
     param_test_init = [
         {"state": {"state_1": t.zeros([1, 2])},
          "action": {"action_1": t.zeros([1, 3])},
@@ -192,6 +213,6 @@ class TestTransition(object):
     ]
 
     @pytest.mark.parametrize("trans", param_test_init)
-    def test_init(self, trans):
+    def test_init(self, trans, pytestconfig):
         tb = Transition(**trans)
-        tb.to("cuda:0")
+        tb.to(pytestconfig.getoption("gpu_device"))

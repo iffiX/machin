@@ -10,7 +10,7 @@ class Buffer(object):
         Create a buffer instance.
 
         Buffer stores a series of transition objects and functions
-        as a ring buffer.
+        as a ring buffer. **It is not thread-safe**.
 
         See Also:
             :class:`.Transition`
@@ -38,7 +38,8 @@ class Buffer(object):
 
         Args:
             transition: A transition object.
-            required_attrs: Required attributes.
+            required_attrs: Required attributes. Could be an empty tuple if
+                no attribute is required.
 
         Raises:
             ``ValueError`` if transition object doesn't have required
@@ -56,20 +57,22 @@ class Buffer(object):
         if self.size() != 0 and self.buffer[0].keys() != transition.keys():
             raise ValueError("Transition object has different attributes!")
 
-        if self.size() > self.buffer_size:
-            # trim buffer to buffer_size
-            self.buffer = self.buffer[(self.size() - self.buffer_size):]
+        # if self.size() > self.buffer_size:
+        #   This should not happen!
+
         if self.size() == self.buffer_size:
             # ring buffer storage
             position = self.index
             self.buffer[self.index] = transition
             self.index += 1
             self.index %= self.buffer_size
-        else:
+            return position
+
+        elif self.size() < self.buffer_size:
             # append if not full
             self.buffer.append(transition)
             position = len(self.buffer) - 1
-        return position
+            return position
 
     def size(self):
         """
@@ -116,7 +119,8 @@ class Buffer(object):
     def sample_method_all(buffer: List[Transition], _) \
             -> Tuple[int, List[Transition]]:
         """
-        Sample all samples from buffer. Always return the whole buffer.
+        Sample all samples from buffer. Always return the whole buffer,
+        will ignore the ``batch_size`` parameter.
         """
         return len(buffer), buffer
 
@@ -167,9 +171,12 @@ class Buffer(object):
             device:      Device to copy to.
             sample_attrs: If sample_keys is specified, then only specified keys
                          of the transition object will be sampled. You may use
-                         ``"*"`` as a wildcard to collect remaining keys.
-            additional_concat_attrs: additional custom keys needed to be
-                         concatenated,
+                         ``"*"`` as a wildcard to collect remaining
+                         **custom keys** as a ``dict``, you cannot collect major
+                         and sub attributes using this.
+            additional_concat_attrs: additional **custom keys** needed to be
+                         concatenated, will only work if ``concatenate`` is
+                         ``True``.
 
         Returns:
             Batch size, Sampled attribute values in the same order as
@@ -196,7 +203,7 @@ class Buffer(object):
         if device is None:
             device = self.buffer_device
         if sample_attrs is None:
-            sample_attrs = batch[0].keys()
+            sample_attrs = batch[0].keys() if batch else []
         if additional_concat_attrs is None:
             additional_concat_attrs = []
 
@@ -218,7 +225,7 @@ class Buffer(object):
         result = []
         used_keys = []
         if len(batch) == 0:
-            return [None] * len(sample_attrs)
+            return None
 
         major_attr = set(batch[0].major_attr)
         sub_attr = set(batch[0].sub_attr)
@@ -240,15 +247,17 @@ class Buffer(object):
                 used_keys.append(attr)
             elif attr == "*":
                 # select custom keys
+                tmp_dict = {}
                 for remain_k in batch[0].keys():
                     if (remain_k not in major_attr and
                             remain_k not in sub_attr and
                             remain_k not in used_keys):
-                        result.append(cls.make_tensor_from_batch(
+                        tmp_dict[remain_k] = cls.make_tensor_from_batch(
                             [item[remain_k] for item in batch],
                             device,
-                            concatenate and attr in additional_concat_attrs
-                        ))
+                            concatenate and remain_k in additional_concat_attrs
+                        )
+                result.append(tmp_dict)
             else:
                 result.append(cls.make_tensor_from_batch(
                     [item[attr] for item in batch],
@@ -273,20 +282,22 @@ class Buffer(object):
             concatenate: Whether performing concatenation.
 
         Returns:
-            ``None`` if batch is empty,
+            Original batch if batch is empty,
             or tensor depends on your data (if concatenate),
             or original batch (if not concatenate).
         """
-        if len(batch) == 0:
-            return None
-        if concatenate:
+        if concatenate and len(batch) != 0:
             item = batch[0]
             batch_size = len(batch)
             if t.is_tensor(item):
                 batch = [it.to(device) for it in batch]
                 return t.cat(batch, dim=0).to(device)
             else:
-                return t.tensor(batch, device=device).view(batch_size, -1)
+                try:
+                    return t.tensor(batch, device=device).view(batch_size, -1)
+                except Exception:
+                    raise ValueError("Batch not concatenable: {}"
+                                     .format(batch))
         else:
             return batch
 
