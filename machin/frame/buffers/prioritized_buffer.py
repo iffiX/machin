@@ -43,7 +43,7 @@ class WeightTree:
         """
         self.size = size
         # depth: level of nodes
-        self.max_leaf = -np.inf
+        self.max_leaf = 0
         self.depth = int(np.ceil(np.log2(self.size))) + 1
         level_sizes_log = np.arange(self.depth - 1, -1, -1)
         self.sizes = np.power(2, level_sizes_log)
@@ -317,7 +317,7 @@ class PrioritizedBuffer(Buffer):
                      device: Union[str, t.device] = None,
                      sample_attrs: List[str] = None,
                      additional_concat_attrs: List[str] = None,
-                     *_, **__) -> Tuple[Any, Any, np.ndarray, np.ndarray]:
+                     *_, **__) -> Any:
         """
         Sample the most important batch from the prioritized buffer.
 
@@ -342,19 +342,30 @@ class PrioritizedBuffer(Buffer):
                          concatenated,
 
         Returns:
-            Batch size,
-            Sampled attribute values in the same order as ``sample_keys``,
-            Indexes of samples in the weight tree,
-            Importance sampling weight of samples.
-        """
-        segment_length = self.wt_tree.get_weight_sum() / batch_size
-        self.curr_beta = np.min(
-            [1., self.curr_beta + self.beta_increment_per_sampling])
+            1. Batch size.
 
-        rand_priority = np.random.uniform()
+            2. Sampled attribute values in the same order as ``sample_keys``.
+
+               Sampled attribute values is a tuple. Or ``None`` if sampled
+               batch size is zero (E.g.: if buffer is empty or your sample
+               size is 0).
+
+            3. Indexes of samples in the weight tree, ``np.ndarray``.
+               Or ``None`` if sampled batch size is zero
+
+            4. Importance sampling weight of samples, ``np.ndarray``.
+               Or ``None`` if sampled batch size is zero
+
+        """
+        if batch_size <= 0 or self.size() == 0:
+            return 0, None, None, None
+
+        segment_length = self.wt_tree.get_weight_sum() / batch_size
+
+        rand_priority = np.random.uniform(size=batch_size)
         rand_priority += np.arange(batch_size, dtype=np.float) * segment_length
         rand_priority = np.clip(rand_priority, 0,
-                                self.wt_tree.get_weight_sum() - 1e-6)
+                                max(self.wt_tree.get_weight_sum() - 1e-6, 0))
         index = self.wt_tree.find_leaf_index(rand_priority)
 
         batch = [self.buffer[idx] for idx in index]
@@ -364,14 +375,12 @@ class PrioritizedBuffer(Buffer):
         sample_probability = priority / self.wt_tree.get_weight_sum()
         is_weight = np.power(len(self.buffer) * sample_probability, -self.beta)
         is_weight /= is_weight.max()
+        self.curr_beta = np.min(
+            [1., self.curr_beta + self.beta_increment_per_sampling]
+        )
 
-        # post processing
         if device is None:
             device = self.buffer_device
-        if sample_attrs is None:
-            sample_attrs = batch[0].keys()
-        if additional_concat_attrs is None:
-            additional_concat_attrs = []
 
         result = self.post_process_batch(batch, device, concatenate,
                                          sample_attrs, additional_concat_attrs)

@@ -179,20 +179,24 @@ class Buffer(object):
                          ``True``.
 
         Returns:
-            Batch size, Sampled attribute values in the same order as
-            ``sample_keys``.
+            1. Batch size, Sampled attribute values in the same order as
+               ``sample_keys``.
 
-            Sampled attribute values is a tuple. If batch size is zero,
-            then ``None`` for each sampled keys.
+            2. Sampled attribute values is a tuple. Or ``None`` if sampled
+               batch size is zero (E.g.: if buffer is empty or your sample
+               size is 0).
 
-            For major attributes, result are dictionaries of tensors with
-            the same keys in your transition objects.
+               - For major attributes, result are dictionaries of tensors with
+                 the same keys in your transition objects.
 
-            For sub attributes, result are tensors.
+               - For sub attributes, result are tensors.
 
-            For custom attributes, if they are not in
-            ``additional_concat_attrs``, then lists, otherwise tensors.
+               - For custom attributes, if they are not in
+                 ``additional_concat_attrs``, then lists, otherwise tensors.
         """
+        if batch_size <= 0 or self.size() == 0:
+            return 0, None
+
         if isinstance(sample_method, str):
             if not hasattr(self, "sample_method_" + sample_method):
                 raise RuntimeError("Cannot find specified sample method: {}"
@@ -202,10 +206,6 @@ class Buffer(object):
 
         if device is None:
             device = self.buffer_device
-        if sample_attrs is None:
-            sample_attrs = batch[0].keys() if batch else []
-        if additional_concat_attrs is None:
-            additional_concat_attrs = []
 
         return \
             batch_size, \
@@ -224,8 +224,13 @@ class Buffer(object):
         """
         result = []
         used_keys = []
+
         if len(batch) == 0:
             return None
+        if sample_attrs is None:
+            sample_attrs = batch[0].keys() if batch else []
+        if additional_concat_attrs is None:
+            additional_concat_attrs = []
 
         major_attr = set(batch[0].major_attr)
         sub_attr = set(batch[0].sub_attr)

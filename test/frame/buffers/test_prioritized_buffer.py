@@ -1,7 +1,5 @@
-from machin.frame.transition import Transition
 from machin.frame.buffers import WeightTree, PrioritizedBuffer
 
-import dill
 import pytest
 import numpy as np
 import torch as t
@@ -11,8 +9,8 @@ class TestWeightTree(object):
     WEIGHT_TREE_SIZE = 5
     WEIGHT_TREE_BASE = [1, 1, 1, 1, 3]
     WEIGHT_TREE_WEIGHTS = [1, 1, 1, 1, 3, 0, 0, 0,
-                           2,    2,    3,    0,
-                           4,          3,
+                           2, 2, 3, 0,
+                           4, 3,
                            7]
 
     @pytest.fixture(scope="class")
@@ -113,8 +111,8 @@ class TestWeightTree(object):
         ([], [], None, None, WEIGHT_TREE_WEIGHTS),  # return directly
         ([2.0, 2.0], [1, 3], None, None,
          [1, 2, 1, 2, 3, 0, 0, 0,
-          3,    3,    3,    0,
-          6,          3,
+          3, 3, 3, 0,
+          6, 3,
           9])
     ]
 
@@ -146,7 +144,8 @@ class TestWeightTree(object):
     # Test for WeightTree.print_weights
     ########################################################################
     def test_print_weights(self, const_tree):
-        import sys, os
+        import sys
+        import os
         # disable print output
         sys.stdout = open(os.devnull, 'w')
         const_tree.print_weights()
@@ -155,4 +154,206 @@ class TestWeightTree(object):
 
 
 class TestPrioritizedBuffer(object):
-    pass
+    ########################################################################
+    # Test for PrioritizedBuffer.append
+    ########################################################################
+    param_test_append = [
+        ([{"state": {"state_1": t.zeros([1, 2])},
+           "action": {"action_1": t.zeros([1, 3])},
+           "next_state": {"next_state_1": t.zeros([1, 2])},
+           "reward": 1,
+           "terminal": True,
+           "some_custom_attr": None}],
+         1, ((1 + 1e-2) ** 0.6, 0, 0, 0, 0),
+         {"buffer_size": 5, "buffer_device": "cpu",
+          "epsilon": 1e-2, "alpha": 0.6, "beta": 0.4,
+          "beta_increment_per_sampling": 1e-3}),
+        ([{"state": {"state_1": t.zeros([1, 2])},
+           "action": {"action_1": t.zeros([1, 3])},
+           "next_state": {"next_state_1": t.zeros([1, 2])},
+           "reward": 1,
+           "terminal": True,
+           "some_custom_attr": None}],
+         None, (1e-2 ** 0.6, 0, 0, 0, 0),
+         {"buffer_size": 5, "buffer_device": "cpu",
+          "epsilon": 1e-2, "alpha": 0.6, "beta": 0.4,
+          "beta_increment_per_sampling": 1e-3})
+    ]
+
+    @pytest.mark.parametrize("trans_list,priority,should_be_wt_leaf,"
+                             "buffer_kwargs", param_test_append)
+    def test_append(self, trans_list, priority, should_be_wt_leaf,
+                    buffer_kwargs):
+        buffer = PrioritizedBuffer(**buffer_kwargs)
+        for trans in trans_list:
+            buffer.append(trans, priority=priority)
+        assert np.all(buffer.wt_tree.get_leaf_all_weights() ==
+                      should_be_wt_leaf)
+
+    ########################################################################
+    # Test for PrioritizedBuffer.clear
+    ########################################################################
+    param_test_clear = [
+        ([{"state": {"state_1": t.zeros([1, 2])},
+           "action": {"action_1": t.zeros([1, 3])},
+           "next_state": {"next_state_1": t.zeros([1, 2])},
+           "reward": 1,
+           "terminal": True,
+           "some_custom_attr": None}],
+         1,
+         {"buffer_size": 5, "buffer_device": "cpu",
+          "epsilon": 1e-2, "alpha": 0.6, "beta": 0.4,
+          "beta_increment_per_sampling": 1e-3}),
+    ]
+
+    @pytest.mark.parametrize("trans_list,priority,buffer_kwargs",
+                             param_test_clear)
+    def test_clear(self, trans_list, priority, buffer_kwargs):
+        buffer = PrioritizedBuffer(**buffer_kwargs)
+        for trans in trans_list:
+            buffer.append(trans, priority=priority)
+        buffer.clear()
+
+    ########################################################################
+    # Test for PrioritizedBuffer.update_priority
+    ########################################################################
+    param_test_update_priority = [
+        ([{"state": {"state_1": t.zeros([1, 2])},
+           "action": {"action_1": t.zeros([1, 3])},
+           "next_state": {"next_state_1": t.zeros([1, 2])},
+           "reward": 1,
+           "terminal": True,
+           "some_custom_attr": None}],
+         1,
+         np.array([0]), np.array([2]),
+         ((2 + 1e-2) ** 0.6, 0, 0, 0, 0),
+         {"buffer_size": 5, "buffer_device": "cpu",
+          "epsilon": 1e-2, "alpha": 0.6, "beta": 0.4,
+          "beta_increment_per_sampling": 1e-3}),
+    ]
+
+    @pytest.mark.parametrize("trans_list,priority,upd_indexes,"
+                             "upd_priorities,should_be_wt_leaf,"
+                             "buffer_kwargs", param_test_update_priority)
+    def test_update_priority(self, trans_list, priority, upd_indexes,
+                             upd_priorities, should_be_wt_leaf, buffer_kwargs):
+        buffer = PrioritizedBuffer(**buffer_kwargs)
+        for trans in trans_list:
+            buffer.append(trans, priority=priority)
+        buffer.update_priority(upd_priorities, upd_indexes)
+        assert np.all(buffer.wt_tree.get_leaf_all_weights() ==
+                      should_be_wt_leaf)
+
+    ########################################################################
+    # Test for PrioritizedBuffer.sample_batch
+    ########################################################################
+    empty_trans_list = []
+    full_trans_list = [
+        ({"state": {"state_1": t.zeros([1, 2])},
+          "action": {"action_1": t.zeros([1, 3])},
+          "next_state": {"next_state_1": t.zeros([1, 2])},
+          "reward": 1,
+          "terminal": True,
+          "index": 0}, 1),
+        ({"state": {"state_1": t.zeros([1, 2])},
+          "action": {"action_1": t.zeros([1, 3])},
+          "next_state": {"next_state_1": t.zeros([1, 2])},
+          "reward": 1,
+          "terminal": True,
+          "index": 1}, 1),
+        ({"state": {"state_1": t.zeros([1, 2])},
+          "action": {"action_1": t.zeros([1, 3])},
+          "next_state": {"next_state_1": t.zeros([1, 2])},
+          "reward": 1,
+          "terminal": True,
+          "index": 2}, 1),
+        ({"state": {"state_1": t.zeros([1, 2])},
+          "action": {"action_1": t.zeros([1, 3])},
+          "next_state": {"next_state_1": t.zeros([1, 2])},
+          "reward": 1,
+          "terminal": True,
+          "index": 3}, 0.3),
+        ({"state": {"state_1": t.zeros([1, 2])},
+          "action": {"action_1": t.zeros([1, 3])},
+          "next_state": {"next_state_1": t.zeros([1, 2])},
+          "reward": 1,
+          "terminal": True,
+          "index": 4}, 0.3)
+    ]
+    param_test_sample_batch = [
+        (   # test for empty batch & empty buffer
+            empty_trans_list,
+            0,
+            None,
+            None,
+            None,
+            {"buffer_size": 5, "buffer_device": "cpu",
+             "epsilon": 1e-2, "alpha": 0.6, "beta": 0.4,
+             "beta_increment_per_sampling": 1e-3},
+            {"batch_size": 5, "concatenate": True,
+             "sample_attrs": ["index"],
+             "additional_concat_attrs": ["index"]},
+            0
+        ),
+        (   # test for regular sample
+            full_trans_list,
+            5,
+            [0, 1, 2, 2, 4],
+            [0, 1, 2, 2, 4],
+            [0.75316421, 0.75316421, 0.75316421, 0.75316421, 1.0],
+            {"buffer_size": 5,
+             "epsilon": 1e-2, "alpha": 0.6, "beta": 0.4,
+             "beta_increment_per_sampling": 1e-3},
+            {"batch_size": 5, "concatenate": True,
+             "sample_attrs": ["index"],
+             "additional_concat_attrs": ["index"]},
+            0
+        ),
+        (   # test for device="cpu"
+            full_trans_list,
+            5,
+            [0, 1, 2, 2, 4],
+            [0, 1, 2, 2, 4],
+            [0.75316421, 0.75316421, 0.75316421, 0.75316421, 1.0],
+            {"buffer_size": 5,
+             "epsilon": 1e-2, "alpha": 0.6, "beta": 0.4,
+             "beta_increment_per_sampling": 1e-3},
+            {"batch_size": 5, "concatenate": True,
+             "device": "cpu",
+             "sample_attrs": ["index"],
+             "additional_concat_attrs": ["index"]},
+            0
+        ),
+    ]
+
+    @pytest.mark.parametrize("trans_list,sampled_size,sampled_result,"
+                             "sampled_index,sampled_is_weight,buffer_kwargs,"
+                             "sample_kwargs,np_seed",
+                             param_test_sample_batch)
+    def test_sample_batch(self, trans_list, sampled_size, sampled_result,
+                          sampled_index, sampled_is_weight, buffer_kwargs,
+                          sample_kwargs, np_seed, pytestconfig):
+        np.random.seed(np_seed)
+        if "device" not in buffer_kwargs:
+            buffer_kwargs["device"] = pytestconfig.getoption("gpu_device")
+        buffer = PrioritizedBuffer(**buffer_kwargs)
+        for trans, priority in trans_list:
+            buffer.append(trans, priority=priority)
+
+        bsize, result, index, is_weight = buffer.sample_batch(**sample_kwargs)
+        assert bsize == sampled_size
+
+        if sampled_result is not None:
+            assert np.all(result[0].flatten().cpu().tolist() == sampled_result)
+        else:
+            assert result is None
+
+        if sampled_index is not None:
+            assert np.all(index == sampled_index)
+        else:
+            assert index is None
+
+        if sampled_result is not None:
+            assert np.all(np.abs(is_weight - sampled_is_weight) < 1e-6)
+        else:
+            assert is_weight is None
