@@ -72,7 +72,8 @@ class AdaptiveParamNoise(object):
                           self.adoption_coefficient)
 
 
-def _gen_perturb_hook(module, perturb_switch, reset_switch, perturb_gen):
+def _gen_perturb_hook(module, perturb_switch, reset_switch, perturb_gen,
+                      debug_backward):
     org_params = {}
     noisy_params = {}
 
@@ -106,6 +107,8 @@ def _gen_perturb_hook(module, perturb_switch, reset_switch, perturb_gen):
     def perturb_post_hook(*_):
         # Called before backward update, swap noisy parameters out,
         # so gradients are applied to original parameters.
+        if debug_backward:
+            print("Backward swapped!")
         with t.no_grad():
             if org_params:
                 for param_name, param_value in module.named_parameters():
@@ -125,7 +128,8 @@ def perturb_model(model: nn.Module,
                   noise_generator: Any = NormalNoiseGen,
                   noise_generator_args: Tuple = (),
                   noise_generator_kwargs: Dict = None,
-                  noise_generate_function: Callable = None):
+                  noise_generate_function: Callable = None,
+                  debug_backward=True):
     """
     Give model's parameters a little perturbation. Implements
     `<<Parameter Space Noise for Exploration>> <https://arxiv.org/abs/1706.
@@ -138,11 +142,12 @@ def perturb_model(model: nn.Module,
         Original parameters will be automatically swapped in during the
         backward pass, and you can safely call optimizers afterwards.
 
-    Warning:
-        You must call the returned reset function after backward
+    Note:
+        You are suggested call the returned reset function after backward
         and before optimizing to ensure that original parameters
         are swapped in. Since pytorch currently does not guarantee
-        the correctness of ``register_backward_hook``.
+        the correctness of ``register_backward_hook``. You may use
+        ``debug_backward`` to print a message if it is correctly executed.
 
     Hint:
         1. ``noise_generator`` must accept (shape, \*args) in its ``__init__``
@@ -224,6 +229,8 @@ def perturb_model(model: nn.Module,
             generator.
         noise_generate_function: Noise generation function, mutually exclusive
             with ``noise_generator`` and ``noise_generator_args``.
+        debug_backward: Print a message if the backward hook is correctly
+            executed.
 
     Returns:
         1. A reset function with no arguments, will swap in original paramters.
@@ -275,12 +282,13 @@ def perturb_model(model: nn.Module,
     hook_handles.append(model.register_forward_hook(perturb_adjust_hook))
 
     pre, post = _gen_perturb_hook(model, perturb_switch,
-                                  reset_switch, param_noise_gen)
+                                  reset_switch, param_noise_gen,
+                                  debug_backward)
     reset_hooks.append(post)
     hook_handles.append(model.register_forward_pre_hook(pre))
 
     # currently register_backward_hook is not guaranteed to work correctly
-    # hook_handles.append(model.register_backward_hook(post))
+    hook_handles.append(model.register_backward_hook(post))
 
     def reset():
         for h in reset_hooks:
