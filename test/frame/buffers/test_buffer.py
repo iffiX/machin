@@ -149,9 +149,9 @@ class TestBuffer(object):
     ])
     def test_sample(self, const_buffer, batch_size, concat, dev,
                     sample_method, sample_attrs, concat_attrs, should_be_attrs):
+        sample_not_empty = (batch_size != 0 or sample_method == "all")
         will_concat_custom = (isinstance(concat_attrs, list) and
-                              concat and
-                              (batch_size != 0 or sample_method == "all"))
+                              concat and sample_not_empty)
 
         if sample_method == "some_invalid_method":
             with pytest.raises(RuntimeError,

@@ -1,4 +1,4 @@
-from typing import Union, Dict, List, Tuple, Any
+from typing import Union, Dict, List, Any
 from ..transition import Transition
 from .buffer import Buffer
 import torch as t

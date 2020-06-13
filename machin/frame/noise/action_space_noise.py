@@ -1,4 +1,4 @@
-from typing import Tuple, Iterable, Union
+from typing import Tuple, Iterable, Union, Dict, Any
 import torch as t
 
 from .generator import OrnsteinUhlenbeckNoiseGen
@@ -76,8 +76,8 @@ def add_clipped_normal_noise_to_action(
     """
     if isinstance(noise_param[0], tuple):
         if len(noise_param) != action.shape[-1]:
-            raise ValueError(
-                "Noise param length doesn't match the last dimension of action")
+            raise ValueError("Noise param length doesn't match "
+                             "the last dimension of action")
         noise = t.rand(action.shape, device=action.device)
         for i in range(action.shape[-1]):
             noi_p = noise_param[i]
@@ -118,8 +118,8 @@ def add_normal_noise_to_action(action: t.Tensor, noise_param=(0.0, 1.0),
     """
     if isinstance(noise_param[0], tuple):
         if len(noise_param) != action.shape[-1]:
-            raise ValueError(
-                "Noise range length doesn't match the last dimension of action")
+            raise ValueError("Noise param length doesn't match "
+                             "the last dimension of action")
         noise = t.randn(action.shape, device=action.device)
         for i in range(action.shape[-1]):
             noi_p = noise_param[i]
@@ -131,18 +131,21 @@ def add_normal_noise_to_action(action: t.Tensor, noise_param=(0.0, 1.0),
     return action + noise * ratio
 
 
-def add_ou_noise_to_action(action: t.Tensor, noise_param=(0.0, 1.0), ratio=1.0,
-                           reset=False):
+def add_ou_noise_to_action(action: t.Tensor, noise_param: Dict[str, Any] = None,
+                           ratio=1.0, reset=False):
     """
     Add Ornstein-Uhlenbeck noise to action tensor.
 
     Warning:
-        Ornstein-Uhlenbeck noise generator is shared. And only one set of noise
-        param is supported.
+        Ornstein-Uhlenbeck noise generator is shared. And you cannot
+        specify OU noise of different distributions
+        for each of the last dimension of your action.
 
     Args:
         action: Raw action
-        noise_param: :class:`.OrnsteinUhlenbeckGen` params.
+        noise_param: :class:`.OrnsteinUhlenbeckGen` params. Used as
+            keyword arguments of the generator. Will only be effective if
+            ``reset`` is ``True``.
         ratio: Sampled noise is multiplied with this ratio.
         reset: Whether to reset the default Ornstein-Uhlenbeck noise generator.
 
@@ -154,6 +157,6 @@ def add_ou_noise_to_action(action: t.Tensor, noise_param=(0.0, 1.0), ratio=1.0,
         DEFAULT_OU_GEN = None
     if DEFAULT_OU_GEN is None:
         DEFAULT_OU_GEN = OrnsteinUhlenbeckNoiseGen(action.shape,
-                                                   *noise_param)
+                                                   **noise_param)
         DEFAULT_OU_GEN.reset()
-    return action + DEFAULT_OU_GEN() * ratio
+    return action + DEFAULT_OU_GEN(action.device) * ratio

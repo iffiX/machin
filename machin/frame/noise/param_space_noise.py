@@ -1,4 +1,4 @@
-from typing import Callable, Tuple, Any
+from typing import Callable, Tuple, Any, Dict
 import torch as t
 import torch.nn as nn
 
@@ -82,22 +82,26 @@ def _gen_perturb_hook(module, perturb_switch, reset_switch, perturb_gen):
                 if noisy_params and not reset_switch.get():
                     # Use generated noisy parameters.
                     for param_name, param_value in module.named_parameters():
-                        param_value.set_(noisy_params[param_name])
+                        if t.is_tensor(param_value):
+                            param_value.set_(noisy_params[param_name])
                 else:
                     # Generate noisy parameters if they don't exist.
                     org_params.clear()
                     noisy_params.clear()
                     for param_name, param_value in module.named_parameters():
-                        org_params[param_name] = param_value.clone()
-                        param_value += perturb_gen(param_value.shape,
-                                                   param_value.device).detach()
-                        noisy_params[param_name] = param_value.clone()
+                        if t.is_tensor(param_value):
+                            org_params[param_name] = param_value.clone()
+                            param_value += perturb_gen(
+                                param_value.shape, param_value.device
+                            ).detach()
+                            noisy_params[param_name] = param_value.clone()
 
             elif not perturb_switch.get():
                 # Use original parameters
                 if org_params:
                     for param_name, param_value in module.named_parameters():
-                        param_value.set_(org_params[param_name])
+                        if t.is_tensor(param_value):
+                            param_value.set_(org_params[param_name])
 
     def perturb_post_hook(*_):
         # Called before backward update, swap noisy parameters out,
@@ -105,11 +109,13 @@ def _gen_perturb_hook(module, perturb_switch, reset_switch, perturb_gen):
         with t.no_grad():
             if org_params:
                 for param_name, param_value in module.named_parameters():
-                    param_value.set_(org_params[param_name])
+                    if t.is_tensor(param_value):
+                        param_value.set_(org_params[param_name])
 
     return perturb_pre_hook, perturb_post_hook
 
 
+# noinspection PyTypeChecker
 def perturb_model(model: nn.Module,
                   perturb_switch: Switch,
                   reset_switch: Switch,
@@ -118,15 +124,31 @@ def perturb_model(model: nn.Module,
                   desired_action_stddev: float = 0.5,
                   noise_generator: Any = NormalNoiseGen,
                   noise_generator_args: Tuple = (),
+                  noise_generator_kwargs: Dict = None,
                   noise_generate_function: Callable = None):
     """
-    Give model's parameters a little perturbation.
+    Give model's parameters a little perturbation. Implements
+    `<<Parameter Space Noise for Exploration>> <https://arxiv.org/abs/1706.
+01905>`_
+
+    Note:
+        Only parameters of type ``t.Tensor`` and gettable from
+        ``model.named_parameters()`` will be perturbed.
+
+        Original parameters will be automatically swapped in during the
+        backward pass, and you can safely call optimizers afterwards.
+
+    Warning:
+        You must call the returned reset function after backward
+        and before optimizing to ensure that original parameters
+        are swapped in. Since pytorch currently does not guarantee
+        the correctness of ``register_backward_hook``.
 
     Hint:
         1. ``noise_generator`` must accept (shape, \*args) in its ``__init__``
         function, where shape is the required shape. it also needs to have
         ``__call__(device=None)`` which produce a noise tensor on the specified
-        device when invocated.
+        device when invoked.
 
         2. ``noise_generate_function`` must accept (shape, device, std:float)
         and return a noise tensor on the specified device.
@@ -145,7 +167,11 @@ def perturb_model(model: nn.Module,
             model = t.nn.Linear(dims, dims)
             optim = t.optim.Adam(model.parameters(), 1e-3)
             p_switch, r_switch = Switch(), Switch()
-            rst_func = perturb_model(model, p_switch, r_switch)
+            rst_func, dreg_func = perturb_model(model, p_switch, r_switch)
+
+            # you should keep this switch on if you do one training step after
+            # every sampling step. otherwise you may turn it off in one episode
+            # and turn it on in the next to speed up training.
             r_switch.on()
 
             # turn off/on the perturbation switch to see the difference
@@ -154,8 +180,15 @@ def perturb_model(model: nn.Module,
             # do some sampling
             action = model(t.ones([dims]))
 
-            # Visualize will not show any leaf noise tensors
-            # because they are created in t.no_grad() context.
+            # in order to let parameter noise adapt to generate noisy actions
+            # within ``desired_action_stddev``, you must periodically
+            # use the original model to generate some actions:
+            p_switch.off()
+            action = model(t.ones([dims]))
+
+            # visualize will not show any leaf noise tensors
+            # because they are created in t.no_grad() context
+            # and added in-place.
             visualize_graph(action, exit_after_vis=False)
 
             # do some training
@@ -165,6 +198,9 @@ def perturb_model(model: nn.Module,
             optim.step()
             print(model.weight)
 
+            # clear hooks
+            dreg_func()
+
     Args:
         model: Neural network model.
         perturb_switch: The switch used to enable perturbation. If switch is
@@ -173,30 +209,41 @@ def perturb_model(model: nn.Module,
         reset_switch: The switch used to reset perturbation noise. If switch is
             set to ``True`` (on), and ``perturb_switch`` is also on, then during
             every forward process, a new set of noise is applied to each param.
-            If only ``perturb_switch`` is on, then the same set of noise is used
-            in the forward process.
+            If only ``perturb_switch`` is on, then the same set of noisy
+            parameters is used in the forward process and they **will not be
+            updated**.
         distance_func: Distance function, accepts two tensors produced by
-            ``model`` (one is noisy), return the distance as float.
+            ``model`` (one is noisy), return the distance as float. Used
+            to compare the distance between actions generated by
+            noisy parameters and original parameters.
         desired_action_stddev: Desired action standard deviation.
-        noise_generator: Noise generator class, Ornstein-Uhlenbeck noise
-            generator is not supported because it has internal state.
+        noise_generator: Noise generator class.
         noise_generator_args: Additional args other than shape of the noise
+            generator.
+        noise_generator_kwargs: Additional kwargs other than shape of the noise
             generator.
         noise_generate_function: Noise generation function, mutually exclusive
             with ``noise_generator`` and ``noise_generator_args``.
 
     Returns:
-        A reset function with no arguments, will swap out noisy parameters and
-        swap in clean parameters when called.
+        1. A reset function with no arguments, will swap in original paramters.
+        2. A deregister function with no arguments, will deregister all hooks
+            applied on your model.
     """
     tmp_action = {}
-    post_hooks = []
+    reset_hooks = []
+    hook_handles = []
+
     param_noise_spec = AdaptiveParamNoise(
         desired_action_stddev=desired_action_stddev
     )
 
     def param_noise_gen(shape, device):
-        gen = noise_generator(shape, *noise_generator_args)
+        nonlocal noise_generator_args, noise_generator_kwargs
+        if noise_generator_kwargs is None:
+            noise_generator_kwargs = {}
+        gen = noise_generator(shape, *noise_generator_args,
+                              **noise_generator_kwargs)
         return gen(device) * param_noise_spec.get_dev()
 
     def param_noise_custom_gen_wrapper(shape, device):
@@ -212,7 +259,8 @@ def perturb_model(model: nn.Module,
         else:
             tmp_action["without_noise"] = output.clone()
         if "with_noise" in tmp_action and "without_noise" in tmp_action:
-            # compute distance
+            # Compute distance between two actions generated by
+            # noisy parameters and original parameters.
             with t.no_grad():
                 dist = distance_func(tmp_action["with_noise"],
                                      tmp_action["without_noise"])
@@ -222,19 +270,24 @@ def perturb_model(model: nn.Module,
                 logger.info("Current param noise stddev: {}"
                             .format(param_noise_spec.get_dev()))
 
-    model.register_forward_hook(perturb_adjust_hook)
+    # Boise generation happens in pre-forward and noise adjust happens
+    # in post-forward
+    hook_handles.append(model.register_forward_hook(perturb_adjust_hook))
 
-    for _sub_name, sub_module in model.named_modules():
-        sub_module = sub_module  # type: nn.Module
-        if len([i for i in sub_module.modules()]) != 1:
-            continue
-        pre_f, post = _gen_perturb_hook(sub_module, perturb_switch,
-                                        reset_switch, param_noise_gen)
-        sub_module.register_forward_pre_hook(pre_f)
-        post_hooks.append(post)
+    pre, post = _gen_perturb_hook(model, perturb_switch,
+                                  reset_switch, param_noise_gen)
+    reset_hooks.append(post)
+    hook_handles.append(model.register_forward_pre_hook(pre))
+
+    # currently register_backward_hook is not guaranteed to work correctly
+    # hook_handles.append(model.register_backward_hook(post))
 
     def reset():
-        for h in post_hooks:
+        for h in reset_hooks:
             h()
 
-    return reset
+    def deregister():
+        for hh in hook_handles:
+            hh.remove()
+
+    return reset, deregister

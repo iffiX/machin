@@ -15,7 +15,6 @@ class NoiseGen(ABC):
         """
         Generate a noise tensor, and move it to the specified device.
         """
-        pass
 
     @abstractmethod
     def __repr__(self):
@@ -23,13 +22,11 @@ class NoiseGen(ABC):
         Return a correct representation of the noise distribution, must
         conform to style: "<NoiseName>(param1=..., param2=...)".
         """
-        return "EmptyNoise()"
 
     def reset(self):
         """
         Reset internal states of the noise generator, if it has any.
         """
-        pass
 
 
 class NormalNoiseGen(NoiseGen):
@@ -41,7 +38,7 @@ class NormalNoiseGen(NoiseGen):
             >>> gen = NormalNoiseGen([2, 3], 0, 1)
             >>> gen("cuda:0")
             tensor([[-0.5957,  0.2360,  1.0999],
-                    [ 1.6259,  1.2052, -0.0667]], device='cuda:0')
+                    [ 1.6259,  1.2052, -0.0667]], device="cuda:0")
 
         Args:
             shape: Output shape.
@@ -60,7 +57,42 @@ class NormalNoiseGen(NoiseGen):
             return self.dist.sample(self.shape)
 
     def __repr__(self):
-        return 'NormalNoise(mu={}, sigma={})'.format(self.mu, self.sigma)
+        return "NormalNoise(mu={}, sigma={})".format(self.mu, self.sigma)
+
+
+class ClippedNormalNoiseGen(NoiseGen):
+    def __init__(self, shape: Any, mu: float = 0.0, sigma: float = 1.0,
+                 nmin: float = -1.0, nmax: float = 1.0):
+        """
+        Normal noise generator.
+
+        Example:
+            >>> gen = NormalNoiseGen([2, 3], 0, 1)
+            >>> gen("cuda:0")
+            tensor([[-0.5957,  0.2360,  1.0999],
+                    [ 1.6259,  1.2052, -0.0667]], device="cuda:0")
+
+        Args:
+            shape: Output shape.
+            mu: Average mean of normal noise.
+            sigma: Standard deviation of normal noise.
+        """
+        self.mu = mu
+        self.sigma = sigma
+        self.dist = tdist.normal.Normal(mu, sigma)
+        self.min = nmin
+        self.max = nmax
+        self.shape = shape
+
+    def __call__(self, device=None):
+        if device is not None:
+            return self.dist.sample(self.shape).to(device)
+        else:
+            return self.dist.sample(self.shape)
+
+    def __repr__(self):
+        return "ClippedNormalNoise(mu={}, sigma={}, min={}, max={})"\
+            .format(self.mu, self.sigma, self.min, self.max)
 
 
 class UniformNoiseGen(NoiseGen):
@@ -72,7 +104,7 @@ class UniformNoiseGen(NoiseGen):
             >>> gen = UniformNoiseGen([2, 3], 0, 1)
             >>> gen("cuda:0")
             tensor([[0.0745, 0.6581, 0.9572],
-                    [0.4450, 0.8157, 0.6421]], device='cuda:0')
+                    [0.4450, 0.8157, 0.6421]], device="cuda:0")
 
         Args:
             shape: Output shape.
@@ -91,7 +123,7 @@ class UniformNoiseGen(NoiseGen):
             return self.dist.sample(self.shape)
 
     def __repr__(self):
-        return 'UniformNoise(min={}, max={})'.format(self.min, self.max)
+        return "UniformNoise(min={}, max={})".format(self.min, self.max)
 
 
 class OrnsteinUhlenbeckNoiseGen(NoiseGen):
@@ -110,7 +142,7 @@ class OrnsteinUhlenbeckNoiseGen(NoiseGen):
             >>> gen = OrnsteinUhlenbeckNoiseGen([2, 3], 0, 1)
             >>> gen("cuda:0")
             tensor([[ 0.1829,  0.1589, -0.1932],
-                    [-0.1568,  0.0579,  0.2107]], device='cuda:0')
+                    [-0.1568,  0.0579,  0.2107]], device="cuda:0")
             >>> gen.reset()
 
 
@@ -129,7 +161,8 @@ class OrnsteinUhlenbeckNoiseGen(NoiseGen):
         self.norm_dist = tdist.normal.Normal(loc=0.0, scale=1.0)
         self.shape = shape
         self.x0 = x0
-        check_shape(x0, list(shape))
+        if x0 is not None:
+            check_shape(x0, list(shape))
         self.x_prev = None
         self.reset()
 
@@ -149,5 +182,5 @@ class OrnsteinUhlenbeckNoiseGen(NoiseGen):
         self.x_prev = self.x0 if self.x0 is not None else t.zeros(self.shape)
 
     def __repr__(self):
-        return 'OrnsteinUhlenbeckNoise(mu={}, sigma={})'\
+        return "OrnsteinUhlenbeckNoise(mu={}, sigma={})"\
             .format(self.mu, self.sigma)

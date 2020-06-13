@@ -174,6 +174,7 @@ class Buffer(object):
                          ``"*"`` as a wildcard to collect remaining
                          **custom keys** as a ``dict``, you cannot collect major
                          and sub attributes using this.
+                         Invalid sample attributes will be ignored.
             additional_concat_attrs: additional **custom keys** needed to be
                          concatenated, will only work if ``concatenate`` is
                          ``True``.
@@ -184,7 +185,7 @@ class Buffer(object):
 
             2. Sampled attribute values is a tuple. Or ``None`` if sampled
                batch size is zero (E.g.: if buffer is empty or your sample
-               size is 0).
+               size is 0 and you are not sampling using the "all" method).
 
                - For major attributes, result are dictionaries of tensors with
                  the same keys in your transition objects.
@@ -194,9 +195,6 @@ class Buffer(object):
                - For custom attributes, if they are not in
                  ``additional_concat_attrs``, then lists, otherwise tensors.
         """
-        if batch_size <= 0 or self.size() == 0:
-            return 0, None
-
         if isinstance(sample_method, str):
             if not hasattr(self, "sample_method_" + sample_method):
                 raise RuntimeError("Cannot find specified sample method: {}"
@@ -234,6 +232,7 @@ class Buffer(object):
 
         major_attr = set(batch[0].major_attr)
         sub_attr = set(batch[0].sub_attr)
+        custom_attr = set(batch[0].custom_attr)
         for attr in sample_attrs:
             if attr in major_attr:
                 tmp_dict = {}
@@ -263,7 +262,7 @@ class Buffer(object):
                             concatenate and remain_k in additional_concat_attrs
                         )
                 result.append(tmp_dict)
-            else:
+            elif attr in custom_attr:
                 result.append(cls.make_tensor_from_batch(
                     [item[attr] for item in batch],
                     device,
