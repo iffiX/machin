@@ -50,22 +50,6 @@ class WeightTree:
         self.offsets = np.concatenate(([0], np.cumsum(self.sizes)))
         self.weights = np.zeros([self.offsets[-1]], dtype=np.float)
 
-    def build(self):
-        """
-        Build weight tree from leaves
-        """
-        self.max_leaf = np.max(self.get_leaf_all_weights())
-        for i in range(self.depth - 1):
-            offset = self.offsets[i]
-            level_size = self.sizes[i]
-            # data are interleaved, therefore must be -1,2 and not 2,-1
-            weight_sum = self.weights[offset: offset + level_size] \
-                .reshape(-1, 2).sum(axis=1)
-
-            offset += level_size
-            next_level_size = self.sizes[i + 1]
-            self.weights[offset: offset + next_level_size] = weight_sum
-
     def get_weight_sum(self) -> float:
         """
         Returns:
@@ -85,14 +69,15 @@ class WeightTree:
         Returns:
             Current weights of all leaves, ``np.ndarray`` of shape ``(size)``.
         """
-        return self.weights[range(self.sizes[0])]
+        return self.weights[:self.size]
 
     def get_leaf_weight(self, index: Union[int, List[int], np.ndarray]) -> Any:
         """
         Get weights of selected leaves.
 
         Args:
-            index: Leaf indexes used to query weights.
+            index: Leaf indexes in range ``[0, size - 1]``,
+                used to query weights.
 
         Returns:
             Current weight(s) of selected leaves. If index is scalar, returns
@@ -100,10 +85,12 @@ class WeightTree:
         """
         if not isinstance(index, np.ndarray):
             index = np.array(index).reshape(-1)
-        if np.any(np.array(index) >= self.size):
-            raise RuntimeError("Index has elements above buffer size "
-                               "boundary!")
-        return self.weights[index]
+        if np.any(index >= self.size) or np.any(index < 0):
+            raise ValueError("Index has elements out of boundary!")
+        if index.shape[0] == 1:
+            return float(self.weights[index])
+        else:
+            return self.weights[index]
 
     def find_leaf_index(self, weight: Union[float, List[float], np.ndarray]):
         """
@@ -142,8 +129,10 @@ class WeightTree:
 
         Args:
             weight: New weight of the leaf.
-            index: Leaf index to update, must be in range ``[0, size]``.
+            index: Leaf index to update, must be in range ``[0, size - 1]``.
         """
+        if not 0 <= index <= self.size:
+            raise ValueError("Index has elements out of boundary!")
         self.max_leaf = max(weight, self.max_leaf)
         self.weights[index] = weight
         value = weight
@@ -167,18 +156,19 @@ class WeightTree:
 
         Args:
             weights: New weights of leaves.
-            indexes: Leaf indexes to update, must be in range ``[0, size]``.
+            indexes: Leaf indexes to update, must be in range ``[0, size - 1]``.
         """
         if len(weights) != len(indexes):
-            raise RuntimeError(
+            raise ValueError(
                 "Dimension of weights and indexes doesn't match!")
-        if np.any(np.array(indexes) >= self.size):
-            raise RuntimeError("Index has elements above buffer size boundary!")
+
         if len(weights) == 0:
             return
 
         weights = np.array(weights)
         indexes = np.array(indexes)
+        if np.any(indexes >= self.size) or np.any(indexes < 0):
+            raise ValueError("Index has elements out of boundary!")
 
         self.max_leaf = max(np.max(weights), self.max_leaf)
 
@@ -202,9 +192,9 @@ class WeightTree:
                 ``[0, size]``.
         """
         if len(weights) != self.size:
-            raise RuntimeError("Weights size must match buffer size!")
+            raise ValueError("Weights size must match tree size!")
         self.weights[0: len(weights)] = np.array(weights)
-        self.build()
+        self._build()
 
     def print_weights(self, precision=2):
         """
@@ -219,6 +209,22 @@ class WeightTree:
             weights = [fmt.format(self.weights[j]) for j in
                        range(offset, offset + size)]
             print(weights)
+
+    def _build(self):
+        """
+        Build weight tree from leaves
+        """
+        self.max_leaf = np.max(self.get_leaf_all_weights())
+        for i in range(self.depth - 1):
+            offset = self.offsets[i]
+            level_size = self.sizes[i]
+            # data are interleaved, therefore must be -1,2 and not 2,-1
+            weight_sum = self.weights[offset: offset + level_size] \
+                .reshape(-1, 2).sum(axis=1)
+
+            offset += level_size
+            next_level_size = self.sizes[i + 1]
+            self.weights[offset: offset + next_level_size] = weight_sum
 
 
 class PrioritizedBuffer(Buffer):
