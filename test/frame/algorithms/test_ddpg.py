@@ -73,7 +73,7 @@ class TestDDPG(object):
         c.observe_dim = 3
         c.action_dim = 1
         c.action_range = 2
-        c.max_episodes = 500
+        c.max_episodes = 1000
         c.max_steps = 200
         c.noise_param = (0, 0.2)
         c.noise_mode = "normal"
@@ -346,5 +346,7 @@ class TestDDPG(object):
                 if reward_fulfilled >= c.solved_repeat:
                     logger.info("Environment solved!")
                     return
+            else:
+                reward_fulfilled.reset()
 
         pytest.fail("DDPG Training failed.")
