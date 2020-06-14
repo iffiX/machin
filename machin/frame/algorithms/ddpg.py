@@ -2,6 +2,7 @@ from typing import Union, Dict, List, Tuple, Callable, Any
 from torch.distributions import Categorical
 import torch as t
 import torch.nn as nn
+import numpy as np
 
 from machin.frame.buffers.buffer import Transition, Buffer
 from machin.frame.noise.action_space_noise import \
@@ -37,6 +38,7 @@ class DDPG(TorchFramework):
                  update_rate: float = 0.005,
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
+                 gradient_max: float = np.inf,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
@@ -113,6 +115,7 @@ class DDPG(TorchFramework):
         self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
+        self.grad_max = gradient_max
         self.visualize = visualize
 
         self.actor = actor
@@ -176,7 +179,7 @@ class DDPG(TorchFramework):
 
     def act_with_noise(self,
                        state: Dict[str, Any],
-                       noise_param: Tuple = (0.0, 1.0),
+                       noise_param: Any = (0.0, 1.0),
                        ratio: float = 1.0,
                        mode: str = "uniform",
                        use_target: bool = False,
@@ -331,7 +334,7 @@ class DDPG(TorchFramework):
         Returns:
             mean value of estimated policy value, value loss
         """
-        batch_size, (state, action, reward, next_state, terminal, *others) = \
+        batch_size, (state, action, reward, next_state, terminal, others) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
                                             sample_attrs=[
@@ -346,11 +349,11 @@ class DDPG(TorchFramework):
         with t.no_grad():
             next_action = self.action_transform_func(self.act(next_state, True),
                                                      next_state,
-                                                     *others)
+                                                     others)
             next_value = self.criticize(next_state, next_action, True)
             next_value = next_value.view(batch_size, -1)
             y_i = self.reward_func(reward, self.discount, next_value,
-                                   terminal, *others)
+                                   terminal, others)
 
         cur_value = self.criticize(state, action)
         value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
@@ -361,10 +364,13 @@ class DDPG(TorchFramework):
         if update_value:
             self.critic.zero_grad()
             value_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.critic.parameters(), self.grad_max
+            )
             self.critic_optim.step()
 
         # Update actor network
-        cur_action = self.action_transform_func(self.act(state), state, *others)
+        cur_action = self.action_transform_func(self.act(state), state, others)
         act_value = self.criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),
@@ -377,6 +383,9 @@ class DDPG(TorchFramework):
         if update_policy:
             self.actor.zero_grad()
             act_policy_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.actor.parameters(), self.grad_max
+            )
             self.actor_optim.step()
 
         # Update target networks
@@ -412,4 +421,4 @@ class DDPG(TorchFramework):
     def bellman_function(reward, discount, next_value, terminal, *_):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
-        return reward + discount * (1 - terminal) * next_value
+        return reward + discount * ~terminal * next_value

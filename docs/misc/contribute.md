@@ -42,13 +42,13 @@ training networks.
 pytest test --conv machin --capture=no --durations=0 -v
 ```
 If you just want to test(train) a specific algorithm, use `-k` option, name is
-`<algorithm_class>_full_train`:
+`<algorithm_class> and full_train`:
 ```
-pytest test -k "DDPG_full_train"
+pytest test -k "DDPG and full_train"
 ```
 Or exclude all training by using:
 ```
-pytest test -k "not _full_train"
+pytest test -k "not full_train"
 ```
 
 You should group your tests in a single class, like the example given by pytest,

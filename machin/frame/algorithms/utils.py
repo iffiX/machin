@@ -66,10 +66,12 @@ def safe_call(model, *named_args, required_argument=()):
     if (not hasattr(model, "input_device") or
             not hasattr(model, "output_device")):
         raise RuntimeError("Wrap your model of type nn.Module with one of: \n"
-                           "1. StaticModuleWrapper from models.models.base \n"
-                           "2. DynamicModuleWrapper from models.models.base \n"
+                           "1. static_module_wrapper "
+                           "from machin.model.nets.base \n"
+                           "1. dynamic_module_wrapper "
+                           "from machin.model.nets.base \n"
                            "Or construct your own module & model with: \n"
-                           "NeuralNetworkModule from models.models.base")
+                           "NeuralNetworkModule from machin.model.nets.base")
     input_device = model.input_device
     args = inspect.getfullargspec(model.forward).args
     args_dict = {}
