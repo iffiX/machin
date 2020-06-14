@@ -1,5 +1,5 @@
 from machin.model.nets.base import static_module_wrapper as smw
-from machin.frame.algorithms.ddpg import DDPG
+from machin.frame.algorithms.td3 import TD3
 from machin.utils.learning_rate import gen_learning_rate_func
 from machin.utils.logging import default_logger as logger
 from machin.utils.helper_classes import Counter
@@ -62,7 +62,7 @@ class Critic(nn.Module):
         return q
 
 
-class TestDDPG(object):
+class TestTD3(object):
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self, pytestconfig):
@@ -85,7 +85,7 @@ class TestDDPG(object):
         return c
 
     @pytest.fixture(scope="function")
-    def ddpg(self, train_config):
+    def td3(self, train_config):
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
                     .to(c.device), c.device, c.device)
@@ -95,15 +95,19 @@ class TestDDPG(object):
                      .to(c.device), c.device, c.device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
                        .to(c.device), c.device, c.device)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    replay_size=c.replay_size)
-        return ddpg
+        critic2 = smw(Critic(c.observe_dim, c.action_dim)
+                      .to(c.device), c.device, c.device)
+        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
+                        .to(c.device), c.device, c.device)
+        td3 = TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
+                  t.optim.Adam,
+                  nn.MSELoss(reduction='sum'),
+                  replay_device=c.device,
+                  replay_size=c.replay_size)
+        return td3
 
     @pytest.fixture(scope="function")
-    def ddpg_vis(self, train_config, tmpdir):
+    def td3_vis(self, train_config, tmpdir):
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
@@ -114,17 +118,21 @@ class TestDDPG(object):
                      .to(c.device), c.device, c.device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
                        .to(c.device), c.device, c.device)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    replay_size=c.replay_size,
-                    visualize=True,
-                    visualize_dir=str(tmp_dir))
-        return ddpg
+        critic2 = smw(Critic(c.observe_dim, c.action_dim)
+                      .to(c.device), c.device, c.device)
+        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
+                        .to(c.device), c.device, c.device)
+        td3 = TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
+                  t.optim.Adam,
+                  nn.MSELoss(reduction='sum'),
+                  replay_device=c.device,
+                  replay_size=c.replay_size,
+                  visualize=True,
+                  visualize_dir=str(tmp_dir))
+        return td3
 
     @pytest.fixture(scope="function")
-    def disc_ddpg(self, train_config):
+    def lr_td3(self, train_config):
         # not used for training, only used for testing apis
         c = train_config
         actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
@@ -135,154 +143,104 @@ class TestDDPG(object):
                      .to(c.device), c.device, c.device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
                        .to(c.device), c.device, c.device)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    replay_size=c.replay_size)
-        return ddpg
-
-    @pytest.fixture(scope="function")
-    def lr_ddpg(self, train_config):
-        # not used for training, only used for testing apis
-        c = train_config
-        actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
-                    .to(c.device), c.device, c.device)
-        actor_t = smw(ActorDiscreet(c.observe_dim, c.action_dim)
+        critic2 = smw(Critic(c.observe_dim, c.action_dim)
                       .to(c.device), c.device, c.device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
+        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
+                        .to(c.device), c.device, c.device)
         lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
                                          logger=logger)
         with pytest.raises(TypeError, match="missing .+ positional argument"):
-            _ = DDPG(actor, actor_t, critic, critic_t,
-                     t.optim.Adam,
-                     nn.MSELoss(reduction='sum'),
-                     replay_device=c.device,
-                     replay_size=c.replay_size,
-                     lr_scheduler=LambdaLR)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
+            _ = TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
                     t.optim.Adam,
                     nn.MSELoss(reduction='sum'),
                     replay_device=c.device,
                     replay_size=c.replay_size,
-                    lr_scheduler=LambdaLR,
-                    lr_scheduler_args=((lr_func,), (lr_func,)))
-        return ddpg
+                    lr_scheduler=LambdaLR)
+        td3 = TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
+                  t.optim.Adam,
+                  nn.MSELoss(reduction='sum'),
+                  replay_device=c.device,
+                  replay_size=c.replay_size,
+                  lr_scheduler=LambdaLR,
+                  lr_scheduler_args=((lr_func,), (lr_func,), (lr_func,)))
+        return td3
 
     ########################################################################
-    # Test for DDPG contiguous domain acting
+    # Test for TD3 contiguous domain acting
     ########################################################################
-    def test_contiguous_action(self, train_config, ddpg):
-        c = train_config
-        state = t.zeros([1, c.observe_dim])
-        ddpg.act({"state": state})
-        ddpg.act({"state": state}, use_target=True)
-        ddpg.act_with_noise({"state": state}, noise_param=(0, 1.0),
-                            mode="uniform")
-        ddpg.act_with_noise({"state": state}, noise_param=(0, 1.0),
-                            mode="normal")
-        ddpg.act_with_noise({"state": state}, noise_param=(0, 1.0, -1.0, 1.0),
-                            mode="clipped_normal")
-        ddpg.act_with_noise({"state": state}, noise_param={"mu": 0, "sigma": 1},
-                            mode="ou")
-        with pytest.raises(ValueError, match="Unknown noise type"):
-            ddpg.act_with_noise({"state": state},
-                                noise_param=None,
-                                mode="some_unknown_noise")
+    # Skipped, it is the same as DDPG
 
     ########################################################################
-    # Test for DDPG discreet domain acting
+    # Test for TD3 discreet domain acting
     ########################################################################
-    def test_discreet_action(self, train_config, disc_ddpg):
-        c = train_config
-        state = t.zeros([1, c.observe_dim])
-        disc_ddpg.act_discreet({"state": state})
-        disc_ddpg.act_discreet({"state": state}, use_target=True)
-        disc_ddpg.act_discreet_with_noise({"state": state})
-        disc_ddpg.act_discreet_with_noise({"state": state}, use_target=True)
+    # Skipped, it is the same as DDPG
 
     ########################################################################
-    # Test for DDPG criticizing
+    # Test for TD3 criticizing
     ########################################################################
-    def test_criticize(self, train_config, ddpg):
+    def test_criticize(self, train_config, td3):
         c = train_config
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
-        ddpg.criticize({"state": state}, {"action": action})
-        ddpg.criticize({"state": state}, {"action": action}, use_target=True)
+        td3.criticize({"state": state}, {"action": action})
+        td3.criticize({"state": state}, {"action": action}, use_target=True)
+        td3.criticize2({"state": state}, {"action": action})
+        td3.criticize2({"state": state}, {"action": action}, use_target=True)
 
     ########################################################################
-    # Test for DDPG storage
+    # Test for TD3 storage
     ########################################################################
-    def test_storage(self, train_config, ddpg):
+    # Skipped, it is the same as DDPG
+
+    ########################################################################
+    # Test for TD3 update
+    ########################################################################
+    def test_update(self, train_config, td3_vis):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
-        ddpg.store_transition({
+        td3_vis.store_transition({
             "state": {"state": old_state.clone()},
             "action": {"action": action.clone()},
             "next_state": {"state": state.clone()},
             "reward": 0,
             "terminal": False
         })
-        ddpg.store_episode([{
-            "state": {"state": old_state.clone()},
-            "action": {"action": action.clone()},
-            "next_state": {"state": state.clone()},
-            "reward": 0,
-            "terminal": False
-        }])
+        td3_vis.update(update_value=True, update_policy=True,
+                       update_target=True, concatenate_samples=True)
+        td3_vis.update(update_value=False, update_policy=False,
+                       update_target=False, concatenate_samples=True)
 
     ########################################################################
-    # Test for DDPG update
+    # Test for TD3 save & load
     ########################################################################
-    def test_update(self, train_config, ddpg):
-        c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
-        ddpg.store_transition({
-            "state": {"state": old_state.clone()},
-            "action": {"action": action.clone()},
-            "next_state": {"state": state.clone()},
-            "reward": 0,
-            "terminal": False
-        })
-        ddpg.update(update_value=True, update_policy=True,
-                    update_target=True, concatenate_samples=True)
-        ddpg.update(update_value=False, update_policy=False,
-                    update_target=False, concatenate_samples=True)
-
-    ########################################################################
-    # Test for DDPG save & load
-    ########################################################################
-    def test_save_load(self, train_config, ddpg, tmpdir):
+    def test_save_load(self, train_config, td3, tmpdir):
         save_dir = tmpdir.make_numbered_dir()
-        ddpg.save(model_dir=str(save_dir),
-                  network_map={
-                      "critic_target": "critic_t",
-                      "actor_target": "actor_t"
-                  },
-                  version=1000)
-        ddpg.load(model_dir=str(save_dir),
-                  network_map={
-                      "critic_target": "critic_t",
-                      "actor_target": "actor_t"
-                  },
-                  version=1000)
+        td3.save(model_dir=str(save_dir),
+                 network_map={
+                     "critic_target": "critic_t",
+                     "critic2_target": "critic2_t",
+                     "actor_target": "actor_t"
+                 },
+                 version=1000)
+        td3.load(model_dir=str(save_dir),
+                 network_map={
+                     "critic_target": "critic_t",
+                     "critic2_target": "critic2_t",
+                     "actor_target": "actor_t"
+                 },
+                 version=1000)
 
     ########################################################################
-    # Test for DDPG lr_scheduler
+    # Test for TD3 lr_scheduler
     ########################################################################
-    def test_lr_scheduler(self, train_config, lr_ddpg):
-        lr_ddpg.update_lr_scheduler()
+    def test_lr_scheduler(self, train_config, lr_td3):
+        lr_td3.update_lr_scheduler()
 
     ########################################################################
-    # Test for DDPG full training.
+    # Test for TD3 full training.
     ########################################################################
-    def test_full_train(self, train_config, ddpg):
+    def test_full_train(self, train_config, td3):
         c = train_config
 
         # begin training
@@ -306,13 +264,13 @@ class TestDDPG(object):
 
                     # agent model inference
                     if episode.get() % c.noise_interval == 0:
-                        action = ddpg.act_with_noise(
+                        action = td3.act_with_noise(
                             {"state": old_state.unsqueeze(0)},
                             noise_param=c.noise_param,
                             mode=c.noise_mode
                         )
                     else:
-                        action = ddpg.act({"state": old_state.unsqueeze(0)}) \
+                        action = td3.act({"state": old_state.unsqueeze(0)}) \
                             .clamp(-c.action_range, c.action_range)
 
                     state, reward, terminal, _ = env.step(action.cpu().numpy())
@@ -320,7 +278,7 @@ class TestDDPG(object):
                         .flatten()
                     total_reward += float(reward)
 
-                    ddpg.store_transition({
+                    td3.store_transition({
                         "state": {"state": old_state.unsqueeze(0).clone()},
                         "action": {"action": action.clone()},
                         "next_state": {"state": state.unsqueeze(0).clone()},
@@ -330,7 +288,7 @@ class TestDDPG(object):
             # update
             if episode > 100:
                 for i in range(step.get()):
-                    ddpg.update()
+                    td3.update()
 
             smoother.update(total_reward)
             step.reset()
@@ -347,4 +305,4 @@ class TestDDPG(object):
                     logger.info("Environment solved!")
                     return
 
-        pytest.fail("DDPG Training failed.")
+        pytest.fail("TD3 Training failed.")

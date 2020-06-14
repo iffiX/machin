@@ -24,12 +24,14 @@ class TD3(DDPG):
                  criterion: Callable,
                  *_,
                  lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict, Dict] = (),
+                 lr_scheduler_args: Tuple[Tuple, Tuple, Tuple] = None,
+                 lr_scheduler_kwargs: Tuple[Dict, Dict, Dict] = None,
                  batch_size: int = 100,
                  update_rate: float = 0.005,
-                 learning_rate: float = 0.001,
+                 actor_learning_rate: float = 0.0005,
+                 critic_learning_rate: float = 0.001,
                  discount: float = 0.99,
+                 gradient_max: float = np.inf,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
@@ -37,6 +39,7 @@ class TD3(DDPG):
                  reward_func: Callable = None,
                  action_trans_func: Callable = None,
                  visualize: bool = False,
+                 visualize_dir: str = "",
                  **__):
         """
         See Also:
@@ -51,8 +54,6 @@ class TD3(DDPG):
             critic2_target: The second target critic network module.
             optimizer: Optimizer used to optimize ``actor``, ``critic``,
             criterion: Criterion used to evaluate the value loss.
-            learning_rate: Learning rate of the optimizer, not compatible with
-                ``lr_scheduler``.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
@@ -62,7 +63,10 @@ class TD3(DDPG):
                 Target parameters are updated as:
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
-
+            actor_learning_rate: Learning rate of the actor optimizer,
+                not compatible with ``lr_scheduler``.
+            critic_learning_rate: Learning rate of the critic optimizer,
+                not compatible with ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
@@ -74,27 +78,40 @@ class TD3(DDPG):
                 the raw output of your actor, by default it is:
                 ``lambda act: {"action": act}``
             visualize: Whether visualize the network flow in the first pass.
+            visualize_dir: Visualized graph save directory.
         """
+        if lr_scheduler_args is None:
+            lr_scheduler_args = ((), (), ())
+        if lr_scheduler_kwargs is None:
+            lr_scheduler_kwargs = ({}, {}, {})
+
         super(TD3, self).__init__(
             actor, actor_target, critic, critic_target, optimizer, criterion,
             lr_scheduler=lr_scheduler,
-            lr_scheduler_args=lr_scheduler_args[:2],
-            lr_scheduler_kwargs=lr_scheduler_kwargs[:2],
+            lr_scheduler_args=(lr_scheduler_args[:2]
+                               if lr_scheduler_args is not None
+                               else None),
+            lr_scheduler_kwargs=(lr_scheduler_kwargs[:2]
+                                 if lr_scheduler_kwargs is not None
+                                 else None),
             batch_size=batch_size,
             update_rate=update_rate,
-            learning_rate=learning_rate,
+            actor_learning_rate=actor_learning_rate,
+            critic_learning_rate=critic_learning_rate,
             discount=discount,
+            gradient_max=gradient_max,
             replay_size=replay_size,
             replay_device=replay_device,
             replay_buffer=replay_buffer,
             reward_func=reward_func,
             action_trans_func=action_trans_func,
-            visualize=visualize
+            visualize=visualize,
+            visualize_dir=visualize_dir
         )
         self.critic2 = critic2
         self.critic2_target = critic2_target
         self.critic2_optim = optimizer(self.critic2.parameters(),
-                                       lr=learning_rate)
+                                       lr=critic_learning_rate)
 
         # Make sure target and online networks have the same weight
         with t.no_grad():
@@ -146,6 +163,7 @@ class TD3(DDPG):
         batch_size, (state, action, reward, next_state, terminal, *others) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
+                                            sample_method="random_unique",
                                             sample_attrs=[
                                                 "state", "action",
                                                 "reward", "next_state",
@@ -175,14 +193,20 @@ class TD3(DDPG):
         value_loss2 = self.criterion(cur_value2, y_i.to(cur_value.device))
 
         if self.visualize:
-            self.visualize_model(value_loss, "critic")
+            self.visualize_model(value_loss, "critic", self.visualize_dir)
 
         if update_value:
             self.critic.zero_grad()
             value_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.critic.parameters(), self.grad_max
+            )
             self.critic_optim.step()
             self.critic2.zero_grad()
             value_loss2.backward()
+            nn.utils.clip_grad_norm_(
+                self.critic2.parameters(), self.grad_max
+            )
             self.critic2_optim.step()
 
         # Update actor network
@@ -194,11 +218,14 @@ class TD3(DDPG):
         act_policy_loss = -act_value.mean()
 
         if self.visualize:
-            self.visualize_model(act_policy_loss, "actor")
+            self.visualize_model(act_policy_loss, "actor", self.visualize_dir)
 
         if update_policy:
             self.actor.zero_grad()
             act_policy_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.actor.parameters(), self.grad_max
+            )
             self.actor_optim.step()
 
         # Update target networks
@@ -214,6 +241,14 @@ class TD3(DDPG):
     @staticmethod
     def _policy_noise_function(actions, *_):
         return actions
+
+    def update_lr_scheduler(self):
+        """
+        Update learning rate schedulers.
+        """
+        if hasattr(self, "critic2_lr_sch"):
+            self.critic2_lr_sch.step()
+        super(TD3, self).update_lr_scheduler()
 
     def load(self, model_dir: str, network_map: Dict[str, str] = None,
              version: int = -1):

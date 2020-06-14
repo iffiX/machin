@@ -36,7 +36,7 @@ class DDPG(TorchFramework):
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
                  batch_size: int = 100,
                  update_rate: float = 0.001,
-                 actor_learning_rate: float = 0.005,
+                 actor_learning_rate: float = 0.0005,
                  critic_learning_rate: float = 0.001,
                  discount: float = 0.99,
                  gradient_max: float = np.inf,
