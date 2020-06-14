@@ -1,4 +1,5 @@
 from typing import Dict, Iterable, Any
+from os.path import join
 
 import os
 import re
@@ -27,7 +28,7 @@ def prep_args(config: Config, save_env):
         # from that trial record.
 
         c.model_save_int = 100
-        c.some_root_dir = "/some_directory"
+        c.some_root_dir = "some_directory"
         c.restart_from_trial = "2020_05_09_15_00_31"
 
         save_env = SaveEnv(c.some_root_dir,
@@ -64,7 +65,7 @@ def prep_clear_dirs(dirs: Iterable[str]):
     for dir_ in dirs:
         file_list = [f for f in os.listdir(dir_)]
         for f in file_list:
-            os.remove(os.path.join(dir_, f))
+            os.remove(join(dir_, f))
 
 
 def prep_create_dirs(dirs: Iterable[str]):
@@ -90,15 +91,15 @@ def prep_dirs_default(root_dir, clear_old=False):
         clear_old: whether completely removes all things in the old
             default directories.
     """
-    prep_create_dirs((root_dir + "/model",
-                      root_dir + "/config",
-                      root_dir + "/log/images",
-                      root_dir + "/log/train_log"))
+    prep_create_dirs((join(root_dir, "model"),
+                      join(root_dir, "config"),
+                      join(root_dir, "log", "images"),
+                      join(root_dir, "log", "train_log")))
     if clear_old:
-        prep_clear_dirs((root_dir + "/model",
-                         root_dir + "/config",
-                         root_dir + "/log/images",
-                         root_dir + "/log/train_log"))
+        prep_clear_dirs((join(root_dir, "model"),
+                         join(root_dir, "config"),
+                         join(root_dir, "log", "images"),
+                         join(root_dir, "log", "train_log")))
 
 
 def prep_load_state_dict(model: nn.Module,
@@ -150,9 +151,10 @@ def prep_load_model(model_dir: str,
             print("Specified version found, using version: {}".format(version))
             for net_name, net in model_map.items():
                 net = net  # type: nn.Module
-                state_dict = t.load(model_dir +
-                                    "/{}_{}.pt".format(net_name, version),
-                                    map_location="cpu")
+                state_dict = t.load(join(
+                    model_dir, "{}_{}.pt".format(net_name, version)),
+                    map_location="cpu"
+                )
                 prep_load_state_dict(net, state_dict)
             return
         else:
@@ -172,7 +174,8 @@ def prep_load_model(model_dir: str,
     version = max(common)
     print("Using version: {}".format(version))
     for net_name, net in model_map.items():
-        state_dict = t.load(model_dir +
-                            "/{}_{}.pt".format(net_name, version),
-                            map_location="cpu")
+        state_dict = t.load(join(
+            model_dir, "{}_{}.pt".format(net_name, version)),
+            map_location="cpu"
+        )
         prep_load_state_dict(net, state_dict)

@@ -32,11 +32,12 @@ class DDPG(TorchFramework):
                  criterion: Callable,
                  *_,
                  lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
+                 lr_scheduler_args: Tuple[Tuple, Tuple] = None,
+                 lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
                  batch_size: int = 100,
-                 update_rate: float = 0.005,
-                 learning_rate: float = 0.001,
+                 update_rate: float = 0.001,
+                 actor_learning_rate: float = 0.005,
+                 critic_learning_rate: float = 0.001,
                  discount: float = 0.99,
                  gradient_max: float = np.inf,
                  replay_size: int = 500000,
@@ -45,6 +46,7 @@ class DDPG(TorchFramework):
                  reward_func: Callable = None,
                  action_trans_func: Callable = None,
                  visualize: bool = False,
+                 visualize_dir: str = "",
                  **__):
         """
         Note:
@@ -99,8 +101,10 @@ class DDPG(TorchFramework):
                 Target parameters are updated as:
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
-            learning_rate: Learning rate of the optimizer, not compatible with
-                ``lr_scheduler``.
+            actor_learning_rate: Learning rate of the actor optimizer,
+                not compatible with ``lr_scheduler``.
+            critic_learning_rate: Learning rate of the critic optimizer,
+                not compatible with ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
@@ -111,21 +115,23 @@ class DDPG(TorchFramework):
             action_trans_func: Action transform function, used to transform
                 the raw output of your actor.
             visualize: Whether visualize the network flow in the first pass.
+            visualize_dir: Visualized graph save directory.
         """
         self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
         self.grad_max = gradient_max
         self.visualize = visualize
+        self.visualize_dir = visualize_dir
 
         self.actor = actor
         self.actor_target = actor_target
         self.critic = critic
         self.critic_target = critic_target
         self.actor_optim = optimizer(self.actor.parameters(),
-                                     lr=learning_rate)
+                                     lr=actor_learning_rate)
         self.critic_optim = optimizer(self.critic.parameters(),
-                                      lr=learning_rate)
+                                      lr=critic_learning_rate)
         self.replay_buffer = (Buffer(replay_size, replay_device)
                               if replay_buffer is None
                               else replay_buffer)
@@ -136,6 +142,10 @@ class DDPG(TorchFramework):
             hard_update(self.critic, self.critic_target)
 
         if lr_scheduler is not None:
+            if lr_scheduler_args is None:
+                lr_scheduler_args = ((), ())
+            if lr_scheduler_kwargs is None:
+                lr_scheduler_kwargs = ({}, {})
             self.actor_lr_sch = lr_scheduler(
                 self.actor_optim,
                 *lr_scheduler_args[0],
@@ -217,7 +227,7 @@ class DDPG(TorchFramework):
             return add_ou_noise_to_action(
                 self.act(state, use_target), noise_param, ratio
             )
-        raise RuntimeError("Unknown noise type: " + str(mode))
+        raise ValueError("Unknown noise type: " + str(mode))
 
     def act_discreet(self,
                      state: Dict[str, Any],
@@ -337,6 +347,7 @@ class DDPG(TorchFramework):
         batch_size, (state, action, reward, next_state, terminal, others) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
+                                            sample_method="random_unique",
                                             sample_attrs=[
                                                 "state", "action",
                                                 "reward", "next_state",
@@ -359,7 +370,7 @@ class DDPG(TorchFramework):
         value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
 
         if self.visualize:
-            self.visualize_model(value_loss, "critic")
+            self.visualize_model(value_loss, "critic", self.visualize_dir)
 
         if update_value:
             self.critic.zero_grad()
@@ -378,7 +389,7 @@ class DDPG(TorchFramework):
         act_policy_loss = -act_value.mean()
 
         if self.visualize:
-            self.visualize_model(act_policy_loss, "actor")
+            self.visualize_model(act_policy_loss, "actor", self.visualize_dir)
 
         if update_policy:
             self.actor.zero_grad()

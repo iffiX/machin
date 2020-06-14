@@ -1,3 +1,4 @@
+from os.path import join
 from typing import Dict
 from torchviz import make_dot
 import torch as t
@@ -88,17 +89,24 @@ class TorchFramework:
         for r in self._is_restorable:
             if r in network_map:
                 t.save(getattr(self, r).state_dict(),
-                       model_dir + "{}_{}.pt".format(network_map[r], version))
+                       join(model_dir,
+                            "{}_{}.pt".format(network_map[r], version)))
             else:
                 default_logger.warning("Save name for module \"{}\" is not "
                                        "specified, module name is used."
                                        .format(r))
                 t.save(getattr(self, r).state_dict(),
-                       model_dir + "/{}_{}.pt".format(r, version))
+                       join(model_dir,
+                            "/{}_{}.pt".format(r, version)))
 
-    def visualize_model(self, final_tensor: t.Tensor, name: str):
+    def visualize_model(self,
+                        final_tensor: t.Tensor,
+                        name: str,
+                        directory: str):
         if name in self._visualized:
             return
         else:
             g = make_dot(final_tensor)
-            g.view(filename=name + ".gv")
+            g.render(filename=join(name, ".gv"),
+                     directory=directory, view=False,
+                     cleanup=True, quiet=True)

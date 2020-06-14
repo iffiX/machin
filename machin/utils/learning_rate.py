@@ -6,7 +6,7 @@ from typing import List, Tuple
 from logging import Logger
 
 
-def gen_learning_rate_func(lr_map: List[Tuple[int, int]],
+def gen_learning_rate_func(lr_map: List[Tuple[int, float]],
                            logger: Logger = None):
     """
     Example::
