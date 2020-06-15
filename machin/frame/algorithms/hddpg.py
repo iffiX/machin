@@ -15,31 +15,35 @@ class HDDPG(DDPG):
                  criterion: Callable,
                  *_,
                  lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
+                 lr_scheduler_args: Tuple[Tuple, Tuple] = None,
+                 lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
                  batch_size: int = 100,
                  update_rate: float = 0.005,
-                 learning_rate: float = 0.001,
+                 actor_learning_rate: float = 0.0005,
+                 critic_learning_rate: float = 0.001,
                  discount: float = 0.99,
+                 gradient_max: float = np.inf,
                  q_increase_rate: float = 1.0,
-                 q_decrease_rate: float = 0.5,
+                 q_decrease_rate: float = 1.0,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
                  reward_func: Callable = None,
                  action_trans_func: Callable = None,
                  visualize: bool = False,
+                 visualize_dir: str = "",
                  **__):
         """
+        See Also:
+            :class:`.DDPG`
+
         Args:
             actor: Actor network module.
             actor_target: Target actor network module.
             critic: Critic network module.
             critic_target: Target critic network module.
             optimizer: Optimizer used to optimize ``actor`` and ``critic``.
-            criterion: Critierion used to evaluate the value loss.
-            learning_rate: Learning rate of the optimizer, not compatible with
-                ``lr_scheduler``.
+            criterion: Criterion used to evaluate the value loss.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
@@ -49,7 +53,10 @@ class HDDPG(DDPG):
                 Target parameters are updated as:
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
-
+            actor_learning_rate: Learning rate of the actor optimizer,
+                not compatible with ``lr_scheduler``.
+            critic_learning_rate: Learning rate of the critic optimizer,
+                not compatible with ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
@@ -58,16 +65,9 @@ class HDDPG(DDPG):
             replay_buffer: Custom replay buffer.
             reward_func: Reward function used in training.
             action_trans_func: Action transform function, used to transform
-                the raw output of your actor, by default it is:
-                ``lambda act: {"action": act}``
+                the raw output of your actor.
             visualize: Whether visualize the network flow in the first pass.
-            q_increase_rate: The increase ratio multiplied to q value
-                and target value difference when difference is positive.
-            q_decrease_rate: The decrease ratio multiplied to q value
-                and target value difference when difference is negative.
-
-        See Also:
-            :class:`.DDPG`
+            visualize_dir: Visualized graph save directory.
         """
         super(HDDPG, self).__init__(actor, actor_target, critic, critic_target,
                                     optimizer, criterion,
@@ -76,14 +76,17 @@ class HDDPG(DDPG):
                                     lr_scheduler_kwargs=lr_scheduler_kwargs,
                                     batch_size=batch_size,
                                     update_rate=update_rate,
-                                    learning_rate=learning_rate,
+                                    actor_learning_rate=actor_learning_rate,
+                                    critic_learning_rate=critic_learning_rate,
                                     discount=discount,
+                                    gradient_max=gradient_max,
                                     replay_size=replay_size,
                                     replay_device=replay_device,
                                     replay_buffer=replay_buffer,
                                     reward_func=reward_func,
                                     action_trans_func=action_trans_func,
-                                    visualize=visualize)
+                                    visualize=visualize,
+                                    visualize_dir=visualize_dir)
         self.q_increase_rate = q_increase_rate
         self.q_decrease_rate = q_decrease_rate
 
@@ -124,11 +127,14 @@ class HDDPG(DDPG):
                                     (cur_value + value_change).detach())
 
         if self.visualize:
-            self.visualize_model(value_loss, "critic")
+            self.visualize_model(value_loss, "critic", self.visualize_dir)
 
         if update_value:
             self.critic.zero_grad()
             value_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.critic.parameters(), self.grad_max
+            )
             self.critic_optim.step()
 
         # Update actor network
@@ -140,11 +146,14 @@ class HDDPG(DDPG):
         act_policy_loss = -act_value.mean()
 
         if self.visualize:
-            self.visualize_model(act_policy_loss, "actor")
+            self.visualize_model(act_policy_loss, "actor", self.visualize_dir)
 
         if update_policy:
             self.actor.zero_grad()
             act_policy_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.actor.parameters(), self.grad_max
+            )
             self.actor_optim.step()
 
         # Update target networks
