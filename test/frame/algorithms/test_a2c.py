@@ -233,6 +233,7 @@ class TestA2C(object):
     def test_full_train(self, train_config, a2c, gae_lambda):
         c = train_config
         a2c.gae_lambda = gae_lambda
+
         # begin training
         episode, step = Counter(), Counter()
         reward_fulfilled = Counter()
@@ -240,8 +241,6 @@ class TestA2C(object):
         terminal = False
 
         env = c.env
-        t.set_printoptions(sci_mode=False)
-        a2c.update_times = 1
         while episode < c.max_episodes:
             episode.count()
 

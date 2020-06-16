@@ -107,9 +107,7 @@ class PPO(A2C):
                                                 "value", "gae"
                                             ])
 
-        # normalize target value
-        target_value = ((target_value - target_value.mean()) /
-                        (target_value.std() + 1e-5))
+        # normalize advantage
         advantage = ((advantage - advantage.mean()) /
                      (advantage.std() + 1e-6))
 
@@ -138,7 +136,7 @@ class PPO(A2C):
             surr_loss_1 = sim_ratio * advantage
             surr_loss_2 = t.clamp(sim_ratio,
                                   1 - self.surr_clip,
-                                  1 + self.surr_clip) * target_value
+                                  1 + self.surr_clip) * advantage
 
             # calculate policy loss using surrogate loss
             act_policy_loss = -t.min(surr_loss_1, surr_loss_2)
@@ -148,11 +146,6 @@ class PPO(A2C):
                                     new_action_entropy.mean())
 
             act_policy_loss = act_policy_loss.mean()
-
-            # calculate value loss
-            value = self.criticize(state)
-            value_loss = (self.criterion(target_value.to(value.device), value) *
-                          self.value_weight)
 
             if self.visualize:
                 self.visualize_model(act_policy_loss, "actor",
@@ -167,6 +160,12 @@ class PPO(A2C):
                 )
                 self.actor_optim.step()
             sum_act_policy_loss += act_policy_loss.item()
+
+            # calculate value loss
+            value = self.criticize(state)
+            value_loss = (self.criterion(target_value.to(value.device),
+                                         value) *
+                          self.value_weight)
 
             if self.visualize:
                 self.visualize_model(value_loss, "critic",

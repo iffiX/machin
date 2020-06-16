@@ -336,7 +336,7 @@ class A2C(TorchFramework):
             act_policy_loss += (self.entropy_weight *
                                 new_action_entropy.mean())
 
-        act_policy_loss = act_policy_loss.sum()
+        act_policy_loss = act_policy_loss.mean()
 
         if self.visualize:
             self.visualize_model(act_policy_loss, "actor",
