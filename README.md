@@ -98,7 +98,7 @@ folder and  format your issue before opening a new one. We would try our best to
 We would be very grateful if you can cite our work in your publications:
 ```
 @misc{machin,
-  author = {Muhan Li, Minghao Li},
+  author = {Muhan Li},
   title = {Machin},
   year = {2020},
   publisher = {GitHub},

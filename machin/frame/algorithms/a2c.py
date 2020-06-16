@@ -28,6 +28,7 @@ class A2C(TorchFramework):
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
                  actor_learning_rate: float = 0.001,
                  critic_learning_rate: float = 0.001,
+                 critic_update_times: int = 50,
                  entropy_weight: float = None,
                  value_weight: float = 0.5,
                  gradient_max: float = np.inf,
@@ -137,6 +138,8 @@ class A2C(TorchFramework):
                 not compatible with ``lr_scheduler``.
             critic_learning_rate: Learning rate of the critic optimizer,
                 not compatible with ``lr_scheduler``.
+            critic_update_times: Times to update your critic model in each
+                ``update()`` call.
             entropy_weight: Weight of entropy in your loss function, a positive
                 entropy weight will minimize entropy, while a negative one will
                 maximize entropy.
@@ -158,6 +161,7 @@ class A2C(TorchFramework):
         self.entropy_weight = entropy_weight
         self.grad_max = gradient_max
         self.gae_lambda = gae_lambda
+        self.critic_upd_t = critic_update_times
         self.visualize = visualize
         self.visualize_dir = visualize_dir
 
@@ -347,11 +351,14 @@ class A2C(TorchFramework):
             )
             self.actor_optim.step()
 
-        # calculate value loss
-        for i in range(50):
+        sum_value_loss = 0
+        for _ in range(self.critic_upd_t):
+            # calculate value loss
             value = self.criticize(state)
-            value_loss = (self.criterion(target_value.to(value.device), value) *
+            value_loss = (self.criterion(target_value.to(value.device),
+                                         value) *
                           self.value_weight)
+            sum_value_loss += value_loss.item()
 
             if self.visualize:
                 self.visualize_model(value_loss, "critic",
@@ -367,7 +374,7 @@ class A2C(TorchFramework):
                 self.critic_optim.step()
 
         self.replay_buffer.clear()
-        return -act_policy_loss.item(), value_loss.item() / batch_size
+        return -act_policy_loss.item(), sum_value_loss / self.critic_upd_t
 
     def update_lr_scheduler(self):
         """
