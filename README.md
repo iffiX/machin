@@ -54,7 +54,7 @@ Currently Machin has implemented the following algorithms, the list is still gro
 
 The initial development drive for the Machin library originates from one common plague of reinforcement learning libraries such as the famous [rlpyt](https://github.com/astooke/rlpyt), [ray](https://github.com/ray-project/ray), and [baselines](https://github.com/openai/baselines): **complexity**. Machin tries to just provide a simple, clear implementation of RL algorithms and bring as little obstacles to users as possible.
 
-Therefore, Machin is designed with minimial abstractions and come with a very detailed document, as well as various tutorials to help you build your own program.
+Therefore, Machin is designed with minimial abstractions and comes with a very detailed document, as well as various tutorials to help you build your own program.
 
 #### 2. Reusable
 

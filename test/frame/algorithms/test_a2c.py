@@ -56,8 +56,9 @@ class TestA2C(object):
     def train_config(self, pytestconfig):
         disable_view_window()
         c = Config()
-        # Note: A2C is not sample efficient, it will not work very well
-        # in contiguous spaces such as "Pendulum-v0", PPO is better.
+        # Note: online policy algorithms such as PPO and A2C does not
+        # work well in Pendulum (reason unknown)
+        # and MountainCarContinuous (sparse returns)
         c.env_name = "CartPole-v1"
         c.env = unwrap_time_limit(gym.make(c.env_name))
         c.observe_dim = 4
