@@ -24,19 +24,20 @@ class A2C(TorchFramework):
                  criterion: Callable,
                  *_,
                  lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
-                 learning_rate: float = 0.001,
+                 lr_scheduler_args: Tuple[Tuple, Tuple] = None,
+                 lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
+                 actor_learning_rate: float = 0.001,
+                 critic_learning_rate: float = 0.001,
                  entropy_weight: float = None,
                  value_weight: float = 0.5,
                  gradient_max: float = np.inf,
                  gae_lambda: float = 1.0,
                  discount: float = 0.99,
-                 update_times: int = 50,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
                  visualize: bool = False,
+                 visualize_dir: str = "",
                  **__):
         """
         Important:
@@ -106,10 +107,10 @@ class A2C(TorchFramework):
                         action = (action
                                   if action is not None
                                   else dist.sample())
-                        action_log_prob = dist.log_prob(action)
                         action_entropy = dist.entropy()
                         action = action.clamp(-2.0, 2.0)
-                        return action.detach(), action_log_prob, action_entropy
+                        action_log_prob = dist.log_prob(action)
+                        return action, action_log_prob, action_entropy
 
         Hint:
             Entropy weight is usually negative, to increase exploration.
@@ -132,8 +133,10 @@ class A2C(TorchFramework):
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
                 rate scheduler.
-            learning_rate: Learning rate of the optimizer, not compatible with
-                ``lr_scheduler``.
+            actor_learning_rate: Learning rate of the actor optimizer,
+                not compatible with ``lr_scheduler``.
+            critic_learning_rate: Learning rate of the critic optimizer,
+                not compatible with ``lr_scheduler``.
             entropy_weight: Weight of entropy in your loss function, a positive
                 entropy weight will minimize entropy, while a negative one will
                 maximize entropy.
@@ -142,34 +145,37 @@ class A2C(TorchFramework):
             gae_lambda: :math:`\\lambda` used in generalized advantage
                 estimation.
             discount: :math:`\\gamma` used in the bellman function.
-            update_times: Number of update iterations per sample period. Buffer
-                will be cleared after ``update()``
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
             replay_device: Device where the replay buffer locates on, Not
                 compatible with ``replay_buffer``.
             replay_buffer: Custom replay buffer.
             visualize: Whether visualize the network flow in the first pass.
+            visualize_dir: Visualized graph save directory.
         """
-        self.update_times = update_times
         self.discount = discount
         self.value_weight = value_weight
         self.entropy_weight = entropy_weight
         self.grad_max = gradient_max
         self.gae_lambda = gae_lambda
         self.visualize = visualize
+        self.visualize_dir = visualize_dir
 
         self.actor = actor
         self.critic = critic
         self.actor_optim = optimizer(self.actor.parameters(),
-                                     lr=learning_rate)
+                                     lr=actor_learning_rate)
         self.critic_optim = optimizer(self.critic.parameters(),
-                                      lr=learning_rate)
+                                      lr=critic_learning_rate)
         self.replay_buffer = (Buffer(replay_size, replay_device)
                               if replay_buffer is None
                               else replay_buffer)
 
         if lr_scheduler is not None:
+            if lr_scheduler_args is None:
+                lr_scheduler_args = ((), ())
+            if lr_scheduler_kwargs is None:
+                lr_scheduler_kwargs = ({}, {})
             self.actor_lr_sch = lr_scheduler(
                 self.actor_optim,
                 *lr_scheduler_args[0],
@@ -234,10 +240,7 @@ class A2C(TorchFramework):
 
         "value" and "gae" are automatically calculated.
         """
-        if not isinstance(episode[0], Transition):
-            episode = [Transition(**trans) for trans in episode]
-
-        episode[-1]["value"] = episode[-1].reward
+        episode[-1]["value"] = episode[-1]["reward"]
 
         # calculate value for each transition
         for i in reversed(range(1, len(episode))):
@@ -252,7 +255,7 @@ class A2C(TorchFramework):
         elif self.gae_lambda == 0.0:
             for trans in episode:
                 trans["gae"] = (trans["reward"] +
-                                self.discount * (1 - trans["terminal"])
+                                self.discount * (1 - float(trans["terminal"]))
                                 * self.criticize(trans["next_state"]).item() -
                                 self.criticize(trans["state"]).item())
         else:
@@ -261,10 +264,12 @@ class A2C(TorchFramework):
             for trans in reversed(episode):
                 critic_value = self.criticize(trans["state"]).item()
                 gae_delta = (trans["reward"] +
-                             self.discount * last_critic_value -
+                             self.discount * last_critic_value
+                             * (1 - float(trans["terminal"])) -
                              critic_value)
                 last_critic_value = critic_value
                 last_gae = trans["gae"] = (last_gae * self.discount
+                                           * (1 - float(trans["terminal"]))
                                            * self.gae_lambda +
                                            gae_delta)
 
@@ -291,69 +296,66 @@ class A2C(TorchFramework):
         Returns:
             mean value of estimated policy value, value loss
         """
-
-        sum_act_policy_loss = 0
-        sum_value_loss = 0
-
         # sample a batch
         batch_size, (state, action, reward, next_state,
-                     terminal, target_value, advantage, *others) = \
+                     terminal, target_value, advantage) = \
             self.replay_buffer.sample_batch(-1,
                                             sample_method="all",
                                             concatenate=concatenate_samples,
                                             sample_attrs=[
                                                 "state", "action", "reward",
                                                 "next_state", "terminal",
-                                                "value", "gae", "*"],
+                                                "value", "gae"],
                                             additional_concat_attrs=[
                                                 "value", "gae"
                                             ])
 
-        # normalize target value
-        target_value = ((target_value - target_value.mean()) /
-                        (target_value.std() + 1e-5))
+        # normalize advantage
+        advantage = ((advantage - advantage.mean()) /
+                     (advantage.std() + 1e-6))
 
-        for _ in range(self.update_times):
+        if self.entropy_weight is not None:
+            __, action_log_prob, new_action_entropy, *_ = \
+                self.eval_act(state, action)
+        else:
+            __, action_log_prob, *_ = \
+                self.eval_act(state, action)
+            new_action_entropy = None
+
+        action_log_prob = action_log_prob.view(batch_size, 1)
+
+        # calculate policy loss
+        act_policy_loss = -(action_log_prob *
+                            advantage.to(action_log_prob.device))
+
+        if new_action_entropy is not None:
+            act_policy_loss += (self.entropy_weight *
+                                new_action_entropy.mean())
+
+        act_policy_loss = act_policy_loss.sum()
+
+        if self.visualize:
+            self.visualize_model(act_policy_loss, "actor",
+                                 self.visualize_dir)
+
+        # Update actor network
+        if update_policy:
+            self.actor.zero_grad()
+            act_policy_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.actor.parameters(), self.grad_max
+            )
+            self.actor_optim.step()
+
+        # calculate value loss
+        for i in range(50):
             value = self.criticize(state)
-
-            if self.entropy_weight is not None:
-                new_action, new_action_log_prob, new_action_entropy = \
-                    self.eval_act(state, action)
-            else:
-                new_action, new_action_log_prob, *_ = \
-                    self.eval_act(state, action)
-                new_action_entropy = None
-
-            new_action_log_prob = new_action_log_prob.view(batch_size, 1)
-
-            # calculate policy loss
-            act_policy_loss = -(new_action_log_prob *
-                                advantage.to(new_action_log_prob.device))
-
-            if new_action_entropy is not None:
-                act_policy_loss += (self.entropy_weight *
-                                    new_action_entropy.mean())
-
-            act_policy_loss = act_policy_loss.mean()
-
             value_loss = (self.criterion(target_value.to(value.device), value) *
                           self.value_weight)
 
             if self.visualize:
-                self.visualize_model(act_policy_loss, "actor")
-
-            # Update actor network
-            if update_policy:
-                self.actor.zero_grad()
-                act_policy_loss.backward()
-                nn.utils.clip_grad_norm_(
-                    self.actor.parameters(), self.grad_max
-                )
-                self.actor_optim.step()
-                sum_act_policy_loss += act_policy_loss.item()
-
-            if self.visualize:
-                self.visualize_model(value_loss, "critic")
+                self.visualize_model(value_loss, "critic",
+                                     self.visualize_dir)
 
             # Update critic network
             if update_value:
@@ -363,11 +365,9 @@ class A2C(TorchFramework):
                     self.critic.parameters(), self.grad_max
                 )
                 self.critic_optim.step()
-                sum_value_loss += value_loss.item()
 
         self.replay_buffer.clear()
-        return (-sum_act_policy_loss / self.update_times,
-                sum_value_loss / self.update_times)
+        return -act_policy_loss.item(), value_loss.item() / batch_size
 
     def update_lr_scheduler(self):
         """

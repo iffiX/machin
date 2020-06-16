@@ -108,6 +108,7 @@ class TestTD3(object):
 
     @pytest.fixture(scope="function")
     def td3_vis(self, train_config, tmpdir):
+        # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)

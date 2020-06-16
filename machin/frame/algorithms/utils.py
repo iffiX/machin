@@ -81,7 +81,8 @@ def safe_call(model, *named_args, required_argument=()):
             if arg not in args:
                 missing.append(arg)
         raise RuntimeError("Model missing required argument field(s): {}, "
-                           "check your store_observe() function.".format(missing))
+                           "check your store_observe() function."
+                           .format(missing))
     for na in named_args:
         for k, v in na.items():
             if k in args:
@@ -98,7 +99,7 @@ def assert_output_is_probs(tensor):
             torch.all(tensor > 0):
         return
     else:
-        raise RuntimeError("Input tensor is not a probability tensor, it must "
-                           "have a dimension of 2, a sum of 1.0 for each row in"
-                           " dimension 1, and a positive value for each "
-                           "element.")
+        raise ValueError("Input tensor is not a probability tensor, it must "
+                         "have 2 dimensions (0 and 1), a sum of 1.0 for each "
+                         "row in dimension 1, and a positive value for each "
+                         "element.")

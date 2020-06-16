@@ -11,6 +11,8 @@ class TransitionBase(object):
     """
     Base class for all transitions
     """
+    _inited = False
+
     def __init__(self,
                  major_attr: Iterable[str],
                  sub_attr: Iterable[str],
@@ -41,7 +43,6 @@ class TransitionBase(object):
             sub_data: Data of sub attributes.
             custom_data: Data of custom attributes.
         """
-        self._inited = False
         self._major_attr = list(major_attr)
         self._sub_attr = list(sub_attr)
         self._custom_attr = list(custom_attr)
@@ -62,11 +63,20 @@ class TransitionBase(object):
         return getattr(self, item)
 
     def __setitem__(self, key, value):
+        if key not in self._keys:
+            raise RuntimeError("You cannot dynamically set new attributes in"
+                               "a Transition object!")
         object.__setattr__(self, key, value)
         self._check_validity()
 
     def __setattr__(self, key, value):
-        object.__setattr__(self, key, value)
+        if not self._inited:
+            object.__setattr__(self, key, value)
+        else:
+            if key not in self._keys:
+                raise RuntimeError(
+                    "You cannot dynamically set new attributes in"
+                    "a Transition object!")
         if self._inited:
             self._check_validity()
 

@@ -14,7 +14,8 @@ class PPO(A2C):
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
-                 learning_rate: float = 0.001,
+                 actor_learning_rate: float = 0.001,
+                 critic_learning_rate: float = 0.001,
                  entropy_weight: float = None,
                  value_weight: float = 0.5,
                  surrogate_loss_clip: float = 0.2,
@@ -26,6 +27,7 @@ class PPO(A2C):
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
                  visualize: bool = False,
+                 visualize_dir: str = "",
                  **__):
         """
         See Also:
@@ -35,23 +37,20 @@ class PPO(A2C):
             actor: Actor network module.
             critic: Critic network module.
             optimizer: Optimizer used to optimize ``actor`` and ``critic``.
-            criterion: Critierion used to evaluate the value loss.
+            criterion: Criterion used to evaluate the value loss.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
                 rate scheduler.
-            learning_rate: Learning rate of the optimizer, not compatible with
-                ``lr_scheduler``.
+            actor_learning_rate: Learning rate of the actor optimizer,
+                not compatible with ``lr_scheduler``.
+            critic_learning_rate: Learning rate of the critic optimizer,
+                not compatible with ``lr_scheduler``.
             entropy_weight: Weight of entropy in your loss function, a positive
                 entropy weight will minimize entropy, while a negative one will
                 maximize entropy.
             value_weight: Weight of critic value loss.
-            surrogate_loss_clip: :math:`\\epsilon` used in surrogate loss
-                clipping:
-                :math:`L_t(\\theta)=min(r_t(\\theta)\\hat{A_t}, \
-                                        clip(r_t(\\theta), \
-                                             1-\\epsilon, 1+\\epsilon) \
-                                        \\hat{A_t})`
+            surrogate_loss_clip: Surrogate loss clipping parameter in PPO.
             gradient_max: Maximum gradient.
             gae_lambda: :math:`\\lambda` used in generalized advantage
                 estimation.
@@ -64,22 +63,25 @@ class PPO(A2C):
                 compatible with ``replay_buffer``.
             replay_buffer: Custom replay buffer.
             visualize: Whether visualize the network flow in the first pass.
+            visualize_dir: Visualized graph save directory.
         """
         super(PPO, self).__init__(actor, critic, optimizer, criterion,
                                   lr_scheduler=lr_scheduler,
                                   lr_scheduler_args=lr_scheduler_args,
                                   lr_scheduler_kwargs=lr_scheduler_kwargs,
-                                  learning_rate=learning_rate,
+                                  actor_learning_rate=actor_learning_rate,
+                                  critic_learning_rate=critic_learning_rate,
                                   entropy_weight=entropy_weight,
                                   value_weight=value_weight,
                                   gradient_max=gradient_max,
                                   gae_lambda=gae_lambda,
                                   discount=discount,
-                                  update_times=update_times,
                                   replay_size=replay_size,
                                   replay_device=replay_device,
                                   replay_buffer=replay_buffer,
-                                  visualize=visualize)
+                                  visualize=visualize,
+                                  visualize_dir=visualize_dir)
+        self.update_times = update_times
         self.surr_clip = surrogate_loss_clip
 
     def update(self,
@@ -92,49 +94,51 @@ class PPO(A2C):
         sum_value_loss = 0
 
         # sample a batch
-        batch_size, (state, action, reward, next_state, terminal,
-                     action_log_prob, target_value, advantage, *others) = \
+        batch_size, (state, action, reward, next_state,
+                     terminal, target_value, advantage) = \
             self.replay_buffer.sample_batch(-1,
                                             sample_method="all",
                                             concatenate=concatenate_samples,
                                             sample_attrs=[
                                                 "state", "action", "reward",
                                                 "next_state", "terminal",
-                                                "action_log_prob", "value",
-                                                "gae", "*"],
+                                                "value", "gae"],
                                             additional_concat_attrs=[
-                                                "action_log_prob", "value",
-                                                "gae"
+                                                "value", "gae"
                                             ])
 
         # normalize target value
         target_value = ((target_value - target_value.mean()) /
                         (target_value.std() + 1e-5))
+        advantage = ((advantage - advantage.mean()) /
+                     (advantage.std() + 1e-6))
 
         # Infer original action log probability
         __, action_log_prob, *_ = self.eval_act(state, action)
-        action_log_prob = action_log_prob.view(batch_size, 1)
+        action_log_prob = action_log_prob.view(batch_size, 1).detach()
 
-        for i in range(self.update_times):
-            value = self.criticize(state)
-
+        for _ in range(self.update_times):
             if self.entropy_weight is not None:
                 __, new_action_log_prob, new_action_entropy, *_ = \
                     self.eval_act(state, action)
-
             else:
-                __, new_action_log_prob, *_ = self.eval_act(state, action)
+                __, new_action_log_prob, *_ = \
+                    self.eval_act(state, action)
                 new_action_entropy = None
 
             new_action_log_prob = new_action_log_prob.view(batch_size, 1)
 
             # calculate surrogate loss
-            sim_ratio = t.exp(new_action_log_prob - action_log_prob).detach()
+            # The function of this process is ignoring actions that are not
+            # likely to be produced in current actor policy distribution,
+            # Because in each update, the old policy distribution diverges
+            # from the current distribution more and more.
+            sim_ratio = t.exp(new_action_log_prob - action_log_prob)
             advantage = advantage.to(sim_ratio.device)
             surr_loss_1 = sim_ratio * advantage
             surr_loss_2 = t.clamp(sim_ratio,
                                   1 - self.surr_clip,
-                                  1 + self.surr_clip) * advantage
+                                  1 + self.surr_clip) * target_value
 
             # calculate policy loss using surrogate loss
             act_policy_loss = -t.min(surr_loss_1, surr_loss_2)
@@ -145,11 +149,14 @@ class PPO(A2C):
 
             act_policy_loss = act_policy_loss.mean()
 
+            # calculate value loss
+            value = self.criticize(state)
             value_loss = (self.criterion(target_value.to(value.device), value) *
                           self.value_weight)
 
             if self.visualize:
-                self.visualize_model(act_policy_loss, "actor")
+                self.visualize_model(act_policy_loss, "actor",
+                                     self.visualize_dir)
 
             # Update actor network
             if update_policy:
@@ -159,10 +166,11 @@ class PPO(A2C):
                     self.actor.parameters(), self.grad_max
                 )
                 self.actor_optim.step()
-                sum_act_policy_loss += act_policy_loss.item()
+            sum_act_policy_loss += act_policy_loss.item()
 
             if self.visualize:
-                self.visualize_model(value_loss, "critic")
+                self.visualize_model(value_loss, "critic",
+                                     self.visualize_dir)
 
             # Update critic network
             if update_value:
@@ -172,7 +180,7 @@ class PPO(A2C):
                     self.critic.parameters(), self.grad_max
                 )
                 self.critic_optim.step()
-                sum_value_loss += value_loss.item()
+            sum_value_loss += value_loss.item()
 
         self.replay_buffer.clear()
         return (-sum_act_policy_loss / self.update_times,

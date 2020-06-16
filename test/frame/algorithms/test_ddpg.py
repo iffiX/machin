@@ -104,6 +104,7 @@ class TestDDPG(object):
 
     @pytest.fixture(scope="function")
     def ddpg_vis(self, train_config, tmpdir):
+        # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
@@ -217,7 +218,7 @@ class TestDDPG(object):
     ########################################################################
     # Test for DDPG storage
     ########################################################################
-    def test_storage(self, train_config, ddpg):
+    def test_store(self, train_config, ddpg):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
