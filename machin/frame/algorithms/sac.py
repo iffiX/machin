@@ -31,17 +31,19 @@ class SAC(TorchFramework):
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
                  target_entropy: float = None,
                  initial_entropy_alpha: float = 1.0,
-                 gradient_max: float = np.inf,
                  batch_size: int = 100,
                  update_rate: float = 0.005,
-                 learning_rate: float = 0.001,
+                 actor_learning_rate: float = 0.0005,
+                 critic_learning_rate: float = 0.001,
                  discount: float = 0.99,
+                 gradient_max: float = np.inf,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
                  reward_func: Callable = None,
                  action_trans_func: Callable = None,
                  visualize: bool = False,
+                 visualize_dir: str = "",
                  **__):
         """
         See Also:
@@ -89,8 +91,10 @@ class SAC(TorchFramework):
                 Target parameters are updated as:
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
-            learning_rate: Learning rate of the optimizer, not compatible with
-                ``lr_scheduler``.
+            actor_learning_rate: Learning rate of the actor optimizer,
+                not compatible with ``lr_scheduler``.
+            critic_learning_rate: Learning rate of the critic optimizer,
+                not compatible with ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
@@ -102,7 +106,7 @@ class SAC(TorchFramework):
                 the raw output of your actor, by default it is:
                 ``lambda act: {"action": act}``
             visualize: Whether visualize the network flow in the first pass.
-            **__:
+            visualize_dir: Visualized graph save directory.
         """
         self.batch_size = batch_size
         self.update_rate = update_rate
