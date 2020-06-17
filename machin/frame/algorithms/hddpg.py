@@ -97,9 +97,10 @@ class HDDPG(DDPG):
                concatenate_samples=True,
                **__):
         # DOC INHERITED
-        batch_size, (state, action, reward, next_state, terminal, *others) = \
+        batch_size, (state, action, reward, next_state, terminal, others) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
+                                            sample_method="random_unique",
                                             sample_attrs=[
                                                 "state", "action",
                                                 "reward", "next_state",
@@ -112,11 +113,11 @@ class HDDPG(DDPG):
         with t.no_grad():
             next_action = self.action_transform_func(self.act(next_state, True),
                                                      next_state,
-                                                     *others)
+                                                     others)
             next_value = self.criticize(next_state, next_action, True)
             next_value = next_value.view(batch_size, -1)
             y_i = self.reward_func(reward, self.discount, next_value,
-                                   terminal, *others)
+                                   terminal, others)
 
         cur_value = self.criticize(state, action)
         value_diff = y_i.to(cur_value.device) - cur_value
@@ -138,7 +139,7 @@ class HDDPG(DDPG):
             self.critic_optim.step()
 
         # Update actor network
-        cur_action = self.action_transform_func(self.act(state), state, *others)
+        cur_action = self.action_transform_func(self.act(state), state, others)
         act_value = self.criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),

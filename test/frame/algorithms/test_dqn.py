@@ -29,7 +29,7 @@ class QNet(nn.Module):
         return self.fc3(a)
 
 
-class TestA2C(object):
+class TestDQN(object):
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self, pytestconfig):

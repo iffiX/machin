@@ -275,6 +275,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         batch_size, (state, action, reward, next_state, terminal, others) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
+                                            sample_method="random_unique",
                                             sample_attrs=[
                                                 "state", "action",
                                                 "reward", "next_state",

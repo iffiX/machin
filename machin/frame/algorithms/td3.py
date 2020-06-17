@@ -160,7 +160,7 @@ class TD3(DDPG):
                concatenate_samples=True,
                **__):
         # DOC INHERITED
-        batch_size, (state, action, reward, next_state, terminal, *others) = \
+        batch_size, (state, action, reward, next_state, terminal, others) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
                                             sample_method="random_unique",
@@ -178,14 +178,14 @@ class TD3(DDPG):
                 self.policy_noise_func(
                     self.act(next_state, True)
                 ),
-                next_state, *others
+                next_state, others
             )
             next_value = self.criticize(next_state, next_action, True)
             next_value2 = self.criticize2(next_state, next_action, True)
             next_value = t.min(next_value, next_value2)
             next_value = next_value.view(batch_size, -1)
             y_i = self.reward_func(reward, self.discount, next_value, terminal,
-                                   *others)
+                                   others)
 
         cur_value = self.criticize(state, action)
         cur_value2 = self.criticize2(state, action)
@@ -210,7 +210,7 @@ class TD3(DDPG):
             self.critic2_optim.step()
 
         # Update actor network
-        cur_action = self.action_transform_func(self.act(state), state, *others)
+        cur_action = self.action_transform_func(self.act(state), state, others)
         act_value = self.criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),

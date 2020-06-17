@@ -240,21 +240,21 @@ class TestDDPG(object):
     ########################################################################
     # Test for DDPG update
     ########################################################################
-    def test_update(self, train_config, ddpg):
+    def test_update(self, train_config, ddpg_vis):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
-        ddpg.store_transition({
+        ddpg_vis.store_transition({
             "state": {"state": old_state.clone()},
             "action": {"action": action.clone()},
             "next_state": {"state": state.clone()},
             "reward": 0,
             "terminal": False
         })
-        ddpg.update(update_value=True, update_policy=True,
-                    update_target=True, concatenate_samples=True)
-        ddpg.update(update_value=False, update_policy=False,
-                    update_target=False, concatenate_samples=True)
+        ddpg_vis.update(update_value=True, update_policy=True,
+                        update_target=True, concatenate_samples=True)
+        ddpg_vis.update(update_value=False, update_policy=False,
+                        update_target=False, concatenate_samples=True)
 
     ########################################################################
     # Test for DDPG save & load

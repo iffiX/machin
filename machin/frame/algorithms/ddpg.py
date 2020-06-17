@@ -425,7 +425,7 @@ class DDPG(TorchFramework):
             hard_update(self.critic, self.critic_target)
 
     @staticmethod
-    def action_transform_function(raw_output_action: Any, _):
+    def action_transform_function(raw_output_action: Any, *_):
         return {"action": raw_output_action}
 
     @staticmethod

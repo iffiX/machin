@@ -29,9 +29,11 @@ class Actor(nn.Module):
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
         dist = Categorical(probs=probs)
-        act = (action if action is not None else dist.sample())
+        act = (action
+               if action is not None
+               else dist.sample())
         act_entropy = dist.entropy()
-        act_log_prob = dist.log_prob(act)
+        act_log_prob = dist.log_prob(act.flatten())
         return act, act_log_prob, act_entropy
 
 

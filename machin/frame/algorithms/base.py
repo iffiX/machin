@@ -106,6 +106,7 @@ class TorchFramework:
         if name in self._visualized:
             return
         else:
+            self._visualized.add(name)
             g = make_dot(final_tensor)
             g.render(filename=join(name, ".gv"),
                      directory=directory, view=False,

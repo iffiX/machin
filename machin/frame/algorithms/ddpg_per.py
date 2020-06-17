@@ -26,18 +26,21 @@ class DDPGPer(DDPG):
                  criterion,
                  *_,
                  lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
+                 lr_scheduler_args: Tuple[Tuple, Tuple] = None,
+                 lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
                  batch_size: int = 100,
                  update_rate: float = 0.005,
-                 learning_rate: float = 0.001,
+                 actor_learning_rate: float = 0.0005,
+                 critic_learning_rate: float = 0.001,
                  discount: float = 0.99,
+                 gradient_max: float = np.inf,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
                  reward_func: Callable = None,
                  action_trans_func: Callable = None,
                  visualize: bool = False,
+                 visualize_dir: str = "",
                  **__):
         # DOC INHERITED
         super(DDPGPer, self).__init__(
@@ -47,8 +50,10 @@ class DDPGPer(DDPG):
             lr_scheduler_kwargs=lr_scheduler_kwargs,
             batch_size=batch_size,
             update_rate=update_rate,
-            learning_rate=learning_rate,
+            actor_learning_rate=actor_learning_rate,
+            critic_learning_rate=critic_learning_rate,
             discount=discount,
+            gradient_max=gradient_max,
             replay_size=replay_size,
             replay_device=replay_device,
             replay_buffer=(PrioritizedBuffer(replay_size, replay_device)
@@ -56,11 +61,13 @@ class DDPGPer(DDPG):
                            else replay_buffer),
             reward_func=reward_func,
             action_trans_func=action_trans_func,
-            visualize=visualize
+            visualize=visualize,
+            visualize_dir=visualize_dir
         )
         # reduction must be None
         if not hasattr(self.criterion, "reduction"):
-            raise RuntimeError("Criterion must have the 'reduction' property")
+            raise RuntimeError("Criterion does not have the "
+                               "'reduction' property")
         else:
             if hasattr(self.criterion, "reduction"):
                 # A loss defined in ``torch.nn.modules.loss``
@@ -79,7 +86,7 @@ class DDPGPer(DDPG):
                **__):
         # DOC INHERITED
         (batch_size,
-         (state, action, reward, next_state, terminal, *others),
+         (state, action, reward, next_state, terminal, others),
          index, is_weight) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
@@ -94,11 +101,12 @@ class DDPGPer(DDPG):
         # target critic.
         with t.no_grad():
             next_action = self.action_transform_func(self.act(next_state, True),
-                                                     next_state, *others)
+                                                     next_state,
+                                                     others)
             next_value = self.criticize(next_state, next_action, True)
             next_value = next_value.view(batch_size, -1)
             y_i = self.reward_func(reward, self.discount, next_value,
-                                   terminal, *others)
+                                   terminal, others)
 
         # critic loss
         cur_value = self.criticize(state, action)
@@ -109,10 +117,18 @@ class DDPGPer(DDPG):
         value_loss = value_loss.mean()
 
         if self.visualize:
-            self.visualize_model(value_loss, "critic")
+            self.visualize_model(value_loss, "critic", self.visualize_dir)
+
+        if update_value:
+            self.critic.zero_grad()
+            value_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.critic.parameters(), self.grad_max
+            )
+            self.critic_optim.step()
 
         # actor loss
-        cur_action = self.action_transform_func(self.act(state), state, *others)
+        cur_action = self.action_transform_func(self.act(state), state, others)
         act_value = self.criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),
@@ -120,20 +136,19 @@ class DDPGPer(DDPG):
         act_policy_loss = -act_value.mean()
 
         # update priority
-        abs_error = t.sum(t.abs(act_value - y_i), dim=1).flatten().cpu().numpy()
+        abs_error = (t.sum(t.abs(act_value - y_i), dim=1)
+                     .flatten().detach().cpu().numpy())
         self.replay_buffer.update_priority(abs_error, index)
 
         if self.visualize:
-            self.visualize_model(act_policy_loss, "actor")
-
-        if update_value:
-            self.critic.zero_grad()
-            value_loss.backward()
-            self.critic_optim.step()
+            self.visualize_model(act_policy_loss, "actor", self.visualize_dir)
 
         if update_policy:
             self.actor.zero_grad()
             act_policy_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.actor.parameters(), self.grad_max
+            )
             self.actor_optim.step()
 
         # Update target networks

@@ -17,6 +17,7 @@ class DQNPer(DQN):
         If you are using loss modules given by pytorch. It is always
         safe to use them without any modification.
     """
+
     def __init__(self,
                  qnet: Union[NeuralNetworkModule, nn.Module],
                  qnet_target: Union[NeuralNetworkModule, nn.Module],
@@ -24,17 +25,19 @@ class DQNPer(DQN):
                  criterion: Callable,
                  *_,
                  lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
+                 lr_scheduler_args: Tuple[Tuple] = None,
+                 lr_scheduler_kwargs: Tuple[Dict] = None,
                  batch_size: int = 100,
                  update_rate: float = 0.005,
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
+                 gradient_max: float = np.inf,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
                  reward_func: Callable = None,
                  visualize: bool = False,
+                 visualize_dir: str = "",
                  **__):
         # DOC INHERITED
         super(DQNPer, self).__init__(
@@ -46,6 +49,7 @@ class DQNPer(DQN):
             update_rate=update_rate,
             learning_rate=learning_rate,
             discount=discount,
+            gradient_max=gradient_max,
             replay_size=replay_size,
             replay_device=replay_device,
             replay_buffer=(PrioritizedBuffer(replay_size, replay_device)
@@ -53,11 +57,13 @@ class DQNPer(DQN):
                            else replay_buffer),
             reward_func=reward_func,
             mode="double",
-            visualize=visualize
+            visualize=visualize,
+            visualize_dir=visualize_dir
         )
         # reduction must be None
         if not hasattr(self.criterion, "reduction"):
-            raise RuntimeError("Criterion must have the 'reduction' property")
+            raise RuntimeError("Criterion does not have the "
+                               "'reduction' property")
         else:
             if hasattr(self.criterion, "reduction"):
                 # A loss defined in ``torch.nn.modules.loss``
@@ -75,10 +81,11 @@ class DQNPer(DQN):
                **__):
         # DOC INHERITED
         (batch_size,
-         (state, action, reward, next_state, terminal, *others),
+         (state, action, reward, next_state, terminal, others),
          index, is_weight) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
+                                            sample_method="random_unique",
                                             sample_attrs=[
                                                 "state", "action",
                                                 "reward", "next_state",
@@ -92,11 +99,16 @@ class DQNPer(DQN):
                 dim=1, index=t.max(next_q_value, dim=1)[1].unsqueeze(1))
 
         q_value = self.criticize(state)
-        action_value = q_value.gather(dim=1, index=action["action"])
+
+        # gather requires long tensor, int32 is not accepted
+        action_value = q_value.gather(dim=1,
+                                      index=self.action_get_function(action)
+                                      .to(device=q_value.device,
+                                          dtype=t.long))
 
         # Generate value reference :math: `y_i`.
         y_i = self.reward_func(reward, self.discount, target_next_q_value,
-                               terminal, *others)
+                               terminal, others)
         value_loss = self.criterion(action_value, y_i.to(action_value.device))
         value_loss = (value_loss *
                       t.from_numpy(is_weight).view([batch_size, 1])
@@ -104,15 +116,18 @@ class DQNPer(DQN):
         value_loss = value_loss.mean()
 
         abs_error = (t.sum(t.abs(action_value - y_i), dim=1)
-                     .flatten().cpu().numpy())
+                     .flatten().detach().cpu().numpy())
         self.replay_buffer.update_priority(abs_error, index)
 
         if self.visualize:
-            self.visualize_model(value_loss, "qnet")
+            self.visualize_model(value_loss, "qnet", self.visualize_dir)
 
         if update_value:
             self.qnet.zero_grad()
             value_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.qnet.parameters(), self.grad_max
+            )
             self.qnet_optim.step()
 
         # Update target Q network
