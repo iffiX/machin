@@ -133,7 +133,7 @@ class TestTD3(object):
         return td3
 
     @pytest.fixture(scope="function")
-    def lr_td3(self, train_config):
+    def td3_lr(self, train_config):
         # not used for training, only used for testing apis
         c = train_config
         actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
@@ -235,8 +235,8 @@ class TestTD3(object):
     ########################################################################
     # Test for TD3 lr_scheduler
     ########################################################################
-    def test_lr_scheduler(self, train_config, lr_td3):
-        lr_td3.update_lr_scheduler()
+    def test_lr_scheduler(self, train_config, td3_lr):
+        td3_lr.update_lr_scheduler()
 
     ########################################################################
     # Test for TD3 full training.

@@ -132,7 +132,7 @@ class TestSAC(object):
         return sac
 
     @pytest.fixture(scope="function")
-    def lr_sac(self, train_config):
+    def sac_lr(self, train_config):
         # not used for training, only used for testing apis
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
@@ -166,7 +166,7 @@ class TestSAC(object):
     ########################################################################
     # Test for SAC acting
     ########################################################################
-    def test_action(self, train_config, sac):
+    def test_act(self, train_config, sac):
         c = train_config
         state = t.zeros([1, c.observe_dim])
         sac.act({"state": state})
@@ -251,8 +251,8 @@ class TestSAC(object):
     ########################################################################
     # Test for SAC lr_scheduler
     ########################################################################
-    def test_lr_scheduler(self, train_config, lr_sac):
-        lr_sac.update_lr_scheduler()
+    def test_lr_scheduler(self, train_config, sac_lr):
+        sac_lr.update_lr_scheduler()
 
     ########################################################################
     # Test for SAC full training.

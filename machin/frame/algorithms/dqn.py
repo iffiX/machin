@@ -1,7 +1,9 @@
 from typing import Union, Dict, List, Tuple, Callable, Any
 from torch.distributions import Categorical
+
 import torch as t
 import torch.nn as nn
+import numpy as np
 
 from machin.frame.buffers.buffer import Transition, Buffer
 from machin.model.nets.base import NeuralNetworkModule
@@ -24,18 +26,20 @@ class DQN(TorchFramework):
                  criterion: Callable,
                  *_,
                  lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
+                 lr_scheduler_args: Tuple[Tuple] = None,
+                 lr_scheduler_kwargs: Tuple[Dict] = None,
                  batch_size: int = 100,
                  update_rate: float = 0.005,
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
+                 gradient_max: float = np.inf,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
                  reward_func: Callable = None,
                  mode: str = "double",
                  visualize: bool = False,
+                 visualize_dir: str = "",
                  **__):
         """
         Note:
@@ -126,10 +130,12 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
+        self.grad_max = gradient_max
         self.visualize = visualize
+        self.visualize_dir = visualize_dir
 
         if mode not in {"vanilla", "fixed_target", "double"}:
-            raise RuntimeError("Unknown DQN mode: {}".format(mode))
+            raise ValueError("Unknown DQN mode: {}".format(mode))
         self.mode = mode
 
         self.qnet = qnet
@@ -148,6 +154,10 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             hard_update(self.qnet, self.qnet_target)
 
         if lr_scheduler is not None:
+            if lr_scheduler_args is None:
+                lr_scheduler_args = ((),)
+            if lr_scheduler_kwargs is None:
+                lr_scheduler_kwargs = ({},)
             self.qnet_lr_sch = lr_scheduler(
                 self.qnet_optim,
                 *lr_scheduler_args[0],
@@ -208,7 +218,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         result = t.softmax(result, dim=1)
         dist = Categorical(result)
         batch_size = result.shape[0]
-        return dist.sample([batch_size, 1])
+        return dist.sample([batch_size])
 
     def criticize(self,
                   state: Dict[str, Any],
@@ -262,7 +272,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         Returns:
             mean value of estimated policy value, value loss
         """
-        batch_size, (state, action, reward, next_state, terminal, *others) = \
+        batch_size, (state, action, reward, next_state, terminal, others) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
                                             sample_attrs=[
@@ -275,45 +285,59 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             # Vanilla DQN, directly optimize q network.
             # target network is the same as the main network
             q_value = self.criticize(state)
+
+            # gather requires long tensor, int32 is not accepted
             action_value = q_value.gather(dim=1,
-                                          index=action["action"]
-                                          .to(q_value.device))
+                                          index=self.action_get_function(action)
+                                          .to(device=q_value.device,
+                                              dtype=t.long))
+
             target_next_q_value = t.max(self.criticize(next_state), dim=1)[0]\
                                    .unsqueeze(1).detach()
             y_i = self.reward_func(reward, self.discount, target_next_q_value,
-                                   terminal, *others)
+                                   terminal, others)
             value_loss = self.criterion(action_value,
                                         y_i.to(action_value.device))
 
             if self.visualize:
-                self.visualize_model(value_loss, "qnet")
+                self.visualize_model(value_loss, "qnet", self.visualize_dir)
 
             if update_value:
                 self.qnet.zero_grad()
                 value_loss.backward()
+                nn.utils.clip_grad_norm_(
+                    self.qnet.parameters(), self.grad_max
+                )
                 self.qnet_optim.step()
 
         elif self.mode == "fixed_target":
             # Fixed target DQN, which estimate next value by using the
             # target Q network. Similar to the idea of DDPG.
             q_value = self.criticize(state)
+
+            # gather requires long tensor, int32 is not accepted
             action_value = q_value.gather(dim=1,
-                                          index=action["action"]
-                                          .to(q_value.device))
+                                          index=self.action_get_function(action)
+                                          .to(device=q_value.device,
+                                              dtype=t.long))
+
             target_next_q_value = t.max(self.criticize(next_state, True),
                                         dim=1)[0].unsqueeze(1).detach()
 
             y_i = self.reward_func(reward, self.discount, target_next_q_value,
-                                   terminal, *others)
+                                   terminal, others)
             value_loss = self.criterion(action_value,
                                         y_i.to(action_value.device))
 
             if self.visualize:
-                self.visualize_model(value_loss, "qnet")
+                self.visualize_model(value_loss, "qnet", self.visualize_dir)
 
             if update_value:
                 self.qnet.zero_grad()
                 value_loss.backward()
+                nn.utils.clip_grad_norm_(
+                    self.qnet.parameters(), self.grad_max
+                )
                 self.qnet_optim.step()
 
             # Update target Q network
@@ -326,9 +350,12 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             # the online DQN network to select an action and return Q(s,a'), to
             # reduce the over estimation.
             q_value = self.criticize(state)
+
+            # gather requires long tensor, int32 is not accepted
             action_value = q_value.gather(dim=1,
-                                          index=action["action"]
-                                          .to(q_value.device))
+                                          index=self.action_get_function(action)
+                                          .to(device=q_value.device,
+                                              dtype=t.long))
 
             with t.no_grad():
                 next_q_value = self.criticize(next_state)
@@ -337,16 +364,19 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                     dim=1, index=t.max(next_q_value, dim=1)[1].unsqueeze(1))
 
             y_i = self.reward_func(reward, self.discount, target_next_q_value,
-                                   terminal, *others)
+                                   terminal, others)
             value_loss = self.criterion(action_value,
                                         y_i.to(action_value.device))
 
             if self.visualize:
-                self.visualize_model(value_loss, "qnet")
+                self.visualize_model(value_loss, "qnet", self.visualize_dir)
 
             if update_value:
                 self.qnet.zero_grad()
                 value_loss.backward()
+                nn.utils.clip_grad_norm_(
+                    self.qnet.parameters(), self.grad_max
+                )
                 self.qnet_optim.step()
 
             # Update target Q network
@@ -354,7 +384,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                 soft_update(self.qnet_target, self.qnet, self.update_rate)
 
         else:
-            raise RuntimeError("Unknown DQN mode: {}".format(self.mode))
+            raise ValueError("Unknown DQN mode: {}".format(self.mode))
 
         # use .item() to prevent memory leakage
         return value_loss.item()
@@ -373,7 +403,15 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             hard_update(self.qnet, self.qnet_target)
 
     @staticmethod
-    def bellman_function(reward, discount, next_value, terminal, *_):
+    def action_get_function(sampled_actions):
+        """
+        This function is used to get action numbers (int tensor indicating
+        which discreet actions are used) from the sampled action dictionary.
+        """
+        return sampled_actions["action"]
+
+    @staticmethod
+    def bellman_function(reward, discount, next_value, terminal, _):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
-        return reward + discount * (1 - terminal) * next_value
+        return reward + discount * ~terminal * next_value

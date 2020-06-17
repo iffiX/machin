@@ -125,7 +125,7 @@ class TestDDPG(object):
         return ddpg
 
     @pytest.fixture(scope="function")
-    def disc_ddpg(self, train_config):
+    def ddpg_disc(self, train_config):
         # not used for training, only used for testing apis
         c = train_config
         actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
@@ -144,7 +144,7 @@ class TestDDPG(object):
         return ddpg
 
     @pytest.fixture(scope="function")
-    def lr_ddpg(self, train_config):
+    def ddpg_lr(self, train_config):
         # not used for training, only used for testing apis
         c = train_config
         actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
@@ -176,7 +176,7 @@ class TestDDPG(object):
     ########################################################################
     # Test for DDPG contiguous domain acting
     ########################################################################
-    def test_contiguous_action(self, train_config, ddpg):
+    def test_contiguous_act(self, train_config, ddpg):
         c = train_config
         state = t.zeros([1, c.observe_dim])
         ddpg.act({"state": state})
@@ -197,13 +197,13 @@ class TestDDPG(object):
     ########################################################################
     # Test for DDPG discreet domain acting
     ########################################################################
-    def test_discreet_action(self, train_config, disc_ddpg):
+    def test_discreet_act(self, train_config, ddpg_disc):
         c = train_config
         state = t.zeros([1, c.observe_dim])
-        disc_ddpg.act_discreet({"state": state})
-        disc_ddpg.act_discreet({"state": state}, use_target=True)
-        disc_ddpg.act_discreet_with_noise({"state": state})
-        disc_ddpg.act_discreet_with_noise({"state": state}, use_target=True)
+        ddpg_disc.act_discreet({"state": state})
+        ddpg_disc.act_discreet({"state": state}, use_target=True)
+        ddpg_disc.act_discreet_with_noise({"state": state})
+        ddpg_disc.act_discreet_with_noise({"state": state}, use_target=True)
 
     ########################################################################
     # Test for DDPG criticizing
@@ -277,8 +277,8 @@ class TestDDPG(object):
     ########################################################################
     # Test for DDPG lr_scheduler
     ########################################################################
-    def test_lr_scheduler(self, train_config, lr_ddpg):
-        lr_ddpg.update_lr_scheduler()
+    def test_lr_scheduler(self, train_config, ddpg_lr):
+        ddpg_lr.update_lr_scheduler()
 
     ########################################################################
     # Test for DDPG full training.

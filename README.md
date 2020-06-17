@@ -22,12 +22,12 @@ Currently Machin has implemented the following algorithms, the list is still gro
 * [Double DQN](https://arxiv.org/pdf/1509.06461.pdf)
 * [Dueling DQN](https://arxiv.org/abs/1511.06581)
 * [RAINBOW](https://arxiv.org/abs/1710.02298)
-* [Deep Deterministic policy Gradient (DDPG)](https://arxiv.org/pdf/1509.02971.pdf), 
-* [Twin Delayed DDPG (TD3)](https://arxiv.org/pdf/1802.09477.pdf)
-* [Hystereric DDPG (Modified from Hys-DQN)](https://hal.archives-ouvertes.fr/hal-00187279/document)
-* [Advantage Actor-Critic (A2C)](https://openai.com/blog/baselines-acktr-a2c/)
-* [Proximal Policy Optimization (PPO)](https://arxiv.org/pdf/1707.06347.pdf)
-* [Soft Actor Critic (SAC)](https://arxiv.org/pdf/1812.05905.pdf)
+* [Deep Deterministic policy Gradient (DDPG)(Tested)](https://arxiv.org/pdf/1509.02971.pdf), 
+* [Twin Delayed DDPG (TD3)(Tested)](https://arxiv.org/pdf/1802.09477.pdf)
+* [Hystereric DDPG (Modified from Hys-DQN)(Tested)](https://hal.archives-ouvertes.fr/hal-00187279/document)
+* [Advantage Actor-Critic (A2C)(Tested)](https://openai.com/blog/baselines-acktr-a2c/)
+* [Proximal Policy Optimization (PPO)(Tested)](https://arxiv.org/pdf/1707.06347.pdf)
+* [Soft Actor Critic (SAC)(Tested)](https://arxiv.org/pdf/1812.05905.pdf)
 
 #### Multi-agent algorithms:
 * [Multi-agent DDPG (MADDPG)](https://arxiv.org/pdf/1706.02275.pdf)
