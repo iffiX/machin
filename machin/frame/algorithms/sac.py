@@ -27,14 +27,15 @@ class SAC(TorchFramework):
                  criterion: Callable,
                  *_,
                  lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
+                 lr_scheduler_args: Tuple[Tuple, Tuple, Tuple] = None,
+                 lr_scheduler_kwargs: Tuple[Dict, Dict, Dict] = None,
                  target_entropy: float = None,
                  initial_entropy_alpha: float = 1.0,
                  batch_size: int = 100,
                  update_rate: float = 0.005,
                  actor_learning_rate: float = 0.0005,
                  critic_learning_rate: float = 0.001,
+                 alpha_learning_rate: float = 0.001,
                  discount: float = 0.99,
                  gradient_max: float = np.inf,
                  replay_size: int = 500000,
@@ -112,6 +113,7 @@ class SAC(TorchFramework):
         self.update_rate = update_rate
         self.discount = discount
         self.visualize = visualize
+        self.visualize_dir = visualize_dir
         self.entropy_alpha = t.tensor(initial_entropy_alpha,
                                       requires_grad=True).view(1)
         self.grad_max = gradient_max
@@ -123,13 +125,13 @@ class SAC(TorchFramework):
         self.critic2 = critic2
         self.critic2_target = critic2_target
         self.actor_optim = optimizer(self.actor.parameters(),
-                                     lr=learning_rate)
+                                     lr=actor_learning_rate)
         self.critic_optim = optimizer(self.critic.parameters(),
-                                      lr=learning_rate)
+                                      lr=critic_learning_rate)
         self.critic2_optim = optimizer(self.critic2.parameters(),
-                                       lr=learning_rate)
+                                       lr=critic_learning_rate)
         self.alpha_optim = optimizer([self.entropy_alpha],
-                                     lr=learning_rate)
+                                     lr=alpha_learning_rate)
         self.replay_buffer = (Buffer(replay_size, replay_device)
                               if replay_buffer is None
                               else replay_buffer)
@@ -140,6 +142,10 @@ class SAC(TorchFramework):
             hard_update(self.critic2, self.critic2_target)
 
         if lr_scheduler is not None:
+            if lr_scheduler_args is None:
+                lr_scheduler_args = ((), (), ())
+            if lr_scheduler_kwargs is None:
+                lr_scheduler_kwargs = ({}, {}, {})
             self.actor_lr_sch = lr_scheduler(
                 self.actor_optim,
                 *lr_scheduler_args[0],
@@ -154,6 +160,11 @@ class SAC(TorchFramework):
                 self.critic2_optim,
                 *lr_scheduler_args[1],
                 **lr_scheduler_kwargs[1]
+            )
+            self.alpha_lr_sch = lr_scheduler(
+                self.alpha_optim,
+                *lr_scheduler_args[2],
+                **lr_scheduler_kwargs[2]
             )
 
         self.criterion = criterion
@@ -279,7 +290,7 @@ class SAC(TorchFramework):
         value_loss2 = self.criterion(cur_value2, y_i.to(cur_value.device))
 
         if self.visualize:
-            self.visualize_model(value_loss, "critic")
+            self.visualize_model(value_loss, "critic", self.visualize_dir)
 
         if update_value:
             self.critic.zero_grad()
@@ -303,7 +314,7 @@ class SAC(TorchFramework):
                            act_value).mean()
 
         if self.visualize:
-            self.visualize_model(act_policy_loss, "actor")
+            self.visualize_model(act_policy_loss, "actor", self.visualize_dir)
 
         if update_policy:
             self.actor.zero_grad()

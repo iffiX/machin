@@ -1,11 +1,13 @@
 from machin.model.nets.base import static_module_wrapper as smw
-from machin.frame.algorithms.ddpg import DDPG
+from machin.frame.algorithms.sac import SAC
 from machin.utils.learning_rate import gen_learning_rate_func
 from machin.utils.logging import default_logger as logger
 from machin.utils.helper_classes import Counter
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
 from torch.optim.lr_scheduler import LambdaLR
+from torch.nn.functional import softplus
+from torch.distributions import Normal
 
 import pytest
 import torch as t
@@ -21,29 +23,22 @@ class Actor(nn.Module):
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
-        self.fc3 = nn.Linear(16, action_dim)
+        self.mu_head = nn.Linear(16, action_dim)
+        self.sigma_head = nn.Linear(16, action_dim)
         self.action_range = action_range
 
-    def forward(self, state):
+    def forward(self, state, action=None):
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
-        a = t.tanh(self.fc3(a)) * self.action_range
-        return a
-
-
-class ActorDiscreet(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super(ActorDiscreet, self).__init__()
-
-        self.fc1 = nn.Linear(state_dim, 16)
-        self.fc2 = nn.Linear(16, 16)
-        self.fc3 = nn.Linear(16, action_dim)
-
-    def forward(self, state):
-        a = t.relu(self.fc1(state))
-        a = t.relu(self.fc2(a))
-        a = t.softmax(self.fc3(a), dim=1)
-        return a
+        mu = t.tanh(self.mu_head(a)) * self.action_range
+        sigma = softplus(self.sigma_head(a))
+        dist = Normal(mu, sigma)
+        act = (action
+               if action is not None
+               else dist.sample())
+        act_entropy = dist.entropy()
+        act_log_prob = dist.log_prob(act)
+        return act, act_log_prob, act_entropy
 
 
 class Critic(nn.Module):
@@ -62,7 +57,7 @@ class Critic(nn.Module):
         return q
 
 
-class TestDDPG(object):
+class TestSAC(object):
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self, pytestconfig):
@@ -75,9 +70,6 @@ class TestDDPG(object):
         c.action_range = 2
         c.max_episodes = 1000
         c.max_steps = 200
-        c.noise_param = (0, 0.2)
-        c.noise_mode = "normal"
-        c.noise_interval = 2
         c.replay_size = 10000
         c.solved_reward = -150
         c.solved_repeat = 5
@@ -85,22 +77,24 @@ class TestDDPG(object):
         return c
 
     @pytest.fixture(scope="function")
-    def ddpg(self, train_config):
+    def sac(self, train_config):
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
                     .to(c.device), c.device, c.device)
-        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                      .to(c.device), c.device, c.device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
                      .to(c.device), c.device, c.device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
                        .to(c.device), c.device, c.device)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    replay_size=c.replay_size)
-        return ddpg
+        critic2 = smw(Critic(c.observe_dim, c.action_dim)
+                      .to(c.device), c.device, c.device)
+        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
+                        .to(c.device), c.device, c.device)
+        sac = SAC(actor, critic, critic_t, critic2, critic2_t,
+                  t.optim.Adam,
+                  nn.MSELoss(reduction='sum'),
+                  replay_device=c.device,
+                  replay_size=c.replay_size)
+        return sac
 
     @pytest.fixture(scope="function")
     def ddpg_vis(self, train_config, tmpdir):
