@@ -18,9 +18,9 @@ WARNING: currently Machin is in its early development stage, tests, code coverag
 Currently Machin has implemented the following algorithms, the list is still growing:
 
 #### Single agent algorithms:
-* [Deep Q-Network (DQN)](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
-* [Double DQN](https://arxiv.org/pdf/1509.06461.pdf)
-* [Dueling DQN](https://arxiv.org/abs/1511.06581)
+* [Deep Q-Network (DQN)(Tested)](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
+* [Double DQN(Tested)](https://arxiv.org/pdf/1509.06461.pdf)
+* [Dueling DQN(Tested)](https://arxiv.org/abs/1511.06581)
 * [RAINBOW](https://arxiv.org/abs/1710.02298)
 * [Deep Deterministic policy Gradient (DDPG)(Tested)](https://arxiv.org/pdf/1509.02971.pdf), 
 * [Twin Delayed DDPG (TD3)(Tested)](https://arxiv.org/pdf/1802.09477.pdf)
@@ -39,7 +39,7 @@ Currently Machin has implemented the following algorithms, the list is still gro
 
 #### Enhancements:
 * [Prioritized Experience Replay (PER)](https://arxiv.org/pdf/1511.05952.pdf)
-* [Generalized Advantage Estimation (GAE)](https://arxiv.org/pdf/1506.02438.pdf)
+* [Generalized Advantage Estimation (GAE)(Tested)](https://arxiv.org/pdf/1506.02438.pdf)
 * [Recurrent networks in DQN, etc.](https://arxiv.org/pdf/1507.06527.pdf)
 #### Algorithms to be supported:
 * [Distributed DDPG (D4PG)](https://arxiv.org/abs/1804.08617)
