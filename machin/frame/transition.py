@@ -244,6 +244,7 @@ class Transition(TransitionBase):
             not be moved to the sample output device.
         """
         custom_keys = sorted(kwargs.keys())
+        assert isinstance(terminal, bool)
         super(Transition, self).__init__(
             major_attr=["state", "action", "next_state"],
             sub_attr=["reward", "terminal"],

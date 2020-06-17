@@ -35,9 +35,20 @@ class Actor(nn.Module):
         dist = Normal(mu, sigma)
         act = (action
                if action is not None
-               else dist.sample())
+               else dist.rsample())
         act_entropy = dist.entropy()
+        # do not clamp actions here, because
+        # we action probability might be extremely small,
+        # and network will "nan".
         act_log_prob = dist.log_prob(act)
+
+        # do not clamp actions here, because
+        # actions will be stored in replay buffer
+        # and new evaluated log probability in update
+        # might also be extremely small, and network will "nan".
+
+        # clamp actions only before sending your actions into
+        # the environment.
         return act, act_log_prob, act_entropy
 
 
@@ -70,7 +81,7 @@ class TestSAC(object):
         c.action_range = 2
         c.max_episodes = 1000
         c.max_steps = 200
-        c.replay_size = 10000
+        c.replay_size = 100000
         c.solved_reward = -150
         c.solved_repeat = 5
         c.device = "cpu"
@@ -97,133 +108,96 @@ class TestSAC(object):
         return sac
 
     @pytest.fixture(scope="function")
-    def ddpg_vis(self, train_config, tmpdir):
+    def sac_vis(self, train_config, tmpdir):
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
                     .to(c.device), c.device, c.device)
-        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                      .to(c.device), c.device, c.device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
                      .to(c.device), c.device, c.device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
                        .to(c.device), c.device, c.device)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    replay_size=c.replay_size,
-                    visualize=True,
-                    visualize_dir=str(tmp_dir))
-        return ddpg
+        critic2 = smw(Critic(c.observe_dim, c.action_dim)
+                      .to(c.device), c.device, c.device)
+        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
+                        .to(c.device), c.device, c.device)
+        sac = SAC(actor, critic, critic_t, critic2, critic2_t,
+                  t.optim.Adam,
+                  nn.MSELoss(reduction='sum'),
+                  replay_device=c.device,
+                  replay_size=c.replay_size,
+                  visualize=True,
+                  visualize_dir=str(tmp_dir))
+        return sac
 
     @pytest.fixture(scope="function")
-    def disc_ddpg(self, train_config):
+    def lr_sac(self, train_config):
         # not used for training, only used for testing apis
         c = train_config
-        actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
+        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
                     .to(c.device), c.device, c.device)
-        actor_t = smw(ActorDiscreet(c.observe_dim, c.action_dim)
-                      .to(c.device), c.device, c.device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
                      .to(c.device), c.device, c.device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
                        .to(c.device), c.device, c.device)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    replay_size=c.replay_size)
-        return ddpg
-
-    @pytest.fixture(scope="function")
-    def lr_ddpg(self, train_config):
-        # not used for training, only used for testing apis
-        c = train_config
-        actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
-                    .to(c.device), c.device, c.device)
-        actor_t = smw(ActorDiscreet(c.observe_dim, c.action_dim)
+        critic2 = smw(Critic(c.observe_dim, c.action_dim)
                       .to(c.device), c.device, c.device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
+        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
+                        .to(c.device), c.device, c.device)
         lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
                                          logger=logger)
         with pytest.raises(TypeError, match="missing .+ positional argument"):
-            _ = DDPG(actor, actor_t, critic, critic_t,
-                     t.optim.Adam,
-                     nn.MSELoss(reduction='sum'),
-                     replay_device=c.device,
-                     replay_size=c.replay_size,
-                     lr_scheduler=LambdaLR)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
+            _ = SAC(actor, critic, critic_t, critic2, critic2_t,
                     t.optim.Adam,
                     nn.MSELoss(reduction='sum'),
                     replay_device=c.device,
                     replay_size=c.replay_size,
-                    lr_scheduler=LambdaLR,
-                    lr_scheduler_args=((lr_func,), (lr_func,)))
-        return ddpg
+                    lr_scheduler=LambdaLR)
+        sac = SAC(actor, critic, critic_t, critic2, critic2_t,
+                  t.optim.Adam,
+                  nn.MSELoss(reduction='sum'),
+                  replay_device=c.device,
+                  replay_size=c.replay_size,
+                  lr_scheduler=LambdaLR,
+                  lr_scheduler_args=((lr_func,), (lr_func,), (lr_func,)))
+        return sac
 
     ########################################################################
-    # Test for DDPG contiguous domain acting
+    # Test for SAC acting
     ########################################################################
-    def test_contiguous_action(self, train_config, ddpg):
+    def test_action(self, train_config, sac):
         c = train_config
         state = t.zeros([1, c.observe_dim])
-        ddpg.act({"state": state})
-        ddpg.act({"state": state}, use_target=True)
-        ddpg.act_with_noise({"state": state}, noise_param=(0, 1.0),
-                            mode="uniform")
-        ddpg.act_with_noise({"state": state}, noise_param=(0, 1.0),
-                            mode="normal")
-        ddpg.act_with_noise({"state": state}, noise_param=(0, 1.0, -1.0, 1.0),
-                            mode="clipped_normal")
-        ddpg.act_with_noise({"state": state}, noise_param={"mu": 0, "sigma": 1},
-                            mode="ou")
-        with pytest.raises(ValueError, match="Unknown noise type"):
-            ddpg.act_with_noise({"state": state},
-                                noise_param=None,
-                                mode="some_unknown_noise")
+        sac.act({"state": state})
 
     ########################################################################
-    # Test for DDPG discreet domain acting
+    # Test for SAC criticizing
     ########################################################################
-    def test_discreet_action(self, train_config, disc_ddpg):
-        c = train_config
-        state = t.zeros([1, c.observe_dim])
-        disc_ddpg.act_discreet({"state": state})
-        disc_ddpg.act_discreet({"state": state}, use_target=True)
-        disc_ddpg.act_discreet_with_noise({"state": state})
-        disc_ddpg.act_discreet_with_noise({"state": state}, use_target=True)
-
-    ########################################################################
-    # Test for DDPG criticizing
-    ########################################################################
-    def test_criticize(self, train_config, ddpg):
+    def test_criticize(self, train_config, sac):
         c = train_config
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
-        ddpg.criticize({"state": state}, {"action": action})
-        ddpg.criticize({"state": state}, {"action": action}, use_target=True)
+        sac.criticize({"state": state}, {"action": action})
+        sac.criticize({"state": state}, {"action": action}, use_target=True)
+        sac.criticize2({"state": state}, {"action": action})
+        sac.criticize2({"state": state}, {"action": action}, use_target=True)
 
     ########################################################################
-    # Test for DDPG storage
+    # Test for SAC storage
     ########################################################################
-    def test_store(self, train_config, ddpg):
+    def test_store(self, train_config, sac):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
-        ddpg.store_transition({
+        sac.store_transition({
             "state": {"state": old_state.clone()},
             "action": {"action": action.clone()},
             "next_state": {"state": state.clone()},
             "reward": 0,
             "terminal": False
         })
-        ddpg.store_episode([{
+        sac.store_episode([{
             "state": {"state": old_state.clone()},
             "action": {"action": action.clone()},
             "next_state": {"state": state.clone()},
@@ -232,53 +206,60 @@ class TestSAC(object):
         }])
 
     ########################################################################
-    # Test for DDPG update
+    # Test for SAC update
     ########################################################################
-    def test_update(self, train_config, ddpg):
+    def test_update(self, train_config, sac_vis):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
-        ddpg.store_transition({
+        sac_vis.store_transition({
             "state": {"state": old_state.clone()},
             "action": {"action": action.clone()},
             "next_state": {"state": state.clone()},
             "reward": 0,
             "terminal": False
         })
-        ddpg.update(update_value=True, update_policy=True,
-                    update_target=True, concatenate_samples=True)
-        ddpg.update(update_value=False, update_policy=False,
-                    update_target=False, concatenate_samples=True)
+        # heuristic entropy
+        sac_vis.target_entropy = -c.action_dim
+        sac_vis.update(update_value=True, update_policy=True,
+                       update_target=True, update_entropy_alpha=True,
+                       concatenate_samples=True)
+        sac_vis.update(update_value=False, update_policy=False,
+                       update_target=False, update_entropy_alpha=False,
+                       concatenate_samples=True)
 
     ########################################################################
-    # Test for DDPG save & load
+    # Test for SAC save & load
     ########################################################################
-    def test_save_load(self, train_config, ddpg, tmpdir):
+    def test_save_load(self, train_config, sac, tmpdir):
         save_dir = tmpdir.make_numbered_dir()
-        ddpg.save(model_dir=str(save_dir),
-                  network_map={
-                      "critic_target": "critic_t",
-                      "actor_target": "actor_t"
-                  },
-                  version=1000)
-        ddpg.load(model_dir=str(save_dir),
-                  network_map={
-                      "critic_target": "critic_t",
-                      "actor_target": "actor_t"
-                  },
-                  version=1000)
+        sac.save(model_dir=str(save_dir),
+                 network_map={
+                     "critic_target": "critic_t",
+                     "critic2_target": "critic2_t",
+                     "actor": "actor"
+                 },
+                 version=1000)
+        sac.load(model_dir=str(save_dir),
+                 network_map={
+                     "critic_target": "critic_t",
+                     "critic2_target": "critic2_t",
+                     "actor": "actor"
+                 },
+                 version=1000)
 
     ########################################################################
-    # Test for DDPG lr_scheduler
+    # Test for SAC lr_scheduler
     ########################################################################
-    def test_lr_scheduler(self, train_config, lr_ddpg):
-        lr_ddpg.update_lr_scheduler()
+    def test_lr_scheduler(self, train_config, lr_sac):
+        lr_sac.update_lr_scheduler()
 
     ########################################################################
-    # Test for DDPG full training.
+    # Test for SAC full training.
     ########################################################################
-    def test_full_train(self, train_config, ddpg):
+    def test_full_train(self, train_config, sac):
         c = train_config
+        sac.target_entropy = c.action_dim
 
         # begin training
         episode, step = Counter(), Counter()
@@ -300,22 +281,17 @@ class TestSAC(object):
                     old_state = state
 
                     # agent model inference
-                    if episode.get() % c.noise_interval == 0:
-                        action = ddpg.act_with_noise(
-                            {"state": old_state.unsqueeze(0)},
-                            noise_param=c.noise_param,
-                            mode=c.noise_mode
-                        )
-                    else:
-                        action = ddpg.act({"state": old_state.unsqueeze(0)}) \
-                            .clamp(-c.action_range, c.action_range)
+                    action = sac.act({"state": old_state.unsqueeze(0)})[0]
 
-                    state, reward, terminal, _ = env.step(action.cpu().numpy())
+                    state, reward, terminal, _ = env.step(
+                        action.clamp(-c.action_range, c.action_range)
+                              .cpu().numpy()
+                    )
                     state = t.tensor(state, dtype=t.float32, device=c.device) \
                         .flatten()
                     total_reward += float(reward)
 
-                    ddpg.store_transition({
+                    sac.store_transition({
                         "state": {"state": old_state.unsqueeze(0).clone()},
                         "action": {"action": action.clone()},
                         "next_state": {"state": state.unsqueeze(0).clone()},
@@ -325,16 +301,14 @@ class TestSAC(object):
             # update
             if episode > 100:
                 for i in range(step.get()):
-                    ddpg.update()
+                    sac.update()
 
             smoother.update(total_reward)
             step.reset()
             terminal = False
 
-            if episode.get() % c.noise_interval != 0:
-                # only log result without noise
-                logger.info("Episode {} total reward={:.2f}"
-                            .format(episode, smoother.value))
+            logger.info("Episode {} total reward={:.2f}"
+                        .format(episode, smoother.value))
 
             if smoother.value > c.solved_reward:
                 reward_fulfilled.count()
@@ -344,4 +318,4 @@ class TestSAC(object):
             else:
                 reward_fulfilled.reset()
 
-        pytest.fail("DDPG Training failed.")
+        pytest.fail("SAC Training failed.")

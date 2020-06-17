@@ -425,11 +425,11 @@ class DDPG(TorchFramework):
             hard_update(self.critic, self.critic_target)
 
     @staticmethod
-    def action_transform_function(raw_output_action: Any, *_):
+    def action_transform_function(raw_output_action: Any, _):
         return {"action": raw_output_action}
 
     @staticmethod
-    def bellman_function(reward, discount, next_value, terminal, *_):
+    def bellman_function(reward, discount, next_value, terminal, _):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value

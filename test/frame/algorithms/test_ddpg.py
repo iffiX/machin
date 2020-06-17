@@ -78,7 +78,7 @@ class TestDDPG(object):
         c.noise_param = (0, 0.2)
         c.noise_mode = "normal"
         c.noise_interval = 2
-        c.replay_size = 10000
+        c.replay_size = 100000
         c.solved_reward = -150
         c.solved_repeat = 5
         c.device = "cpu"

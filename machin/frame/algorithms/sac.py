@@ -52,15 +52,18 @@ class SAC(TorchFramework):
             :class:`.DDPG`
 
         Important:
-            when given a state, and an optional, action actor must
+            When given a state, and an optional action, actor must
             at least return two values, similar to the actor structure
-            described in :class:`.A2C`. You may use the same actor model
-            here.
+            described in :class:`.A2C`. However, when actor is asked to
+            select an action based on the current state, you must make
+            sure that the sampling process is **differentiable**. E.g.
+            use the ``rsample`` method of torch distributions instead
+            of the ``sample`` method.
 
-            However, Compared to other actor-critic methods, SAC embeds the
+            Compared to other actor-critic methods, SAC embeds the
             entropy term into its reward function directly, rather than adding
-            the entropy term to actor's loss function. Therefore, we do not need
-            the actor network to output a entropy as its third returned result.
+            the entropy term to actor's loss function. Therefore, we do not use
+            the entropy output of your actor network.
 
             The SAC algorithm uses Q network as critics, so please reference
             :class:`.DDPG` for the requirements and the definition of
@@ -114,8 +117,8 @@ class SAC(TorchFramework):
         self.discount = discount
         self.visualize = visualize
         self.visualize_dir = visualize_dir
-        self.entropy_alpha = t.tensor(initial_entropy_alpha,
-                                      requires_grad=True).view(1)
+        self.entropy_alpha = t.tensor([initial_entropy_alpha],
+                                      requires_grad=True)
         self.grad_max = gradient_max
         self.target_entropy = target_entropy
 
@@ -261,7 +264,7 @@ class SAC(TorchFramework):
         Returns:
             mean value of estimated policy value, value loss
         """
-        batch_size, (state, action, reward, next_state, terminal, *others) = \
+        batch_size, (state, action, reward, next_state, terminal, others) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
                                             sample_attrs=[
@@ -272,9 +275,9 @@ class SAC(TorchFramework):
 
         # Update critic network first
         with t.no_grad():
-            next_action, next_action_log_prob, _ = self.actor(next_state)
+            next_action, next_action_log_prob, *_ = self.act(next_state)
             next_action = self.action_trans_func(next_action, next_state,
-                                                 *others)
+                                                 others)
             next_value = self.criticize(next_state, next_action, True)
             next_value2 = self.criticize2(next_state, next_action, True)
             next_value = t.min(next_value, next_value2)
@@ -282,7 +285,7 @@ class SAC(TorchFramework):
                           self.entropy_alpha
                           * next_action_log_prob.view(batch_size, -1))
             y_i = self.reward_func(reward, self.discount, next_value,
-                                   terminal, *others)
+                                   terminal, others)
 
         cur_value = self.criticize(state, action)
         cur_value2 = self.criticize2(state, action)
@@ -295,23 +298,29 @@ class SAC(TorchFramework):
         if update_value:
             self.critic.zero_grad()
             value_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.critic.parameters(), self.grad_max
+            )
             self.critic_optim.step()
 
             self.critic2.zero_grad()
             value_loss2.backward()
+            nn.utils.clip_grad_norm_(
+                self.critic2.parameters(), self.grad_max
+            )
             self.critic2_optim.step()
 
         # Update actor network
-        cur_action, cur_action_log_prob, *_ = self.actor(next_state)
-        cur_action = self.action_trans_func(cur_action, state, *others)
+        cur_action, cur_action_log_prob, *_ = self.act(next_state)
+        cur_action = self.action_trans_func(cur_action, state, others)
         act_value = self.criticize(state, cur_action)
         act_value2 = self.criticize2(state, cur_action)
         act_value = t.min(act_value, act_value2)
 
-        # "-" is applied because we want to maximize J_b(u),
+        # "-" is applied because we want to maximize Q value.
         # but optimizer workers by minimizing the target
-        act_policy_loss = ((self.entropy_alpha * cur_action_log_prob) -
-                           act_value).mean()
+        act_policy_loss = -(act_value -
+                            self.entropy_alpha * cur_action_log_prob).mean()
 
         if self.visualize:
             self.visualize_model(act_policy_loss, "actor", self.visualize_dir)
@@ -319,13 +328,17 @@ class SAC(TorchFramework):
         if update_policy:
             self.actor.zero_grad()
             act_policy_loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.actor.parameters(), self.grad_max
+            )
             self.actor_optim.step()
 
         # Update target networks
         if update_target:
             soft_update(self.critic_target, self.critic, self.update_rate)
+            soft_update(self.critic2_target, self.critic2, self.update_rate)
 
-        if update_entropy_alpha:
+        if update_entropy_alpha and self.target_entropy is not None:
             alpha_loss = -(t.log(self.entropy_alpha) *
                            (cur_action_log_prob + self.target_entropy).detach()
                            ).mean()
@@ -334,7 +347,8 @@ class SAC(TorchFramework):
             self.alpha_optim.step()
 
         # use .item() to prevent memory leakage
-        return -act_policy_loss.item(), value_loss.item()
+        return (-act_policy_loss.item(),
+                (value_loss.item() + value_loss2.item()) / 2)
 
     def update_lr_scheduler(self):
         """
@@ -357,7 +371,7 @@ class SAC(TorchFramework):
         return {"action": raw_output_action}
 
     @staticmethod
-    def bellman_function(reward, discount, next_value, terminal, *_):
+    def bellman_function(reward, discount, next_value, terminal, _):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
-        return reward + discount * (1 - terminal) * next_value
+        return reward + discount * ~terminal * next_value
