@@ -123,6 +123,18 @@ class TestTransitionBase(object):
         assert t.all(tb[key] == value)
         assert t.all(getattr(tb, key) == value)
 
+    def test_dynamic_set_get(self):
+        tb = TransitionBase(major_attr=["ma1"],
+                            sub_attr=["sa1"],
+                            custom_attr=["ca"],
+                            major_data=[{"ma1_1": t.zeros([2, 2])}],
+                            sub_data=[t.zeros([2, 4])],
+                            custom_data=[None])
+        with pytest.raises(RuntimeError, match="You cannot dynamically set"):
+            tb["some_attr"] = 1
+        with pytest.raises(RuntimeError, match="You cannot dynamically set"):
+            tb.some_attr = 1
+
     ########################################################################
     # Test for TransitionBase.major_attr, custom_attr, keys, has_keys
     # and items

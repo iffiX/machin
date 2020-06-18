@@ -359,10 +359,11 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                                               dtype=t.long))
 
             with t.no_grad():
-                next_q_value = self.criticize(next_state)
                 target_next_q_value = self.criticize(next_state, True)
+                next_action = (self.act_discreet(next_state)
+                               .to(device=q_value.device, dtype=t.long))
                 target_next_q_value = target_next_q_value.gather(
-                    dim=1, index=t.max(next_q_value, dim=1)[1].unsqueeze(1))
+                    dim=1, index=next_action)
 
             y_i = self.reward_func(reward, self.discount, target_next_q_value,
                                    terminal, others)

@@ -108,6 +108,8 @@ class TorchFramework:
         else:
             self._visualized.add(name)
             g = make_dot(final_tensor)
-            g.render(filename=join(name, ".gv"),
-                     directory=directory, view=False,
-                     cleanup=True, quiet=True)
+            g.render(filename=name,
+                     directory=directory,
+                     view=False,
+                     cleanup=False,
+                     quiet=True)

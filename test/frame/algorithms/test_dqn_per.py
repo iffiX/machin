@@ -36,12 +36,12 @@ class TestDQNPer(object):
         # Note: online policy algorithms such as PPO and A2C does not
         # work well in Pendulum (reason unknown)
         # and MountainCarContinuous (sparse returns)
-        c.env_name = "CartPole-v1"
+        c.env_name = "CartPole-v0"
         c.env = unwrap_time_limit(gym.make(c.env_name))
         c.observe_dim = 4
         c.action_num = 2
         c.max_episodes = 1000
-        c.max_steps = 500
+        c.max_steps = 200
         c.replay_size = 100000
         c.solved_reward = 190
         c.solved_repeat = 5
@@ -155,7 +155,7 @@ class TestDQNPer(object):
     # Skipped, it is the same as DQN
 
     ########################################################################
-    # Test for DQN full training.
+    # Test for DQNPer full training.
     ########################################################################
     def test_full_train(self, train_config, dqn_per):
         c = train_config
