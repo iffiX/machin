@@ -47,7 +47,7 @@ class TestRAINBOW(object):
         c.action_num = 2
         # maximum and minimum of reward value
         # since reward is 1 for every step, maximum q value should be
-        # below 200(reward_future_steps) * 1
+        # below 20(reward_future_steps) * (1 + discount ** n_steps) < 40
         c.value_max = 40
         c.value_min = 0
         c.reward_future_steps = 20
