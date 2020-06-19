@@ -31,7 +31,7 @@ pipeline {
 
                 // no multiline string here, will execute pytest without args
                 // and will cause seg fault.
-                sh 'pytest --cov-report term-missing --cov=machin -k \"not full_train\" --junitxml test_results/test_basic_api.xml ./test'
+                sh 'pytest --cov-report term-missing --cov=machin -k \'not full_train\' --junitxml test_results/test_basic_api.xml ./test'
                 junit 'test_results/test_basic_api.xml'
             }
         }
@@ -42,7 +42,7 @@ pipeline {
             steps {
                 // run full training test
                 sh 'mkdir -p test_results'
-                sh 'pytest --cov-report term-missing --cov=machin -k "full_train" --junitxml test_results/test_full_train.xml ./test'
+                sh 'pytest --cov-report term-missing --cov=machin -k \'full_train\' --junitxml test_results/test_full_train.xml ./test'
                 junit 'test_results/test_full_train.xml'
             }
         }
@@ -52,7 +52,7 @@ pipeline {
             }
             steps {
                 // install allure and generate report
-                sh 'wget \"https://bintray.com/qameta/maven/download_file?file_path=io%2Fqameta%2Fallure%2Fallure-commandline%2F2.8.1%2Fallure-commandline-2.8.1.tgz\"'
+                sh 'wget \'https://bintray.com/qameta/maven/download_file?file_path=io%2Fqameta%2Fallure%2Fallure-commandline%2F2.8.1%2Fallure-commandline-2.8.1.tgz\''
                 sh 'tar -xvzf allure-commandline-2.8.1.tgz'
                 sh 'export PATH=allure-2.8.1/bin/:$PATH'
             }
