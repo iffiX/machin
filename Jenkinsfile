@@ -64,7 +64,7 @@ pipeline {
                 branch 'release'
             }
             steps {
-
+                echo 'deploy'
             }
         }
     }
