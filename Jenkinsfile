@@ -22,7 +22,7 @@ pipeline {
                 sh 'pip install pytest-cov==2.10.0'
                 sh 'pip install allure-pytest==2.8.16'
                 sh 'pip install pytest-xvfb==2.0.0'
-                sh "python3 -c import matplotlib.pyplot as plt"
+                sh "python3 -c 'import matplotlib.pyplot as plt'"
             }
         }
         stage('Test basic API') {
