@@ -2,7 +2,7 @@ pipeline {
     agent {
         docker {
             image 'pytorch/pytorch:latest'
-            args '-u root:sudo'
+            args '-u root:sudo --gpus all'
         }
     }
     stages {
