@@ -8,7 +8,7 @@ pipeline {
     stages {
         stage('Install') {
             steps {
-                sh "pytest --cov-report term-missing --cov=machin -k \'not full_train\' --junitxml test_results/test_basic_api.xml ./test"
+                sh "pytest --cov-report term-missing --cov=machin -k \\'not full_train\\' --junitxml test_results/test_basic_api.xml ./test"
                 sh "mkdir ~/.pip && touch ~/.pip/pip.conf"
                 sh "sed -i \'s/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g\' /etc/apt/sources.list"
                 sh "echo \'[global]\' | tee ~/.pip/pip.conf"
