@@ -8,6 +8,7 @@ pipeline {
     stages {
         stage('Install') {
             steps {
+                sh 'nvidia-smi'
                 sh "mkdir ~/.pip && touch ~/.pip/pip.conf"
                 sh "sed -i 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list"
                 sh "echo '[global]' | tee ~/.pip/pip.conf"
