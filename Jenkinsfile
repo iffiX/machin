@@ -8,8 +8,8 @@ pipeline {
     stages {
         stage('Install') {
             steps {
-                sh """sed -i 's/archive.ubuntu.com/mirrors.ustc.edu.cn/g'
-                      /etc/apt/sources.list"""
+                sh "sed -i 's/archive.ubuntu.com/mirrors.ustc.edu.cn/g'" +
+                   "/etc/apt/sources.list"
                 sh 'apt update'
                 sh 'apt install -y freeglut3-dev xvfb'
                 sh 'python3 -m pip install virtualenv'
@@ -56,9 +56,9 @@ pipeline {
             }
             steps {
                 // install allure and generate report
-                sh """wget https://bintray.com/qameta/maven/download_file?
-                      file_path=io%2Fqameta%2Fallure%2Fallure-commandline%2F2.
-                      8.1%2Fallure-commandline-2.8.1.tgz"""
+                sh "wget https://bintray.com/qameta/maven/download_file?" +
+                   "file_path=io%2Fqameta%2Fallure%2Fallure-commandline%" +
+                   "2F2.8.1%2Fallure-commandline-2.8.1.tgz"
                 sh 'tar -xvzf allure-commandline-2.8.1.tgz'
                 sh 'export PATH=allure-2.8.1/bin/:$PATH'
             }
