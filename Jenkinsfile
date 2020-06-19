@@ -13,6 +13,7 @@ pipeline {
                 sh "echo '[global]' | tee ~/.pip/pip.conf"
                 sh "echo 'index-url = https://pypi.tuna.tsinghua.edu.cn/simple' | tee -a ~/.pip/pip.conf"
                 sh 'apt clean'
+                sh 'rm -Rf /var/lib/apt/lists/*'
                 sh 'apt update'
                 sh 'apt install -y freeglut3-dev xvfb'
                 sh 'python3 -m pip install virtualenv'
