@@ -15,22 +15,13 @@ pipeline {
                 sh "echo 'index-url = https://pypi.tuna.tsinghua.edu.cn/simple' | tee -a ~/.pip/pip.conf"
                 sh 'apt clean'
                 sh 'rm -Rf /var/lib/apt/lists/*'
-
-                sh 'pip install matplotlib'
-                sh "python3 -c 'import matplotlib.pyplot as plt'"
-
                 sh 'apt update'
                 sh 'apt install -y freeglut3-dev xvfb fonts-dejavu'
-                sh "python3 -c 'import matplotlib.pyplot as plt'"
                 sh 'pip install -e .'
-                sh "python3 -c 'import matplotlib.pyplot as plt'"
                 sh 'pip install pytest==5.4.3'
-                sh "python3 -c 'import matplotlib.pyplot as plt'"
                 sh 'pip install pytest-cov==2.10.0'
-                sh "python3 -c 'import matplotlib.pyplot as plt'"
                 sh 'pip install allure-pytest==2.8.16'
-                sh "python3 -c 'import matplotlib.pyplot as plt'"
-                //sh 'pip install pytest-xvfb==2.0.0'
+                sh 'pip install pytest-xvfb==2.0.0'
             }
         }
         stage('Test basic API') {
@@ -39,7 +30,7 @@ pipeline {
                 sh 'mkdir -p test_results'
                 // no multiline string here, will execute pytest without args
                 // and will cause seg fault.
-                sh "xvfb-run -s '-screen 0 1400x900x24' pytest --cov-report term-missing --cov=machin -k 'not full_train' --junitxml test_results/test_basic_api.xml ./test"
+                sh "python -m pytest --cov-report term-missing --cov=machin -k 'not full_train' --junitxml test_results/test_basic_api.xml ./test"
                 junit 'test_results/test_basic_api.xml'
             }
         }
