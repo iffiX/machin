@@ -8,6 +8,10 @@ pipeline {
     stages {
         stage('Install') {
             steps {
+                sh """sed -i 's/archive.ubuntu.com/mirrors.ustc.edu.cn/g'
+                      /etc/apt/sources.list"""
+                sh 'apt update'
+                sh 'apt install -y freeglut3-dev xvfb'
                 sh 'python3 -m pip install virtualenv'
                 sh 'virtualenv venv'
                 sh '. venv/bin/activate'
@@ -15,7 +19,6 @@ pipeline {
                 sh 'pip install pytest==5.4.3'
                 sh 'pip install pytest-cov==2.10.0'
                 sh 'pip install allure-pytest==2.8.16'
-                sh 'apt install -y freeglut3-dev xvfb'
             }
         }
         stage('Test basic API') {
