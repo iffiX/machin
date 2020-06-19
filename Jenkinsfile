@@ -11,10 +11,12 @@ pipeline {
             }
             stages {
                 stage('install') {
+                    environment {
+                        PATH = '${env.WORKSPACE}/venv/bin:${env.PATH}'
+                    }
                     steps {
                         bash 'python3 -m pip install virtualenv'
                         bash 'virtualenv venv'
-                        PATH = '${env.WORKSPACE}/venv/bin:${env.PATH}'
                         bash '. venv/bin/activate'
                         bash 'pip install -e .'
                     }
