@@ -30,7 +30,7 @@ pipeline {
                 sh 'mkdir -p test_results'
                 // no multiline string here, will execute pytest without args
                 // and will cause seg fault.
-                sh "pytest --cov-report term-missing --cov=machin -k 'not full_train' --junitxml test_results/test_basic_api.xml ./test"
+                sh "xvfb-run -s '-screen 0 1400x900x24' pytest --cov-report term-missing --cov=machin -k 'not full_train' --junitxml test_results/test_basic_api.xml ./test"
                 junit 'test_results/test_basic_api.xml'
             }
         }
