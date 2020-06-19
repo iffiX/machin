@@ -16,10 +16,7 @@ pipeline {
                 sh 'apt clean'
                 sh 'rm -Rf /var/lib/apt/lists/*'
                 sh 'apt update'
-                //sh 'apt install -y freeglut3-dev xvfb fonts-dejavu'
-                sh 'apt install -y freeglut3-dev'
-                sh 'apt install -y xorg'
-                sh 'apt install -y --no-install-recommends openbox'
+                sh 'apt install -y freeglut3-dev xvfb fonts-dejavu'
                 sh 'pip install -e .'
                 sh 'pip install pytest==5.4.3'
                 sh 'pip install pytest-cov==2.10.0'
@@ -31,7 +28,6 @@ pipeline {
             steps {
                 // run basic test
                 sh 'mkdir -p test_results'
-                sh 'startx'
                 // no multiline string here, will execute pytest without args
                 // and will cause seg fault.
                 sh "pytest --cov-report term-missing --cov=machin -k 'not full_train' --junitxml test_results/test_basic_api.xml ./test"
