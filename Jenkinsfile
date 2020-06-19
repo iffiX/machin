@@ -8,8 +8,13 @@ pipeline {
     stages {
         stage('Install') {
             steps {
-                sh "sed -i \'s/archive.ubuntu.com/mirrors.ustc.edu.cn/g\'" +
+                sh "mkdir ~/.pip && touch ~/.pip/pip.conf"
+                sh "sed -i \'s/archive.ubuntu.com/mirrors.aliyun.com/g\'" +
                    " /etc/apt/sources.list"
+                sh "echo \'[global]\'" +
+                   "| tee ~/.pip/pip.conf"
+                sh "echo \'index-url = https://mirrors.aliyun.com/pypi/simple\'" +
+                   "| tee -a ~/.pip/pip.conf"
                 sh 'apt update'
                 sh 'apt install -y freeglut3-dev xvfb'
                 sh 'python3 -m pip install virtualenv'
@@ -19,13 +24,14 @@ pipeline {
                 sh 'pip install pytest==5.4.3'
                 sh 'pip install pytest-cov==2.10.0'
                 sh 'pip install allure-pytest==2.8.16'
+                sh 'pip install pytest-xvfb==2.0.0'
             }
         }
         stage('Test basic API') {
             steps {
                 // run basic test
                 sh 'mkdir -p test_results'
-                sh '''xvfb-run -s "-screen 0 1400x900x24" pytest
+                sh '''pytest
                       --cov-report term-missing
                       --cov=machin
                       -k "not full_train"
