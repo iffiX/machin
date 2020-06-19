@@ -15,13 +15,14 @@ pipeline {
                 sh 'pip install pytest==5.4.3'
                 sh 'pip install pytest-cov==2.10.0'
                 sh 'pip install allure-pytest==2.8.16'
+                sh 'apt install -y freeglut3-dev xvfb'
             }
         }
         stage('Test basic API') {
             steps {
                 // run basic test
                 sh 'mkdir -p test_results'
-                sh '''pytest
+                sh '''xvfb-run -s "-screen 0 1400x900x24" pytest
                       --cov-report term-missing
                       --cov=machin
                       -k "not full_train"
