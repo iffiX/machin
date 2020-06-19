@@ -8,7 +8,7 @@ pipeline {
     stages {
         stage('Install') {
             steps {
-                sh 'nvidia-smi'
+                sh 'nvidia-smi' // make sure gpus are loaded
                 sh "mkdir ~/.pip && touch ~/.pip/pip.conf"
                 sh "sed -i 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list"
                 sh "echo '[global]' | tee ~/.pip/pip.conf"
@@ -17,9 +17,6 @@ pipeline {
                 sh 'rm -Rf /var/lib/apt/lists/*'
                 sh 'apt update'
                 sh 'apt install -y freeglut3-dev xvfb'
-                sh 'python3 -m pip install virtualenv'
-                sh 'virtualenv venv'
-                sh '. venv/bin/activate'
                 sh 'pip install -e .'
                 sh 'pip install pytest==5.4.3'
                 sh 'pip install pytest-cov==2.10.0'
