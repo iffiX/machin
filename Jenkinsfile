@@ -2,6 +2,7 @@ pipeline {
     agent {
         docker {
             image 'pytorch/pytorch:latest'
+            args '-u root:sudo'
         }
     }
     stages {
@@ -15,7 +16,7 @@ pipeline {
                         PATH = '${env.WORKSPACE}/venv/bin:${env.PATH}'
                     }
                     steps {
-                        sh 'python3 -m pip install --user virtualenv'
+                        sh 'python3 -m pip install virtualenv'
                         sh 'virtualenv venv'
                         sh '. venv/bin/activate'
                         sh 'pip install -e .'
