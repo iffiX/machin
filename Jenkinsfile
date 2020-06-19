@@ -22,6 +22,7 @@ pipeline {
                 sh 'pip install pytest-cov==2.10.0'
                 sh 'pip install allure-pytest==2.8.16'
                 sh 'pip install pytest-xvfb==2.0.0'
+                sh "python3 -c import matplotlib.pyplot as plt"
             }
         }
         stage('Test basic API') {
@@ -30,7 +31,7 @@ pipeline {
                 sh 'mkdir -p test_results'
                 // no multiline string here, will execute pytest without args
                 // and will cause seg fault.
-                sh "python -m pytest --cov-report term-missing --cov=machin -k 'not full_train' --junitxml test_results/test_basic_api.xml ./test"
+                sh "pytest --cov-report term-missing --cov=machin -k 'not full_train' --junitxml test_results/test_basic_api.xml ./test"
                 junit 'test_results/test_basic_api.xml'
             }
         }
