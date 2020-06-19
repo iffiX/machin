@@ -6,9 +6,6 @@ pipeline {
         }
     }
     stages {
-        environment {
-            PATH = '${env.WORKSPACE}/venv/bin:${env.PATH}'
-        }
         stage('Install') {
             steps {
                 sh 'python3 -m pip install virtualenv'
@@ -59,7 +56,7 @@ pipeline {
                       file_path=io%2Fqameta%2Fallure%2Fallure-commandline%2F2.
                       8.1%2Fallure-commandline-2.8.1.tgz"""
                 sh 'tar -xvzf allure-commandline-2.8.1.tgz'
-                sh 'export PATH=allure-2.8.1/bin/$PATH'
+                sh 'export PATH=allure-2.8.1/bin/:$PATH'
             }
         }
         stage('Deploy PyPI package') {
