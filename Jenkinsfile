@@ -10,7 +10,7 @@ pipeline {
             steps {
                 sh 'nvidia-smi' // make sure gpus are loaded
                 sh "mkdir ~/.pip && touch ~/.pip/pip.conf"
-                sh "sed -i 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list"
+                sh "sed -i 's/http:\\/\\/archive.ubuntu.com/https:\\/\\/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list"
                 sh "echo '[global]' | tee ~/.pip/pip.conf"
                 sh "echo 'index-url = https://pypi.tuna.tsinghua.edu.cn/simple' | tee -a ~/.pip/pip.conf"
                 sh 'apt clean'
