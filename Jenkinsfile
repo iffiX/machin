@@ -9,11 +9,11 @@ pipeline {
         stage('Install') {
             steps {
                 sh "mkdir ~/.pip && touch ~/.pip/pip.conf"
-                sh "sed -i \'s/archive.ubuntu.com/mirrors.aliyun.com/g\'" +
+                sh "sed -i \'s/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g\'" +
                    " /etc/apt/sources.list"
                 sh "echo \'[global]\'" +
                    "| tee ~/.pip/pip.conf"
-                sh "echo \'index-url = https://mirrors.aliyun.com/pypi/simple\'" +
+                sh "echo \'index-url = https://pypi.tuna.tsinghua.edu.cn/simple\'" +
                    "| tee -a ~/.pip/pip.conf"
                 sh 'apt update'
                 sh 'apt install -y freeglut3-dev xvfb'
