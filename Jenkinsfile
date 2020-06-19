@@ -15,7 +15,7 @@ pipeline {
                         PATH = '${env.WORKSPACE}/venv/bin:${env.PATH}'
                     }
                     steps {
-                        sh 'python3 -m pip install virtualenv'
+                        sh 'python3 -m pip install --user virtualenv'
                         sh 'virtualenv venv'
                         sh '. venv/bin/activate'
                         sh 'pip install -e .'
