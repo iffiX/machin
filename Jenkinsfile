@@ -43,7 +43,7 @@ pipeline {
                 sh 'pytest --cov-report term-missing --cov=machin ' +
                    '-k \'not full_train and not Wrapper\' ' +
                    '--junitxml test_results/test_api.xml ./test ' +
-                   '--cov-report xml:test_results/cov_report.xml' +
+                   '--cov-report xml:test_results/cov_report.xml ' +
                    '--html=test_results/test_api.html ' +
                    '--self-contained-html ' +
                    '--alluredir="test_allure_data/api"' +
