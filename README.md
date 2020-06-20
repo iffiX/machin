@@ -4,14 +4,19 @@
 	</a>
 </div>
 
+<br/><br/>
 
 [![Read the Docs](https://img.shields.io/readthedocs/machin)](https://machin.readthedocs.io/en/latest/)
-[![Jenkins build](https://img.shields.io/jenkins/build?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)](https://img.shields.io/jenkins/build?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)
-[![Jenkins tests](https://img.shields.io/jenkins/tests?compact_message&jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)](https://img.shields.io/jenkins/tests?compact_message&jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)
-[![Jenkins coverage](https://img.shields.io/jenkins/coverage/cobertura?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)](https://img.shields.io/jenkins/coverage/cobertura?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)
+[![Jenkins build](https://img.shields.io/jenkins/build?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)](http://ci.beyond-infinity.com/jenkins/blue/organizations/jenkins/machin/branches/)
+[![Jenkins tests](https://img.shields.io/jenkins/tests?compact_message&jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)](http://ci.beyond-infinity.com/jenkins/blue/organizations/jenkins/machin/branches/)
+[![Jenkins coverage](https://img.shields.io/jenkins/coverage/cobertura?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)](http://ci.beyond-infinity.com/jenkins/blue/organizations/jenkins/machin/branches/)
+[![License](https://img.shields.io/github/license/iffiX/machin)](https://github.com/iffiX/machin)
+
+<br/>
 WARNING: currently Machin is in its early development stage, tests, code coverage, doc, examples are not complete.
 
 
+<br/>
 **Machin** is a reinforcement library purely based on pytorch. It is designed to be **readable**, **reusable** and **extendable**.
 
 
