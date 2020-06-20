@@ -41,7 +41,7 @@ pipeline {
                    '-k \'not full_train\' ' +
                    '--junitxml test_results/test_basic_api.xml ./test ' +
                    '--html=test_results/test_basic_api.html ' +
-                   '--self-contained-html'
+                   '--self-contained-html' +
                    '|| [ $? -eq 1 ]'
                 junit 'test_results/test_basic_api.xml'
                 archiveArtifacts 'test_results/test_basic_api.html'
