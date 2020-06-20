@@ -27,10 +27,12 @@
 </div>
 
 <br/>
+
 WARNING: currently Machin is in its early development stage, tests, code coverage, doc, examples are not complete.
 
 
 <br/>
+
 **Machin** is a reinforcement library purely based on pytorch. It is designed to be **readable**, **reusable** and **extendable**.
 
 
