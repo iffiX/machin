@@ -36,7 +36,7 @@ pipeline {
 
                 // no multiline string here, will execute pytest without args
                 // and will cause seg fault.
-                // "|| [[ $? -eq 1 ]]" is used to tell jenkins to not mark
+                // -eq 1  is used to tell jenkins to not mark
                 // the test as failure when sub tests failed.
                 sh "pytest --cov-report term-missing --cov=machin -k 'not fu" +
                    "ll_train and not Wrapper' --junitxml test_results/test_b" +
