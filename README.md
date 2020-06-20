@@ -4,7 +4,8 @@
 	</a>
 </div>
 
-<br/><br/>
+<br/>
+
 
 <div align="center">
 	<a href="https://machin.readthedocs.io/en/latest/">
