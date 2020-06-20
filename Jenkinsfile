@@ -16,7 +16,7 @@ pipeline {
                 sh 'echo \'index-url = https://pypi.tuna.tsinghua.edu.cn/simp' +
                    'le\' | tee -a ~/.pip/pip.conf'
                 sh 'export PIP_DEFAULT_TIMEOUT=100'
-                
+
                 sh 'apt clean'
                 sh 'rm -Rf /var/lib/apt/lists/*'
                 sh 'apt update'
@@ -41,7 +41,7 @@ pipeline {
                 // -eq 1  is used to tell jenkins to not mark
                 // the test as failure when sub tests failed.
                 sh 'pytest --cov-report term-missing --cov=machin ' +
-                   '-k \'not full_train\' ' +
+                   '-k \'not full_train and not Wrapper\' ' +
                    '--junitxml test_results/test_api.xml ./test ' +
                    '--cov-report xml:test_results/cov_report.xml' +
                    '--html=test_results/test_api.html ' +
