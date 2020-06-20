@@ -39,8 +39,8 @@ pipeline {
                 // "|| [[ $? -eq 1 ]]" is used to tell jenkins to not mark
                 // the test as failure when sub tests failed.
                 sh "pytest --cov-report term-missing --cov=machin -k 'not fu" +
-                   "ll_train and not Wrapper' --junitxml test_results/test_basic_api.xml ./t" +
-                   "est || [[ $? -eq 1 ]]"
+                   "ll_train and not Wrapper' --junitxml test_results/test_b" +
+                   "asic_api.xml ./test || [[ $? -eq 1 ]]"
                 junit 'test_results/test_basic_api.xml'
             }
         }
