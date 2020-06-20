@@ -43,7 +43,7 @@ pipeline {
                    '--junitxml test_results/test_api.xml ./test ' +
                    '--cov-report xml:test_results/cov_report.xml' +
                    '--html=test_results/test_api.html ' +
-                   '--self-contained-html' +
+                   '--self-contained-html ' +
                    '--alluredir="test_allure_data/api"' +
                    '|| [ $? -eq 1 ]'
                 junit 'test_results/test_api.xml'
