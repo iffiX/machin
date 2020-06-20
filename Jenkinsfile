@@ -24,6 +24,7 @@ pipeline {
                 sh 'pip install pytest-cov==2.10.0'
                 sh 'pip install allure-pytest==2.8.16'
                 sh 'pip install pytest-xvfb==2.0.0'
+                sh 'pip install pytest-html==1.22.1'
                 // This line must be included, otherwise matplotlib will
                 // segfault when it tries to build the font cache.
                 sh "python3 -c 'import matplotlib.pyplot as plt'"
@@ -34,15 +35,16 @@ pipeline {
                 // run basic test
                 sh 'mkdir -p test_results'
 
-                // no multiline string here, will execute pytest without args
-                // and will cause seg fault.
                 // -eq 1  is used to tell jenkins to not mark
                 // the test as failure when sub tests failed.
                 sh 'pytest --cov-report term-missing --cov=machin ' +
-                   '-k \'not full_train and not Wrapper\' ' +
+                   '-k \'not full_train\' ' +
                    '--junitxml test_results/test_basic_api.xml ./test ' +
+                   '--html=test_results/test_basic_api.html ' +
+                   '--self-contained-html'
                    '|| [ $? -eq 1 ]'
                 junit 'test_results/test_basic_api.xml'
+                archiveArtifacts 'test_results/test_basic_api.html'
             }
         }
         stage('Test full training') {
