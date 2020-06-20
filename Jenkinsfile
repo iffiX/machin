@@ -5,6 +5,11 @@ pipeline {
             args '-u root:sudo --gpus all'
         }
     }
+    environment {
+        PYPI_CREDS = credentials('pypi_username_password')
+        TWINE_USERNAME = PYPI_CREDS_USR
+        TWINE_PASSWORD = PYPI_CREDS_PSW
+    }
     stages {
         stage('Install') {
             steps {
@@ -97,8 +102,29 @@ pipeline {
                 sh 'tar -xvzf allure-commandline-2.8.1.tgz'
                 sh 'export PATH=allure-2.8.1/bin/:$PATH'
                 sh 'allure generate test_allure_data -o test_allure_report'
-
-                // copy this report to the server
+            }
+            post {
+                always {
+                    // copy this report to the server
+                    sshPublisher(publishers: [sshPublisherDesc(
+                        configName: 'ci.beyond-infinity.com',
+                        transfers: [sshTransfer(
+                            cleanRemote: false,
+                            excludes: '',
+                            execCommand: '',
+                            execTimeout: 120000,
+                            flatten: false,
+                            makeEmptyDirs: false,
+                            noDefaultExcludes: false,
+                            patternSeparator: '[, ]+',
+                            remoteDirectory: "reports/machin/${env.GIT_TAG_NAME}",
+                            remoteDirectorySDF: false,
+                            removePrefix: '',
+                            sourceFiles: 'test_allure_report'
+                        )],
+                        usePromotionTimestamp: false,
+                        useWorkspaceInPromotion: false, verbose: false)])
+                }
             }
         }
         stage('Deploy PyPI package') {
@@ -106,7 +132,19 @@ pipeline {
                 branch 'release'
             }
             steps {
-                echo 'deploy'
+                // build distribution wheel
+                sh 'python3 -m pip install twine'
+                sh 'python3 setup.py sdist bdist_wheel'
+                // upload to twine
+                sh 'twine upload dist/*'
+            }
+            post {
+                always {
+                    // save results for later check
+                    archiveArtifacts (allowEmptyArchive: true,
+                                      artifacts: 'dist/*whl',
+                                      fingerprint: true)
+                }
             }
         }
     }
