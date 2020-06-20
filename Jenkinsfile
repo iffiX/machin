@@ -18,7 +18,7 @@ pipeline {
                 sh 'apt clean'
                 sh 'rm -Rf /var/lib/apt/lists/*'
                 sh 'apt update'
-                sh 'apt install -y freeglut3-dev xvfb fonts-dejavu'
+                sh 'apt install -y freeglut3-dev xvfb fonts-dejavu graphviz'
                 sh 'pip install -e .'
                 sh 'pip install pytest==5.4.3'
                 sh 'pip install pytest-cov==2.10.0'
@@ -41,7 +41,7 @@ pipeline {
                 sh 'pytest --cov-report term-missing --cov=machin ' +
                    '-k \'not full_train and not Wrapper\' ' +
                    '--junitxml test_results/test_basic_api.xml ./test ' +
-                   '|| [[ $? -eq 1 ]]'
+                   '|| [ $? -eq 1 ]'
                 junit 'test_results/test_basic_api.xml'
             }
         }
@@ -55,7 +55,7 @@ pipeline {
                 sh 'pytest --cov-report term-missing --cov=machin ' +
                    '-k \'full_train\' ' +
                    '--junitxml test_results/test_full_train.xml ./test' +
-                   '|| [[ $? -eq 1 ]]'
+                   '|| [ $? -eq 1 ]'
                 junit 'test_results/test_full_train.xml'
             }
         }
