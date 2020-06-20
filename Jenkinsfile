@@ -15,6 +15,8 @@ pipeline {
                 sh 'echo \'[global]\' | tee ~/.pip/pip.conf'
                 sh 'echo \'index-url = https://pypi.tuna.tsinghua.edu.cn/simp' +
                    'le\' | tee -a ~/.pip/pip.conf'
+                sh 'export PIP_DEFAULT_TIMEOUT=100'
+                
                 sh 'apt clean'
                 sh 'rm -Rf /var/lib/apt/lists/*'
                 sh 'apt update'
