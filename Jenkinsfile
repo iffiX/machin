@@ -7,8 +7,8 @@ pipeline {
     }
     environment {
         PYPI_CREDS = credentials('pypi_username_password')
-        TWINE_USERNAME = PYPI_CREDS_USR
-        TWINE_PASSWORD = PYPI_CREDS_PSW
+        TWINE_USERNAME = "${env.PYPI_CREDS_USR}"
+        TWINE_PASSWORD = "${env.PYPI_CREDS_PSW}"
     }
     stages {
         stage('Install') {
