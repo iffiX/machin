@@ -14,7 +14,7 @@ import gym
 import numpy as np
 
 logger = getLogger("default")
-ENV_NUM = 4
+ENV_NUM = 2
 SAMPLE_NUM = 2
 WORKER_NUM = 2
 

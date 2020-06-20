@@ -30,21 +30,40 @@ pipeline {
                 sh "python3 -c 'import matplotlib.pyplot as plt'"
             }
         }
-        stage('Test basic API') {
+        stage('Test API') {
             steps {
                 // run basic test
                 sh 'mkdir -p test_results'
+                sh 'mkdir -p test_allure_data/api'
 
                 // -eq 1  is used to tell jenkins to not mark
                 // the test as failure when sub tests failed.
                 sh 'pytest --cov-report term-missing --cov=machin ' +
                    '-k \'not full_train\' ' +
-                   '--junitxml test_results/test_basic_api.xml ./test ' +
-                   '--html=test_results/test_basic_api.html ' +
+                   '--junitxml test_results/test_api.xml ./test ' +
+                   '--cov-report xml:test_results/cov_report.xml' +
+                   '--html=test_results/test_api.html ' +
                    '--self-contained-html' +
+                   '--alluredir="test_allure_data/api"' +
                    '|| [ $? -eq 1 ]'
-                junit 'test_results/test_basic_api.xml'
-                archiveArtifacts 'test_results/test_basic_api.html'
+                junit 'test_results/test_api.xml'
+                archiveArtifacts 'test_results/test_api.html'
+                archiveArtifacts 'test_results/cov_report.xml'
+            }
+            post {
+                always {
+                    step([$class: 'CoberturaPublisher',
+                                   autoUpdateHealth: false,
+                                   autoUpdateStability: false,
+                                   coberturaReportFile: 'test_results/cov_report.xml',
+                                   failNoReports: false,
+                                   failUnhealthy: false,
+                                   failUnstable: false,
+                                   maxNumberOfBuilds: 10,
+                                   onlyStable: false,
+                                   sourceEncoding: 'ASCII',
+                                   zoomCoverageChart: false])
+                }
             }
         }
         stage('Test full training') {
@@ -54,9 +73,11 @@ pipeline {
             steps {
                 // run full training test
                 sh 'mkdir -p test_results'
+                sh 'mkdir -p test_allure_data/full_train'
                 sh 'pytest --cov-report term-missing --cov=machin ' +
-                   '-k \'full_train\' ' +
+                   '-k \'full_train and not Wrapper\' ' +
                    '--junitxml test_results/test_full_train.xml ./test' +
+                   '--alluredir="test_allure_data/full_train"' +
                    '|| [ $? -eq 1 ]'
                 junit 'test_results/test_full_train.xml'
             }
@@ -67,11 +88,15 @@ pipeline {
             }
             steps {
                 // install allure and generate report
+                sh 'mkdir -p test_allure_report'
                 sh 'wget \'https://bintray.com/qameta/maven/download_file?fil' +
                    'e_path=io%2Fqameta%2Fallure%2Fallure-commandline%2F2.8.1%' +
                    '2Fallure-commandline-2.8.1.tgz'
                 sh 'tar -xvzf allure-commandline-2.8.1.tgz'
                 sh 'export PATH=allure-2.8.1/bin/:$PATH'
+                sh 'allure generate test_allure_data -o test_allure_report'
+
+                // copy this report to the server
             }
         }
         stage('Deploy PyPI package') {
