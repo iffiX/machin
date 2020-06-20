@@ -1,16 +1,29 @@
 <div align="center">
-	<a href="https://machin.readthedocs.io">
+	<a href="https://github.com/iffiX/machin">
 		<img width="auto" height="200px" src="https://machin.readthedocs.io/en/latest/_static/icon.svg">
 	</a>
 </div>
 
 <br/><br/>
 
-[![Read the Docs](https://img.shields.io/readthedocs/machin)](https://machin.readthedocs.io/en/latest/)
-[![Jenkins build](https://img.shields.io/jenkins/build?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)](http://ci.beyond-infinity.com/jenkins/blue/organizations/jenkins/machin/branches/)
-[![Jenkins tests](https://img.shields.io/jenkins/tests?compact_message&jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)](http://ci.beyond-infinity.com/jenkins/blue/organizations/jenkins/machin/branches/)
-[![Jenkins coverage](https://img.shields.io/jenkins/coverage/cobertura?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F)](http://ci.beyond-infinity.com/jenkins/blue/organizations/jenkins/machin/branches/)
-[![License](https://img.shields.io/github/license/iffiX/machin)](https://github.com/iffiX/machin)
+<div align="center">
+	<a href="https://machin.readthedocs.io/en/latest/">
+		<img alt="Read the Docs" src="https://img.shields.io/readthedocs/machin">
+	</a>
+	<a href="http://ci.beyond-infinity.com/jenkins/blue/organizations/jenkins/machin/branches/">
+		<img alt="Jenkins build" src="https://img.shields.io/jenkins/build?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F">
+	</a>
+	<a href="http://ci.beyond-infinity.com/jenkins/blue/organizations/jenkins/machin/branches/">
+		<img alt="Jenkins tests" src="https://img.shields.io/jenkins/tests?compact_message&jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F">
+	</a>
+	<a href="http://ci.beyond-infinity.com/jenkins/blue/organizations/jenkins/machin/branches/">
+		<img alt="Jenkins coverage" src="https://img.shields.io/jenkins/coverage/cobertura?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F">
+	</a>
+	<a href="https://github.com/iffiX/machin">
+		<img alt="License" src="https://img.shields.io/github/license/iffiX/machin">
+	</a>
+	
+</div>
 
 <br/>
 WARNING: currently Machin is in its early development stage, tests, code coverage, doc, examples are not complete.
