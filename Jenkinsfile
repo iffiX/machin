@@ -40,7 +40,7 @@ pipeline {
                 // the test as failure when sub tests failed.
                 sh "pytest --cov-report term-missing --cov=machin -k 'not fu" +
                    "ll_train and not Wrapper' --junitxml test_results/test_b" +
-                   "asic_api.xml ./test || [[ $? -eq 1 ]]"
+                   "asic_api.xml ./test || [[ \\$? -eq 1 ]]"
                 junit 'test_results/test_basic_api.xml'
             }
         }
@@ -53,7 +53,7 @@ pipeline {
                 sh 'mkdir -p test_results'
                 sh "pytest --cov-report term-missing --cov=machin -k 'full_t" +
                    "rain' --junitxml test_results/test_full_train.xml ./test" +
-                   "|| [[ $? -eq 1 ]]"
+                   "|| [[ \\$? -eq 1 ]]"
                 junit 'test_results/test_full_train.xml'
             }
         }
