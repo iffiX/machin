@@ -47,14 +47,17 @@ pipeline {
                 // -eq 1  is used to tell jenkins to not mark
                 // the test as failure when sub tests failed.
                 sh 'pytest --cov-report term-missing --cov=machin ' +
-                   '-k \'not full_train and not Wrapper\' ' +
+                   '-k \'test_tmp\' ' +
                    '-o junit_family=xunit1 ' +
                    '--junitxml test_results/test_api.xml ./test ' +
                    '--cov-report xml:test_results/cov_report.xml ' +
                    '--html=test_results/test_api.html ' +
                    '--self-contained-html ' +
                    '--alluredir="test_allure_data/api"' +
-                   '|| [ $? -eq 1 ]'
+                   '&& 0'
+                script {
+                    test_api = sh(returnStdout: true, script: 'echo $?').trim()
+                }
                 junit 'test_results/test_api.xml'
                 archiveArtifacts 'test_results/test_api.html'
                 archiveArtifacts 'test_results/cov_report.xml'
@@ -83,17 +86,20 @@ pipeline {
                 }
             }
             steps {
-                // run full training test, directly fail build if any training
-                // has failed
+                // run full training test
                 sh 'mkdir -p test_results'
                 sh 'mkdir -p test_allure_data/full_train'
                 sh 'pytest ' +
-                   '-k \'full_train and A2C\' ' +
+                   '-k \'test_tmp\' ' +
                    '-o junit_family=xunit1 ' +
                    '--junitxml test_results/test_full_train.xml ./test ' +
                    '--html=test_results/test_full_train.html ' +
                    '--self-contained-html ' +
-                   '--alluredir="test_allure_data/full_train"'
+                   '--alluredir="test_allure_data/full_train"' +
+                   '&& 0'
+                script {
+                    test_full_train = sh(returnStdout: true, script: 'echo $?').trim()
+                }
                 junit 'test_results/test_full_train.xml'
                 archiveArtifacts 'test_results/test_full_train.html'
             }
@@ -104,6 +110,7 @@ pipeline {
                     // jenkins will use tag name as "branch", so no need
                     // to compare branch here
                     tag pattern: 'v\\d+\\.\\d+\\.\\d+(-[a-zA-Z]+)?', comparator: "REGEXP"
+                    expression { test_api == 0 && test_full_train == 0 }
                 }
             }
             steps {
@@ -148,6 +155,7 @@ pipeline {
                 allOf {
                     // only version tags without postfix will be deployed
                     tag pattern: 'v\\d+\\.\\d+\\.\\d+', comparator: "REGEXP"
+                    expression { test_api == 0 && test_full_train == 0 }
                 }
             }
             steps {
