@@ -47,17 +47,18 @@ pipeline {
                 // -eq 1  is used to tell jenkins to not mark
                 // the test as failure when sub tests failed.
                 sh 'pytest --cov-report term-missing --cov=machin ' +
-                   '-k \'test_tmp\' ' +
+                   '-k \'not full_train\' ' +
                    '-o junit_family=xunit1 ' +
                    '--junitxml test_results/test_api.xml ./test ' +
                    '--cov-report xml:test_results/cov_report.xml ' +
                    '--html=test_results/test_api.html ' +
                    '--self-contained-html ' +
                    '--alluredir="test_allure_data/api"' +
-                   '&& 0'
+                   '|| export test_result="failed"'
                 script {
-                    test_api = sh(returnStdout: true, script: 'echo $?').trim()
+                    test_api = sh(returnStdout: true, script: 'echo $test_result').trim()
                 }
+                echo "$test_api"
                 junit 'test_results/test_api.xml'
                 archiveArtifacts 'test_results/test_api.html'
                 archiveArtifacts 'test_results/cov_report.xml'
@@ -90,27 +91,26 @@ pipeline {
                 sh 'mkdir -p test_results'
                 sh 'mkdir -p test_allure_data/full_train'
                 sh 'pytest ' +
-                   '-k \'test_tmp\' ' +
+                   '-k \'full_train\' ' +
                    '-o junit_family=xunit1 ' +
                    '--junitxml test_results/test_full_train.xml ./test ' +
                    '--html=test_results/test_full_train.html ' +
                    '--self-contained-html ' +
                    '--alluredir="test_allure_data/full_train"' +
-                   '&& 0'
+                   '|| export test_result="failed"'
                 script {
-                    test_full_train = sh(returnStdout: true, script: 'echo $?').trim()
+                    test_full_train = sh(returnStdout: true, script: 'echo $test_result').trim()
                 }
+                echo "$test_full_train"
                 junit 'test_results/test_full_train.xml'
                 archiveArtifacts 'test_results/test_full_train.html'
             }
         }
         stage('Deploy allure report') {
             when {
-                allOf {
-                    // jenkins will use tag name as "branch", so no need
-                    // to compare branch here
+                anyOf {
+                    branch 'release'
                     tag pattern: 'v\\d+\\.\\d+\\.\\d+(-[a-zA-Z]+)?', comparator: "REGEXP"
-                    expression { test_api == 0 && test_full_train == 0 }
                 }
             }
             steps {
@@ -155,7 +155,7 @@ pipeline {
                 allOf {
                     // only version tags without postfix will be deployed
                     tag pattern: 'v\\d+\\.\\d+\\.\\d+', comparator: "REGEXP"
-                    expression { test_api == 0 && test_full_train == 0 }
+                    expression { test_api != "failed" && test_full_train != "failed" }
                 }
             }
             steps {
