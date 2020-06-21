@@ -48,6 +48,7 @@ pipeline {
                 // the test as failure when sub tests failed.
                 sh 'pytest --cov-report term-missing --cov=machin ' +
                    '-k \'not full_train and not Wrapper\' ' +
+                   '-o junit_family=xunit1 ' +
                    '--junitxml test_results/test_api.xml ./test ' +
                    '--cov-report xml:test_results/cov_report.xml ' +
                    '--html=test_results/test_api.html ' +
@@ -86,8 +87,9 @@ pipeline {
                 sh 'mkdir -p test_results'
                 sh 'mkdir -p test_allure_data/full_train'
                 sh 'pytest --cov-report term-missing --cov=machin ' +
-                   '-k \'full_train and not Wrapper\' ' +
-                   '--junitxml test_results/test_full_train.xml ./test' +
+                   '-k \'full_train\' ' +
+                   '-o junit_family=xunit1 ' +
+                   '--junitxml test_results/test_full_train.xml ./test ' +
                    '--alluredir="test_allure_data/full_train"' +
                    '|| [ $? -eq 1 ]'
                 junit 'test_results/test_full_train.xml'
@@ -141,6 +143,7 @@ pipeline {
         stage('Deploy PyPI package') {
             when {
                 allOf {
+                    // only version tags without postfix will be deployed
                     tag pattern: 'v\\d+\\.\\d+\\.\\d+', comparator: "REGEXP"
                 }
             }
