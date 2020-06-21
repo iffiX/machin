@@ -107,6 +107,7 @@ pipeline {
                    '2Fallure-commandline-2.8.1.tgz\''
                 sh 'tar -xvzf allure-commandline-2.8.1.tgz'
                 sh 'export PATH=`pwd`/allure-2.8.1/bin/:$PATH'
+                sh 'chmod a+x `pwd`/allure-2.8.1/bin/allure'
                 sh 'allure generate test_allure_data -o test_allure_report'
             }
             post {
