@@ -14,8 +14,8 @@ pipeline {
         stage('Install') {
             steps {
                 sh 'nvidia-smi' // make sure gpus are loaded
-                echo 'Building branch: $BRANCH_NAME'
-                echo 'Building tag: $TAG_NAME'
+                echo 'Building branch: ${env.BRANCH_NAME}'
+                echo 'Building tag: ${env.TAG_NAME}'
                 sh 'mkdir ~/.pip && touch ~/.pip/pip.conf'
                 sh 'sed -i \'s/http:\\/\\/archive.ubuntu.com/https:\\/\\/mirr' +
                    'ors.tuna.tsinghua.edu.cn/g\' /etc/apt/sources.list'
