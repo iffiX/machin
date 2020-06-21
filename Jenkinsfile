@@ -76,7 +76,10 @@ pipeline {
         }
         stage('Test full training') {
             when {
-                branch 'releasex'
+                anyOf {
+                    branch 'release'
+                    tag pattern: 'v\\d+\\.\\d+\\.\\d+(-[a-zA-Z]+)?', comparator: "REGEXP"
+                }
             }
             steps {
                 // run full training test
@@ -108,7 +111,8 @@ pipeline {
                    '2Fallure-commandline-2.8.1.tgz\''
                 sh 'tar -xvzf allure-commandline-2.8.1.tgz'
                 sh 'chmod a+x allure-2.8.1/bin/allure'
-                sh 'allure-2.8.1/bin/allure generate test_allure_data -o test_allure_report'
+                sh 'allure-2.8.1/bin/allure generate test_allure_data/api ' +
+                   'test_allure_data/full_train -o test_allure_report'
             }
             post {
                 always {
