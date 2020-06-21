@@ -26,7 +26,7 @@ pipeline {
                 sh 'apt clean'
                 sh 'rm -Rf /var/lib/apt/lists/*'
                 sh 'apt update'
-                sh 'apt install -y freeglut3-dev xvfb fonts-dejavu graphviz'
+                sh 'apt install -y wget freeglut3-dev xvfb fonts-dejavu graphviz'
                 sh 'pip install -e .'
                 sh 'pip install pytest==5.4.3'
                 sh 'pip install pytest-cov==2.10.0'
