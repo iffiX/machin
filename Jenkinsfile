@@ -11,6 +11,17 @@ pipeline {
         TWINE_PASSWORD = "${env.PYPI_CREDS_PSW}"
     }
     stages {
+        stage('Deploy PyPI package') {
+            when {
+                allOf {
+                    branch 'release'
+                    tag pattern: 'v\\d+\\.\\d+\\.\\d+(-[a-zA-Z]+)?', comparator: "REGEXP"
+                }
+            }
+            steps {
+                echo "done"
+            }
+        }
         stage('Install') {
             steps {
                 sh 'nvidia-smi' // make sure gpus are loaded
@@ -133,7 +144,6 @@ pipeline {
         }
         stage('Deploy PyPI package') {
             when {
-                branch 'release'
                 allOf {
                     branch 'release'
                     tag pattern: 'v\\d+\\.\\d+\\.\\d+', comparator: "REGEXP"
