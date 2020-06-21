@@ -11,6 +11,12 @@ pipeline {
         TWINE_PASSWORD = "${env.PYPI_CREDS_PSW}"
     }
     stages {
+        stage('Prepare') {
+            steps {
+                // clean up workspace
+                sh 'rm -rf ./*'
+            }
+        }
         stage('Install') {
             steps {
                 sh 'nvidia-smi' // make sure gpus are loaded
@@ -112,11 +118,11 @@ pipeline {
             }
             post {
                 always {
-                    // copy this report to the server
+                    // clean up remote directory and copy this report to the server
                     sshPublisher(publishers: [sshPublisherDesc(
                         configName: 'ci.beyond-infinity.com',
                         transfers: [sshTransfer(
-                            cleanRemote: false,
+                            cleanRemote: true,
                             excludes: '',
                             execCommand: '',
                             execTimeout: 120000,
@@ -124,10 +130,10 @@ pipeline {
                             makeEmptyDirs: false,
                             noDefaultExcludes: false,
                             patternSeparator: '[, ]+',
-                            remoteDirectory: "reports/machin/${env.TAG_NAME}",
+                            remoteDirectory: "reports/machin/${env.TAG_NAME}/",
                             remoteDirectorySDF: false,
-                            removePrefix: '',
-                            sourceFiles: 'test_allure_report'
+                            removePrefix: 'test_allure_report/', // remove prefix
+                            sourceFiles: 'test_allure_report/**/*' // recursive copy
                         )],
                         usePromotionTimestamp: false,
                         useWorkspaceInPromotion: false, verbose: false)])
@@ -155,6 +161,12 @@ pipeline {
                                       fingerprint: true)
                 }
             }
+        }
+    }
+    post {
+        always {
+            // clean up workspace
+            sh 'rm -rf ./*'
         }
     }
 }
