@@ -11,7 +11,7 @@ pipeline {
         TWINE_PASSWORD = "${env.PYPI_CREDS_PSW}"
     }
     stages {
-        stage('Deploy PyPI package') {
+        stage('test') {
             when {
                 allOf {
                     branch 'release'
