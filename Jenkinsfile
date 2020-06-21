@@ -101,13 +101,14 @@ pipeline {
             steps {
                 // install allure and generate report
                 sh 'mkdir -p test_allure_report'
+                sh 'apt install -y default-jre'
                 sh 'wget -O allure-commandline-2.8.1.tgz ' +
                    '\'https://bintray.com/qameta/maven/download_file?fil' +
                    'e_path=io%2Fqameta%2Fallure%2Fallure-commandline%2F2.8.1%' +
                    '2Fallure-commandline-2.8.1.tgz\''
                 sh 'tar -xvzf allure-commandline-2.8.1.tgz'
-                sh 'chmod a+x `pwd`/allure-2.8.1/bin/allure'
-                sh '`pwd`/allure-2.8.1/bin/allure generate test_allure_data -o test_allure_report'
+                sh 'chmod a+x allure-2.8.1/bin/allure'
+                sh 'allure-2.8.1/bin/allure generate test_allure_data -o test_allure_report'
             }
             post {
                 always {
