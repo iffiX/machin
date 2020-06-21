@@ -9,11 +9,13 @@ pipeline {
         PYPI_CREDS = credentials('pypi_username_password')
         TWINE_USERNAME = "${env.PYPI_CREDS_USR}"
         TWINE_PASSWORD = "${env.PYPI_CREDS_PSW}"
+        GIT_TAG = sh(script: 'git describe $(git rev-list --tags --max-count 1)', returnStdout: true).trim()
     }
     stages {
         stage('Install') {
             steps {
                 sh 'nvidia-smi' // make sure gpus are loaded
+                sh "echo ${env.GIT_TAG}"
                 sh 'mkdir ~/.pip && touch ~/.pip/pip.conf'
                 sh 'sed -i \'s/http:\\/\\/archive.ubuntu.com/https:\\/\\/mirr' +
                    'ors.tuna.tsinghua.edu.cn/g\' /etc/apt/sources.list'
@@ -21,7 +23,6 @@ pipeline {
                 sh 'echo \'index-url = https://pypi.tuna.tsinghua.edu.cn/simp' +
                    'le\' | tee -a ~/.pip/pip.conf'
                 sh 'export PIP_DEFAULT_TIMEOUT=100'
-
                 sh 'apt clean'
                 sh 'rm -Rf /var/lib/apt/lists/*'
                 sh 'apt update'
@@ -75,7 +76,7 @@ pipeline {
         }
         stage('Test full training') {
             when {
-                branch 'release'
+                branch 'releasex'
             }
             steps {
                 // run full training test
@@ -91,7 +92,10 @@ pipeline {
         }
         stage('Deploy allure report') {
             when {
-                branch 'release'
+                allOf {
+                    branch 'release'
+                    tag ''
+                }
             }
             steps {
                 // install allure and generate report
@@ -117,7 +121,7 @@ pipeline {
                             makeEmptyDirs: false,
                             noDefaultExcludes: false,
                             patternSeparator: '[, ]+',
-                            remoteDirectory: "reports/machin/${env.GIT_TAG_NAME}",
+                            remoteDirectory: "reports/machin/${env.GIT_TAG}",
                             remoteDirectorySDF: false,
                             removePrefix: '',
                             sourceFiles: 'test_allure_report'
