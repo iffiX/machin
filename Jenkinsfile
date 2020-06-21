@@ -9,13 +9,13 @@ pipeline {
         PYPI_CREDS = credentials('pypi_username_password')
         TWINE_USERNAME = "${env.PYPI_CREDS_USR}"
         TWINE_PASSWORD = "${env.PYPI_CREDS_PSW}"
-        GIT_TAG = sh(script: 'git describe $(git rev-list --tags --max-count 1)', returnStdout: true).trim()
     }
     stages {
         stage('Install') {
             steps {
                 sh 'nvidia-smi' // make sure gpus are loaded
-                sh "echo ${env.GIT_TAG}"
+                echo 'Building branch: $BRANCH_NAME'
+                echo 'Building tag: $TAG_NAME'
                 sh 'mkdir ~/.pip && touch ~/.pip/pip.conf'
                 sh 'sed -i \'s/http:\\/\\/archive.ubuntu.com/https:\\/\\/mirr' +
                    'ors.tuna.tsinghua.edu.cn/g\' /etc/apt/sources.list'
@@ -94,7 +94,7 @@ pipeline {
             when {
                 allOf {
                     branch 'release'
-                    tag ''
+                    tag pattern: 'v\\d+\\.\\d+\\.\\d+(-[a-zA-Z]+)?', comparator: "REGEXP"
                 }
             }
             steps {
@@ -121,7 +121,7 @@ pipeline {
                             makeEmptyDirs: false,
                             noDefaultExcludes: false,
                             patternSeparator: '[, ]+',
-                            remoteDirectory: "reports/machin/${env.GIT_TAG}",
+                            remoteDirectory: "reports/machin/${env.TAG_NAME}",
                             remoteDirectorySDF: false,
                             removePrefix: '',
                             sourceFiles: 'test_allure_report'
@@ -134,6 +134,10 @@ pipeline {
         stage('Deploy PyPI package') {
             when {
                 branch 'release'
+                allOf {
+                    branch 'release'
+                    tag pattern: 'v\\d+\\.\\d+\\.\\d+', comparator: "REGEXP"
+                }
             }
             steps {
                 // build distribution wheel
