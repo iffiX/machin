@@ -11,12 +11,6 @@ pipeline {
         TWINE_PASSWORD = "${env.PYPI_CREDS_PSW}"
     }
     stages {
-        stage('Prepare') {
-            steps {
-                // clean up workspace
-                sh 'rm -rf ./*'
-            }
-        }
         stage('Install') {
             steps {
                 sh 'nvidia-smi' // make sure gpus are loaded
