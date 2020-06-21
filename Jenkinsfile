@@ -83,16 +83,19 @@ pipeline {
                 }
             }
             steps {
-                // run full training test
+                // run full training test, directly fail build if any training
+                // has failed
                 sh 'mkdir -p test_results'
                 sh 'mkdir -p test_allure_data/full_train'
-                sh 'pytest --cov-report term-missing --cov=machin ' +
-                   '-k \'full_train\' ' +
+                sh 'pytest ' +
+                   '-k \'full_train and A2C\' ' +
                    '-o junit_family=xunit1 ' +
                    '--junitxml test_results/test_full_train.xml ./test ' +
-                   '--alluredir="test_allure_data/full_train"' +
-                   '|| [ $? -eq 1 ]'
+                   '--html=test_results/test_full_train.html ' +
+                   '--self-contained-html ' +
+                   '--alluredir="test_allure_data/full_train"'
                 junit 'test_results/test_full_train.xml'
+                archiveArtifacts 'test_results/test_full_train.html'
             }
         }
         stage('Deploy allure report') {
