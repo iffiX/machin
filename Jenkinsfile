@@ -75,7 +75,7 @@ pipeline {
         }
         stage('Test full training') {
             when {
-                branch 'release'
+                branch 'releasex'
             }
             steps {
                 // run full training test
