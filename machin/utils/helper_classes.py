@@ -142,30 +142,33 @@ class Object:
         # not return a None value because self.attr(item) will return None.
         if isinstance(item, str) and item[:2] == item[-2:] == '__':
             # skip non-existing special method lookups
-            raise AttributeError(item)
+            raise AttributeError("Failed to find attribute: {}"
+                                 .format(item))
         return self.attr(item)
 
     def __getitem__(self, item):
         return self.attr(item)
 
     def __setattr__(self, key, value):
-        if key != "data" and key != "attr" and key != "call":
-            self.attr(key, value)
+        if (key != "data" and key != "attr" and
+                key != "call" and key not in self.__dir__()):
+            self.attr(key, value, change=True)
         elif key == "call":
             super(Object, self).__setattr__(key, value)
         elif key == "data":
             if isinstance(value, dict):
                 super(Object, self).__setattr__(key, value)
             else:
-                raise RuntimeError("The data attribute must be a dictionary.")
+                raise ValueError("The data attribute must be a dictionary.")
         else:
-            raise RuntimeError("You should not set the attr property of an "
-                               "Object. Please Override it in a sub class.")
+            raise RuntimeError("You should not set the {} property of an "
+                               "Object. You can only set keys in data,"
+                               ".data and .call attributes.".format(key))
 
     def __setitem__(self, key, value):
         self.__setattr__(key, value)
 
-    def attr(self, item, change=None):
-        if change is not None:
-            self.data[item] = change
+    def attr(self, item, value=None, change=False):
+        if change:
+            self.data[item] = value
         return self.data.get(item, None)
