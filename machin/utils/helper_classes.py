@@ -119,9 +119,12 @@ class Object:
     Attributes:
         data: Internal dictionary.
     """
-    def __init__(self, data=None):
+    def __init__(self, data=None, const_attrs=None):
         if data is None:
             data = {}
+        if const_attrs is None:
+            const_attrs = set()
+        super(Object, self).__setattr__("const_attrs", const_attrs)
         super(Object, self).__setattr__("data", data)
 
     def __call__(self, *args, **kwargs):
@@ -152,6 +155,8 @@ class Object:
     def __setattr__(self, key, value):
         if (key != "data" and key != "attr" and
                 key != "call" and key not in self.__dir__()):
+            if key in self.const_attrs:
+                raise RuntimeError("{} is const.".format(key))
             self.attr(key, value, change=True)
         elif key == "call":
             super(Object, self).__setattr__(key, value)
@@ -162,8 +167,9 @@ class Object:
                 raise ValueError("The data attribute must be a dictionary.")
         else:
             raise RuntimeError("You should not set the {} property of an "
-                               "Object. You can only set keys in data,"
-                               ".data and .call attributes.".format(key))
+                               "Object. You can only set non-const keys "
+                               "in data and .data and .call attributes."
+                               .format(key))
 
     def __setitem__(self, key, value):
         self.__setattr__(key, value)

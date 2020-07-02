@@ -1,89 +1,101 @@
+from typing import Union
+import copy
 import json
 import argparse
+
 from .helper_classes import Object
 
 
 class Config(Object):
     """
     Attributes:
-        restart_use_trial: Union[None, str]
+        root_directory: (const) Root directory of your trials.
+        restart_from_trial: (const) Trial name (usually a date string)
+            to restart from.
     """
-    def __init__(self):
-        super(Config, self).__init__({
-            "restart_use_trial": None
-        })
+
+    def __init__(self,
+                 root_directory: str = "./",
+                 restart_from_trial: str = None,
+                 **configs):
+        configs["root_directory"] = root_directory
+        configs["restart_from_trial"] = restart_from_trial
+        super(Config, self).__init__(configs,
+                                     const_attrs={"root_directory",
+                                                  "restart_from_trial"})
 
 
-def get_args():
+def load_config_cmd(merge_conf: Config = None) -> Config:
     """
-    Get arguments from the commandline.
+    Get configs from the commandline by using "--conf".
 
-    Note:
-        ``--conf a=b`` will set ``<Returned Arg Object>.conf[a] = b``
+    ``--conf a=b`` will set ``<Returned Config>.a = b``
 
-        An example::
+    Example::
 
-            python3 test.py --conf device=\"cuda:1\"
-                            --conf some_dict={\"some_key\":1}
+        python3 test.py --conf device=\"cuda:1\"
+                        --conf some_dict={\"some_key\":1}
 
-    Return:
-         Argument object, each attribute is an argument, and
-         ``.conf`` attribute is a ``dict``.
+    Example::
+
+        from machin.utils.conf import Config
+        from machin.utils.save_env import SaveEnv
+
+        # set some config attributes
+        c = Config(
+            model_save_int = 100,
+            root_dir = "some_directory",
+            restart_from_trial = "2020_05_09_15_00_31"
+        )
+
+        load_config_cmd(c)
+
+        # restart_from_trial specifies the trial name in your root
+        # directory.
+        # If it is set, then SaveEnv constructor will
+        # load arguments from that trial record, will overwrite.
+        # If not, then SaveEnv constructor will save configurations
+        # as: ``<c.some_root_dir>/<trial_start_time>/config/config.json``
+
+        save_env = SaveEnv(c)
+
+    Args:
+        merge_conf: Config to merge.
     """
-    argparser = argparse.ArgumentParser(description=__doc__)
-    argparser.add_argument(
-        '-c', '--config_file',
-        metavar='C',
-        help='The Configuration file')
-    argparser.add_argument("--conf", action="append")
-    args = argparser.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--conf", action="append")
+    args = parser.parse_args()
 
     config_dict = {}
-    if args.config_file is not None:
-        config_dict = load_config_dict(args.c)
-
     if args.conf is not None:
         for env_str in args.conf:
             name, value = env_str.split('=')
             value = eval(value)
             config_dict[name] = value
-    args.conf = config_dict
-    return args
+
+    return merge_config((Config()
+                         if merge_conf is None
+                         else merge_conf), config_dict)
 
 
-def load_config_dict(json_file):
+def load_config_file(json_file: str, merge_conf: Config = None) -> Config:
     """
     Get configs from a json file.
 
     Args:
-        json_file: path to the json config file
+        json_file: Path to the json config file.
+        merge_conf: Config to merge.
 
     Return:
-        config(dictionary)
+        configuration
     """
     # parse the configurations from the config json file provided
     with open(json_file, 'r') as config_file:
         config_dict = json.load(config_file)
 
-    return config_dict
-
-
-def merge_config(conf: Config, merge_conf: dict):
-    """
-    Merge config object with a dictionary, same keys in the config
-    object will be overwritten.
-    """
-    for k, v in merge_conf.items():
-        conf[k] = v
-
-
-def replace_config(conf: Config, replace_conf: dict):
-    """
-    Clear the config object and replace its content with the dictionary.
-    """
-    conf.data.clear()
-    for k, v in replace_conf.items():
-        conf[k] = v
+    return merge_config((Config()
+                         if merge_conf is None
+                         else merge_conf), config_dict)
 
 
 def save_config(conf: Config, json_file: str):
@@ -93,3 +105,19 @@ def save_config(conf: Config, json_file: str):
     with open(json_file, 'w') as config_file:
         json.dump(conf.data, config_file, sort_keys=True, indent=4)
 
+
+def merge_config(conf: Config, merge: Union[dict, Config]) -> Config:
+    """
+    Merge config object with a dictionary, or a Config object,
+    same keys in the ``conf`` will be overwritten by keys
+    in ``merge``.
+    """
+    new_conf = copy.deepcopy(conf)
+    if isinstance(merge, dict):
+        for k, v in merge.items():
+            new_conf[k] = v
+    else:
+        for k, v in merge.data.items():
+            if k not in new_conf.const_attrs:
+                new_conf[k] = v
+    return new_conf

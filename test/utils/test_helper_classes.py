@@ -70,11 +70,15 @@ class TestObject(object):
 
     def test_set_attr(self):
         # set data keys
-        obj = Object({"a": 1})
+        obj = Object({"a": 1, "const": 0}, const_attrs={"const"})
         obj.a = 1
         assert obj.a == 1
         obj.b = 1
         assert obj.b == 1
+
+        # set const keys
+        with pytest.raises(RuntimeError, match="is const"):
+            obj.const = 1
 
         # set .call attribute
         obj.call = lambda _: "pong"

@@ -3,7 +3,7 @@ import mock
 import torch as t
 
 
-def mock_exit(code):
+def mock_exit(_exit_code):
     pass
 
 

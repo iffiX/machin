@@ -2,7 +2,7 @@ pipeline {
     agent {
         docker {
             image 'pytorch/pytorch:latest'
-            args '-u root:sudo --gpus all'
+            args '-u root:sudo --gpus all --network=host'
         }
     }
     environment {
@@ -17,22 +17,20 @@ pipeline {
                 echo "Building branch: ${env.BRANCH_NAME}"
                 echo "Building tag: ${env.TAG_NAME}"
                 sh 'mkdir ~/.pip && touch ~/.pip/pip.conf'
-                sh 'sed -i \'s/http:\\/\\/archive.ubuntu.com/https:\\/\\/mirr' +
-                   'ors.tuna.tsinghua.edu.cn/g\' /etc/apt/sources.list'
-                sh 'echo \'[global]\' | tee ~/.pip/pip.conf'
-                sh 'echo \'index-url = https://pypi.tuna.tsinghua.edu.cn/simp' +
-                   'le\' | tee -a ~/.pip/pip.conf'
-                sh 'export PIP_DEFAULT_TIMEOUT=100'
+                sh 'sed -i -r \'s|deb http://.+/ubuntu| deb [arch=amd64] http://apt.mirror.node2/ubuntu|g\' /etc/apt/sources.list'
+                sh '''
+                   echo '
+                   [global]
+                   index-url = http://pypi.mirror.node2/root/pypi/+simple/
+                   trusted-host = pypi.mirror.node2
+                   [search]
+                   index = http://pypi.mirror.node2/root/pypi/
+                   ' | tee ~/.pip/pip.conf'''
                 sh 'apt clean'
-                sh 'rm -Rf /var/lib/apt/lists/*'
                 sh 'apt update'
-                sh 'apt install -y wget freeglut3-dev xvfb fonts-dejavu graphviz'
+                sh 'apt -o APT::Acquire::Retries="3" install -y wget freeglut3-dev xvfb fonts-dejavu graphviz'
                 sh 'pip install -e .'
-                sh 'pip install pytest==5.4.3'
-                sh 'pip install pytest-cov==2.10.0'
-                sh 'pip install allure-pytest==2.8.16'
-                sh 'pip install pytest-xvfb==2.0.0'
-                sh 'pip install pytest-html==1.22.1'
+                sh 'pip install pytest==5.4.3 pytest-cov==2.10.0 allure-pytest==2.8.16 pytest-xvfb==2.0.0 pytest-html==1.22.1'
                 // This line must be included, otherwise matplotlib will
                 // segfault when it tries to build the font cache.
                 sh "python3 -c 'import matplotlib.pyplot as plt'"
