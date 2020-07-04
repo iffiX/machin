@@ -7,25 +7,31 @@ import dill
 from .queue import SimpleQueue
 
 
-def proxy_caller(input_):
+def proxy_caller(*input_):
     """
     Call a serialized function and return results.
     """
-    func_str, args, kwargs = input_
+    if len(input_) == 1:
+        func_str, args, kwargs = input_[0]
+    else:
+        func_str, args, kwargs = input_
     func = dill.loads(func_str)
     return func(*args, **kwargs)
 
 
-def proxy_ctx_caller(input_):
+def proxy_ctx_caller(*input_):
     """
     Call a serialized function with worker context and return results.
     """
-    func_str, args, kwargs = input_
+    if len(input_) == 1:
+        func_str, args, kwargs = input_[0]
+    else:
+        func_str, args, kwargs = input_
     func = dill.loads(func_str)
     return func(CtxPoolStorage.storage, *args, **kwargs)
 
 
-def proxy_dumper(recurse, func, args_list, kwargs_list=None):
+def proxy_dumper(recurse, func, args_list):
     """
     Serialize a function so it can be called.
 
@@ -34,12 +40,8 @@ def proxy_dumper(recurse, func, args_list, kwargs_list=None):
     """
     # recurse will enable context variable saving
     dump = dill.dumps(func, protocol=dill.HIGHEST_PROTOCOL, recurse=recurse)
-    if kwargs_list is not None:
-        for args, kwargs in zip(args_list, kwargs_list):
-            yield [dump, args, kwargs]
-    else:
-        for args in args_list:
-            yield [dump, args, {}]
+    for args in args_list:
+        yield [dump, args, {}]
 
 
 class Pool(pool.Pool):
@@ -47,7 +49,6 @@ class Pool(pool.Pool):
     Enhanced multiprocessing pool for pytorch, provides:
      1. Support for lambdas and local functions.
      2. Ability to select the tensor serialize scheme.
-     3. Ability to get the number of workers.
     """
 
     # Multiprocessing pool is badly written.
@@ -81,8 +82,9 @@ class Pool(pool.Pool):
         if kwds is None:
             kwds = {}
         return pool.Pool.apply(self, self._caller,
-                               [dill.dumps(func, recurse=self._is_global),
-                                args, kwds])
+                               [(dill.dumps(
+                                   func, recurse=self._is_global),
+                                args, kwds)])
 
     def apply_async(self, func, args=(), kwds=None, callback=None,
                     error_callback=None):
@@ -90,8 +92,9 @@ class Pool(pool.Pool):
         if kwds is None:
             kwds = {}
         return pool.Pool.apply_async(self, self._caller,
-                                     [dill.dumps(func, recurse=self._is_global),
-                                      args, kwds])
+                                     [(dill.dumps(
+                                         func, recurse=self._is_global),
+                                      args, kwds)])
 
     def map(self, func, iterable, chunksize=None):
         # DOC INHERITED
@@ -268,8 +271,7 @@ class CtxPool(Pool):
 
 class ThreadPool(pool.ThreadPool):
     """
-    A typical thread pool, provides:
-    1. Ability to get the number of workers.
+    A typical thread pool.
     """
     # Multiprocessing pool is badly written.
     # python IDEs will complain a lot.
@@ -311,12 +313,16 @@ class CtxThreadPool(ThreadPool):
         )
 
     def apply(self, func, args=(), kwds=None):
-        return super(CtxThreadPool, self).apply(
+        if kwds is None:
+            kwds = {}
+        return super(CtxThreadPool, self).apply_async(
             self._wrap_func(func), args, kwds
-        )
+        ).get()
 
     def apply_async(self, func, args=(), kwds=None, callback=None,
                     error_callback=None):
+        if kwds is None:
+            kwds = {}
         return super(CtxThreadPool, self).apply_async(
             self._wrap_func(func), args, kwds, callback, error_callback
         )
@@ -388,10 +394,7 @@ class CtxThreadPool(ThreadPool):
     @classmethod
     def _wrap_func(cls, func):
         def call(*args, **kwargs):
-            try:
-                ctx = cls._context.storage
-            except AttributeError:
-                ctx = None
+            ctx = cls._context.storage
             return func(ctx, *args, **kwargs)
         return call
 
