@@ -7,6 +7,10 @@ from .helper_classes import Counter
 from .tensor_board import SummaryWriter
 
 
+class CheckError(Exception):
+    pass
+
+
 def check_shape(tensor: t.Tensor, required_shape: List[int], name=""):
     """
     Check whether tensor has the specified shape.
@@ -21,7 +25,7 @@ def check_shape(tensor: t.Tensor, required_shape: List[int], name=""):
     """
     shape = list(tensor.shape)
     if shape != required_shape:
-        raise RuntimeError(
+        raise CheckError(
             "Tensor {} has invalid shape, required shape {}, is {}"
             .format(name, required_shape, shape)
         )
@@ -39,10 +43,10 @@ def check_nan(tensor: t.Tensor, name=""):
         ``RuntimeError`` if tensor has any ``nan`` element.
     """
     if t.any(t.isnan(tensor)):
-        raise RuntimeError("Tensor {} contains nan!".format(name))
+        raise CheckError("Tensor {} contains nan!".format(name))
 
 
-def _gen_input_check_hook(counter, interval, writer, hooks,
+def _add_input_check_hook(sub_module, counter, interval, writer, hooks,
                           model, module_name):
     # Generate a input check hook which calls all sub hooks
     # when invoked by pytorch.
@@ -60,10 +64,11 @@ def _gen_input_check_hook(counter, interval, writer, hooks,
                         hook(counter, writer, model, module,
                              module_name + ".input." + input_name,
                              input_value)
-    return check_hook
+
+    return sub_module.register_forward_pre_hook(check_hook)
 
 
-def _gen_output_check_hook(counter, interval, writer, hooks,
+def _add_output_check_hook(sub_module, counter, interval, writer, hooks,
                            model, module_name):
     # Generate a output check hook which calls all sub hooks
     # when invoked by pytorch.
@@ -85,22 +90,32 @@ def _gen_output_check_hook(counter, interval, writer, hooks,
                         hook(counter, writer, model, module,
                              module_name + ".output." + output_name,
                              output_value)
-    return check_hook
+
+    return sub_module.register_forward_hook(check_hook)
 
 
-def _gen_param_check_hook(counter, interval, writer, hooks,
+def _add_param_check_hook(sub_module, interval, writer, hooks,
                           model, module_name):
     # Generate a param check hook which calls all sub hooks
     # when invoked by pytorch.
-    def check_hook(module, _grad_input, _grad_output):
-        with t.no_grad():
-            if counter.get() % interval == 0:
-                for param_name, param_value in module.named_parameters():
+    handles = []
+    for param_name, param_value in sub_module.named_parameters():
+        counter = Counter()
+
+        def count(_):  # pragma: no cover
+            counter.count()
+
+        def check_hook(_grad):  # pragma: no cover
+            with t.no_grad():
+                if counter.get() % interval == 0:
                     for hook in hooks:
-                        hook(counter, writer, model, module,
+                        hook(counter, writer, model, sub_module,
                              module_name + ".param." + param_name,
                              param_value)
-    return check_hook
+
+        handles.append(param_value.register_hook(count))
+        handles.append(param_value.register_hook(check_hook))
+    return handles
 
 
 def i_chk_nan(_counter, _writer, _model, _module, input_name, input_val):
@@ -124,7 +139,29 @@ def i_chk_range(counter, writer, _model, _module, input_name, input_val):
         writer.flush()
 
 
-def p_chk_nan(counter, _writer, _model, _module, param_name, param_val):
+def o_chk_nan(_counter, _writer, _model, _module, output_name, output_val):
+    """
+    Check whether there is any nan element in the output, if input is a tensor.
+    """
+    if t.is_tensor(output_val):
+        check_nan(output_val, output_name)
+
+
+def o_chk_range(counter, writer, _model, _module, output_name, output_val):
+    """
+    Compute min, max and mean value of the output, if output is a tensor.
+    """
+    if t.is_tensor(output_val):
+        writer.add_scalars(output_name,
+                           {"min": t.min(output_val),
+                            "max": t.max(output_val),
+                            "mean": t.mean(output_val)},
+                           counter.get())
+        writer.flush()
+
+
+def p_chk_nan(counter, _writer, _model,
+              _module, param_name, param_val):  # pragma: no cover
     """
     Check whether there is any nan element in the parameter.
     """
@@ -133,7 +170,8 @@ def p_chk_nan(counter, _writer, _model, _module, param_name, param_val):
               .format(counter.get()))
 
 
-def p_chk_range(counter, writer, _model, _module, param_name, param_val):
+def p_chk_range(counter, writer, _model,
+                _module, param_name, param_val):  # pragma: no cover
     """
     Compute min, max and mean value of the parameter.
     """
@@ -159,6 +197,7 @@ def mark_module_output(module, output_names: List[str]):
     about the number of outputs.
 
     Args:
+        module: Module to be marked.
         output_names: Name of each output value.
     """
     setattr(module, "_chk_output_names", output_names)
@@ -167,7 +206,7 @@ def mark_module_output(module, output_names: List[str]):
 def check_model(writer: SummaryWriter,
                 model: nn.Module,
                 input_check_hooks=(i_chk_nan, i_chk_range),
-                output_check_hooks=(),
+                output_check_hooks=(o_chk_nan, o_chk_range),
                 param_check_hooks=(p_chk_nan, p_chk_range),
                 input_check_interval=1,
                 output_check_interval=1,
@@ -242,26 +281,19 @@ def check_model(writer: SummaryWriter,
     Returns:
         A function ``f()``, calling ``f()`` will deregister all check hooks.
     """
-
+    handles = []
     forward_counter = Counter()
-    backward_counter = Counter()
 
     def _forward_count(_, __):
         forward_counter.count()
 
-    def _backward_count(_, __, ___):
-        backward_counter.count()
-
-    # These two hooks are used to move forward counters,
-    # so that we can control check intervals.
-    model.register_forward_pre_hook(_forward_count)
-    model.register_backward_hook(_backward_count)
-
-    handles = []
+    handles.append(model.register_forward_pre_hook(_forward_count))
 
     # Register forward & backward checker hooks for all submodules.
     # Input checking are done in forward pre hooks.
     # Param checking are done in backward hooks.
+
+    checked_names = []
     for sub_name, sub_module in model.named_modules(prefix=name):
         sub_module = sub_module  # type: nn.Module
 
@@ -269,38 +301,37 @@ def check_model(writer: SummaryWriter,
                 getattr(sub_module, "_chk_is_atom", False)):
             # Current module has children, not a leaf module, so skip.
             continue
+        if any(sub_name.startswith(chk_nm) for chk_nm in checked_names):
+            # prevent sub-modules of modules marked as "atom" being checked
+            continue
+        checked_names.append(sub_name)
 
         handles.append(
-            sub_module.register_forward_pre_hook(
-                _gen_input_check_hook(forward_counter,
-                                      input_check_interval,
-                                      writer,
-                                      input_check_hooks,
-                                      model,
-                                      sub_name)
-            )
+            _add_input_check_hook(sub_module,
+                                  forward_counter,
+                                  input_check_interval,
+                                  writer,
+                                  input_check_hooks,
+                                  model,
+                                  sub_name)
         )
 
         handles.append(
-            sub_module.register_forward_hook(
-                _gen_input_check_hook(forward_counter,
-                                      output_check_interval,
-                                      writer,
-                                      output_check_hooks,
-                                      model,
-                                      sub_name)
-            )
+            _add_output_check_hook(sub_module,
+                                   forward_counter,
+                                   output_check_interval,
+                                   writer,
+                                   output_check_hooks,
+                                   model,
+                                   sub_name)
         )
-
-        handles.append(
-            sub_module.register_backward_hook(
-                _gen_input_check_hook(forward_counter,
-                                      param_check_interval,
-                                      writer,
-                                      param_check_hooks,
-                                      model,
-                                      sub_name)
-            )
+        handles += (
+            _add_param_check_hook(sub_module,
+                                  param_check_interval,
+                                  writer,
+                                  param_check_hooks,
+                                  model,
+                                  sub_name)
         )
 
     def cancel():

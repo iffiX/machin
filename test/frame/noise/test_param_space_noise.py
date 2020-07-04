@@ -5,7 +5,6 @@ from machin.frame.noise.param_space_noise import (
 )
 from machin.utils.helper_classes import Switch
 
-
 import torch as t
 import torch.nn as nn
 
@@ -57,7 +56,8 @@ def test_perturb_model():
     r_switch = Switch()
     t.manual_seed(seed)
 
-    rst_func, dreg_func = perturb_model(model, p_switch, r_switch)
+    cancel = perturb_model(model, p_switch, r_switch,
+                           debug_backward=True)
 
     p_switch.on()
     r_switch.on()
@@ -80,12 +80,11 @@ def test_perturb_model():
     print(model.weight)
     loss = (action - t.ones_like(action)).sum()
     loss.backward()
-    rst_func()
     print(model.weight)
     optim.step()
     assert _t_eq_eps(model.weight, weight_stepped)
 
-    dreg_func()
+    cancel()
 
 
 ############################################################################
@@ -113,8 +112,9 @@ def test_perturb_model2():
         gen = NormalNoiseGen(shape)
         return gen(device) * std_dev
 
-    rst_func, dreg_func = perturb_model(model, p_switch, r_switch,
-                                        noise_generate_function=gen_func)
+    cancel = perturb_model(model, p_switch, r_switch,
+                           noise_generate_function=gen_func,
+                           debug_backward=True)
 
     p_switch.on()
     r_switch.on()
@@ -136,8 +136,7 @@ def test_perturb_model2():
 
     loss = (action - t.ones_like(action)).sum()
     loss.backward()
-    rst_func()
     optim.step()
     assert _t_eq_eps(model.weight, weight_stepped)
 
-    dreg_func()
+    cancel()

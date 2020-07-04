@@ -72,7 +72,7 @@ class AdaptiveParamNoise(object):
                           self.adoption_coefficient)
 
 
-def _gen_perturb_hook(module, perturb_switch, reset_switch, perturb_gen,
+def _add_perturb_hook(module, perturb_switch, reset_switch, perturb_gen,
                       debug_backward):
     org_params = {}
     noisy_params = {}
@@ -82,40 +82,44 @@ def _gen_perturb_hook(module, perturb_switch, reset_switch, perturb_gen,
             if perturb_switch.get():
                 if noisy_params and not reset_switch.get():
                     # Use generated noisy parameters.
-                    for param_name, param_value in module.named_parameters():
-                        if t.is_tensor(param_value):
-                            param_value.set_(noisy_params[param_name])
+                    for p_name, p_value in module.named_parameters():
+                        if t.is_tensor(p_value):
+                            p_value.set_(noisy_params[p_name])
                 else:
                     # Generate noisy parameters if they don't exist.
                     org_params.clear()
                     noisy_params.clear()
-                    for param_name, param_value in module.named_parameters():
-                        if t.is_tensor(param_value):
-                            org_params[param_name] = param_value.clone()
-                            param_value += perturb_gen(
-                                param_value.shape, param_value.device
+                    for p_name, p_value in module.named_parameters():
+                        if t.is_tensor(p_value):
+                            org_params[p_name] = p_value.clone()
+                            p_value += perturb_gen(
+                                p_value.shape, p_value.device
                             ).detach()
-                            noisy_params[param_name] = param_value.clone()
+                            noisy_params[p_name] = p_value.clone()
 
             elif not perturb_switch.get():
                 # Use original parameters
                 if org_params:
-                    for param_name, param_value in module.named_parameters():
-                        if t.is_tensor(param_value):
-                            param_value.set_(org_params[param_name])
+                    for p_name, p_value in module.named_parameters():
+                        if t.is_tensor(p_value):
+                            p_value.set_(org_params[p_name])
+    pre_hook_handle = module.register_forward_pre_hook(perturb_pre_hook)
 
-    def perturb_post_hook(*_):
-        # Called before backward update, swap noisy parameters out,
-        # so gradients are applied to original parameters.
-        if debug_backward:
-            print("Backward swapped!")
-        with t.no_grad():
-            if org_params:
-                for param_name, param_value in module.named_parameters():
-                    if t.is_tensor(param_value):
-                        param_value.set_(org_params[param_name])
+    post_hook_handles = []
+    for param_name, param_value in module.named_parameters():
+        def perturb_post_hook(*_):  # pragma: no cover
+            # pytest will not detect execution by autograd engine
+            # Called before backward update, swap noisy parameters out,
+            # so gradients are applied to original parameters.
+            if debug_backward:
+                print("Backward swapped for {}!".format(param_name))
+            with t.no_grad():
+                if org_params and t.is_tensor(param_value):
+                    param_value.set_(org_params[param_name])
+        post_hook_handle = param_value.register_hook(perturb_post_hook)
+        post_hook_handles.append(post_hook_handle)
 
-    return perturb_pre_hook, perturb_post_hook
+    return pre_hook_handle, post_hook_handles
 
 
 # noinspection PyTypeChecker
@@ -129,7 +133,7 @@ def perturb_model(model: nn.Module,
                   noise_generator_args: Tuple = (),
                   noise_generator_kwargs: Dict = None,
                   noise_generate_function: Callable = None,
-                  debug_backward=True):
+                  debug_backward=False):
     """
     Give model's parameters a little perturbation. Implements
     `<<Parameter Space Noise for Exploration>> <https://arxiv.org/abs/1706.
@@ -141,13 +145,6 @@ def perturb_model(model: nn.Module,
 
         Original parameters will be automatically swapped in during the
         backward pass, and you can safely call optimizers afterwards.
-
-    Note:
-        You are suggested call the returned reset function after backward
-        and before optimizing to ensure that original parameters
-        are swapped in. Since pytorch currently does not guarantee
-        the correctness of ``register_backward_hook``. You may use
-        ``debug_backward`` to print a message if it is correctly executed.
 
     Hint:
         1. ``noise_generator`` must accept (shape, \*args) in its ``__init__``
@@ -172,7 +169,7 @@ def perturb_model(model: nn.Module,
             model = t.nn.Linear(dims, dims)
             optim = t.optim.Adam(model.parameters(), 1e-3)
             p_switch, r_switch = Switch(), Switch()
-            rst_func, dreg_func = perturb_model(model, p_switch, r_switch)
+            cancel = perturb_model(model, p_switch, r_switch)
 
             # you should keep this switch on if you do one training step after
             # every sampling step. otherwise you may turn it off in one episode
@@ -199,12 +196,11 @@ def perturb_model(model: nn.Module,
             # do some training
             loss = (action - t.ones([dims])).sum()
             loss.backward()
-            rst_func()
             optim.step()
             print(model.weight)
 
             # clear hooks
-            dreg_func()
+            cancel()
 
     Args:
         model: Neural network model.
@@ -238,7 +234,6 @@ def perturb_model(model: nn.Module,
             applied on your model.
     """
     tmp_action = {}
-    reset_hooks = []
     hook_handles = []
 
     param_noise_spec = AdaptiveParamNoise(
@@ -281,21 +276,14 @@ def perturb_model(model: nn.Module,
     # in post-forward
     hook_handles.append(model.register_forward_hook(perturb_adjust_hook))
 
-    pre, post = _gen_perturb_hook(model, perturb_switch,
+    pre, post = _add_perturb_hook(model, perturb_switch,
                                   reset_switch, param_noise_gen,
                                   debug_backward)
-    reset_hooks.append(post)
-    hook_handles.append(model.register_forward_pre_hook(pre))
+    hook_handles.append(pre)
+    hook_handles += post
 
-    # currently register_backward_hook is not guaranteed to work correctly
-    hook_handles.append(model.register_backward_hook(post))
-
-    def reset():
-        for h in reset_hooks:
-            h()
-
-    def deregister():
+    def cancel():
         for hh in hook_handles:
             hh.remove()
 
-    return reset, deregister
+    return cancel

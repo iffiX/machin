@@ -15,7 +15,7 @@
 		<img alt="Jenkins build" src="https://img.shields.io/jenkins/build?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F">
 	</a>
 	<a href="http://ci.beyond-infinity.com/jenkins/blue/organizations/jenkins/machin/branches/">
-		<img alt="Jenkins coverage" src="https://img.shields.io/jenkins/coverage/cobertura?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F">
+		<img alt="Jenkins coverage" src="https://img.shields.io/jenkins/coverage/cobertura?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Frelease%2F">
 	</a>
 	<a href="https://github.com/iffiX/machin">
 		<img alt="License" src="https://img.shields.io/github/license/iffiX/machin">
