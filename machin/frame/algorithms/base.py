@@ -88,14 +88,14 @@ class TorchFramework:
                 "use custom version instead.")
         for r in self._is_restorable:
             if r in network_map:
-                t.save(getattr(self, r).state_dict(),
+                t.save(getattr(self, r),
                        join(model_dir,
                             "{}_{}.pt".format(network_map[r], version)))
             else:
                 default_logger.warning("Save name for module \"{}\" is not "
                                        "specified, module name is used."
                                        .format(r))
-                t.save(getattr(self, r).state_dict(),
+                t.save(getattr(self, r),
                        join(model_dir,
                             "/{}_{}.pt".format(r, version)))
 
