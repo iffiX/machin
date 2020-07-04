@@ -28,7 +28,7 @@ pipeline {
                    ' | tee ~/.pip/pip.conf'''
                 sh 'apt clean'
                 sh 'apt update'
-                sh 'apt -o APT::Acquire::Retries="3" install -y wget freeglut3-dev xvfb fonts-dejavu graphviz'
+                sh 'apt -o APT::Acquire::Retries="3" --fix-missing install -y wget freeglut3-dev xvfb fonts-dejavu graphviz'
                 sh 'pip install -e .'
                 sh 'pip install mock pytest==5.4.3 pytest-cov==2.10.0 allure-pytest==2.8.16 pytest-xvfb==2.0.0 pytest-html==1.22.1'
                 // This line must be included, otherwise matplotlib will
