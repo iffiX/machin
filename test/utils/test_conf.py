@@ -6,10 +6,10 @@ from machin.utils.conf import (
     merge_config
 )
 from machin.utils.helper_classes import Object
-from unittest import mock
 from os.path import join
 import os
 import json
+import mock
 
 
 def get_config():

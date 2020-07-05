@@ -4,7 +4,7 @@ import dill
 import torch as t
 
 
-def mark_static_module(module: Any):
+def mark_static_module(module: Any):  # pragma: no cover
     """
     Some modules are **static**, which means they are stateless
     and will remain the same whether you import it in process A

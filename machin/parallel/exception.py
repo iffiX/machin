@@ -1,7 +1,7 @@
 import traceback
 
 
-class RemoteTraceback(Exception):
+class RemoteTraceback(Exception):  # pragma: no cover
     """
     Remote traceback, rebuilt by ``_rebuild_exc`` from pickled original
     traceback ExceptionWithTraceback, should be thrown on the master
@@ -19,7 +19,7 @@ def _rebuild_exc(exc, tb):
     return exc
 
 
-class ExceptionWithTraceback:
+class ExceptionWithTraceback:  # pragma: no cover
     def __init__(self, exc: Exception, tb: str = None):
         """
         This exception class is used by slave processes to capture

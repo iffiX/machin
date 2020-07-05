@@ -1,4 +1,5 @@
 from typing import Union, List, Dict, Tuple
+from machin.utils.logging import default_logger
 import psutil
 import GPUtil
 import numpy as np
@@ -75,11 +76,7 @@ class ModelSizeEstimator:
             return 4
         elif dtype in (t.int64, t.float64, t.long, t.double, t.complex32):
             return 8
-        elif dtype in (t.complex64,):
-            return 16
-        elif dtype in (t.complex128,):
-            return 32
-        else:
+        else:  # pragma: no cover
             raise ValueError("Invalid data type.")
 
 
@@ -93,10 +90,10 @@ class ModelAssigner:
                  devices: List[Union[t.device, str]] = None,
                  model_size_multiplier=2,
                  max_mem_ratio=0.5,
-                 cpu_weight=1,
-                 distance_weight=5,
-                 size_balance_weight=1e-3,
-                 complexity_balance_weight=5,
+                 cpu_weight=0,
+                 connection_weight=2,
+                 size_match_weight=1e-2,
+                 complexity_match_weight=1,
                  entropy_weight=1,
                  iterations=500,
                  update_rate=0.01,
@@ -110,21 +107,21 @@ class ModelAssigner:
         Assignment is based on four aspects:
 
         1. Distance and model connections. Connection is usually indicated
-           by the amount of data transimitted between two models.
+           by the amount of data transmitted between two models.
         2. Compute complexity.
         3. Model size.
         4. Entropy.
 
         Four aspects are controlled by four weights:
 
-        1. ``distance_weight``, assigner will try to reduce the total
+        1. ``connection_weight``, assigner will try to reduce the total
            ``distance * connection`` if this weight is larger.
-        2. ``size_balance_weight``, this weight controls the total memory
+        2. ``size_match_weight``, this weight controls the total memory
            space used on a single device, only works if total assigned
            memory of models exceeds allowed device memory size
            (internally it uses a relu activation), the larger,
            the tighter and more restricted the fit.
-        3. ``complexity_balance_weight``, this weights balance the model
+        3. ``complexity_match_weight``, this weights balance the model
            computation cost across devices, assigner will try to even
            the ``computation cost / compute power`` ratio for each device
            if this weight is larger.
@@ -139,24 +136,35 @@ class ModelAssigner:
         See Also:
             :class:`.ModelSizeEstimator`
 
+        Note:
+            When the sum of your model size is very close to the capacity of
+            your device memory, `ModelAssigner` does not respond very well
+            to the ``size_match_weight``, therefore, please consider about
+            increasing ``model_size_multiplier`` or decreasing
+            ``max_mem_ratio``.
+
         Args:
             models: Models to assign.
             model_connection: Connection weight between modules.
+                **Must be positive**
             devices: Available devices.
             model_size_multiplier: Size multiplier of models, used to reserve
                 enough space for models,
             max_mem_ratio: Maximum percent of memory allowed.
             cpu_weight: Weight of cpu. Relative to the computing power of one
-                GPU.
-            distance_weight: Weight of distance.
-            size_balance_weight: Weight of size balance.
-            complexity_balance_weight: Weight of complexity balance.
+                GPU. By default it is 0 so no computation will be performed on
+                CPU. **Must be positive**
+            connection_weight: Weight of connection between models.
+            size_match_weight: Weight of size match.
+            complexity_match_weight: Weight of complexity match.
             entropy_weight: Weight of entropy.
             iterations: Number of optimization iterations.
             update_rate: Learning rate of the adam optimizer.
             gpu_gpu_distance: Estimated distance cost between gpu-gpu.
+                **Must be positive**
             cpu_gpu_distance: Estimated distance cost between cpu-gpu.
-            move_models: Wether to automtically move the models after
+                **Must be positive**
+            move_models: Whether to automatically move the models after
                 assignment.
         """
         if devices is None:
@@ -169,8 +177,10 @@ class ModelAssigner:
             used_devices = []
             for dev in devices:
                 if dev.type == "cuda" and dev not in available_devices:
-                    print("Warning: device {} not available, removed."
-                          .format(dev))
+                    default_logger.info(
+                        "Warning: device {} not available, removed."
+                        .format(dev)
+                    )
                 else:
                     used_devices.append(dev)
             devices = used_devices
@@ -178,7 +188,7 @@ class ModelAssigner:
         if not devices:
             devices = [t.device("cpu")]
 
-        print("Using these devices: {}".format(devices))
+        default_logger.info("Using these devices: {}".format(devices))
 
         sizes = [ModelSizeEstimator(model, model_size_multiplier)
                  .estimate_size()
@@ -257,9 +267,9 @@ class ModelAssigner:
                                     model_size, size_capacity,
                                     model_complexity, complexity_capacity,
                                     model_conn, device_distance,
-                                    distance_weight,
-                                    size_balance_weight,
-                                    complexity_balance_weight,
+                                    connection_weight,
+                                    size_match_weight,
+                                    complexity_match_weight,
                                     entropy_weight)
         self._assignment = [devices[d]
                             for d
@@ -285,9 +295,9 @@ class ModelAssigner:
                            complexity_capacity: t.Tensor,
                            model_connection: t.Tensor,
                            device_distance: t.Tensor,
-                           distance_weight: float,
-                           size_balance_weight: float,
-                           complexity_balance_weight: float,
+                           connection_weight: float,
+                           size_match_weight: float,
+                           complexity_match_weight: float,
                            entropy_weight: float):
         """
         Suppose there are n models to place and m devices available.
@@ -301,18 +311,21 @@ class ModelAssigner:
             complexity_capacity: shape ``[1, m]``
             model_connection: shape ``[n, n]``
             device_distance: shape ``[m, m]``
-            distance_weight: Weight of distance.
-            size_balance_weight: Weight of size balance.
-            complexity_balance_weight: Weight of complexity balance.
+            connection_weight: Weight of connection between models.
+            size_match_weight: Weight of size match.
+            complexity_match_weight: Weight of complexity match.
             entropy_weight: weight of entropy.
         """
         placement = t.softmax(placement, dim=-1)
         model_num = placement.shape[0]
 
+        norm_model_conn = model_connection / t.sum(model_connection)
+        norm_dev_dist = device_distance / t.sum(device_distance)
         model_distance = t.einsum("ij,mn,jn->im",
-                                  placement, placement, device_distance)
+                                  placement, placement, norm_dev_dist)
+        # model distance to itself is 0
         model_distance[np.arange(model_num), np.arange(model_num)] = 0
-        connection_cost = model_connection * model_distance
+        connection_cost = norm_model_conn * model_distance
 
         # sum(model size) < capacity
         size_match_cost = t.relu(t.einsum("ij,jk->ik", model_size, placement) -
@@ -329,9 +342,9 @@ class ModelAssigner:
         tmp = t.zeros_like(placement)
         entropy_cost = -t.where(placement > 0, entropy_cost, tmp).sum(dim=-1)
 
-        total_cost = (t.mean(connection_cost) * distance_weight +
-                      t.mean(size_match_cost) * size_balance_weight +
-                      t.mean(cmplx_match_cost) * complexity_balance_weight +
+        total_cost = (t.mean(connection_cost) * connection_weight +
+                      t.mean(size_match_cost) * size_match_weight +
+                      t.mean(cmplx_match_cost) * complexity_match_weight +
                       t.mean(entropy_cost) * entropy_weight)
 
         optimizer.zero_grad()

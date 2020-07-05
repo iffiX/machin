@@ -7,7 +7,7 @@ import torch as t
 from .pickle import dump_tensor
 
 
-class ConnectionWrapper(object):
+class ConnectionWrapper(object):  # pragma: no cover
     """
     This simple wrapper provides timeout function for sending
     bytes on ``Connection``.
@@ -41,7 +41,7 @@ class ConnectionWrapper(object):
             type(self).__name__, 'conn'))
 
 
-class SimpleQueue(object):
+class SimpleQueue(object):  # pragma: no cover
     """
     A simple queue for inter-process communications.
     """
