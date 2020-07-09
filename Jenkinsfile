@@ -31,7 +31,7 @@ pipeline {
                     sh 'apt update'
                     sh 'apt -o APT::Acquire::Retries="3" --fix-missing install -y wget freeglut3-dev xvfb fonts-dejavu graphviz'
                     sh 'pip install -e .'
-                    sh 'pip install mock pytest==5.4.3 pytest-cov==2.10.0 allure-pytest==2.8.16 pytest-xvfb==2.0.0 pytest-html==1.22.1'
+                    sh 'pip install mock pytest==5.4.3 pytest-cov==2.10.0 allure-pytest==2.8.16 pytest-xvfb==2.0.0 pytest-html==1.22.1 pytest-repeat==0.8.0'
                     // This line must be included, otherwise matplotlib will
                     // segfault when it tries to build the font cache.
                     sh "python3 -c 'import matplotlib.pyplot as plt'"

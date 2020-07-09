@@ -3,30 +3,48 @@ from time import sleep
 from datetime import datetime
 from queue import Queue, Empty
 from abc import ABC, abstractmethod
-from threading import Thread, Condition, Lock
-from typing import Any, Dict, Union, List, Callable
+from threading import Event, Lock
+from typing import Any, Dict, Union, List
 
 from torch.distributed import rpc
+from machin.parallel.thread import Thread
 from machin.utils.helper_classes import Timer, Counter
+from machin.utils.logging import colorlog
 
 
-class ElectionGroupBase(ABC):
+class ElectionGroupBase(ABC):  # pragma: no cover
     """
     Base class for all rpc group election algorithms and their implementations.
 
     Attributes:
-        leader_change_cond: An election group should call ``notify_all()`` on
-            this conditional if a leader change event has happened. Services
-            relying on the leader may create a task thread waiting on this
-            conditional.
+        leader_change_event: An election group should call ``set()`` and then
+            ``clear()`` on this event to notify all waiting threads if a leader
+            change event has happened. Services relying on the leader may
+            create a task thread waiting on this event.
     """
+
     def __init__(self):
-        self.leader_change_cond = Condition(Lock())
+        self.leader_change_event = Event()
 
     @abstractmethod
     def start(self):
         """
         Start the election algorithm.
+        """
+        pass
+
+    @abstractmethod
+    def stop(self):
+        """
+        Stop the election algorithm.
+        """
+        pass
+
+    @abstractmethod
+    def watch(self):
+        """
+        Watch for any critical exceptions happening in sub-processes
+        and sub-threads started by the election algorithm.
         """
         pass
 
@@ -48,16 +66,16 @@ class ElectionGroupBase(ABC):
         """
         pass
 
-    def get_leader_change_cond(self):
+    def get_leader_change_event(self):
         """
         Warning:
-            This conditional is allowed to notify the same leader
+            This event is allowed to notify the same leader
             change event for indefinite times.
 
         Returns:
-            The leader change conditional.
+            The leader change event.
         """
-        return self.leader_change_cond
+        return self.leader_change_event
 
     @abstractmethod
     def get_members(self) -> List[int]:
@@ -74,6 +92,7 @@ class ElectionGroupSimple(ElectionGroupBase):
     And will remain the same in the whole life time of the group. Requires no
     communication and adds zero overhead.
     """
+
     def __init__(self,
                  member_ranks: List[int],
                  rank: int,
@@ -91,6 +110,14 @@ class ElectionGroupSimple(ElectionGroupBase):
         super(ElectionGroupSimple, self).__init__()
 
     def start(self):
+        # DOC INHERITED
+        pass
+
+    def stop(self):
+        # DOC INHERITED
+        pass
+
+    def watch(self):
         # DOC INHERITED
         pass
 
@@ -138,11 +165,12 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
     SLEEP_DIVISION = 1000
 
     # Stores references to all stable election groups, rpc calls
-    # relies on this dictionary to find the target election group/
+    # relies on this dictionary to find the target election group
 
     # This is better than using a global variable, since its name scope
     # is limited within this class.
     elect_groups = {}
+    logger = colorlog.getLogger(__name__)
 
     def __init__(self,
                  name: str,
@@ -158,7 +186,7 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
             timeout: Timeout :math:`\\delta` used in the essay.
         """
         super(ElectionGroupStableBase, self).__init__()
-        if name in self.elect_groups:
+        if name in self.elect_groups:  # pragma: no cover
             raise RuntimeError("Election group already existed!")
         self.member_ranks = sorted(member_ranks)
 
@@ -177,24 +205,44 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
         self.cur_round = 0
         self.leader = None
 
+        self.lock = Lock()
         self.tka_thread = Thread(target=self._task_keep_alive)
+        self.tka_thread.daemon = True
         self.tto_thread = Thread(target=self._task_timeout)
-        self.leader_change_cond = Condition(Lock())
+        self.tto_thread.daemon = True
         self.ok_counter = Counter()
-        self.last_alert = None
-        self.recv_alerts = []
+        self.last_alert = 0  # from time.time()
+        self.last_alert_round = -1
         self.elect_groups[name] = self
 
-        self.stop = False
-        self.tka_thread.start()
-        self.tto_thread.start()
-        self._start_round(0)
-        self._register_handle(self._handle)
+        self.started = False
+        self.run = False
 
     def start(self):
         # DOC INHERITED
-        self.tka_thread.start()
-        self.tto_thread.start()
+        if not self.started:
+            self.run = True
+            self.started = True
+            self.tka_thread.start()
+            self.tto_thread.start()
+            self._impl_start()
+            self._start_round(0)
+
+    def stop(self):
+        # DOC INHERITED
+        if not self.started:  # pragma: no cover
+            raise RuntimeError("Election group not started.")
+        else:
+            self.run = False
+            self.tka_thread.join()
+            self.tto_thread.join()
+            self._impl_stop()
+
+    def watch(self):
+        # DOC INHERITED
+        self.tka_thread.watch()
+        self.tto_thread.watch()
+        self._impl_watch()
 
     def get_leader(self):
         # DOC INHERITED
@@ -203,11 +251,11 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
         # member rank lookup, we should fetch the leader first
 
         # If leadership has changed after fetch, we may use
-        # leader_change_cond to detect the change.
+        # get_leader_change_event to detect the change.
         leader = self.leader
-        if leader is None:
-            return None
-        return self.member_ranks[leader]
+        if leader is not None:
+            return self.member_ranks[leader]
+        # if there is no leader, return None
 
     def is_leader(self):
         # DOC INHERITED
@@ -217,59 +265,134 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
         # DOC INHERITED
         return self.member_ranks
 
+    def _impl_start(self):  # pragma: no cover
+        # Start the actual implementation class.
+        pass
+
+    def _impl_watch(self):  # pragma: no cover
+        # Watch for threads/processes started by the
+        # actual implementation class.
+        pass
+
+    def _impl_stop(self):  # pragma: no cover
+        # Stop the actual implementation class.
+        pass
+
     def _start_round(self, cur_round):
         # The start round function defined in essay.
+        self.logger.info("Stable election group<{}> Process[{}]: start round {}"
+                         .format(self.name, self.rank, cur_round))
+
+        with self.lock:
+            if self.cur_round > cur_round:  # pragma: no cover
+                self.logger.info(
+                    "Stable election group<{}> Process[{}]: "
+                    "start round {} failed, higher round {} has started"
+                    .format(self.name, self.rank, cur_round, self.cur_round))
+                return
+            self.timer.begin()
+            self.cur_round = cur_round
+            self.leader = None
+            self.ok_counter.reset()
+
         self._send_all((MType.ALERT, cur_round))
         if self.rank != cur_round % len(self.member_ranks):
             self._send_all((MType.START, cur_round))
-        self.cur_round = cur_round
-        self.leader = None
-        self.ok_counter.reset()
-        self.timer.begin()
-        self.leader_change_cond.notify_all()
 
-    def _handle(self, timestamp, src, message):
+        self.leader_change_event.set()
+        self.leader_change_event.clear()
+
+    def _handle(self, _timestamp, src, message):
         # The handle task defined in essay.
-        if message == (MType.OK, self.cur_round):
-            self.ok_counter.count()
-            if (self.leader is None and
-                    self.ok_counter >= 2 and
-                    (self.last_alert is None or
-                     self._timestamp() - timestamp > 6 * self.timeout)):
-                self.leader = self.cur_round % len(self.member_ranks)
+        cur_round = self.cur_round
+        if message == (MType.OK, cur_round):  # pragma: no cover
+            with self.lock:
+                if self.cur_round > cur_round:
+                    self.logger.info(
+                        "Stable election group<{}> Process[{}]: "
+                        "refresh round {} failed, higher round {} has started"
+                        .format(self.name, self.rank, cur_round,
+                                self.cur_round))
+                    return
+                self.ok_counter.count()
                 self.timer.begin()
-                self.leader_change_cond.notify_all()
+                if self.leader is None and self.ok_counter >= 2:
+                    if (self.last_alert_round > cur_round and
+                            self._timestamp() - self.last_alert <=
+                            6 * self.timeout):
+                        return
+                    self.leader = cur_round % len(self.member_ranks)
+                    self.logger.info("Stable election group<{}> Process[{}]: "
+                                     "select leader {}"
+                                     .format(self.name, self.rank, self.leader))
+                    self.leader_change_event.set()
+                    self.leader_change_event.clear()
 
         elif (message[0] in (MType.OK, MType.START) and
-              message[1] > self.cur_round):
-            self._start_round(self.cur_round + 1)
+              message[1] > cur_round):
+            self.logger.info("Stable election group<{}> Process[{}]: "
+                             "move to higher round {}"
+                             .format(self.name, self.rank, message[1]))
+            self._start_round(message[1])
             self.timeout_recv_ok_or_start = True
 
         elif (message[0] in (MType.OK, MType.START) and
-              message[1] < self.cur_round):
-            self._send(src, (MType.START, self.cur_round))
+              message[1] < cur_round):
+            self.logger.info("Stable election group<{}> Process[{}]: "
+                             "update peer Process[{}] with lower round {}"
+                             .format(self.name, self.rank,
+                                     self.member_ranks[src], message[1]))
+            self._send(src, (MType.START, cur_round))
 
         elif (message[0] == MType.ALERT and
-              message[1] > self.cur_round):
+              message[1] > cur_round):
+            self.logger.info("Stable election group<{}> Process[{}]: "
+                             "suspend leader, alerted round {}"
+                             .format(self.name, self.rank, message[1]))
             self.leader = None
             self.last_alert = self._timestamp()
-            self.recv_alerts.append((timestamp, message))
-            self.leader_change_cond.notify_all()
+            self.last_alert_round = message[1]
+            self.leader_change_event.set()
+            self.leader_change_event.clear()
 
         elif message[0] == MType.PING:
+            self.logger.info("Stable election group<{}> Process[{}]: "
+                             "respond ping from Process[{}]"
+                             .format(self.name, self.rank,
+                                     self.member_ranks[src]))
             self._send(src, (MType.PONG, message[1]))
 
-        elif message == (MType.PONG, self.cur_round):
+        elif message == (MType.PONG, cur_round):
+            self.logger.info("Stable election group<{}> Process[{}]: "
+                             "received pong from Process[{}]"
+                             .format(self.name, self.rank,
+                                     self.member_ranks[src]))
             self.timeout_recv_pong.append(src)
 
     def _task_timeout(self):
         # The Figure 5 optimization in essay.
-        while not self.stop:
-            if self.timer.end() > self.timeout * 2:
-                self._send_all((MType.ALERT, self.cur_round + 1))
+        while self.run:
+
+            # store current round and leader, so that they will not be changed
+            # if a new leader has been elected or a higher round has been
+            # notified by other processes during the following process.
+
+            # if the any of the above described event has happened, then the
+            # newer round will always >= cur_round
+
+            with self.lock:
+                cur_round = self.cur_round
+                cur_leader_rank = cur_round % len(self.member_ranks)
+                cur_time = self.timer.end()
+
+            if cur_time > self.timeout * 2:
+                self.logger.info("Stable election group<{}> Process[{}]: "
+                                 "timeout on leader [{}]"
+                                 .format(self.name, self.rank, cur_leader_rank))
+                self._send_all((MType.ALERT, cur_round + 1))
 
                 self.timeout_recv_pong.clear()
-                self._send_all((MType.PING, self.cur_round))
+                self._send_all((MType.PING, cur_round))
 
                 self.timeout_recv_ok_or_start = False
                 self.timeout_recv_timer.begin()
@@ -277,50 +400,67 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
                 while (not self.timeout_recv_ok_or_start and
                        self.timeout_recv_timer.end() <= 2 * self.timeout):
                     sleep(self.timeout / self.SLEEP_DIVISION)
+
                 if self.timeout_recv_ok_or_start:
+                    self.logger.info("Stable election group<{}> Process[{}]: "
+                                     "start higher round / find higher leader"
+                                     .format(self.name, self.rank))
                     continue
 
                 # Jump to the nearest available round
                 # (and the respective leader candidate),
                 # skipping all not-responding nodes to save time.
-                cur_leader_rank = self.cur_round % len(self.member_ranks)
-                avail_ranks = self.timeout_recv_pong.copy()
+                avail_ranks = sorted(self.timeout_recv_pong.copy())
+                self.logger.info("Stable election group<{}> Process[{}]: "
+                                 "available processes: [{}]"
+                                 .format(self.name, self.rank, avail_ranks))
+
                 for avail_rank in avail_ranks:
                     if avail_rank > cur_leader_rank:
-                        new_round = self.cur_round + \
-                                    (avail_rank - cur_leader_rank)
+                        new_round = cur_round + (avail_rank - cur_leader_rank)
+                        self.logger.info(
+                            "Stable election group<{}> Process[{}]: "
+                            "select process: [{}], start round: {}"
+                            .format(self.name, self.rank, avail_rank, new_round)
+                        )
                         self._start_round(new_round)
                         break
                 else:
-                    new_round = min(avail_ranks) + len(self.member_ranks) - \
-                                cur_leader_rank + self.cur_round
-                    self._start_round(new_round)
+                    if avail_ranks:
+                        new_round = min(avail_ranks) + \
+                                    len(self.member_ranks) - \
+                                    cur_leader_rank + cur_round
+                        avail_rank = min(avail_ranks)
+                        self.logger.info(
+                            "Stable election group<{}> Process[{}]: "
+                            "select process: [{}], start round: {}"
+                            .format(self.name, self.rank, avail_rank, new_round)
+                        )
+                        self._start_round(new_round)
             else:
                 sleep(self.timeout / self.SLEEP_DIVISION)
 
     def _task_keep_alive(self):
         # The keep alive task defined in essay.
-        while not self.stop:
-            if self.rank == self.cur_round % len(self.member_ranks):
+        while self.run:
+            cur_round = self.cur_round
+            if self.rank == cur_round % len(self.member_ranks):
                 if self.alive_timer.end() >= self.timeout:
-                    self._send_all((MType.OK, self.cur_round))
+                    self.logger.info("Stable election group<{}> Process[{}]: "
+                                     "notify aliveness"
+                                     .format(self.name, self.rank))
+                    self._send_all((MType.OK, cur_round))
                     self.alive_timer.begin()
             sleep(self.timeout / self.SLEEP_DIVISION)
 
     @abstractmethod
-    def _register_handle(self, handler: Callable):
-        # Register the _handle() function, since some communication
-        # libraries use callback handlers to deal with incoming messages.
-        pass
-
-    @abstractmethod
-    def _send(self, to: int, message: Any):
+    def _send(self, to: int, message: Any):  # pragma: no cover
         # Actual implementations must implement this transmission function.
         # ``to`` is the absolute process rank.
         pass
 
     @abstractmethod
-    def _send_all(self, message: Any):
+    def _send_all(self, message: Any):  # pragma: no cover
         # Actual implementations must implement this transmission function.
         pass
 
@@ -328,33 +468,38 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
     def _timestamp():
         return datetime.utcnow().timestamp()
 
-    def __del__(self):
-        # Close this group.
-        self.stop = True
-        self.tka_thread.join()
-        self.tto_thread.join()
-
 
 class ElectionGroupStableRpc(ElectionGroupStableBase):
     # Implements the transmission layer using RPC.
-    def _register_handle(self, handler):
+    # rpc_sync will throw RuntimeError if target disconnected.
+    # rpc_async should will not throw exceptions if target disconnected
+    # unless wait() is called, but will execute successfully even
+    # without wait().
+    def _impl_start(self):
         self.h_thread = Thread(target=self._task_handle)
         self.recv_queue = Queue()
+        self.h_thread.start()
+
+    def _impl_stop(self):
+        self.h_thread.join()
+
+    def _impl_watch(self):
+        self.h_thread.watch()
 
     def _send(self, to, message):
         ts = self._timestamp()
         to = self.member_ranks[to]
-        rpc.rpc_async(str(to), self._reply,
+        rpc.rpc_async(str(to), type(self)._reply,
                       args=(ts, self.rank, self.name, message))
 
     def _send_all(self, message):
         ts = self._timestamp()
         for to in self.member_ranks:
-            rpc.rpc_async(str(to), self._reply,
+            rpc.rpc_async(str(to), type(self)._reply,
                           args=(ts, self.rank, self.name, message))
 
     def _task_handle(self):
-        while not self.stop:
+        while self.run:
             try:
                 packet = self.recv_queue.get(block=True, timeout=1e-3)
             except Empty:
@@ -371,7 +516,7 @@ class ElectionGroupStableRpc(ElectionGroupStableBase):
         # This function is called by rpc api to finish delivering
         # the message.
         elect_groups = \
-            ElectionGroupStableRpc\
+            ElectionGroupStableRpc \
             .elect_groups  # type: Dict[str, ElectionGroupStableRpc]
         timeout = elect_groups[group].timeout
 

@@ -1,4 +1,4 @@
-class RoleBase(object):
+class RoleBase(object):  # pragma: no cover
     """
     Base of all roles, derive from this class to implement your own roles.
 
