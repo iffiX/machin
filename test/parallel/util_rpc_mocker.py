@@ -108,14 +108,14 @@ class RpcMocker(object):
         if fuzz["drop"]:
             return "drop", obj, timestamp, src, to, fuzz, token
         if fuzz["delay"]:
-            if time.time() - timestamp < fuzz["delay"]:
+            if time.time() - timestamp < fuzz["delay_time"]:
                 return "delay", obj, timestamp, src, to, fuzz, token
         return "ok", obj, timestamp, src, to, fuzz, token
 
     @staticmethod
     def route_fuzzer():
         # can be overloaded
-        return {"drop": False, "delay": 0}
+        return {"drop": False, "delay": False, "delay_time": 0}
 
     def get_mocker_init_rpc(self, process_id):
         # get a mocker for rpc.init_rpc, which will be executed in a subprocess

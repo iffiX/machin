@@ -50,7 +50,7 @@ def processes():
 @pytest.fixture(scope="function")
 def rpc_mocker():
     rpc_mocker = Rpc(process_num=3, rpc_timeout=60, rpc_init_wait_time=0.5,
-                     print_expired=False, rpc_response_time=[1e-3, 5e-2])
+                     print_expired=False, rpc_response_time=[1e-3, 1e-2])
     rpc_mocker.start()
     yield rpc_mocker
     rpc_mocker.stop()
@@ -92,7 +92,6 @@ def watch(rpc_mocker, processes, result_watcher):
 
 
 class Rpc(RpcMocker):
-    _lock = mp.Lock()
     drop_match = lambda *_: False
 
     @staticmethod
@@ -102,19 +101,18 @@ class Rpc(RpcMocker):
         if Rpc.drop_match(obj, src, to):
             cmd = "drop"
         args = obj[2]
-        with Rpc._lock:
-            if cmd == "ok":
-                default_logger.info(
-                    "Rpc request from Process {} to {}, "
-                    "rank={}, name={}, message={}".format(
-                        src, to, args[1], args[2], args[3]
-                    ))
-            elif cmd == "drop":
-                default_logger.info(
-                    "Rpc request dropped from Process {} to {}, "
-                    "rank={}, name={}, message={}".format(
-                        src, to, args[1], args[2], args[3]
-                    ))
+        if cmd == "ok":
+            default_logger.info(
+                "Rpc request from Process {} to {}, "
+                "rank={}, name={}, message={}".format(
+                    src, to, args[1], args[2], args[3]
+                ))
+        elif cmd == "drop":
+            default_logger.info(
+                "Rpc request dropped from Process {} to {}, "
+                "rank={}, name={}, message={}".format(
+                    src, to, args[1], args[2], args[3]
+                ))
         return cmd, obj, timestamp, src, to, fuzz, token
 
     @classmethod
@@ -123,6 +121,7 @@ class Rpc(RpcMocker):
             cls.drop_match = lambda *_: False
         else:
             cls.drop_match = drop_match
+
 
 class TestElectionGroupSimple(object):
     ########################################################################
@@ -196,7 +195,7 @@ class TestElectionGroupStableRpc(object):
     # Stable Election Algorithm is first tested under the normal condition
     # with no lossy / slow rpc links,
     # and then tested with the fuzzy testing method
-    TIMEOUT_DELTA = 1e-1
+    TIMEOUT_DELTA = 5e-1
 
     ########################################################################
     # Test routine for sub processes
@@ -209,7 +208,8 @@ class TestElectionGroupStableRpc(object):
                                              member_ranks=[0, 1, 2],
                                              rank=rank,
                                              leader_rank=0,
-                                             timeout=cls.TIMEOUT_DELTA)
+                                             timeout=cls.TIMEOUT_DELTA,
+                                             logging=True)
         elect_group.logger.setLevel(INFO)
         default_logger.info("Start election group on {}".format(rank))
         elect_group.start()
@@ -232,7 +232,8 @@ class TestElectionGroupStableRpc(object):
                                              member_ranks=[0, 1, 2],
                                              rank=rank,
                                              leader_rank=0,
-                                             timeout=cls.TIMEOUT_DELTA)
+                                             timeout=cls.TIMEOUT_DELTA,
+                                             logging=True)
         elect_group.logger.setLevel(INFO)
         default_logger.info("Start election group on {}".format(rank))
 
@@ -298,11 +299,14 @@ class TestElectionGroupStableRpc(object):
         rpc_mocker.watch()
 
         begin = time.time()
+        last_report = -1
         while True:
             for p in processes[0]:
                 p.watch()
             if time.time() - begin >= self.TIMEOUT_DELTA * 9:
                 Rpc.drop_match = lambda _, src, to: to == 0 or src == 0
+
+            last_report = self.report_time(last_report, begin)
             if watcher():
                 break
 
@@ -332,6 +336,7 @@ class TestElectionGroupStableRpc(object):
         rpc_mocker.watch()
 
         begin = time.time()
+        last_report = -1
         # Warning! do not change the time configuration, it is used
         # to cover branches. (mainly about process 0 be notified of a
         # new leader 1)
@@ -342,6 +347,8 @@ class TestElectionGroupStableRpc(object):
                 Rpc.drop_match = lambda _, src, to: to == 0 or src == 0
             if time.time() - begin >= self.TIMEOUT_DELTA * 19:
                 Rpc.drop_match = lambda _, src, to: False
+
+            last_report = self.report_time(last_report, begin)
             if watcher():
                 break
 
@@ -370,6 +377,7 @@ class TestElectionGroupStableRpc(object):
         rpc_mocker.watch()
 
         begin = time.time()
+        last_report = -1
         while True:
             time.sleep(self.TIMEOUT_DELTA / 1000)
             for p in processes[0]:
@@ -382,6 +390,8 @@ class TestElectionGroupStableRpc(object):
                 Rpc.drop_match = lambda _, src, to: to == 2 or src == 2
             if time.time() - begin >= self.TIMEOUT_DELTA * 40:
                 Rpc.drop_match = lambda *_: False
+
+            last_report = self.report_time(last_report, begin)
             if watcher():
                 break
 
@@ -458,6 +468,7 @@ class TestElectionGroupStableRpc(object):
                                                 log_time)] * 3)
         rpc_mocker.watch()
         begin = time.time()
+        last_report = -1
         while True:
             time.sleep(self.TIMEOUT_DELTA / 1000)
             cur_time = time.time() - begin
@@ -481,6 +492,7 @@ class TestElectionGroupStableRpc(object):
                 normal_periods.pop(0)
                 rpc_mocker.set_drop_match(None)
 
+            last_report = self.report_time(last_report, begin)
             if watcher():
                 break
 
@@ -491,6 +503,14 @@ class TestElectionGroupStableRpc(object):
             assert is_leader[leader[0]]
             is_leader.pop(leader[0])
             assert not any(is_leader)
+
+    def report_time(self, last_report, begin):
+        cur_time = (time.time() - begin) / self.TIMEOUT_DELTA
+        diff_round = abs(round(cur_time) - cur_time)
+        if last_report < round(cur_time) and diff_round < 0.1:
+            last_report = round(cur_time)
+            default_logger.critical("Time: {}".format(last_report))
+        return last_report
 
     @staticmethod
     def patch_and_init(rank, patches):

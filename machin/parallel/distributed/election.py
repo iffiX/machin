@@ -9,7 +9,7 @@ from typing import Any, Dict, Union, List
 from torch.distributed import rpc
 from machin.parallel.thread import Thread
 from machin.utils.helper_classes import Timer, Counter
-from machin.utils.logging import colorlog
+from machin.utils.logging import colorlog, fake_logger
 
 
 class ElectionGroupBase(ABC):  # pragma: no cover
@@ -170,13 +170,13 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
     # This is better than using a global variable, since its name scope
     # is limited within this class.
     elect_groups = {}
-    logger = colorlog.getLogger(__name__)
 
     def __init__(self,
                  name: str,
                  member_ranks: List[int],
                  rank: int,
                  timeout: float = 1,
+                 logging: bool = False,
                  **__):
         """
         Args:
@@ -200,6 +200,7 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
         self.timeout_recv_timer = Timer()
         self.timeout_recv_ok_or_start = False
         self.timeout_recv_pong = []
+        self.timeout_round = -1
         self.timeout = timeout
 
         self.cur_round = 0
@@ -215,6 +216,10 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
         self.last_alert_round = -1
         self.elect_groups[name] = self
 
+        if logging:
+            self.logger = colorlog.getLogger(__name__)
+        else:
+            self.logger = fake_logger
         self.started = False
         self.run = False
 
@@ -223,10 +228,12 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
         if not self.started:
             self.run = True
             self.started = True
+            self._impl_start()
+            # all setup, start round 0
+            # sequence is important!
+            self._start_round(0)
             self.tka_thread.start()
             self.tto_thread.start()
-            self._impl_start()
-            self._start_round(0)
 
     def stop(self):
         # DOC INHERITED
@@ -295,6 +302,9 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
             self.leader = None
             self.ok_counter.reset()
 
+        # make sure alive messages are sent to all peers immediately
+        self.alive_timer._last = 0
+
         self._send_all((MType.ALERT, cur_round))
         if self.rank != cur_round % len(self.member_ranks):
             self._send_all((MType.START, cur_round))
@@ -305,14 +315,9 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
     def _handle(self, _timestamp, src, message):
         # The handle task defined in essay.
         cur_round = self.cur_round
-        if message == (MType.OK, cur_round):  # pragma: no cover
+        if message == (MType.OK, cur_round):
             with self.lock:
-                if self.cur_round > cur_round:
-                    self.logger.info(
-                        "Stable election group<{}> Process[{}]: "
-                        "refresh round {} failed, higher round {} has started"
-                        .format(self.name, self.rank, cur_round,
-                                self.cur_round))
+                if self.cur_round != cur_round:
                     return
                 self.ok_counter.count()
                 self.timer.begin()
@@ -325,8 +330,8 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
                     self.logger.info("Stable election group<{}> Process[{}]: "
                                      "select leader {}"
                                      .format(self.name, self.rank, self.leader))
-                    self.leader_change_event.set()
-                    self.leader_change_event.clear()
+            self.leader_change_event.set()
+            self.leader_change_event.clear()
 
         elif (message[0] in (MType.OK, MType.START) and
               message[1] > cur_round):
@@ -334,7 +339,8 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
                              "move to higher round {}"
                              .format(self.name, self.rank, message[1]))
             self._start_round(message[1])
-            self.timeout_recv_ok_or_start = True
+            if message[1] > self.timeout_round:
+                self.timeout_recv_ok_or_start = True
 
         elif (message[0] in (MType.OK, MType.START) and
               message[1] < cur_round):
@@ -349,9 +355,10 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
             self.logger.info("Stable election group<{}> Process[{}]: "
                              "suspend leader, alerted round {}"
                              .format(self.name, self.rank, message[1]))
-            self.leader = None
-            self.last_alert = self._timestamp()
-            self.last_alert_round = message[1]
+            with self.lock:
+                self.leader = None
+                self.last_alert = self._timestamp()
+                self.last_alert_round = message[1]
             self.leader_change_event.set()
             self.leader_change_event.clear()
 
@@ -362,7 +369,7 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
                                      self.member_ranks[src]))
             self._send(src, (MType.PONG, message[1]))
 
-        elif message == (MType.PONG, cur_round):
+        elif message == (MType.PONG, self.timeout_round):
             self.logger.info("Stable election group<{}> Process[{}]: "
                              "received pong from Process[{}]"
                              .format(self.name, self.rank,
@@ -383,14 +390,15 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
             with self.lock:
                 cur_round = self.cur_round
                 cur_leader_rank = cur_round % len(self.member_ranks)
-                cur_time = self.timer.end()
+                cur_passed_time = self.timer.end()
 
-            if cur_time > self.timeout * 2:
+            if cur_passed_time > self.timeout * 2:
                 self.logger.info("Stable election group<{}> Process[{}]: "
                                  "timeout on leader [{}]"
                                  .format(self.name, self.rank, cur_leader_rank))
                 self._send_all((MType.ALERT, cur_round + 1))
 
+                self.timeout_round = cur_round
                 self.timeout_recv_pong.clear()
                 self._send_all((MType.PING, cur_round))
 
@@ -445,7 +453,8 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
         while self.run:
             cur_round = self.cur_round
             if self.rank == cur_round % len(self.member_ranks):
-                if self.alive_timer.end() >= self.timeout:
+                # send two heartbeats per timeout period to ensure robustness
+                if self.alive_timer.end() >= self.timeout / 2:
                     self.logger.info("Stable election group<{}> Process[{}]: "
                                      "notify aliveness"
                                      .format(self.name, self.rank))

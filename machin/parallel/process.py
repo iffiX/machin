@@ -26,13 +26,13 @@ class Process(BaseProcess):
 
     @property
     def exception(self):
-        if not self._exc_pipe[0].poll(timeout=1e-3):
+        if not self._exc_pipe[0].poll(timeout=1e-4):
             return None
         exc = ProcessException(self._exc_pipe[0].recv())
         return exc
 
     def watch(self):
-        if self._exc_pipe[0].poll(timeout=1e-3):
+        if self._exc_pipe[0].poll(timeout=1e-4):
             self.join()
             raise self.exception
 
