@@ -187,13 +187,16 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
         """
         super(ElectionGroupStableBase, self).__init__()
         if name in self.elect_groups:  # pragma: no cover
-            raise RuntimeError("Election group already existed!")
+            raise RuntimeError("Election group with name {} already existed!"
+                               .format(name))
         self.member_ranks = sorted(member_ranks)
 
         # relative rank in list
         self.rank = self.member_ranks.index(rank)
+
         # Name of group, used to lookup
         self.name = name
+        self.elect_groups[name] = self
 
         self.timer = Timer()
         self.alive_timer = Timer()
@@ -214,7 +217,6 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
         self.ok_counter = Counter()
         self.last_alert = 0  # from time.time()
         self.last_alert_round = -1
-        self.elect_groups[name] = self
 
         if logging:
             self.logger = colorlog.getLogger(__name__)
@@ -330,8 +332,8 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
                     self.logger.info("Stable election group<{}> Process[{}]: "
                                      "select leader {}"
                                      .format(self.name, self.rank, self.leader))
-            self.leader_change_event.set()
-            self.leader_change_event.clear()
+                    self.leader_change_event.set()
+                    self.leader_change_event.clear()
 
         elif (message[0] in (MType.OK, MType.START) and
               message[1] > cur_round):
@@ -453,8 +455,7 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
         while self.run:
             cur_round = self.cur_round
             if self.rank == cur_round % len(self.member_ranks):
-                # send two heartbeats per timeout period to ensure robustness
-                if self.alive_timer.end() >= self.timeout / 2:
+                if self.alive_timer.end() >= self.timeout:
                     self.logger.info("Stable election group<{}> Process[{}]: "
                                      "notify aliveness"
                                      .format(self.name, self.rank))

@@ -157,9 +157,10 @@ class RpcMocker(object):
                 worker.daemon = True
                 worker.start()
 
-            send(cmd_conn, ("init_rpc", name), 0)
-            if not recv(cmd_conn, 0):
-                raise RuntimeError("Duplicate rpc name: {}".format(name))
+            with rpc_mocker_lock:
+                send(cmd_conn, ("init_rpc", name), 0)
+                if not recv(cmd_conn, 0):
+                    raise RuntimeError("Duplicate rpc name: {}".format(name))
             time.sleep(wait_time)
             rpc_mocker_inited = True
 
@@ -215,16 +216,22 @@ class RpcMocker(object):
             class Waiter:
                 @staticmethod
                 def wait():
+                    nonlocal status, to
+                    if status == "drop":
+                        raise RuntimeError("Rpc to {} failed".format(to))
                     while True:
-                        send(cmd_conn, ("rpc_async_result_poll", token), 0)
-                        if recv(cmd_conn, 0):
-                            break
+                        with rpc_mocker_lock:
+                            send(cmd_conn, ("rpc_async_result_poll", token), 0)
+                            if recv(cmd_conn, 0):
+                                break
                         if time.time() - timestamp >= timeout:
                             raise TimeoutError("Rpc timeout")
                         time.sleep(1e-3)
                     with rpc_mocker_lock:
                         send(cmd_conn, ("rpc_async_result", token), 0)
-                        result = recv(cmd_conn, 0)
+                        status, result = recv(cmd_conn, 0)
+                        if status == "expired":
+                            raise RuntimeError("Result expired")
                     time.sleep(report_delay)
                     return result
 
@@ -265,9 +272,10 @@ class RpcMocker(object):
             # delay or ok
             timestamp = time.time()
             while True:
-                send(cmd_conn, ("rpc_sync_result_poll", token), 0)
-                if recv(cmd_conn, 0):
-                    break
+                with rpc_mocker_lock:
+                    send(cmd_conn, ("rpc_sync_result_poll", token), 0)
+                    if recv(cmd_conn, 0):
+                        break
                 if time.time() - timestamp >= timeout:
                     raise TimeoutError("Rpc timeout")
                 time.sleep(1e-3)
