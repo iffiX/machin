@@ -289,15 +289,12 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
 
     def _start_round(self, cur_round):
         # The start round function defined in essay.
-        self.logger.info("Stable election group<{}> Process[{}]: start round {}"
-                         .format(self.name, self.rank, cur_round))
+        self._log("start round {}".format(cur_round))
 
         with self.lock:
             if self.cur_round > cur_round:  # pragma: no cover
-                self.logger.info(
-                    "Stable election group<{}> Process[{}]: "
-                    "start round {} failed, higher round {} has started"
-                    .format(self.name, self.rank, cur_round, self.cur_round))
+                self._log("start round {} failed, higher round {} has started"
+                          .format(cur_round, self.cur_round))
                 return
             self.timer.begin()
             self.cur_round = cur_round
@@ -316,6 +313,7 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
 
     def _handle(self, _timestamp, src, message):
         # The handle task defined in essay.
+        src_rank = self.member_ranks[src]
         cur_round = self.cur_round
         if message == (MType.OK, cur_round):
             with self.lock:
@@ -329,34 +327,26 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
                             6 * self.timeout):
                         return
                     self.leader = cur_round % len(self.member_ranks)
-                    self.logger.info("Stable election group<{}> Process[{}]: "
-                                     "select leader {}"
-                                     .format(self.name, self.rank, self.leader))
+                    self._log("select leader {}".format(self.leader))
                     self.leader_change_event.set()
                     self.leader_change_event.clear()
 
         elif (message[0] in (MType.OK, MType.START) and
               message[1] > cur_round):
-            self.logger.info("Stable election group<{}> Process[{}]: "
-                             "move to higher round {}"
-                             .format(self.name, self.rank, message[1]))
+            self._log("move to higher round {}".format(message[1]))
             self._start_round(message[1])
             if message[1] > self.timeout_round:
                 self.timeout_recv_ok_or_start = True
 
         elif (message[0] in (MType.OK, MType.START) and
               message[1] < cur_round):
-            self.logger.info("Stable election group<{}> Process[{}]: "
-                             "update peer Process[{}] with lower round {}"
-                             .format(self.name, self.rank,
-                                     self.member_ranks[src], message[1]))
+            self._log("update peer Process[{}] with lower round {}"
+                      .format(src_rank, message[1]))
             self._send(src, (MType.START, cur_round))
 
         elif (message[0] == MType.ALERT and
               message[1] > cur_round):
-            self.logger.info("Stable election group<{}> Process[{}]: "
-                             "suspend leader, alerted round {}"
-                             .format(self.name, self.rank, message[1]))
+            self._log("suspend leader, alerted round {}".format(message[1]))
             with self.lock:
                 self.leader = None
                 self.last_alert = self._timestamp()
@@ -365,17 +355,11 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
             self.leader_change_event.clear()
 
         elif message[0] == MType.PING:
-            self.logger.info("Stable election group<{}> Process[{}]: "
-                             "respond ping from Process[{}]"
-                             .format(self.name, self.rank,
-                                     self.member_ranks[src]))
+            self._log("respond ping from Process[{}]".format(src_rank))
             self._send(src, (MType.PONG, message[1]))
 
         elif message == (MType.PONG, self.timeout_round):
-            self.logger.info("Stable election group<{}> Process[{}]: "
-                             "received pong from Process[{}]"
-                             .format(self.name, self.rank,
-                                     self.member_ranks[src]))
+            self._log("received pong from Process[{}]".format(src_rank))
             self.timeout_recv_pong.append(src)
 
     def _task_timeout(self):
@@ -395,9 +379,7 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
                 cur_passed_time = self.timer.end()
 
             if cur_passed_time > self.timeout * 2:
-                self.logger.info("Stable election group<{}> Process[{}]: "
-                                 "timeout on leader [{}]"
-                                 .format(self.name, self.rank, cur_leader_rank))
+                self._log("timeout on leader [{}]".format(cur_leader_rank))
                 self._send_all((MType.ALERT, cur_round + 1))
 
                 self.timeout_round = cur_round
@@ -412,27 +394,20 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
                     sleep(self.timeout / self.SLEEP_DIVISION)
 
                 if self.timeout_recv_ok_or_start:
-                    self.logger.info("Stable election group<{}> Process[{}]: "
-                                     "start higher round / find higher leader"
-                                     .format(self.name, self.rank))
+                    self._log("start higher round / find higher leader")
                     continue
 
                 # Jump to the nearest available round
                 # (and the respective leader candidate),
                 # skipping all not-responding nodes to save time.
                 avail_ranks = sorted(self.timeout_recv_pong.copy())
-                self.logger.info("Stable election group<{}> Process[{}]: "
-                                 "available processes: [{}]"
-                                 .format(self.name, self.rank, avail_ranks))
+                self._log("available processes: [{}]".format(avail_ranks))
 
                 for avail_rank in avail_ranks:
                     if avail_rank > cur_leader_rank:
                         new_round = cur_round + (avail_rank - cur_leader_rank)
-                        self.logger.info(
-                            "Stable election group<{}> Process[{}]: "
-                            "select process: [{}], start round: {}"
-                            .format(self.name, self.rank, avail_rank, new_round)
-                        )
+                        self._log("select process: [{}], start round: {}"
+                                  .format(avail_rank, new_round))
                         self._start_round(new_round)
                         break
                 else:
@@ -441,14 +416,12 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
                                     len(self.member_ranks) - \
                                     cur_leader_rank + cur_round
                         avail_rank = min(avail_ranks)
-                        self.logger.info(
-                            "Stable election group<{}> Process[{}]: "
-                            "select process: [{}], start round: {}"
-                            .format(self.name, self.rank, avail_rank, new_round)
-                        )
+                        self._log("select process: [{}], start round: {}"
+                                  .format(avail_rank, new_round))
                         self._start_round(new_round)
             else:
                 sleep(self.timeout / self.SLEEP_DIVISION)
+        self._log("timeout task exit normally")
 
     def _task_keep_alive(self):
         # The keep alive task defined in essay.
@@ -456,12 +429,16 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
             cur_round = self.cur_round
             if self.rank == cur_round % len(self.member_ranks):
                 if self.alive_timer.end() >= self.timeout:
-                    self.logger.info("Stable election group<{}> Process[{}]: "
-                                     "notify aliveness"
-                                     .format(self.name, self.rank))
+                    self._log("notify aliveness")
                     self._send_all((MType.OK, cur_round))
                     self.alive_timer.begin()
             sleep(self.timeout / self.SLEEP_DIVISION)
+        self._log("keep alive task exit normally")
+
+    def _log(self, msg):
+        self.logger.info("Stable election group<{}> Process[{}]: "
+                         "{}"
+                         .format(self.name, self.rank, msg))
 
     @abstractmethod
     def _send(self, to: int, message: Any):  # pragma: no cover

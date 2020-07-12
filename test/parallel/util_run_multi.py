@@ -114,6 +114,25 @@ class Rpc(RpcMocker):
             cls.drop_match = drop_match
 
 
+class RpcNoLog(RpcMocker):
+    drop_match = lambda *_: False
+
+    @staticmethod
+    def interposer(obj, timestamp, src, to, fuzz, token):
+        cmd, obj, timestamp, src, to, fuzz, token = \
+            RpcMocker.interposer(obj, timestamp, src, to, fuzz, token)
+        if Rpc.drop_match(obj, src, to):
+            cmd = "drop"
+        return cmd, obj, timestamp, src, to, fuzz, token
+
+    @classmethod
+    def set_drop_match(cls, drop_match=None):
+        if drop_match is None:
+            cls.drop_match = lambda *_: False
+        else:
+            cls.drop_match = drop_match
+
+
 class RpcTestBase(object):
     @staticmethod
     def patch_and_init(rank, patches):
@@ -124,6 +143,10 @@ class RpcTestBase(object):
                    "election.rpc.rpc_async", rpc_async).start()
         mock.patch("machin.parallel.distributed."
                    "election.rpc.rpc_sync", rpc_sync).start()
+        mock.patch("machin.parallel.distributed."
+                   "role_dispatcher.rpc.rpc_async", rpc_async).start()
+        mock.patch("machin.parallel.distributed."
+                   "role_dispatcher.rpc.rpc_sync", rpc_sync).start()
         rpc.init_rpc(str(rank))
 
     @staticmethod

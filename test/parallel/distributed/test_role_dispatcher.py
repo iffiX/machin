@@ -21,25 +21,6 @@ def rpc_mocker():
     default_logger.info("rpc_mocker stopped")
 
 
-class RpcNoLog(RpcMocker):
-    drop_match = lambda *_: False
-
-    @staticmethod
-    def interposer(obj, timestamp, src, to, fuzz, token):
-        cmd, obj, timestamp, src, to, fuzz, token = \
-            RpcMocker.interposer(obj, timestamp, src, to, fuzz, token)
-        if Rpc.drop_match(obj, src, to):
-            cmd = "drop"
-        return cmd, obj, timestamp, src, to, fuzz, token
-
-    @classmethod
-    def set_drop_match(cls, drop_match=None):
-        if drop_match is None:
-            cls.drop_match = lambda *_: False
-        else:
-            cls.drop_match = drop_match
-
-
 class TestRoleDispatcherSimple(object):
     def test_simple(self):
         dispatcher = RoleDispatcherSimple(rank=4, world_size=5,

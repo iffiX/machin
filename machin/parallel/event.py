@@ -36,7 +36,10 @@ class MultiEvent(Event):
                     for le in event.get_leaf_events():
                         init_or_register(le, self)
                 else:
-                    raise ValueError("Not a valid event object!")
+                    raise ValueError("Type {} is not a valid event type,"
+                                     "requires threading.Event or a instance"
+                                     " of MultiEvent."
+                                     .format(type(event)))
         self._events = events
 
     def set(self):

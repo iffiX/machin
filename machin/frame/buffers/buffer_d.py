@@ -180,5 +180,5 @@ class DistributedBuffer(Buffer):
         return workers[:num]
 
     def __reduce__(self):
-        raise RuntimeError("Distributed buffer is not pickable, "
+        raise RuntimeError("Distributed buffer is not picklable, "
                            "it is meant to be held per process!")

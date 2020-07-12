@@ -139,7 +139,7 @@ class Object:
 
     def __getattr__(self, item):
         # This function will be called if python cannot find an attribute
-        # Note: in order to make Object pickable, we must raise AttributeError
+        # Note: in order to make Object picklable, we must raise AttributeError
         # when looking for special methods, such that when pickler is looking
         # up a non-existing __getstate__ function etc, this class will
         # not return a None value because self.attr(item) will return None.
