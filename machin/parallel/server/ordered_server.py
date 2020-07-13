@@ -4,7 +4,7 @@ from threading import Lock
 from ..distributed import RoleHandle, RpcGroup
 
 
-class OrderedServerBase(ABC):
+class OrderedServerBase(ABC):  # pragma: no cover
     """
     Descendent classes of OrderedServer does not have to guarantee strong
     consistency, that is, even if :meth:`.OrderedServerBase.push_service``
@@ -69,7 +69,7 @@ class OrderedServerSimple(OrderedServerBase):
                 key. If ``depth = 1``, then only the newest version
                 of the key will be saved.
         """
-        assert server_role in group.get_group_members()
+        assert group.is_member(server_role)
         assert version_depth > 0 and isinstance(version_depth, int)
 
         self.server_name = server_name
@@ -106,7 +106,7 @@ class OrderedServerSimple(OrderedServerBase):
                     ref[version] = value
                     success = True
                 if len(ref) > self.log_depth + 1:
-                    ref.pop(0)
+                    ref.popitem(last=False)
             else:
                 # Create a new key.
                 ref = self.storage[key] = OrderedDict()
@@ -124,5 +124,6 @@ class OrderedServerSimple(OrderedServerBase):
                     result = (ref[version], version)
                 # Find the newest version.
                 elif version is None:
-                    result = (ref[-1], next(reversed(ref)))
+                    version = next(reversed(ref))
+                    result = (ref[version], version)
         return result

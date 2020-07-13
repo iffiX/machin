@@ -152,11 +152,11 @@ class TestElectionGroupStableRpc(RpcTestBase):
         result, watcher = run_multi(processes,
                                     self.patch_and_init,
                                     args_list=self.get_patches(rpc_mocker))
-        watch(rpc_mocker, processes, watcher)
+        watch(processes, watcher, rpc_mocker)
         default_logger.info("All rpc inited")
         result, watcher = run_multi(processes,
                                     self.subproc_test_elect)
-        watch(rpc_mocker, processes, watcher)
+        watch(processes, watcher, rpc_mocker)
         assert [r[0] for r in result] == [True, False, False]
         assert [r[1] for r in result] == [0, 0, 0]
         assert [r[2] for r in result] == [[0, 1, 2], [0, 1, 2], [0, 1, 2]]
@@ -171,7 +171,7 @@ class TestElectionGroupStableRpc(RpcTestBase):
         result, watcher = run_multi(processes,
                                     self.patch_and_init,
                                     args_list=self.get_patches(rpc_mocker))
-        watch(rpc_mocker, processes, watcher)
+        watch(processes, watcher, rpc_mocker)
         default_logger.info("All rpc inited")
         result, watcher = run_multi(processes,
                                     self.subproc_test_elect,
@@ -207,7 +207,7 @@ class TestElectionGroupStableRpc(RpcTestBase):
         result, watcher = run_multi(processes,
                                     self.patch_and_init,
                                     args_list=self.get_patches(rpc_mocker))
-        watch(rpc_mocker, processes, watcher)
+        watch(processes, watcher, rpc_mocker)
         default_logger.info("All rpc inited")
         result, watcher = run_multi(processes,
                                     self.subproc_test_elect,
@@ -247,7 +247,7 @@ class TestElectionGroupStableRpc(RpcTestBase):
         result, watcher = run_multi(processes,
                                     self.patch_and_init,
                                     args_list=self.get_patches(rpc_mocker))
-        watch(rpc_mocker, processes, watcher)
+        watch(processes, watcher, rpc_mocker)
         default_logger.info("All rpc inited")
         result, watcher = run_multi(processes,
                                     self.subproc_test_elect_multi,
@@ -306,7 +306,7 @@ class TestElectionGroupStableRpc(RpcTestBase):
         result, watcher = run_multi(processes,
                                     self.patch_and_init,
                                     args_list=self.get_patches(rpc_mocker))
-        watch(rpc_mocker, processes, watcher)
+        watch(processes, watcher, rpc_mocker)
         default_logger.info("All rpc inited")
 
         # randomly select some time points to interrupt

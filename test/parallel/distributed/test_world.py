@@ -1,20 +1,10 @@
 from machin.parallel.distributed.role import RoleBase
 from machin.parallel.distributed.world import (
-    World,
     get_cur_role, get_cur_rank
 )
 from ..util_run_multi import *
 import time
 import torch as t
-
-
-def watch(processes, result_watcher):
-    while True:
-        for p in processes[0]:
-            p.watch()
-        if result_watcher():
-            break
-        sleep(1e-3)
 
 
 class WorkerService(object):
@@ -36,14 +26,13 @@ class Worker(RoleBase):
     NAME = "Worker"
 
     def __init__(self, index):
-        global world
         super(Worker, self).__init__(index)
         self.service = WorkerService()
         self.nn = t.nn.Linear(5, 5, bias=False)
         with t.no_grad():
             self.nn.weight.fill_(index)
 
-        self.group = world.create_rpc_group("Company", roles=[
+        self.group = get_world().create_rpc_group("Company", roles=[
             ("Worker", 0), ("Worker", 1), ("Worker", 2),
             ("Manager", 0), ("Manager", 1), ("Manager", 2)
         ])
@@ -74,17 +63,17 @@ class Manager(RoleBase):
     NAME = "Manager"
 
     def __init__(self, index):
-        global world
+        world = get_world()
         super(Manager, self).__init__(index)
         self.service = WorkerService()
-        group = world.create_rpc_group("Company", roles=[
+        self.group = world.create_rpc_group("Company", roles=[
             ("Worker", 0), ("Worker", 1), ("Worker", 2),
             ("Manager", 0), ("Manager", 1), ("Manager", 2)
         ])
         self.group = world.get_rpc_group("Company")
 
     def main(self):
-        global success
+        success = get_world().success
 
         assert self.group.size() == 6
         assert self.group.is_member(("Worker", self.role_index))
@@ -185,35 +174,13 @@ class Manager(RoleBase):
         success[self.role_index] = True
 
 
-class TestWorld(object):
-    ########################################################################
-    # Test routine for sub processes
-    ########################################################################
-    @classmethod
-    def subproc_start_world(cls, rank, roles):
-        # election function for all tests
-        global world
-        global success
-        success = {}
-        world = World(world_size=3, rank=rank, roles=roles,
-                      rpc_timeout=0.5, election_timeout=0.3, logging=True)
-        default_logger.info("World created on {}".format(rank))
-
-    @classmethod
-    def subproc_start_world_with_roles(cls, rank, run_time=10):
-        global world, success
-        begin = time.time()
-        while time.time() - begin < run_time:
-            world.watch()
-            time.sleep(1e-1)
-        return success
-
+class TestWorld(WorldTestBase):
     ########################################################################
     # Test for collective communications
     ########################################################################
     @classmethod
     def subproc_test_world_coll_comm(cls, rank):
-        global world
+        world = get_world()
         world.watch()  # for coverage
         group = world.create_collective_group(ranks=[0, 1, 2])
 
@@ -327,7 +294,7 @@ class TestWorld(object):
         watch(processes, watcher)
         default_logger.info("All world inited")
         result, watcher = run_multi(processes,
-                                    self.subproc_start_world_with_roles,
+                                    self.subproc_run_world,
                                     args_list=[(5,)] * 3)
         watch(processes, watcher)
         success = {}
@@ -345,7 +312,7 @@ class TestWorld(object):
         watch(processes, watcher)
         default_logger.info("All world inited")
         result, watcher = run_multi(processes,
-                                    self.subproc_start_world_with_roles,
+                                    self.subproc_run_world,
                                     args_list=[(30,)] * 3)
         watch(processes, watcher)
         success = {}

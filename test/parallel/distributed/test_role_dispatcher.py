@@ -83,11 +83,11 @@ class TestRoleDispatcherElection(RpcTestBase):
         result, watcher = run_multi(processes,
                                     self.patch_and_init,
                                     args_list=self.get_patches(rpc_mocker))
-        watch(rpc_mocker, processes, watcher)
+        watch(processes, watcher, rpc_mocker)
         default_logger.info("All rpc inited")
         result, watcher = run_multi(processes,
                                     self.subproc_test_dispatch)
-        watch(rpc_mocker, processes, watcher)
+        watch(processes, watcher, rpc_mocker)
         roles_map = {
             rank: r[0] for rank, r in zip([0, 1, 2], result)
         }
@@ -111,7 +111,7 @@ class TestRoleDispatcherElection(RpcTestBase):
         result, watcher = run_multi(processes,
                                     self.patch_and_init,
                                     args_list=self.get_patches(rpc_mocker))
-        watch(rpc_mocker, processes, watcher)
+        watch(processes, watcher, rpc_mocker)
         default_logger.info("All rpc inited")
         result, watcher = run_multi(processes,
                                     self.subproc_test_dispatch,

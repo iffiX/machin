@@ -18,6 +18,8 @@ WORLD = None  # type: Union[None, World]
 
 WORLD_LOCAL = local()
 
+RoleHandle = Union[str, Tuple[str, int]]
+
 
 def _copy_doc(from_func):
     """
@@ -35,6 +37,17 @@ def _copy_doc(from_func):
             func.__doc__ = src_doc
         return func
     return _decorator
+
+
+def _parse_role(role: RoleHandle) -> Tuple:
+    if (isinstance(role, tuple) and len(role) == 2 and
+            isinstance(role[0], str) and isinstance(role[1], int)):
+        return role
+    # parse a role string "some_role:10" to tuple ("some_role", 10)
+    role = list(role.split(':'))
+    role[1] = int(role[1])
+    role = tuple(role)
+    return role
 
 
 def _exec_role(role_class, role):
@@ -161,6 +174,10 @@ def get_world():  # pragma: no cover
     return WORLD
 
 
+def _get_rpc_group(group_name, role):  # pragma: no cover
+    return WORLD.groups.get((role, group_name), None)
+
+
 class RpcException(Exception):  # pragma: no cover
     """
     Rpc exception class.
@@ -170,9 +187,6 @@ class RpcException(Exception):  # pragma: no cover
             super(RpcException, self).__init__(msg)
         elif isinstance(msg, BaseException):
             super(RpcException, self).__init__(str(msg))
-
-
-RoleHandle = Union[str, Tuple[str, int]]
 
 
 @_world_singleton
@@ -373,16 +387,18 @@ distributed.ElectionGroupStableRpc` as its internal election implementation.
         """
         if role is None:
             role = get_cur_role()
+        role = _parse_role(role)
         if role in get_cur_roles():
             return self.groups.get((role, group_name), None)
         else:
-            target_process = str(self.role_dispatcher.get_rank(role))
-            remote_world = rpc.remote(target_process,
-                                      func=get_world())
+            rank = None
+            while rank is None:
+                rank = self.role_dispatcher.get_rank(role)
+                self.role_dispatcher.get_role_update_event().wait(0.1)
+            target_process = str(rank)
             return rpc.rpc_sync(target_process,
-                                _rpc_call_remote_method,
-                                args=(World.get_rpc_group, remote_world,
-                                      (group_name, role), {}))
+                                _get_rpc_group,
+                                args=(group_name, role))
 
     def _task_run_dispatched_roles(self):
         dispatcher = self.role_dispatcher
@@ -673,7 +689,7 @@ class RpcGroup:
         """
         # TODO: add timeout
         del timeout
-        target = self._parse_role(target)
+        target = _parse_role(target)
 
         if not self.is_member(target):
             raise RuntimeError("Target is not a member of the group.")
@@ -686,7 +702,7 @@ class RpcGroup:
                                   args=(target, self.group_name, name))
             except RuntimeError:
                 WORLD.role_dispatcher.notify_failure(
-                    self._parse_role(target)
+                    _parse_role(target)
                 )
                 if not retry:
                     break
@@ -857,7 +873,7 @@ class RpcGroup:
                     .format(func.__qualname__, to)
                 )
                 WORLD.role_dispatcher.notify_failure(
-                    self._parse_role(to)
+                    _parse_role(to)
                 )
             if not retry:
                 break
@@ -889,7 +905,7 @@ class RpcGroup:
                     "Rpc paired class call to Role {} failed".format(to)
                 )
                 WORLD.role_dispatcher.notify_failure(
-                    self._parse_role(to)
+                    _parse_role(to)
                 )
 
             if not retry:
@@ -920,7 +936,7 @@ class RpcGroup:
                     "Rpc nn module call to Role {} failed".format(to)
                 )
                 WORLD.role_dispatcher.notify_failure(
-                    self._parse_role(to)
+                    _parse_role(to)
                 )
             if not retry:
                 break
@@ -948,7 +964,7 @@ class RpcGroup:
         Args:
             role: A string like "some_role:10"
         """
-        return self._parse_role(role) in self.group_roles
+        return _parse_role(role) in self.group_roles
 
     def get_group_members(self) -> List[Tuple[str, int]]:
         """
@@ -971,19 +987,8 @@ class RpcGroup:
     @classmethod
     def _get_real_name(cls, role: RoleHandle) -> str:
         # get the real rpc process name used in rpc api call
-        role = cls._parse_role(role)
+        role = _parse_role(role)
         return str(WORLD.role_dispatcher.get_rank(role))
-
-    @staticmethod
-    def _parse_role(role: RoleHandle) -> Tuple:
-        if (isinstance(role, tuple) and len(role) == 2 and
-                isinstance(role[0], str) and isinstance(role[1], int)):
-            return role
-        # parse a role string "some_role:10" to tuple ("some_role", 10)
-        role = list(role.split(':'))
-        role[1] = int(role[1])
-        role = tuple(role)
-        return role
 
     @staticmethod
     def _get_real_class_method(method):

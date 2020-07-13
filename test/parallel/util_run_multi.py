@@ -1,9 +1,10 @@
+from machin.parallel.distributed import World, get_world
 from machin.parallel.process import Process
 from machin.utils.logging import default_logger
 from .util_rpc_mocker import RpcMocker
 from torch.distributed import rpc
 from typing import Any, List
-from time import sleep
+from time import time, sleep
 import dill
 import mock
 import pytest
@@ -74,9 +75,10 @@ def run_multi(processes, func, args_list=None, kwargs_list=None):
     return result, result_watcher
 
 
-def watch(rpc_mocker, processes, result_watcher):
+def watch(processes, result_watcher, rpc_mocker=None):
     while True:
-        rpc_mocker.watch()
+        if rpc_mocker is not None:
+            rpc_mocker.watch()
         for p in processes[0]:
             p.watch()
         if result_watcher():
@@ -159,3 +161,24 @@ class RpcTestBase(object):
             rpc_mocker.get_mocker_rpc_async(),
             rpc_mocker.get_mocker_rpc_sync()
         )),) for i in [0, 1, 2]]
+
+
+class WorldTestBase(object):
+    @staticmethod
+    def subproc_start_world(rank, roles):
+        # election function for all tests
+        world = World(world_size=3, rank=rank, roles=roles,
+                      rpc_timeout=0.5, election_timeout=0.3, logging=True)
+
+        # set a temporary success attribute on world
+        world.success = {}
+        default_logger.info("World created on {}".format(rank))
+
+    @staticmethod
+    def subproc_run_world(_, run_time=10):
+        begin = time()
+        world = get_world()
+        while time() - begin < run_time:
+            world.watch()
+            sleep(1e-1)
+        return world.success

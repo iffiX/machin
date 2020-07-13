@@ -145,7 +145,7 @@ class PushPullGradServer:
                 reached this size.
             max_queue_size: Maximum reduction request queue size.
         """
-        assert master_reduce_role in group.get_group_members()
+        assert group.is_member(master_reduce_role)
         self.model_name = model_name
         self.server = (
             OrderedServerSimple(
