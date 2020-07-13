@@ -13,20 +13,20 @@ pipeline {
     stages {
         stage('Install') {
             steps {
+                sh 'nvidia-smi' // make sure gpus are loaded
+                echo "Building branch: ${env.BRANCH_NAME}"
+                echo "Building tag: ${env.TAG_NAME}"
+                sh 'mkdir -p ~/.pip && touch ~/.pip/pip.conf'
+                sh 'sed -i -r \'s|deb http://.+/ubuntu| deb [arch=amd64] http://apt.mirror.node2/ubuntu|g\' /etc/apt/sources.list'
+                sh '''
+                   echo '
+                   [global]
+                   index-url = http://pypi.mirror.node2/root/pypi/+simple/
+                   trusted-host = pypi.mirror.node2
+                   [search]
+                   index = http://pypi.mirror.node2/root/pypi/
+                   ' | tee ~/.pip/pip.conf'''
                 retry(count: 3) {
-                    sh 'nvidia-smi' // make sure gpus are loaded
-                    echo "Building branch: ${env.BRANCH_NAME}"
-                    echo "Building tag: ${env.TAG_NAME}"
-                    sh 'mkdir ~/.pip && touch ~/.pip/pip.conf'
-                    sh 'sed -i -r \'s|deb http://.+/ubuntu| deb [arch=amd64] http://apt.mirror.node2/ubuntu|g\' /etc/apt/sources.list'
-                    sh '''
-                       echo '
-                       [global]
-                       index-url = http://pypi.mirror.node2/root/pypi/+simple/
-                       trusted-host = pypi.mirror.node2
-                       [search]
-                       index = http://pypi.mirror.node2/root/pypi/
-                       ' | tee ~/.pip/pip.conf'''
                     sh 'apt clean'
                     sh 'apt update'
                     sh 'apt -o APT::Acquire::Retries="3" --fix-missing install -y wget freeglut3-dev xvfb fonts-dejavu graphviz'
