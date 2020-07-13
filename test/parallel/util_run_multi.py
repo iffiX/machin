@@ -3,6 +3,7 @@ from machin.utils.logging import default_logger
 from .util_rpc_mocker import RpcMocker
 from torch.distributed import rpc
 from typing import Any, List
+from time import sleep
 import dill
 import mock
 import pytest
@@ -65,7 +66,7 @@ def run_multi(processes, func, args_list=None, kwargs_list=None):
 
     def result_watcher():
         for p, pi, i in zip(procs, proc_pipes, [0, 1, 2]):
-            if pi.poll(timeout=1e-3):
+            if pi.poll(timeout=1e-1):
                 result[i] = pi.recv()
                 finished[i] = True
         return all(finished)
@@ -80,6 +81,7 @@ def watch(rpc_mocker, processes, result_watcher):
             p.watch()
         if result_watcher():
             break
+        sleep(1e-1)
 
 
 class Rpc(RpcMocker):

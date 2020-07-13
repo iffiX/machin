@@ -1,5 +1,4 @@
 from enum import Enum
-from time import sleep
 from datetime import datetime
 from queue import Queue, Empty
 from abc import ABC, abstractmethod
@@ -161,9 +160,6 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
     Code in this class implements the algorithm described in Figure 4 with
     optimizations in Figure 5 of the essay.
     """
-    # The ratio of timeout value to sleep time between probes.
-    SLEEP_DIVISION = 1000
-
     # Stores references to all stable election groups, rpc calls
     # relies on this dictionary to find the target election group
 
@@ -201,7 +197,7 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
         self.timer = Timer()
         self.alive_timer = Timer()
         self.timeout_recv_timer = Timer()
-        self.timeout_recv_ok_or_start = False
+        self.timeout_recv_ok_or_start = Event()
         self.timeout_recv_pong = []
         self.timeout_round = -1
         self.timeout = timeout
@@ -336,7 +332,7 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
             self._log("move to higher round {}".format(message[1]))
             self._start_round(message[1])
             if message[1] > self.timeout_round:
-                self.timeout_recv_ok_or_start = True
+                self.timeout_recv_ok_or_start.set()
 
         elif (message[0] in (MType.OK, MType.START) and
               message[1] < cur_round):
@@ -372,7 +368,7 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
 
             # if the any of the above described event has happened, then the
             # newer round will always >= cur_round
-
+            self.leader_change_event.wait(self.timeout)
             with self.lock:
                 cur_round = self.cur_round
                 cur_leader_rank = cur_round % len(self.member_ranks)
@@ -386,14 +382,10 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
                 self.timeout_recv_pong.clear()
                 self._send_all((MType.PING, cur_round))
 
-                self.timeout_recv_ok_or_start = False
-                self.timeout_recv_timer.begin()
+                self.timeout_recv_ok_or_start.clear()
+                self.timeout_recv_ok_or_start.wait(2 * self.timeout)
 
-                while (not self.timeout_recv_ok_or_start and
-                       self.timeout_recv_timer.end() <= 2 * self.timeout):
-                    sleep(self.timeout / self.SLEEP_DIVISION)
-
-                if self.timeout_recv_ok_or_start:
+                if self.timeout_recv_ok_or_start.is_set():
                     self._log("start higher round / find higher leader")
                     continue
 
@@ -419,20 +411,18 @@ download?doi=10.1.1.89.4817&rep=rep1&type=pdf>`_
                         self._log("select process: [{}], start round: {}"
                                   .format(avail_rank, new_round))
                         self._start_round(new_round)
-            else:
-                sleep(self.timeout / self.SLEEP_DIVISION)
         self._log("timeout task exit normally")
 
     def _task_keep_alive(self):
         # The keep alive task defined in essay.
         while self.run:
+            self.leader_change_event.wait(self.timeout)
             cur_round = self.cur_round
             if self.rank == cur_round % len(self.member_ranks):
                 if self.alive_timer.end() >= self.timeout:
                     self._log("notify aliveness")
                     self._send_all((MType.OK, cur_round))
                     self.alive_timer.begin()
-            sleep(self.timeout / self.SLEEP_DIVISION)
         self._log("keep alive task exit normally")
 
     def _log(self, msg):
@@ -488,11 +478,12 @@ class ElectionGroupStableRpc(ElectionGroupStableBase):
     def _task_handle(self):
         while self.run:
             try:
-                packet = self.recv_queue.get(block=True, timeout=1e-3)
+                packet = self.recv_queue.get(block=True, timeout=1e-2)
             except Empty:
                 pass
             else:
                 self._handle(*packet)
+        self._log("handle task exit normally")
 
     def _recv(self, timestamp, src, message):
         # should only be called by _reply

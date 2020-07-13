@@ -1,5 +1,6 @@
 from multiprocessing import Manager
 from machin.parallel.thread import Thread
+from machin.utils.logging import default_logger
 from queue import Empty
 import dill
 import time
@@ -24,23 +25,20 @@ def send(cmd_conn, obj, side):
         cmd_conn[2].set()
 
 
-def recv(cmd_conn, side):
+def recv(cmd_conn, side, timeout=None):
     # send and recv must be paired on two sides!
     if side == 0:
-        cmd_conn[2].wait()
+        if not cmd_conn[2].is_set():
+            if not cmd_conn[2].wait(timeout):
+                return None
         cmd_conn[2].clear()
         return cmd_conn[0]["data"]
     else:
-        cmd_conn[1].wait()
+        if not cmd_conn[1].is_set():
+            if not cmd_conn[1].wait(timeout):
+                return None
         cmd_conn[1].clear()
         return cmd_conn[0]["data"]
-
-
-def poll(cmd_conn, side):
-    if side == 0:
-        return cmd_conn[2].is_set()
-    else:
-        return cmd_conn[1].is_set()
 
 
 def make_conn(manager):
@@ -64,13 +62,15 @@ class RpcMocker(object):
         # Pipe is the most reasonable choice, but could not be used here:
         # eg: suppose we are using "spawn" instead of "fork" to start
         # new processes
-        # in process A (eg: pytest fixture) we create the mocker
+        # in process A  we create the mocker
         # then in process B we perform RpcMocker.start() and
         # spawn multiple process Cs,
         # and in C we perform injected init_rpc(),
         # because A have exited, the pipes are closed and therefore in
         # B and C we have invalid pipe file descriptors.
         # We use managed resources so things can be used and cleaned up safely.
+
+        # Seems that pytest.fixture has the above issue
 
         # two events are used to notify two ends
         self._cmd_conn = [make_conn(self._ctx_man)
@@ -83,23 +83,36 @@ class RpcMocker(object):
         self._result_write_lock = threading.Lock()
         self._result_table = {}
         self._request_counter = 0
-        self._router = Thread(target=self._router_main)
+        self._router_threads = [Thread(target=self._router_main, args=(p,))
+                                for p in range(process_num)]
+        self._delay_thread = Thread(target=self._delay_main)
         self._result_maintainer = Thread(
             target=self._result_maintainer_main
         )
 
     def start(self):
-        self._router.start()
+        for t in self._router_threads:
+            t.daemon = True
+            t.start()
+        self._delay_thread.daemon = True
+        self._delay_thread.start()
+        self._result_maintainer.daemon = True
         self._result_maintainer.start()
 
     def watch(self):
-        self._router.watch()
+        for t in self._router_threads:
+            t.watch()
+        self._delay_thread.watch()
         self._result_maintainer.watch()
 
     def stop(self):
         self._stop = True
-        self._router.join()
+        for t in self._router_threads:
+            t.join()
+        self._delay_thread.join()
         self._result_maintainer.join()
+        self._ctx_man.shutdown()
+        self._ctx_man.join()
 
     @staticmethod
     def interposer(obj, timestamp, src, to, fuzz, token):
@@ -226,7 +239,7 @@ class RpcMocker(object):
                                 break
                         if time.time() - timestamp >= timeout:
                             raise TimeoutError("Rpc timeout")
-                        time.sleep(1e-3)
+                        time.sleep(1e-2)
                     with rpc_mocker_lock:
                         send(cmd_conn, ("rpc_async_result", token), 0)
                         status, result = recv(cmd_conn, 0)
@@ -278,7 +291,7 @@ class RpcMocker(object):
                         break
                 if time.time() - timestamp >= timeout:
                     raise TimeoutError("Rpc timeout")
-                time.sleep(1e-3)
+                time.sleep(1e-2)
             with rpc_mocker_lock:
                 send(cmd_conn, ("rpc_sync_result", token), 0)
                 status, result = recv(cmd_conn, 0)
@@ -292,7 +305,7 @@ class RpcMocker(object):
     def _result_maintainer_main(self):
         while not self._stop:
             expired_tokens = []
-            if self._result_write_lock.acquire(timeout=1e-3):
+            with self._result_write_lock:
                 for k, v in self._result_table.items():
                     if (v is not None and
                             time.time() - v[0] > self.result_expire_time):
@@ -303,83 +316,83 @@ class RpcMocker(object):
                         print("Rpc result expired: {}, value: {}"
                               .format(k, self._result_table[k][1]))
                     self._result_table.pop(k)
-                self._result_write_lock.release()
 
             # sleep to prevent starve the router thread
             # and overload the lock, since it is repeatedly
             # releasing and locking, will make pytest hang
-            time.sleep(self.result_expire_time / 100)
+            time.sleep(self.result_expire_time / 10)
+        default_logger.info("RpcMocker result maintainer thread exit normally")
 
-    def _router_main(self):
+    def _router_main(self, process_id):
+        conn = self._cmd_conn[process_id]
         while not self._stop:
-            for conn, process_id in zip(self._cmd_conn,
-                                        range(self.process_num)):
-                if not poll(conn, 1):
+            data = recv(conn, 1, timeout=0.1)
+            if data is None:
+                continue
+            conn_cmd, *obj = data
+            if conn_cmd == "init_rpc":
+                name = obj[0]
+                if name in self._route_table:
+                    send(conn, False, 1)
+                self._route_table[name] = process_id
+                send(conn, True, 1)
+            elif conn_cmd in {"rpc_async", "rpc_sync"}:
+                if obj[0] not in self._route_table:
+                    print("Warning: {} not registered in rpc."
+                          .format(obj[0]))
+                    send(conn, ("unresolved", None), 1)
                     continue
+
+                timestamp = time.time()
+                src = process_id
+                to = self._route_table[obj[0]]
+                fuzz = self.route_fuzzer()
+                token = self._request_counter
+
+                interposer_cmd, *packet = self.interposer(
+                    obj, timestamp, src, to, fuzz, token
+                )
+
+                if interposer_cmd == "drop":
+                    send(conn, ("drop", None), 1)
+                    continue
+                elif interposer_cmd == "delay":
+                    self._delay_queue.put_nowait(packet)
+                    send(conn, ("delay", token), 1)
+                    self._request_counter += 1
+                elif interposer_cmd == "ok":
+                    self._cmd_queues[to].put_nowait(packet)
+                    send(conn, ("ok", token), 1)
+                    self._request_counter += 1
                 else:
-                    conn_cmd, *obj = recv(conn, 1)
-                    if conn_cmd == "init_rpc":
-                        name = obj[0]
-                        if name in self._route_table:
-                            send(conn, False, 1)
-                        self._route_table[name] = process_id
-                        send(conn, True, 1)
-                    elif conn_cmd in {"rpc_async", "rpc_sync"}:
-                        if obj[0] not in self._route_table:
-                            print("Warning: {} not registered in rpc."
-                                  .format(obj[0]))
-                            send(conn, ("unresolved", None), 1)
-                            continue
+                    raise RuntimeError("Unknown interposer command: {}"
+                                       .format(interposer_cmd))
+            elif conn_cmd in {"rpc_async_result", "rpc_sync_result"}:
+                token = obj[0]
+                with self._result_write_lock:
+                    if token in self._result_table:
+                        send(conn,
+                             ("ok", self._result_table[token][1]), 1)
+                    else:
+                        send(conn, ("expired", None), 1)
+                    self._result_table.pop(token)
+            elif conn_cmd in {"rpc_async_result_poll",
+                              "rpc_sync_result_poll"}:
+                token = obj[0]
+                with self._result_write_lock:
+                    send(conn, token in self._result_table, 1)
+            elif conn_cmd == "rpc_async_sync_response":
+                to, token, result = obj
+                with self._result_write_lock:
+                    self._result_table[token] = (time.time(), result)
+                send(conn, True, 1)
+        default_logger.info("RpcMocker router thread {} exit normally"
+                            .format(process_id))
 
-                        timestamp = time.time()
-                        src = process_id
-                        to = self._route_table[obj[0]]
-                        fuzz = self.route_fuzzer()
-                        token = self._request_counter
-
-                        interposer_cmd, *packet = self.interposer(
-                            obj, timestamp, src, to, fuzz, token
-                        )
-
-                        if interposer_cmd == "drop":
-                            send(conn, ("drop", None), 1)
-                            continue
-                        elif interposer_cmd == "delay":
-                            self._delay_queue.put_nowait(packet)
-                            send(conn, ("delay", token), 1)
-                            self._request_counter += 1
-                        elif interposer_cmd == "ok":
-                            self._cmd_queues[to].put_nowait(packet)
-                            send(conn, ("ok", token), 1)
-                            self._request_counter += 1
-                        else:
-                            raise RuntimeError("Unknown interposer command: {}"
-                                               .format(interposer_cmd))
-                    elif conn_cmd in {"rpc_async_result", "rpc_sync_result"}:
-                        token = obj[0]
-                        if self._result_write_lock.acquire(timeout=1e-3):
-                            if token in self._result_table:
-                                send(conn,
-                                     ("ok", self._result_table[token][1]), 1)
-                            else:
-                                send(conn, ("expired", None), 1)
-                            self._result_table.pop(token)
-                            self._result_write_lock.release()
-                    elif conn_cmd in {"rpc_async_result_poll",
-                                      "rpc_sync_result_poll"}:
-                        token = obj[0]
-                        if self._result_write_lock.acquire(timeout=1e-3):
-                            send(conn, token in self._result_table, 1)
-                            self._result_write_lock.release()
-                    elif conn_cmd == "rpc_async_sync_response":
-                        to, token, result = obj
-                        if self._result_write_lock.acquire(timeout=1e-3):
-                            self._result_table[token] = (time.time(), result)
-                            self._result_write_lock.release()
-                        send(conn, True, 1)
-
-            if not self._delay_queue.empty():
-                packet = self._delay_queue.get(timeout=1e-3)
+    def _delay_main(self):
+        while not self._stop:
+            try:
+                packet = self._delay_queue.get(timeout=1e-1)
                 interposer_cmd, *packet = self.interposer(*packet)
                 if interposer_cmd in "delay":
                     self._delay_queue.put_nowait(packet)
@@ -389,6 +402,9 @@ class RpcMocker(object):
                 else:
                     raise RuntimeError("Unknown interposer command: {}"
                                        .format(interposer_cmd))
+            except Empty:
+                continue
+        default_logger.info("RpcMocker delay thread exit normally")
 
     @staticmethod
     def _pack_packet(packet):
@@ -406,7 +422,7 @@ class RpcMocker(object):
         while rpc_mocker_running:
             try:
                 obj, _timestamp, src, _to, _fuzz, token = \
-                    queue.get(timeout=1e-3)
+                    queue.get(timeout=0.1)
                 _to_name, func, args, kwargs = obj
                 result = func(*args, **kwargs)
                 cmd_conn = rpc_mocker_cmd_conn

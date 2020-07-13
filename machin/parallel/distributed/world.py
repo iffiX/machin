@@ -136,7 +136,11 @@ def get_cur_rank():
 
 
 def get_cur_roles():  # pragma: no cover
-    return WORLD.rpc_role_dispatcher.get_roles()
+    """
+    Returns:
+        Roles executed by current real process.
+    """
+    return WORLD.role_dispatcher.get_roles()
 
 
 def get_cur_role():  # pragma: no cover
@@ -168,6 +172,9 @@ class RpcException(Exception):  # pragma: no cover
             super(RpcException, self).__init__(str(msg))
 
 
+RoleHandle = Union[str, Tuple[str, int]]
+
+
 @_world_singleton
 class World:
     """
@@ -180,9 +187,11 @@ class World:
                  init_method: str = "tcp://localhost:9100",
                  rpc_timeout: float = 60,
                  rpc_threads: int = 8,
-                 rpc_role_dispatcher: Any = None,
+                 election_group: Any = None,
+                 role_dispatcher: Any = None,
                  election_timeout: float = 1e-1,
-                 logging: bool = False,
+                 auto_restart: bool = True,
+                 logging: bool = False
                  ):
         """
         Args:
@@ -193,13 +202,14 @@ class World:
             init_method:  Backend initialization method.
             rpc_timeout:  Global rpc call timeout in seconds.
             rpc_threads:  Rpc recv/send thread num.
-            rpc_role_dispatcher: Rpc role dispatch, by default it is
+            election_group: Election group.
+            role_dispatcher: Role dispatcher, by default it is
                 :class:`~machin.parallel.distributed.\
 RoleDispatcherElection` and uses :class:`machin.parallel.\
 distributed.ElectionGroupStableRpc` as its internal election implementation.
             election_timeout: The default election timeout value
                 for the default election group used by the default
-                ``rpc_role_dispatcher``.
+                ``role_dispatcher``.
             logging: Whether to enable logging
         """
         self.world_size = world_size
@@ -217,12 +227,9 @@ distributed.ElectionGroupStableRpc` as its internal election implementation.
         else:
             self.logger = fake_logger
 
-        if rpc_role_dispatcher is not None:  # pragma: no cover
-            self.rpc_role_dispatcher = rpc_role_dispatcher
-            self.election_group = rpc_role_dispatcher.election_group
+        if election_group is not None:  # pragma: no cover
+            self.election_group = election_group
         else:
-            role_names = list(roles.keys())
-            role_counts = [val[1] for val in roles.values()]
             self.election_group = ElectionGroupStableRpc(
                 name="global",
                 member_ranks=self.ranks,
@@ -230,7 +237,13 @@ distributed.ElectionGroupStableRpc` as its internal election implementation.
                 timeout=election_timeout,
                 logging=logging
             )
-            self.rpc_role_dispatcher = RoleDispatcherElection(
+
+        if role_dispatcher is not None:  # pragma: no cover
+            self.role_dispatcher = role_dispatcher
+        else:
+            role_names = list(roles.keys())
+            role_counts = [val[1] for val in roles.values()]
+            self.role_dispatcher = RoleDispatcherElection(
                 name="world_dispatcher",
                 rank=rank, world_size=world_size,
                 roles=role_names, role_counts=role_counts,
@@ -250,10 +263,11 @@ distributed.ElectionGroupStableRpc` as its internal election implementation.
 
         # Start role dispatching.
         self.started = True
+        self.auto_restart = auto_restart
         self.stop_event = Event()
         self.run_disp_thread = Thread(target=self._task_run_dispatched_roles)
         self.run_disp_thread.start()
-        self.rpc_role_dispatcher.start()
+        self.role_dispatcher.start()
         self.rpc_timeout = rpc_timeout
 
     def stop(self):  # pragma: no cover
@@ -267,7 +281,7 @@ distributed.ElectionGroupStableRpc` as its internal election implementation.
         else:
             self.stop_event.set()
             self.run_disp_thread.join()
-            self.rpc_role_dispatcher.stop()
+            self.role_dispatcher.stop()
             self.election_group.stop()
             try:
                 rpc.shutdown()
@@ -278,7 +292,7 @@ distributed.ElectionGroupStableRpc` as its internal election implementation.
         self.run_disp_thread.watch()
         for t in self.role_threads.values():
             t.watch()
-        self.rpc_role_dispatcher.watch()
+        self.role_dispatcher.watch()
         self.election_group.watch()
 
     def create_collective_group(self,
@@ -323,24 +337,55 @@ distributed.ElectionGroupStableRpc` as its internal election implementation.
         if role not in roles:  # pragma: no cover
             raise RuntimeError("Current role is not a part of roles of "
                                "your rpc group!")
-        group = RpcGroup(group_name, roles)
+        group = RpcGroup(role, group_name, roles)
         self.groups[(get_cur_role(), group_name)] = group
         return group
 
-    def get_rpc_group(self, group_name: str):
+    def get_rpc_group(self, group_name: str, role: RoleHandle = None):
         """
-        Get group with name ``group_name``
+        Get group with name ``group_name``, and created by ``role``.
+
+        Note:
+            If ``role`` is not specified, will use :func: `.get_cur_role` to
+            resolve the ``role``.
+
+            If you are calling this function from a sub-thread started by
+            your role, you must specify ``role``, otherwise a ``RuntimeError``
+            will be raised.
+
+        Note:
+            If ``role`` is not allocated to this process, a rpc request
+            will be performed to query the process allocated with the target
+            role for the group, you may perform rpc calls on the returned
+            group, but all register paired values on the returned group
+            are not effective. The ``cur_role`` property of the returned
+            group will be set to ``(None, -1)``
+
+            This behavior could be useful if you are trying to access a
+            value/service in the target rpc group from a member outside
+            the rpc group.
 
         Args:
             group_name: Group name
 
         Returns:
-            Target group
+            Target group, ``None`` if not found
         """
-        return self.groups.get((get_cur_role(), group_name), None)
+        if role is None:
+            role = get_cur_role()
+        if role in get_cur_roles():
+            return self.groups.get((role, group_name), None)
+        else:
+            target_process = str(self.role_dispatcher.get_rank(role))
+            remote_world = rpc.remote(target_process,
+                                      func=get_world())
+            return rpc.rpc_sync(target_process,
+                                _rpc_call_remote_method,
+                                args=(World.get_rpc_group, remote_world,
+                                      (group_name, role), {}))
 
     def _task_run_dispatched_roles(self):
-        dispatcher = self.rpc_role_dispatcher
+        dispatcher = self.role_dispatcher
         event = OrEvent(self.stop_event, dispatcher.get_role_update_event())
         while True:
             event.wait()
@@ -356,6 +401,25 @@ distributed.ElectionGroupStableRpc` as its internal election implementation.
                                          args=(role_class, role))
                     role_thread.start()
                     self.role_threads[role] = role_thread
+                elif not self.role_threads[role].is_alive():
+                    if self.role_threads[role].exception is not None:
+                        self.logger.warning(
+                            "Role {} have exited with exception:"
+                            "{}"
+                            .format(
+                                role,
+                                str(self.role_threads[role].exception)
+                            )
+                        )
+                        if self.auto_restart:
+                            self.logger.warning("Restart Role {}".format(role))
+                            role_class = self.role_dict[role[0]][0]
+                            self.role_threads[role].join()
+                            role_thread = Thread(target=_exec_role,
+                                                 args=(role_class, role))
+                            role_thread.start()
+                        else:
+                            raise self.role_threads[role].exception
 
     def __reduce__(self):  # pragma: no cover
         raise RuntimeError("World is not picklable, create it per process!")
@@ -493,12 +557,18 @@ class CollectiveGroup:
     def __del__(self):
         self.destroy()
 
-
-RoleHandle = Union[str, Tuple[str, int]]
+# Since roles are executed by threads scattered to all processes,
+# we use (get_cur_role(), group_name) as a unique key to identify groups
+# in the global WORLD.groups map, the first key is used to prevent:
+#
+#   Roles from the same RpcGroup are assigned to the same rpc process, then
+#   their group_paired_map will overlap if we only use "group_name" as a unique
+#   key in the global WORLD.groups map
 
 
 class RpcGroup:
-    def __init__(self, group_name, group_roles):
+    def __init__(self, cur_role, group_name, group_roles):
+        self.cur_role = cur_role
         self.group_name = group_name
         self.group_roles = group_roles
         self.group_paired_map = {}
@@ -615,7 +685,7 @@ class RpcGroup:
                                   _rpc_get_remote_paired_value,
                                   args=(target, self.group_name, name))
             except RuntimeError:
-                WORLD.rpc_role_dispatcher.notify_failure(
+                WORLD.role_dispatcher.notify_failure(
                     self._parse_role(target)
                 )
                 if not retry:
@@ -786,7 +856,7 @@ class RpcGroup:
                     "Rpc normal call(func={}) to Role {} failed"
                     .format(func.__qualname__, to)
                 )
-                WORLD.rpc_role_dispatcher.notify_failure(
+                WORLD.role_dispatcher.notify_failure(
                     self._parse_role(to)
                 )
             if not retry:
@@ -818,7 +888,7 @@ class RpcGroup:
                 self._log_err(
                     "Rpc paired class call to Role {} failed".format(to)
                 )
-                WORLD.rpc_role_dispatcher.notify_failure(
+                WORLD.role_dispatcher.notify_failure(
                     self._parse_role(to)
                 )
 
@@ -849,7 +919,7 @@ class RpcGroup:
                 self._log_err(
                     "Rpc nn module call to Role {} failed".format(to)
                 )
-                WORLD.rpc_role_dispatcher.notify_failure(
+                WORLD.role_dispatcher.notify_failure(
                     self._parse_role(to)
                 )
             if not retry:
@@ -861,7 +931,8 @@ class RpcGroup:
         Destroy the rpc group.
         """
         if not self.destroyed:
-            WORLD.groups.pop(get_cur_role(), self.group_name)
+            if self.cur_role[0] is not None:
+                WORLD.groups.pop(self.cur_role, self.group_name)
             self.destroyed = True
 
     def size(self):
@@ -886,6 +957,9 @@ class RpcGroup:
         """
         return self.group_roles
 
+    def get_cur_role(self):
+        return self.cur_role
+
     def _log(self, msg):
         WORLD.logger.info("Rpc group<{}> Process[{}]: {}"
                           .format(self.group_name, get_cur_rank(), msg))
@@ -894,19 +968,11 @@ class RpcGroup:
         WORLD.logger.error("Rpc group<{}> Process[{}]: {}"
                            .format(self.group_name, get_cur_rank(), msg))
 
-    @staticmethod
-    def get_cur_role():
-        """
-        Returns:
-            Current role of the executor thread.
-        """
-        return get_cur_role()
-
     @classmethod
     def _get_real_name(cls, role: RoleHandle) -> str:
         # get the real rpc process name used in rpc api call
         role = cls._parse_role(role)
-        return str(WORLD.rpc_role_dispatcher.get_rank(role))
+        return str(WORLD.role_dispatcher.get_rank(role))
 
     @staticmethod
     def _parse_role(role: RoleHandle) -> Tuple:
@@ -934,7 +1000,8 @@ class RpcGroup:
             return method
 
     def __reduce__(self):  # pragma: no cover
-        raise RuntimeError("Group is not picklable, create it per process!")
+        # returns a complete description of group
+        return RpcGroup, ((None, -1), self.group_name, self.group_roles)
 
     def __del__(self):
         self.destroy()

@@ -14,6 +14,7 @@ def watch(processes, result_watcher):
             p.watch()
         if result_watcher():
             break
+        sleep(1e-3)
 
 
 class WorkerService(object):
@@ -195,7 +196,7 @@ class TestWorld(object):
         global success
         success = {}
         world = World(world_size=3, rank=rank, roles=roles,
-                      rpc_timeout=0.5, election_timeout=0.1, logging=True)
+                      rpc_timeout=0.5, election_timeout=0.3, logging=True)
         default_logger.info("World created on {}".format(rank))
 
     @classmethod
@@ -204,7 +205,7 @@ class TestWorld(object):
         begin = time.time()
         while time.time() - begin < run_time:
             world.watch()
-            time.sleep(1e-3)
+            time.sleep(1e-1)
         return success
 
     ########################################################################
@@ -327,7 +328,7 @@ class TestWorld(object):
         default_logger.info("All world inited")
         result, watcher = run_multi(processes,
                                     self.subproc_start_world_with_roles,
-                                    args_list=[(3,)] * 3)
+                                    args_list=[(5,)] * 3)
         watch(processes, watcher)
         success = {}
         for r in result:

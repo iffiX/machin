@@ -8,7 +8,7 @@ from .role_dispatcher import \
     RoleDispatcherBase, \
     RoleDispatcherSimple, \
     RoleDispatcherElection
-from .world import World, CollectiveGroup, RpcGroup
+from .world import World, RoleHandle, CollectiveGroup, RpcGroup
 
 from . import election
 from . import role
@@ -24,6 +24,6 @@ __all__ = [
     "RoleDispatcherBase",
     "RoleDispatcherSimple",
     "RoleDispatcherElection",
-    "World", "CollectiveGroup", "RpcGroup",
+    "World", "RoleHandle", "CollectiveGroup", "RpcGroup",
     "election", "role", "role_dispatcher", "world"
 ]

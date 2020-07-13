@@ -100,6 +100,7 @@ class TestElectionGroupStableRpc(RpcTestBase):
         leader = elect_group.get_leader()
         members = elect_group.get_members()
         elect_group.stop()
+        rpc.shutdown()
         return is_leader, leader, members
 
     ########################################################################
@@ -122,11 +123,11 @@ class TestElectionGroupStableRpc(RpcTestBase):
         log = []
         log_times = list(log_times)
         while time.time() - begin < cls.TIMEOUT_DELTA * run_time:
-            time.sleep(cls.TIMEOUT_DELTA / 1000)
+            time.sleep(cls.TIMEOUT_DELTA / 100)
             elect_group.watch()
             if (log_times and
-                    time.time() - begin >= cls.TIMEOUT_DELTA * log_times[
-                        0]):
+                    time.time() - begin >=
+                    cls.TIMEOUT_DELTA * log_times[0]):
                 log_times.pop(0)
                 is_leader = elect_group.is_leader()
                 leader = elect_group.get_leader()
@@ -139,6 +140,7 @@ class TestElectionGroupStableRpc(RpcTestBase):
                     )
                 )
         elect_group.stop()
+        rpc.shutdown()
         return log
 
     ########################################################################

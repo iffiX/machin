@@ -1,11 +1,16 @@
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from threading import Lock
-from random import choice
-from machin.parallel.distributed import RpcGroup
+from ..distributed import RoleHandle, RpcGroup
 
 
 class OrderedServerBase(ABC):
+    """
+    Descendent classes of OrderedServer does not have to guarantee strong
+    consistency, that is, even if :meth:`.OrderedServerBase.push_service``
+    has returned True, there are possibilities that these acknowledged
+    push are discarded.
+    """
     @abstractmethod
     def push(self, key, value, version, prev_version):
         """
@@ -44,108 +49,80 @@ class OrderedServerBase(ABC):
         pass
 
 
-class SimpleOrderedServer(OrderedServerBase):
+class OrderedServerSimple(OrderedServerBase):
     """
-    A simple key-value server, with strict ordered update and automatic
-    replication.
-
-    Note:
-        This simple implementation is based on a master-slave architecture,
-        and only provides availability, but provides no guarantee on
-        consistency, if master fails, the whole server group
-        will fail.
+    A simple key-value server, with strict ordered update
     """
     def __init__(self,
+                 server_name: str,
+                 server_role: RoleHandle,
                  group: RpcGroup,
-                 master: int = 0,
                  version_depth: int = 1,
                  **__):
         """
         Args:
-            group: The rpc group of this server.
-            master: The relative rpc rank of the master server. Must
-                be less than group size.
+            server_name: Name of this server, used to registered
+                the server as a paired class of ``group``.
+            server_role: The role serving the ordered server.
+            group: Rpc group where server locates.
             version_depth: Storage depth of old versions of the same
                 key. If ``depth = 1``, then only the newest version
                 of the key will be saved.
         """
+        assert server_role in group.get_group_members()
+        assert version_depth > 0 and isinstance(version_depth, int)
+
+        self.server_name = server_name
+        self.server_role = server_role
         self.group = group
-        self.group.rpc_register_paired(self.__class__, self)
         self.storage = {}
         self.lock = Lock()
         self.log_depth = version_depth
-        self.master = self.group.get_group_members()[master]
-        self.slaves = [member
-                       for member in self.group.get_group_members()
-                       if member != self.master]
-
-        assert version_depth > 0 and isinstance(version_depth, int)
+        self.group.rpc_register_paired(
+            server_name, self
+        )
 
     def push(self, key, value, version, prev_version):
         # DOC INHERITED
-        return self.group.rpc_paired_class_sync(self.master,
-                                                self._reply_push,
-                                                self.__class__,
-                                                args=(key, value, version,
-                                                      prev_version))
+        return self.group.rpc_paired_class_sync(
+            self.server_role, self._push_service, self.server_name,
+            args=(key, value, version, prev_version)
+        )
 
     def pull(self, key, version=None):
         # DOC INHERITED
-        to = choice(self.group.get_group_members())
-        return self.group.rpc_paired_class_sync(to,
-                                                self._reply_pull,
-                                                self.__class__,
-                                                args=(key, version))[1]
+        return self.group.rpc_paired_class_sync(
+            self.server_role, self._pull_service, self.server_name,
+            args=(key, version)
+        )
 
-    def _reply_push(self, key, value, version, prev_version):
+    def _push_service(self, key, value, version, prev_version):
         success = False
-        self.lock.acquire()
-        if key in self.storage:
-            ref = self.storage[key]
-            # Check previous version consistency.
-            if next(reversed(ref)) == prev_version:
+        with self.lock:
+            if key in self.storage:
+                ref = self.storage[key]
+                # Check previous version consistency.
+                if next(reversed(ref)) == prev_version:
+                    ref[version] = value
+                    success = True
+                if len(ref) > self.log_depth + 1:
+                    ref.pop(0)
+            else:
+                # Create a new key.
+                ref = self.storage[key] = OrderedDict()
                 ref[version] = value
                 success = True
-            if len(ref) > self.log_depth + 1:
-                ref.pop(0)
-        else:
-            # Create a new key.
-            ref = self.storage[key] = OrderedDict()
-            ref[version] = value
-            success = True
-
-        future = []
-        for slave in self.slaves:
-            # push updates to slaves
-            future.append(self.group.rpc_paired_class_sync(
-                slave, self._master_sync, self.__class__,
-                args=(key, value, version)
-            ))
-
-        self.lock.release()
         return success
 
-    def _reply_pull(self, key, version):
+    def _pull_service(self, key, version=None):
         result = None
-        self.lock.acquire()
-        if key in self.storage:
-            ref = self.storage[key]
-            # Try to find the target version.
-            if version is not None and version in ref:
-                result = (ref[version], version)
-            # Find the newest version.
-            elif version is None:
-                result = (ref[-1], next(reversed(ref)))
-        self.lock.release()
+        with self.lock:
+            if key in self.storage:
+                ref = self.storage[key]
+                # Try to find the target version.
+                if version is not None and version in ref:
+                    result = (ref[version], version)
+                # Find the newest version.
+                elif version is None:
+                    result = (ref[-1], next(reversed(ref)))
         return result
-
-    def _master_sync(self, key, value, version):
-        # faster _reply_push, for master-slave sync
-        if key in self.storage:
-            ref = self.storage[key]
-            ref[version] = value
-            if len(ref) > self.log_depth + 1:
-                ref.pop(0)
-        else:
-            ref = self.storage[key] = OrderedDict()
-            ref[version] = value

@@ -298,6 +298,8 @@ class RoleDispatcherElection(RoleDispatcherBase):
                     return
                 sleep(0.1)
 
+        self._log("task dispatch exit normally")
+
     def _assign_roles(self, failed_roles):
         future = []
         assigned_map = {}
