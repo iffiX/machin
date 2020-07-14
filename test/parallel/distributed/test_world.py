@@ -1,10 +1,17 @@
-from machin.parallel.distributed.role import RoleBase
-from machin.parallel.distributed.world import (
-    get_cur_role, get_cur_rank
-)
 from ..util_run_multi import *
-import time
+import torch.nn as nn
 import torch as t
+
+
+class WorkerModel(nn.Module):
+    def __init__(self):
+        super(WorkerModel, self).__init__()
+        self.fc1 = nn.Linear(1, 1, bias=False)
+        with t.no_grad():
+            self.fc1.weight.fill_(1)
+
+    def forward(self, x):
+        return self.fc1(x)
 
 
 class WorkerService(object):
@@ -22,170 +29,17 @@ def worker_calculate(a, b):
     return a + b
 
 
-class Worker(RoleBase):
-    NAME = "Worker"
-
-    def __init__(self, index):
-        super(Worker, self).__init__(index)
-        self.service = WorkerService()
-        self.nn = t.nn.Linear(5, 5, bias=False)
-        with t.no_grad():
-            self.nn.weight.fill_(index)
-
-        self.group = get_world().create_rpc_group("Company", roles=[
-            ("Worker", 0), ("Worker", 1), ("Worker", 2),
-            ("Manager", 0), ("Manager", 1), ("Manager", 2)
-        ])
-
-        # expose service to members in group
-        self.group.rpc_register_paired("worker_service", self.service)
-        self.group.rpc_register_paired("worker_nn", self.nn)
-
-    def main(self):
-        default_logger.info("Role {} started on Process[{}]"
-                            .format(get_cur_role(), get_cur_rank()))
-        time.sleep(20)
-        self.group.destroy()
-
-
-class WorkerLossy(Worker):
-    NAME = "Worker"
-
-    def __init__(self, index):
-        if get_cur_rank() in (0, 2):
-            default_logger.info("test crash Role {} on Process[{}]"
-                                .format(get_cur_role(), get_cur_rank()))
-            exit(0)
-        super(WorkerLossy, self).__init__(index)
-
-
-class Manager(RoleBase):
-    NAME = "Manager"
-
-    def __init__(self, index):
-        world = get_world()
-        super(Manager, self).__init__(index)
-        self.service = WorkerService()
-        self.group = world.create_rpc_group("Company", roles=[
-            ("Worker", 0), ("Worker", 1), ("Worker", 2),
-            ("Manager", 0), ("Manager", 1), ("Manager", 2)
-        ])
-        self.group = world.get_rpc_group("Company")
-
-    def main(self):
-        success = get_world().success
-
-        assert self.group.size() == 6
-        assert self.group.is_member(("Worker", self.role_index))
-        assert set(self.group.get_group_members()) == {
-            ("Worker", 0), ("Worker", 1), ("Worker", 2),
-            ("Manager", 0), ("Manager", 1), ("Manager", 2)
-        }
-        assert self.group.get_cur_role() == ("Manager", self.role_index)
-
-        default_logger.info("Role {} started on Process[{}]"
-                            .format(get_cur_role(), get_cur_rank()))
-
-        # tell the respective worker to perform a simple calculation
-        default_logger.info("Role {} begin test rpc normal sync"
-                            .format(get_cur_role()))
-        assert self.group.rpc_sync(
-            to="Worker:{}".format(self.role_index),
-            func=worker_calculate,
-            args=(1, 2)
-        ) == 3
-        default_logger.info("Role {} begin test rpc normal async"
-                            .format(get_cur_role()))
-        assert self.group.rpc_async(
-            to=("Worker", self.role_index),
-            func=worker_calculate,
-            args=(1, 2)
-        ).wait() == 3
-        default_logger.info("Role {} begin test rpc normal remote"
-                            .format(get_cur_role()))
-        assert self.group.rpc_remote(
-            to=("Worker", self.role_index),
-            func=worker_calculate,
-            args=(1, 2)
-        ).to_here() == 3
-
-        # tell the respective worker to count
-        default_logger.info("Role {} begin test rpc paired class sync"
-                            .format(get_cur_role()))
-        for i in range(10):
-            self.group.rpc_paired_class_sync(
-                to=("Worker", self.role_index),
-                cls_method=WorkerService.counter,
-                name="worker_service",
-            )
-        default_logger.info("Role {} begin test rpc paired class async"
-                            .format(get_cur_role()))
-        for i in range(10):
-            self.group.rpc_paired_class_async(
-                to=("Worker", self.role_index),
-                cls_method=WorkerService.counter,
-                name="worker_service",
-            )
-        default_logger.info("Role {} begin test rpc paired class remote"
-                            .format(get_cur_role()))
-        for i in range(10):
-            self.group.rpc_paired_class_remote(
-                to=("Worker", self.role_index),
-                cls_method=WorkerService.counter,
-                name="worker_service",
-            )
-
-        count = self.group.rpc_paired_class_remote(
-            to=("Worker", self.role_index),
-            cls_method=WorkerService.get_count,
-            name="worker_service",
-        ).to_here()
-        assert count == 30
-
-        # tell the respective worker to perform a neural network forward
-        # operation
-        default_logger.info("Role {} begin test rpc nn sync"
-                            .format(get_cur_role()))
-        assert t.sum(self.group.rpc_paired_nn_module_sync(
-            to=("Worker", self.role_index),
-            name="worker_nn",
-            args=(t.ones([5]),)
-        )) == 25 * self.role_index
-
-        default_logger.info("Role {} begin test rpc nn async"
-                            .format(get_cur_role()))
-        assert t.sum(self.group.rpc_paired_nn_module_async(
-            to=("Worker", self.role_index),
-            name="worker_nn",
-            args=(t.ones([5]),)
-        ).wait()) == 25 * self.role_index
-
-        default_logger.info("Role {} begin test rpc nn remote"
-                            .format(get_cur_role()))
-        assert t.sum(self.group.rpc_paired_nn_module_remote(
-            to=("Worker", self.role_index),
-            name="worker_nn",
-            args=(t.ones([5]),)
-        ).to_here()) == 25 * self.role_index
-
-        default_logger.info("Role {} result check passed!"
-                            .format(get_cur_role()))
-        self.group.destroy()
-        success[self.role_index] = True
-
-
 class TestWorld(WorldTestBase):
     ########################################################################
     # Test for collective communications
     ########################################################################
-    @classmethod
-    def subproc_test_world_coll_comm(cls, rank):
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_cc_send_recv(rank):
         world = get_world()
-        world.watch()  # for coverage
         group = world.create_collective_group(ranks=[0, 1, 2])
 
-        # test send and recv
-        default_logger.info("test send and recv")
         if rank == 0:
             group.send(t.zeros([5]), 1)
             group.send(t.zeros([5]), 2)
@@ -193,10 +47,15 @@ class TestWorld(WorldTestBase):
             a = t.ones([5])
             assert group.recv(a) == 0
             assert t.all(a == 0)
-        group.barrier()
+        group.destroy()
+        return True
 
-        # test isend and irecv
-        default_logger.info("test isend and irecv")
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_cc_isend_irecv(rank):
+        world = get_world()
+        group = world.create_collective_group(ranks=[0, 1, 2])
         if rank == 0:
             # need to wait otherwise won't execute
             group.isend(t.zeros([5]), 1).wait()
@@ -205,8 +64,15 @@ class TestWorld(WorldTestBase):
             a = t.ones([5])
             assert group.irecv(a).wait() == 0
             assert t.all(a == 0)
-        group.barrier()
+        group.destroy()
+        return True
 
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_cc_broadcast(rank):
+        world = get_world()
+        group = world.create_collective_group(ranks=[0, 1, 2])
         # test broadcast
         default_logger.info("test broadcast")
         if rank == 0:
@@ -215,35 +81,55 @@ class TestWorld(WorldTestBase):
             a = t.zeros([5])
         group.broadcast(a, 0)
         assert t.all(a == 1)
-        group.barrier()
+        group.destroy()
+        return True
 
-        # test all reduce
-        default_logger.info("test all_reduce")
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_cc_all_reduce(rank):
+        world = get_world()
+        group = world.create_collective_group(ranks=[0, 1, 2])
         a = t.full([5], rank)
         group.all_reduce(a)
         assert t.all(a == 3)
-        group.barrier()
+        group.destroy()
+        return True
 
-        # test reduce
-        default_logger.info("test reduce")
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_cc_reduce(rank):
+        world = get_world()
+        group = world.create_collective_group(ranks=[0, 1, 2])
         a = t.full([5], 5 - rank)
         group.reduce(a, 1)
         if rank == 1:
             assert t.all(a == 12)
-        group.barrier()
+        group.destroy()
+        return True
 
-        # test all gather
-        default_logger.info("test all_gather")
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_cc_all_gather(rank):
+        world = get_world()
+        group = world.create_collective_group(ranks=[0, 1, 2])
         a = t.full([5], rank)
         a_list = [t.full([5], -1), t.full([5], -1), t.full([5], -1)]
         group.all_gather(a_list, a)
         assert t.all(a_list[0] == 0)
         assert t.all(a_list[1] == 1)
         assert t.all(a_list[2] == 2)
-        group.barrier()
+        group.destroy()
+        return True
 
-        # test gather
-        default_logger.info("test gather")
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_cc_gather(rank):
+        world = get_world()
+        group = world.create_collective_group(ranks=[0, 1, 2])
         a = t.full([5], rank)
         if rank == 1:
             a_list = [t.full([5], -1), t.full([5], -1), t.full([5], -1)]
@@ -254,10 +140,15 @@ class TestWorld(WorldTestBase):
             assert t.all(a_list[0] == 0)
             assert t.all(a_list[1] == 1)
             assert t.all(a_list[2] == 2)
-        group.barrier()
+        group.destroy()
+        return True
 
-        # test scatter
-        default_logger.info("test scatter")
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_cc_scatter(rank):
+        world = get_world()
+        group = world.create_collective_group(ranks=[0, 1, 2])
         if rank == 0:
             a_list = [t.full([5], 0), t.full([5], 1), t.full([5], 2)]
         else:
@@ -267,55 +158,195 @@ class TestWorld(WorldTestBase):
         assert (t.all(a == 0) or
                 t.all(a == 1) or
                 t.all(a == 2))
-
-        assert group.size() == 3
         group.destroy()
+        return True
 
-    def test_world_coll_comm(self, processes):
-        result, watcher = run_multi(processes,
-                                    self.subproc_start_world,
-                                    args_list=[(dict(),)] * 3)
-        watch(processes, watcher)
-        default_logger.info("All world inited")
-        result, watcher = run_multi(processes,
-                                    self.subproc_test_world_coll_comm)
-        watch(processes, watcher)
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_cc_barrier(_):
+        world = get_world()
+        group = world.create_collective_group(ranks=[0, 1, 2])
+        assert group.size() == 3
+        group.barrier()
+        group.destroy()
+        return True
 
     ########################################################################
     # Test for rpc
     ########################################################################
-    def test_rpc(self, processes):
-        result, watcher = run_multi(processes,
-                                    self.subproc_start_world,
-                                    args_list=[(
-                                        {"Worker": (Worker, 3),
-                                         "Manager": (Manager, 3)},
-                                    )] * 3)
-        watch(processes, watcher)
-        default_logger.info("All world inited")
-        result, watcher = run_multi(processes,
-                                    self.subproc_run_world,
-                                    args_list=[(5,)] * 3)
-        watch(processes, watcher)
-        success = {}
-        for r in result:
-            success.update(r)
-        assert success == {0: True, 1: True, 2: True}
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_rpc_sync(_):
+        world = get_world()
+        group = world.create_rpc_group("group", ["0", "1", "2"])
+        assert (group.rpc_sync("1", worker_calculate, args=(1, 2), timeout=1)
+                == 3)
+        group.destroy()
+        return True
 
-    def test_rpc_lossy(self, processes):
-        result, watcher = run_multi(processes,
-                                    self.subproc_start_world,
-                                    args_list=[(
-                                        {"Worker": (WorkerLossy, 3),
-                                         "Manager": (Manager, 3)},
-                                    )] * 3)
-        watch(processes, watcher)
-        default_logger.info("All world inited")
-        result, watcher = run_multi(processes,
-                                    self.subproc_run_world,
-                                    args_list=[(30,)] * 3)
-        watch(processes, watcher)
-        success = {}
-        for r in result:
-            success.update(r)
-        assert success == {0: True, 1: True, 2: True}
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_rpc_async(_):
+        world = get_world()
+        group = world.create_rpc_group("group", ["0", "1", "2"])
+        assert (group.rpc_async("1", worker_calculate, args=(1, 2), timeout=1)
+                .wait() == 3)
+        group.destroy()
+        return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_rpc_remote(_):
+        world = get_world()
+        group = world.create_rpc_group("group", ["0", "1", "2"])
+        assert (group.remote("1", worker_calculate, args=(1, 2), timeout=1)
+                .to_here() == 3)
+        group.destroy()
+        return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_rpc_paired_cls_sync(rank):
+        world = get_world()
+        if rank == 0:
+            group = world.create_rpc_group("group", ["0", "1"])
+            group.rpc_pair("service", WorkerService())
+            sleep(5)
+            group.destroy()
+        elif rank == 1:
+            group = world.create_rpc_group("group", ["0", "1"])
+            for i in range(10):
+                group.rpc_paired_class_sync("0", "service",
+                                            WorkerService.counter,
+                                            timeout=1)
+            group.destroy()
+        elif rank == 2:
+            group = world.get_rpc_group("group", "0")
+            sleep(2)
+            assert group.rpc_paired_class_sync("0", "service",
+                                               WorkerService.get_count,
+                                               timeout=1) == 10
+            group.destroy()
+        return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_rpc_paired_cls_async(rank):
+        world = get_world()
+        if rank == 0:
+            group = world.create_rpc_group("group", ["0", "1"])
+            group.rpc_pair("service", WorkerService())
+            sleep(5)
+            group.destroy()
+        elif rank == 1:
+            group = world.create_rpc_group("group", ["0", "1"])
+            for i in range(10):
+                group.rpc_paired_class_async("0", "service",
+                                             WorkerService.counter,
+                                             timeout=1).wait()
+            group.destroy()
+        elif rank == 2:
+            group = world.get_rpc_group("group", "0")
+            sleep(2)
+            assert group.rpc_paired_class_async("0", "service",
+                                                WorkerService.get_count,
+                                                timeout=1).wait() == 10
+            group.destroy()
+        return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_rpc_paired_cls_remote(rank):
+        world = get_world()
+        if rank == 0:
+            group = world.create_rpc_group("group", ["0", "1"])
+            group.rpc_pair("service", WorkerService())
+            sleep(5)
+            group.destroy()
+        elif rank == 1:
+            group = world.create_rpc_group("group", ["0", "1"])
+            for i in range(10):
+                group.rpc_paired_class_remote("0", "service",
+                                              WorkerService.counter,
+                                              timeout=1).to_here()
+            group.destroy()
+        elif rank == 2:
+            group = world.get_rpc_group("group", "0")
+            sleep(2)
+            assert group.rpc_paired_class_remote("0", "service",
+                                                 WorkerService.get_count,
+                                                 timeout=1).to_here() == 10
+            group.destroy()
+        return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_rpc_paired_nn_sync(rank):
+        world = get_world()
+        if rank == 0:
+            group = world.create_rpc_group("group", ["0"])
+            group.rpc_pair("model", WorkerModel())
+            sleep(3)
+            group.destroy()
+        else:
+            group = world.get_rpc_group("group", "0")
+            assert (group.rpc_paired_model_sync(
+                "0", "model", args=(t.ones([1, 1])), timeout=1).item()
+                    == 1)
+            group.destroy()
+        return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_rpc_paired_nn_async(rank):
+        world = get_world()
+        if rank == 0:
+            group = world.create_rpc_group("group", ["0"])
+            group.rpc_pair("model", WorkerModel())
+            sleep(3)
+            group.destroy()
+        else:
+            group = world.get_rpc_group("group", "0")
+            assert (group.rpc_paired_model_async(
+                "0", "model", args=(t.ones([1, 1])), timeout=1).wait().item()
+                    == 1)
+            group.destroy()
+        return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_rpc_paired_nn_remote(rank):
+        world = get_world()
+        if rank == 0:
+            group = world.create_rpc_group("group", ["0"])
+            group.rpc_pair("model", WorkerModel())
+            sleep(3)
+            group.destroy()
+        else:
+            group = world.get_rpc_group("group", "0")
+            assert (group.rpc_paired_model_remote(
+                "0", "model", args=(t.ones([1, 1])), timeout=1).to_here().item()
+                    == 1)
+            group.destroy()
+        return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_rpc_misc(_):
+        world = get_world()
+        group = world.create_rpc_group("group", ["0", "1", "2"])
+        assert group.size() == 3
+        assert group.is_member("0")
+        assert group.get_group_members() == ["0", "1", "2"]
+        return True
