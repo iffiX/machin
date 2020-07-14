@@ -37,7 +37,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
         super(DistributedPrioritizedBuffer, self) \
             .__init__(buffer_size, "cpu")
         self.buffer_group = buffer_group
-        self.buffer_group.rpc_register_paired(self.__class__, self)
+        self.buffer_group.rpc_pair(self.__class__, self)
         self.wr_lock = Lock()
 
     def append(self,

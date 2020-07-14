@@ -6,7 +6,6 @@ from test.util_run_multi import *
 import random
 import torch as t
 import torch.nn as nn
-from torch.optim import Adam
 
 
 def _log(rank, msg):
@@ -37,6 +36,19 @@ class Model(nn.Module):
             self.fc2.weight.grad.item(),
             self.fc3.weight.grad.item()
         )
+
+
+class Optimizer(object):
+    def __init__(self, param):
+        self.params = param
+
+    def zero_grad(self):
+        pass
+
+    def step(self):
+        with t.no_grad():
+            for p in self.params:
+                p -= p.grad
 
 
 class TestPushPullModelServer(WorldTestBase):
@@ -88,7 +100,7 @@ class TestPushPullGradServer(WorldTestBase):
             group = world.create_rpc_group("group", ["0"])
             server = PushPullGradServer("model", group, reduce_batch_size=2)
             model = Model()
-            server.manage_model(model, Adam(model.parameters(), lr=1))
+            server.manage_model(model, Optimizer(model.parameters()))
             begin = time()
             server.start()
             while time() - begin < 5:
@@ -111,7 +123,7 @@ class TestPushPullGradServer(WorldTestBase):
             sleep(3)
             server.pull(model)
             _log(rank, "reduced model: {}".format(model))
-            assert model.fc1.weight.item() == 0
-            assert model.fc2.weight.item() == 1
-            assert model.fc3.weight.item() == 2
+            assert model.fc1.weight.item() == -5
+            assert model.fc2.weight.item() == -1
+            assert model.fc3.weight.item() == 1
         return True
