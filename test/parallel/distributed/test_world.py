@@ -1,4 +1,4 @@
-from ..util_run_multi import *
+from test.util_run_multi import *
 import torch.nn as nn
 import torch as t
 

@@ -2,7 +2,7 @@ from machin.parallel.server import (
     PushPullGradServer,
     PushPullModelServer
 )
-from ..util_run_multi import *
+from test.util_run_multi import *
 import random
 import torch as t
 import torch.nn as nn

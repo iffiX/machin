@@ -56,17 +56,13 @@ class DistributedBuffer(Buffer):
         # DOC INHERITED
         future = [
             self.buffer_group.rpc_paired_class_async(
-                m, self.buffer_name, self._reply_clear, timeout=self.timeout
+                m, self.buffer_name, self._rpc_reply_clear,
+                timeout=self.timeout
             )
             for m in self.buffer_group.get_group_members()
         ]
-        results = [fut.wait() for fut in future]
-        if not all(results):
-            failed = [m for m, status
-                      in zip(self.buffer_group.get_group_members(), results)
-                      if not status]
-            raise RuntimeError("Failed to perform clear on members {}"
-                               .format(failed))
+        for fut in future:
+            fut.wait()
 
     def all_size(self):
         """
@@ -87,9 +83,8 @@ class DistributedBuffer(Buffer):
                required_attrs=("state", "action", "next_state",
                                "reward", "terminal")):
         # DOC INHERITED
-        self.wr_lock.acquire()
-        super(DistributedBuffer, self).append(transition, required_attrs)
-        self.wr_lock.release()
+        with self.wr_lock:
+            super(DistributedBuffer, self).append(transition, required_attrs)
 
     def sample_batch(self,
                      batch_size: int,
@@ -132,18 +127,19 @@ class DistributedBuffer(Buffer):
 
         future = [
             self.buffer_group.rpc_paired_class_async(
-                w, self.buffer_name, self._reply_batch, timeout=self.timeout,
-                args=(local_batch_size, batch_size, sample_method)
+                w, self.buffer_name, self._rpc_reply_batch,
+                timeout=self.timeout,
+                args=(local_batch_size, sample_method)
             )
-            for w in self._select_workers(batch_size)
+            for w in self.buffer_group.get_group_members()
         ]
 
         results = [fut.wait() for fut in future]
         all_batch_size = sum([r[0] for r in results])
-        all_batch = list(it.chain([r[1] for r in results]))
+        all_batch = list(it.chain(*[r[1] for r in results]))
         return all_batch_size, all_batch
 
-    def _reply_batch(self, batch_size, sample_method):
+    def _rpc_reply_batch(self, batch_size, sample_method):  # pragma: no cover
         """
         Rpc function executed by buffer holders, will sample requested batch
         size.
@@ -162,27 +158,15 @@ class DistributedBuffer(Buffer):
             sample_method = getattr(self, "sample_method_" + sample_method)
 
         # sample raw local batch from local buffer
-
-        self.wr_lock.acquire()
-        local_batch_size, local_batch = sample_method(self.buffer,
-                                                      batch_size)
-        self.wr_lock.release()
+        with self.wr_lock:
+            local_batch_size, local_batch = sample_method(self.buffer,
+                                                          batch_size)
 
         return local_batch_size, local_batch
 
-    def _reply_clear(self):
-        self.wr_lock.acquire()
-        super(DistributedBuffer, self).clear()
-        self.wr_lock.release()
-        return True
-
-    def _select_workers(self, num: int):
-        """
-        Randomly select a sub group of workers.
-        """
-        workers = self.buffer_group.get_group_members().copy()
-        np.random.shuffle(workers)
-        return workers[:num]
+    def _rpc_reply_clear(self):  # pragma: no cover
+        with self.wr_lock:
+            super(DistributedBuffer, self).clear()
 
     def __reduce__(self):
         raise RuntimeError("Distributed buffer is not picklable, "

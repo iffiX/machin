@@ -26,7 +26,7 @@ def processes():
     for p, pi, i in zip(processes, pipes, [0, 1, 2]):
         # try graceful shutdown first
         pi[1].send(dill.dumps((exit, 0, {})))
-        p.join(timeout=1e-1)
+        p.join(timeout=1)
         if p.is_alive():
             # ungraceful shutdown
             default_logger.info("processes {} ungraceful shutdown".format(i))

@@ -1,6 +1,6 @@
 from machin.parallel.distributed import RpcGroup
 from machin.parallel.server import OrderedServerSimple
-from ..util_run_multi import *
+from test.util_run_multi import *
 
 
 def _log(rank, msg):
