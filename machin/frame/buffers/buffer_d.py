@@ -13,7 +13,9 @@ def _round_up(num):
 
 
 class DistributedBuffer(Buffer):
-    def __init__(self, buffer_size: int, buffer_group: RpcGroup, *_, **__):
+    def __init__(self, buffer_size: int, buffer_group: RpcGroup,
+                 buffer_name: str = "dist_buffer", timeout: float = 1,
+                 *_, **__):
         """
         Create a distributed replay buffer instance.
 
@@ -33,10 +35,14 @@ class DistributedBuffer(Buffer):
         Args:
             buffer_size: Maximum local buffer size.
             buffer_group: Process group which holds this buffer.
+            buffer_name: A unique name of your buffer.
+            timeout: Timeout value of rpc requests.
         """
         super(DistributedBuffer, self).__init__(buffer_size, "cpu")
+        self.buffer_name = buffer_name
         self.buffer_group = buffer_group
-        self.buffer_group.rpc_register_paired(self.__class__, self)
+        self.buffer_group.rpc_pair(buffer_name, self)
+        self.timeout = timeout
         self.wr_lock = Lock()
 
     def size(self):
@@ -50,7 +56,7 @@ class DistributedBuffer(Buffer):
         # DOC INHERITED
         future = [
             self.buffer_group.rpc_paired_class_async(
-                m, self._reply_clear, self.__class__
+                m, self.buffer_name, self._reply_clear, timeout=self.timeout
             )
             for m in self.buffer_group.get_group_members()
         ]
@@ -71,7 +77,7 @@ class DistributedBuffer(Buffer):
         count = 0
         for m in self.buffer_group.get_group_members():
             future.append(self.buffer_group.rpc_paired_class_async(
-                m, self.size, self.__class__
+                m, self.buffer_name, self.size, timeout=self.timeout
             ))
         for fut in future:
             count += fut.wait()
@@ -121,13 +127,12 @@ class DistributedBuffer(Buffer):
         Returns:
             Sampled batch size, batch data.
         """
-        # TODO: add timeout
         p_num = self.buffer_group.size()
         local_batch_size = _round_up(batch_size / p_num)
 
         future = [
             self.buffer_group.rpc_paired_class_async(
-                w, self._reply_batch, self.__class__,
+                w, self.buffer_name, self._reply_batch, timeout=self.timeout,
                 args=(local_batch_size, batch_size, sample_method)
             )
             for w in self._select_workers(batch_size)
@@ -165,7 +170,7 @@ class DistributedBuffer(Buffer):
 
         return local_batch_size, local_batch
 
-    def _reply_clear(self, transition, priority, required_keys):
+    def _reply_clear(self):
         self.wr_lock.acquire()
         super(DistributedBuffer, self).clear()
         self.wr_lock.release()

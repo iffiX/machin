@@ -16,7 +16,7 @@ def process_main(pipe):
 
 @pytest.fixture(scope="function")
 def processes():
-    ctx = mp.get_context("fork")
+    ctx = mp.get_context("spawn")
     pipes = [mp.Pipe(duplex=True) for _ in [0, 1, 2]]
     processes = [Process(target=process_main, args=(pipes[i][0],), ctx=ctx)
                  for i in [0, 1, 2]]
