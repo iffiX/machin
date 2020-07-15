@@ -20,7 +20,8 @@ def processes():
     pipes = [mp.Pipe(duplex=True) for _ in [0, 1, 2]]
     processes = [Process(target=process_main, args=(pipes[i][0],), ctx=ctx)
                  for i in [0, 1, 2]]
-    for p in processes:
+    for p, i in zip(processes, [0, 1, 2]):
+        default_logger.info("processes {} started".format(i))
         p.start()
     yield processes, [pi[1] for pi in pipes]
     for p, pi, i in zip(processes, pipes, [0, 1, 2]):
@@ -36,8 +37,10 @@ def processes():
 
 
 def run_multi(args_list=None, kwargs_list=None, expected_results=None,
-              timeout=10):
-    assert len(expected_results) == 3
+              timeout=60):
+    assert args_list is None or len(args_list) == 3
+    assert kwargs_list is None or len(kwargs_list) == 3
+    assert expected_results is None or len(expected_results) == 3
 
     def deco(func):
         def wrapped(processes):
@@ -79,7 +82,7 @@ class WorldTestBase(object):
         def wrapped(rank, *args, **kwargs):
             # election function for all tests
             world = World(world_size=3, rank=rank,
-                          name=str(rank), rpc_timeout=1)
+                          name=str(rank), rpc_timeout=20)
 
             # set a temporary success attribute on world
             default_logger.info("World created on {}".format(rank))

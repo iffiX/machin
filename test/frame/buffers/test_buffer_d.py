@@ -1,9 +1,7 @@
 from machin.frame.buffers import DistributedBuffer
-from machin.parallel.distributed import RpcGroup
 from test.util_run_multi import *
 
 import dill
-import pytest
 import torch as t
 
 
@@ -12,7 +10,7 @@ class TestDistributedBuffer(WorldTestBase):
     SAMPLE_BUFFER_SIZE = 10
 
     ########################################################################
-    # Test for DistributedBuffer.append
+    # Test for DistributedBuffer.append and sample
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True])
@@ -28,11 +26,11 @@ class TestDistributedBuffer(WorldTestBase):
             group = world.create_rpc_group("group", ["0", "1"])
             buffer = DistributedBuffer(5, group)
             begin = time()
-            while time() - begin < 2:
+            while time() - begin < 5:
                 buffer.append(data)
                 sleep(0.01)
         else:
-            sleep(1)
+            sleep(2)
             group = world.get_rpc_group("group", "0")
             buffer = DistributedBuffer(5, group)
             batch_size, sample = buffer.sample_batch(7)
@@ -66,12 +64,12 @@ class TestDistributedBuffer(WorldTestBase):
             group = world.create_rpc_group("group", ["0", "1"])
             buffer = DistributedBuffer(5, group)
             begin = time()
-            while time() - begin < 2:
+            while time() - begin < 5:
                 buffer.append(data)
                 sleep(0.01)
             assert buffer.size() == 5
         else:
-            sleep(1)
+            sleep(2)
             group = world.get_rpc_group("group", "0")
             buffer = DistributedBuffer(5, group)
             assert buffer.size() == 0
@@ -94,28 +92,44 @@ class TestDistributedBuffer(WorldTestBase):
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
             buffer = DistributedBuffer(5, group)
-            begin = time()
-            while time() - begin < 2:
+            for i in range(5):
                 buffer.append(data)
-                sleep(0.01)
-            assert buffer.size() == 5
-            buffer.clear()
-            sleep(2)
+            sleep(5)
         else:
-            sleep(1)
+            sleep(2)
             group = world.get_rpc_group("group", "0")
             buffer = DistributedBuffer(5, group)
-            assert buffer.size() == 0
             assert buffer.all_size() == 10
-            sleep(1.5)
+            buffer.clear()
             assert buffer.all_size() == 0
         return True
 
     ########################################################################
     # Test for DistributedBuffer.__reduce__
     ########################################################################
-    def test_reduce(self):
-        with pytest.raises(RuntimeError):
-            fake_group = RpcGroup("fake_group", ["proc1", "proc2"], False)
-            buffer = DistributedBuffer(5, fake_group)
-            _ = dill.dumps(buffer)
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_reduce(rank):
+        world = get_world()
+        data = {"state": {"state_1": t.zeros([1, 2])},
+                "action": {"action_1": t.ones([1, 3])},
+                "next_state": {"next_state_1": t.zeros([1, 2])},
+                "reward": 1.5,
+                "terminal": True}
+        if rank in (0, 1):
+            group = world.create_rpc_group("group", ["0", "1"])
+            buffer = DistributedBuffer(5, group, "dist_buffer")
+            for i in range(5):
+                buffer.append(data)
+            sleep(5)
+        else:
+            sleep(2)
+            group = world.get_rpc_group("group", "0")
+            buffer = group.rpc_get_paired("0", "dist_buffer").to_here()
+            assert buffer.size() == 0
+            assert buffer.all_size() == 10
+            buffer = dill.loads(dill.dumps(buffer))
+            assert buffer.size() == 0
+            assert buffer.all_size() == 10
+        return True

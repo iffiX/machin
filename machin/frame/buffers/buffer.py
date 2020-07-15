@@ -48,6 +48,11 @@ class Buffer(object):
         """
         if isinstance(transition, dict):
             transition = Transition(**transition)
+        elif isinstance(transition, Transition):
+            pass
+        else:  # pragma: no cover
+            raise RuntimeError("Transition object must be a dict or an instance"
+                               " of the Transition class")
         if not transition.has_keys(required_attrs):
             missing_keys = set(required_attrs) - set(transition.keys())
             raise ValueError("Transition object missing attributes: {}"

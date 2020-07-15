@@ -325,8 +325,7 @@ class PrioritizedBuffer(Buffer):
              :meth:`.Buffer.sample_batch`
 
         Args:
-            batch_size: A hint size of the result sample. actual sample size
-                        depends on your sample method.
+            batch_size: A hint size of the result sample.
             concatenate: Whether concatenate state, action and next_state
                          in dimension 0.
                          If ``True``, for each value in dictionaries of major
@@ -362,7 +361,7 @@ class PrioritizedBuffer(Buffer):
 
         segment_length = self.wt_tree.get_weight_sum() / batch_size
 
-        rand_priority = np.random.uniform(size=batch_size)
+        rand_priority = np.random.uniform(size=batch_size) * segment_length
         rand_priority += np.arange(batch_size, dtype=np.float) * segment_length
         rand_priority = np.clip(rand_priority, 0,
                                 max(self.wt_tree.get_weight_sum() - 1e-6, 0))
@@ -384,4 +383,4 @@ class PrioritizedBuffer(Buffer):
 
         result = self.post_process_batch(batch, device, concatenate,
                                          sample_attrs, additional_concat_attrs)
-        return batch_size, result, index, is_weight
+        return len(batch), result, index, is_weight

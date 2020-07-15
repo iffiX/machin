@@ -32,6 +32,12 @@ class DistributedBuffer(Buffer):
 
         .. seealso:: :class:`.Buffer`
 
+        Note:
+            Since ``append()`` operates on the local buffer, in order to
+            append to the distributed buffer correctly, please make sure
+            that your actor is also the local buffer holder, i.e. a member
+            of the ``buffer_group``
+
         Args:
             buffer_size: Maximum local buffer size.
             buffer_group: Process group which holds this buffer.
@@ -168,6 +174,7 @@ class DistributedBuffer(Buffer):
         with self.wr_lock:
             super(DistributedBuffer, self).clear()
 
-    def __reduce__(self):
-        raise RuntimeError("Distributed buffer is not picklable, "
-                           "it is meant to be held per process!")
+    def __reduce__(self):  # pragma: no cover
+        # create a handle
+        return DistributedBuffer, (self.buffer_size, self.buffer_group,
+                                   self.buffer_name, self.timeout)
