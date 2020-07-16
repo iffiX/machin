@@ -1,7 +1,7 @@
 from .a2c import *
 from machin.parallel.server import PushPullGradServer
-from machin.parallel.distributed import RpcGroup
 from machin.utils.helper_classes import Switch
+from torch.optim import Adam
 
 
 class A3C(A2C):
@@ -11,15 +11,10 @@ class A3C(A2C):
     def __init__(self,
                  actor: Union[NeuralNetworkModule, nn.Module],
                  critic: Union[NeuralNetworkModule, nn.Module],
-                 optimizer: Callable,
                  criterion: Callable,
+                 grad_servers: Tuple[PushPullGradServer,
+                                     PushPullGradServer],
                  *_,
-                 grad_server_group: RpcGroup = None,
-                 grad_servers: Tuple[Any, Any] = None,
-                 lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
-                 learning_rate: float = 0.001,
                  entropy_weight: float = None,
                  value_weight: float = 0.5,
                  gradient_max: float = np.inf,
@@ -40,16 +35,8 @@ class A3C(A2C):
             critic: Critic network module.
             optimizer: Optimizer used to optimize ``actor`` and ``critic``.
             criterion: Criterion used to evaluate the value loss.
-            grad_server_group: Gradient sync server group, actor and critic will
-                share the same sync group.
-            grad_servers: Custom gradient sync servers, the first server is for
+            grad_servers: Gradient sync servers, the first server is for
                 actor, and the second one is for critic.
-            lr_scheduler: Learning rate scheduler of ``optimizer``.
-            lr_scheduler_args: Arguments of the learning rate scheduler.
-            lr_scheduler_kwargs: Keyword arguments of the learning
-                rate scheduler.
-            learning_rate: Learning rate of the optimizer, not compatible with
-                ``lr_scheduler``.
             entropy_weight: Weight of entropy in your loss function, a positive
                 entropy weight will minimize entropy, while a negative one will
                 maximize entropy.
@@ -67,11 +54,9 @@ class A3C(A2C):
             replay_buffer: Custom replay buffer.
             visualize: Whether visualize the network flow in the first pass.
         """
-        super(A3C, self).__init__(actor, critic, optimizer, criterion,
-                                  lr_scheduler=lr_scheduler,
-                                  lr_scheduler_args=lr_scheduler_args,
-                                  lr_scheduler_kwargs=lr_scheduler_kwargs,
-                                  learning_rate=learning_rate,
+        # Adam is just a placeholder here, the actual optimizer is
+        # set in parameter servers
+        super(A3C, self).__init__(actor, critic, Adam, criterion,
                                   entropy_weight=entropy_weight,
                                   value_weight=value_weight,
                                   gradient_max=gradient_max,
@@ -82,22 +67,23 @@ class A3C(A2C):
                                   replay_device=replay_device,
                                   replay_buffer=replay_buffer,
                                   visualize=visualize)
-        if grad_servers is None:
-            self.actor_grad_server = PushPullGradServer(
-                group=grad_server_group
-            )
-            self.critic_grad_server = PushPullGradServer(
-                group=grad_server_group
-            )
-        else:
-            self.actor_grad_server, self.critic_grad_server = \
-                grad_servers[0], grad_servers[1]
+        # disable local stepping
+        self.actor_optim.step = lambda: None
+        self.critic_optim.step = lambda: None
+        self.actor_grad_server, self.critic_grad_server = \
+            grad_servers[0], grad_servers[1]
+
         self._disable_sync = Switch()
+
+    def manual_sync(self):
+        self.actor_grad_server.pull(self.actor)
+        self.critic_grad_server.pull(self.critic)
 
     def act(self, state: Dict[str, Any], pull: bool = True, **__):
         # DOC INHERITED
         if pull and not self._disable_sync.get():
             self.actor_grad_server.pull(self.actor)
+
         return safe_call(self.actor, state)
 
     def eval_act(self,
@@ -123,7 +109,8 @@ class A3C(A2C):
                **__):
         # DOC INHERITED
         self._disable_sync.on()
-        self.update(update_value, update_policy, concatenate_samples)
+        super(A3C, self).update(update_value, update_policy,
+                                concatenate_samples)
         self._disable_sync.off()
         self.actor_grad_server.push(self.actor)
         self.critic_grad_server.push(self.critic)

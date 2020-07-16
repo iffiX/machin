@@ -59,11 +59,11 @@ class TestPushPullModelServer(WorldTestBase):
         world = get_world()
         if rank == 0:
             group = world.create_rpc_group("group", ["0"])
-            _server = PushPullModelServer("model", group)
+            _server = PushPullModelServer("server", group)
             sleep(3)
         else:
             group = world.get_rpc_group("group", "0")
-            server = PushPullModelServer("model", group)
+            server = group.rpc_get_paired("0", "server").to_here()
             model = Model()
             pull_model = Model()
             for i in range(10):
@@ -98,7 +98,7 @@ class TestPushPullGradServer(WorldTestBase):
         if rank == 0:
             # only one reduce slave, so result is controllable
             group = world.create_rpc_group("group", ["0"])
-            server = PushPullGradServer("model", group, reduce_batch_size=2)
+            server = PushPullGradServer("server", group, reduce_batch_size=2)
             model = Model()
             server.manage_model(model, Optimizer(model.parameters()))
             begin = time()
@@ -108,7 +108,7 @@ class TestPushPullGradServer(WorldTestBase):
             server.stop()
         else:
             group = world.get_rpc_group("group", "0")
-            server = PushPullGradServer("model", group, reduce_batch_size=2)
+            server = group.rpc_get_paired("0", "server").to_here()
             model = Model()
 
             # "0" will be wake up twice as a slave reducer, and once

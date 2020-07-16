@@ -13,8 +13,8 @@ def _round_up(num):
 
 
 class DistributedBuffer(Buffer):
-    def __init__(self, buffer_size: int, buffer_group: RpcGroup,
-                 buffer_name: str = "dist_buffer", timeout: float = 1,
+    def __init__(self, buffer_name: str, buffer_group: RpcGroup,
+                 buffer_size: int, timeout: float = 10,
                  *_, **__):
         """
         Create a distributed replay buffer instance.
@@ -175,6 +175,6 @@ class DistributedBuffer(Buffer):
             super(DistributedBuffer, self).clear()
 
     def __reduce__(self):  # pragma: no cover
-        # create a handle
-        return DistributedBuffer, (self.buffer_size, self.buffer_group,
-                                   self.buffer_name, self.timeout)
+        return DistributedBuffer, \
+               (self.buffer_name, self.buffer_group,
+                self.buffer_size, self.timeout)

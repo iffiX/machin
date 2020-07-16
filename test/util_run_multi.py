@@ -1,14 +1,22 @@
 from machin.parallel.distributed import World, get_world
 from machin.parallel.process import Process
-from machin.utils.logging import default_logger
 from time import sleep, time
+from decorator import FunctionMaker
+from logging.handlers import QueueHandler, QueueListener
 import dill
 import pytest
 import itertools
+import logging
 import multiprocessing as mp
 
+# use queue handler
+default_logger = logging.getLogger("multi_default_logger")
+default_logger.setLevel(logging.INFO)
 
-def process_main(pipe):
+
+def process_main(pipe, log_queue):
+    handler = logging.handlers.QueueHandler(log_queue)
+    default_logger.addHandler(handler)
     while True:
         func, args, kwargs = dill.loads(pipe.recv())
         pipe.send(func(*args, **kwargs))
@@ -18,8 +26,20 @@ def process_main(pipe):
 def processes():
     ctx = mp.get_context("spawn")
     pipes = [mp.Pipe(duplex=True) for _ in [0, 1, 2]]
-    processes = [Process(target=process_main, args=(pipes[i][0],), ctx=ctx)
+    man = ctx.Manager()
+    queue = man.Queue()
+    processes = [Process(target=process_main,
+                         args=(pipes[i][0], queue), ctx=ctx)
                  for i in [0, 1, 2]]
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(
+        "[%(asctime)s] <%(levelname)s>:%(name)s:%(message)s"))
+
+    ql = QueueListener(queue, handler)
+    ql.start()
+    default_logger.addHandler(handler)
+
     for p, i in zip(processes, [0, 1, 2]):
         default_logger.info("processes {} started".format(i))
         p.start()
@@ -33,46 +53,73 @@ def processes():
             default_logger.info("processes {} ungraceful shutdown".format(i))
             p.terminate()
             p.join()
+    default_logger.removeHandler(handler)
+    ql.stop()
+    man.shutdown()
+    man.join()
     default_logger.info("processes stopped")
 
 
+def exec_with_process(processes, func, args_list, kwargs_list,
+                      expected_results, timeout, *pass_through):
+    procs, proc_pipes = processes
+    args_list = (args_list
+                 if args_list is not None
+                 else itertools.repeat([]))
+    kwargs_list = (kwargs_list
+                   if kwargs_list is not None
+                   else itertools.repeat({}))
+    for pi, rank, args, kwargs in zip(proc_pipes, [0, 1, 2],
+                                      args_list, kwargs_list):
+        pi.send(dill.dumps((func, [rank] + list(args) + list(pass_through),
+                            kwargs)))
+
+    results = [None, None, None]
+    finished = [False, False, False]
+
+    begin = time()
+    while not all(finished):
+        if time() - begin >= timeout:
+            raise TimeoutError("Run-multi timeout!")
+        for p, pi, i in zip(procs, proc_pipes, [0, 1, 2]):
+            p.watch()
+            if pi.poll(timeout=1e-1):
+                results[i] = pi.recv()
+                finished[i] = True
+        sleep(1e-1)
+    if expected_results is not None:
+        assert results == expected_results
+
+
 def run_multi(args_list=None, kwargs_list=None, expected_results=None,
-              timeout=60):
+              pass_through=None, timeout=60):
+    # pass_through allows you to pass through pytest parameters and fixtures
+    # to the sub processes, these pass through parameters must be placed
+    # behind normal args and before kwargs
     assert args_list is None or len(args_list) == 3
     assert kwargs_list is None or len(kwargs_list) == 3
     assert expected_results is None or len(expected_results) == 3
 
+    if pass_through is None:
+        pt_args = ""
+    else:
+        pt_args = "," + ",".join(pass_through)
+
     def deco(func):
-        def wrapped(processes):
-            nonlocal args_list, kwargs_list, expected_results
-            procs, proc_pipes = processes
-            args_list = (args_list
-                         if args_list is not None
-                         else itertools.repeat([]))
-            kwargs_list = (kwargs_list
-                           if kwargs_list is not None
-                           else itertools.repeat({}))
-            for pi, rank, args, kwargs in zip(proc_pipes, [0, 1, 2],
-                                              args_list, kwargs_list):
-                pi.send(dill.dumps((func, [rank] + list(args), kwargs)))
-
-            results = [None, None, None]
-            finished = [False, False, False]
-
-            begin = time()
-            while not all(finished):
-                if time() - begin >= timeout:
-                    raise TimeoutError("Run-multi timeout!")
-                for p, pi, i in zip(procs, proc_pipes, [0, 1, 2]):
-                    p.watch()
-                    if pi.poll(timeout=1e-1):
-                        results[i] = pi.recv()
-                        finished[i] = True
-                sleep(1e-1)
-            if expected_results is not None:
-                assert results == expected_results
-
-        return wrapped
+        return FunctionMaker.create(
+            "w_wrapped_func(processes{})".format(pt_args),
+            """
+            return exec_with_process(
+                processes, func, args_list, kwargs_list, 
+                expected_results, timeout{})
+            """.format(pt_args),
+            dict(args_list=args_list,
+                 kwargs_list=kwargs_list,
+                 expected_results=expected_results,
+                 timeout=timeout,
+                 func=func,
+                 exec_with_process=exec_with_process)
+        )
     return deco
 
 

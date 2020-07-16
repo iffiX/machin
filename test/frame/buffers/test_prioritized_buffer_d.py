@@ -58,7 +58,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         default_logger.info("{} started".format(rank))
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedPrioritizedBuffer(5, group)
+            buffer = DistributedPrioritizedBuffer("buffer", group, 5)
             begin = time()
             while time() - begin < 10:
                 trans, prior = random.choice(trans_list)
@@ -71,7 +71,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
             begin = time()
             while time() - begin < 5:
                 group = world.get_rpc_group("group", "0")
-                buffer = DistributedPrioritizedBuffer(5, group)
+                buffer = group.rpc_get_paired("0", "buffer").to_here()
                 batch_size, sample, indexes, priorities = \
                     buffer.sample_batch(10)
                 default_logger.info("sampled batch size: {}".format(batch_size))
@@ -112,7 +112,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         np.random.seed(0)
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedPrioritizedBuffer(5, group)
+            buffer = DistributedPrioritizedBuffer("buffer", group, 5)
             for i in range(5):
                 trans, prior = trans_list[i]
                 buffer.append(trans, prior)
@@ -120,7 +120,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         else:
             sleep(2)
             group = world.get_rpc_group("group", "0")
-            buffer = DistributedPrioritizedBuffer(5, group)
+            buffer = group.rpc_get_paired("0", "buffer").to_here()
             batch_size, sample, indexes, priorities = \
                 buffer.sample_batch(10, sample_attrs=["index"])
             default_logger.info("sampled batch size: {}".format(batch_size))
@@ -149,12 +149,12 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         np.random.seed(0)
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            _buffer = DistributedPrioritizedBuffer(5, group)
+            _buffer = DistributedPrioritizedBuffer("buffer", group, 5)
             sleep(5)
         else:
             sleep(2)
             group = world.get_rpc_group("group", "0")
-            buffer = DistributedPrioritizedBuffer(5, group)
+            buffer = group.rpc_get_paired("0", "buffer").to_here()
             batch_size, sample, indexes, priorities = \
                 buffer.sample_batch(10, sample_attrs=["index"])
             assert batch_size == 0
@@ -173,7 +173,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         np.random.seed(0)
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedPrioritizedBuffer(5, group)
+            buffer = DistributedPrioritizedBuffer("buffer", group, 5)
             for i in range(5):
                 trans, prior = trans_list[i]
                 buffer.append(trans, prior)
@@ -181,7 +181,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         else:
             sleep(2)
             group = world.get_rpc_group("group", "0")
-            buffer = DistributedPrioritizedBuffer(5, group)
+            buffer = group.rpc_get_paired("0", "buffer").to_here()
             batch_size, sample, indexes, priorities = buffer.sample_batch(0)
             assert batch_size == 0
             assert sample is None
@@ -202,7 +202,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         np.random.seed(0)
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedPrioritizedBuffer(5, group)
+            buffer = DistributedPrioritizedBuffer("buffer", group, 5)
             for i in range(5):
                 trans, prior = trans_list[i]
                 buffer.append(trans, prior)
@@ -211,7 +211,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         else:
             sleep(2)
             group = world.get_rpc_group("group", "0")
-            buffer = DistributedPrioritizedBuffer(5, group)
+            buffer = group.rpc_get_paired("0", "buffer").to_here()
             assert buffer.size() == 0
             assert buffer.all_size() == 10
         return True
@@ -229,7 +229,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         np.random.seed(0)
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedPrioritizedBuffer(5, group)
+            buffer = DistributedPrioritizedBuffer("buffer", group, 5)
             for i in range(5):
                 trans, prior = trans_list[i]
                 buffer.append(trans, prior)
@@ -237,35 +237,8 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         else:
             sleep(2)
             group = world.get_rpc_group("group", "0")
-            buffer = DistributedPrioritizedBuffer(5, group)
+            buffer = group.rpc_get_paired("0", "buffer").to_here()
             assert buffer.all_size() == 10
             buffer.clear()
             assert buffer.all_size() == 0
-        return True
-
-    ########################################################################
-    # Test for DistributedPrioritizedBuffer.__reduce__
-    ########################################################################
-    @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               args_list=[(full_trans_list,)] * 3)
-    @WorldTestBase.setup_world
-    def test_reduce(rank, trans_list):
-        world = get_world()
-        if rank in (0, 1):
-            group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedPrioritizedBuffer(5, group, "dist_p_buffer")
-            for i in range(5):
-                trans, prior = trans_list[i]
-                buffer.append(trans, prior)
-            sleep(5)
-        else:
-            sleep(2)
-            group = world.get_rpc_group("group", "0")
-            buffer = group.rpc_get_paired("0", "dist_p_buffer").to_here()
-            assert buffer.size() == 0
-            assert buffer.all_size() == 10
-            buffer = dill.loads(dill.dumps(buffer))
-            assert buffer.size() == 0
-            assert buffer.all_size() == 10
         return True

@@ -7,10 +7,10 @@ from machin.parallel.distributed import RpcGroup
 import numpy as np
 import torch as t
 
-from machin.utils.logging import default_logger
+
 class DistributedPrioritizedBuffer(PrioritizedBuffer):
-    def __init__(self, buffer_size: int, buffer_group: RpcGroup,
-                 buffer_name: str = "dist_p_buffer", timeout: float = 1,
+    def __init__(self, buffer_name: str, buffer_group: RpcGroup,
+                 buffer_size: int, timeout: float = 10,
                  *_, **__):
         """
         Create a distributed prioritized replay buffer instance.
@@ -237,8 +237,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
         else:
             self.wr_lock.release()
 
-    def __reduce__(self):
-        # create a handle
+    def __reduce__(self):  # pragma: no cover
         return DistributedPrioritizedBuffer, \
-               (self.buffer_size, self.buffer_group,
-                self.buffer_name, self.timeout)
+               (self.buffer_name, self.buffer_group,
+                self.buffer_size, self.timeout)

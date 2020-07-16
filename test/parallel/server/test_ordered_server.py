@@ -11,7 +11,7 @@ class TestOrderedServerSimple(WorldTestBase):
     def test__push_pull_service(self):
         fake_group = RpcGroup("fake_group", ("proc1", "proc2"), False)
         fake_group.destroy = lambda: None
-        server = OrderedServerSimple("fake_server", "proc1", fake_group)
+        server = OrderedServerSimple("fake_server", fake_group)
         assert server._push_service("a", "value", 1, None)
         assert not server._push_service("a", "value1", 2, 0)
         assert server._push_service("a", "value2", 2, 1)
@@ -29,11 +29,11 @@ class TestOrderedServerSimple(WorldTestBase):
         world = get_world()
         if rank == 0:
             group = world.create_rpc_group("group", ["0"])
-            _server = OrderedServerSimple("o_server", "0", group)
+            _server = OrderedServerSimple("server", group)
             sleep(5)
         else:
             group = world.get_rpc_group("group", "0")
-            server = OrderedServerSimple("o_server", "0", group)
+            server = group.rpc_get_paired("0", "server").to_here()
 
             if server.push("a", "value", 1, None):
                 _log(rank, "push 1 success")

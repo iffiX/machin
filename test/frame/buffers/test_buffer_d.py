@@ -1,7 +1,6 @@
 from machin.frame.buffers import DistributedBuffer
 from test.util_run_multi import *
 
-import dill
 import torch as t
 
 
@@ -24,7 +23,7 @@ class TestDistributedBuffer(WorldTestBase):
                 "terminal": True}
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedBuffer(5, group)
+            buffer = DistributedBuffer("buffer", group, 5)
             begin = time()
             while time() - begin < 5:
                 buffer.append(data)
@@ -32,7 +31,7 @@ class TestDistributedBuffer(WorldTestBase):
         else:
             sleep(2)
             group = world.get_rpc_group("group", "0")
-            buffer = DistributedBuffer(5, group)
+            buffer = group.rpc_get_paired("0", "buffer").to_here()
             batch_size, sample = buffer.sample_batch(7)
             assert batch_size > 0
             assert len(sample) == 5
@@ -62,7 +61,7 @@ class TestDistributedBuffer(WorldTestBase):
                 "terminal": True}
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedBuffer(5, group)
+            buffer = DistributedBuffer("buffer", group, 5)
             begin = time()
             while time() - begin < 5:
                 buffer.append(data)
@@ -71,7 +70,7 @@ class TestDistributedBuffer(WorldTestBase):
         else:
             sleep(2)
             group = world.get_rpc_group("group", "0")
-            buffer = DistributedBuffer(5, group)
+            buffer = group.rpc_get_paired("0", "buffer").to_here()
             assert buffer.size() == 0
             assert buffer.all_size() == 10
         return True
@@ -91,45 +90,15 @@ class TestDistributedBuffer(WorldTestBase):
                 "terminal": True}
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedBuffer(5, group)
+            buffer = DistributedBuffer("buffer", group, 5)
             for i in range(5):
                 buffer.append(data)
             sleep(5)
         else:
             sleep(2)
             group = world.get_rpc_group("group", "0")
-            buffer = DistributedBuffer(5, group)
+            buffer = group.rpc_get_paired("0", "buffer").to_here()
             assert buffer.all_size() == 10
             buffer.clear()
             assert buffer.all_size() == 0
-        return True
-
-    ########################################################################
-    # Test for DistributedBuffer.__reduce__
-    ########################################################################
-    @staticmethod
-    @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
-    def test_reduce(rank):
-        world = get_world()
-        data = {"state": {"state_1": t.zeros([1, 2])},
-                "action": {"action_1": t.ones([1, 3])},
-                "next_state": {"next_state_1": t.zeros([1, 2])},
-                "reward": 1.5,
-                "terminal": True}
-        if rank in (0, 1):
-            group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedBuffer(5, group, "dist_buffer")
-            for i in range(5):
-                buffer.append(data)
-            sleep(5)
-        else:
-            sleep(2)
-            group = world.get_rpc_group("group", "0")
-            buffer = group.rpc_get_paired("0", "dist_buffer").to_here()
-            assert buffer.size() == 0
-            assert buffer.all_size() == 10
-            buffer = dill.loads(dill.dumps(buffer))
-            assert buffer.size() == 0
-            assert buffer.all_size() == 10
         return True

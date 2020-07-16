@@ -4,6 +4,8 @@ from threading import Lock
 from copy import deepcopy
 from ..distributed import RpcGroup
 
+from test.util_run_multi import *
+
 
 class OrderedServerBase(ABC):  # pragma: no cover
     """
@@ -49,6 +51,14 @@ class OrderedServerBase(ABC):  # pragma: no cover
         """
         pass
 
+    @abstractmethod
+    def __reduce__(self):
+        """
+        Subclasses must implement this method, so that server can be
+        passed around as a handle
+        """
+        pass
+
 
 class OrderedServerSimple(OrderedServerBase):
     """
@@ -56,20 +66,22 @@ class OrderedServerSimple(OrderedServerBase):
     """
     def __init__(self,
                  server_name: str,
-                 server_runner: str,
                  group: RpcGroup,
+                 server_runner: str = None,
                  version_depth: int = 1,
                  **__):
         """
         Args:
             server_name: Name of this server, used to registered
                 the server as a paired class of ``group``.
-            server_role: Name of the process serving the ordered server.
             group: Rpc group where server locates.
+            server_runner: Name of the process serving the ordered server.
             version_depth: Storage depth of old versions of the same
                 key. If ``depth = 1``, then only the newest version
                 of the key will be saved.
         """
+        if server_runner is None:
+            server_runner = group.get_group_members()[0]
         assert group.is_member(server_runner)
         assert version_depth > 0 and isinstance(version_depth, int)
 
@@ -78,7 +90,7 @@ class OrderedServerSimple(OrderedServerBase):
         self.group = group
         self.storage = {}
         self.lock = Lock()
-        self.log_depth = version_depth
+        self.version_depth = version_depth
         self.group.rpc_pair(server_name, self)
 
     def push(self, key, value, version, prev_version):
@@ -104,7 +116,7 @@ class OrderedServerSimple(OrderedServerBase):
                 if next(reversed(ref)) == prev_version:
                     ref[version] = value
                     success = True
-                if len(ref) > self.log_depth + 1:
+                if len(ref) > self.version_depth + 1:
                     ref.popitem(last=False)
             else:
                 # Create a new key.
@@ -126,3 +138,7 @@ class OrderedServerSimple(OrderedServerBase):
                     version = next(reversed(ref))
                     result = (deepcopy(ref[version]), version)
         return result
+
+    def __reduce__(self):  # pragma: no cover
+        return OrderedServerSimple, (self.server_name, self.group,
+                                     self.server_runner, self.version_depth)

@@ -71,8 +71,8 @@ def _rpc_get_remote_paired_value(group_name, key):  # pragma: no cover
     while group_name not in WORLD.groups:
         if time() - begin >= WORLD.rpc_timeout - 0.1:
             # so that it can be retried
-            raise TimeoutError("Group [{}] not registered on process [{}], "
-                               "timeout".format(group_name, WORLD.rank))
+            raise TimeoutError("Group [{}] not registered on Process [{}], "
+                               "timeout".format(group_name, WORLD.name))
         # wait for group to be registered
         sleep(1e-2)
     paired_map = WORLD.groups[group_name].group_paired_map
@@ -81,10 +81,11 @@ def _rpc_get_remote_paired_value(group_name, key):  # pragma: no cover
         return paired_map[key]
     else:
         raise RpcException("""
-            Failed to find key ({}) in the paired value map of Group [{}].\n
+            Failed to find key ({}) in the paired value map of 
+            Group [{}] Process[{}].\n
             Existing map is:\n
             {}
-        """.format(key, group_name, paired_map))
+        """.format(key, group_name, WORLD.name, paired_map))
 
 
 def _world_singleton(cls):
@@ -152,9 +153,9 @@ class World:
     """
 
     def __init__(self,
-                 world_size: int,
-                 rank: int,
-                 name: str,
+                 world_size: int = None,
+                 rank: int = None,
+                 name: str = None,
                  init_method: str = "tcp://localhost:9100",
                  rpc_timeout: float = 60,
                  rpc_threads: int = 8):
@@ -441,19 +442,38 @@ class RpcGroup:
 
     def rpc_pair(self, name: Any, value: Any):
         """
-        Register a paired value to current process group.
-
-        Note:
-            Value will be overwritten if the name is the same.
+        Pair a value to current process group.
 
         Args:
             name: A key which uniquely identifies this value in this group.
                  The name only needs to be unique for this value in this
                  group.
 
-            value: Value to be registered.
+            value: Value to be paired.
+
+        Raise:
+            ``KeyError`` if value has already been paired.
         """
+        if name in self.group_paired_map:
+            raise KeyError('Name "{}" already paired to group [{}]'
+                           .format(name, self.group_name))
         self.group_paired_map[name] = value
+
+    def rpc_unpair(self, name: Any):
+        """
+        Unpair a paired value from current process group.
+
+        Args:
+            name: A key which uniquely identifies this value in this group.
+                 The name only needs to be unique for this value in this
+                 group.
+        Raise:
+            ``KeyError`` if value has not been paired.
+        """
+        if name not in self.group_paired_map:
+            raise KeyError('Name "{}" not paired to group [{}]'
+                           .format(name, self.group_name))
+        self.group_paired_map.pop(name)
 
     def rpc_get_paired(self, target: str, name: Any, timeout=-1):
         """
