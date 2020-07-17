@@ -1,28 +1,17 @@
+from machin.parallel.distributed import get_cur_name, get_cur_rank
 from test.util_run_multi import *
-import torch.nn as nn
 import torch as t
 
 
-class WorkerModel(nn.Module):
-    def __init__(self):
-        super(WorkerModel, self).__init__()
-        self.fc1 = nn.Linear(1, 1, bias=False)
-        with t.no_grad():
-            self.fc1.weight.fill_(1)
-
-    def forward(self, x):
-        return self.fc1(x)
-
-
 class WorkerService(object):
-    _count = 0
+    counter = 0
 
-    def counter(self):
-        self._count += 1
-        return self._count
+    def count(self):
+        self.counter += 1
+        return self.counter
 
     def get_count(self):
-        return self._count
+        return self.counter
 
 
 def worker_calculate(a, b):
@@ -30,6 +19,37 @@ def worker_calculate(a, b):
 
 
 class TestWorld(WorldTestBase):
+    ########################################################################
+    # Test for world APIs
+    ########################################################################
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_get_info(rank):
+        _world = get_world()
+        assert get_cur_rank() == rank
+        assert get_cur_name() == str(rank)
+        return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_get_group(rank):
+        world = get_world()
+        if rank in (0, 1):
+            group = world.create_rpc_group("group", ["0", "1"])
+            assert (world.get_rpc_group("group")
+                    .get_group_members() == ["0", "1"])
+            sleep(3)
+            group.destroy()
+        else:
+            sleep(1)
+            group = world.get_rpc_group("group", "0")
+            assert group.get_group_name() == "group"
+            with pytest.raises(RuntimeError, match="should not execute"):
+                group.pair("key", 0)
+        return True
+
     ########################################################################
     # Test for collective communications
     ########################################################################
@@ -74,7 +94,6 @@ class TestWorld(WorldTestBase):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
         # test broadcast
-        default_logger.info("test broadcast")
         if rank == 0:
             a = t.ones([5])
         else:
@@ -172,6 +191,37 @@ class TestWorld(WorldTestBase):
         group.destroy()
         return True
 
+    @staticmethod
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["gpu"])
+    @WorldTestBase.setup_world
+    def test_cc_broadcast_multigpu(rank, gpu):
+        if isinstance(gpu, str) and gpu.startswith("cuda"):
+            world = get_world()
+            group = world.create_collective_group(ranks=[0, 1, 2])
+            if rank == 0:
+                a = [t.ones([5], device=gpu)]
+            else:
+                a = [t.zeros([5], device=gpu)]
+            group.broadcast_multigpu(a, 0)
+            assert t.all(a[0] == 1)
+            group.destroy()
+        return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["gpu"])
+    @WorldTestBase.setup_world
+    def test_cc_all_reduce_multigpu(_, gpu):
+        if isinstance(gpu, str) and gpu.startswith("cuda"):
+            world = get_world()
+            group = world.create_collective_group(ranks=[0, 1, 2])
+            a = [t.ones([5], device=gpu)]
+            group.all_reduce_multigpu(a)
+            assert t.all(a[0] == 3)
+            group.destroy()
+        return True
+
     ########################################################################
     # Test for rpc
     ########################################################################
@@ -211,142 +261,98 @@ class TestWorld(WorldTestBase):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_rpc_paired_cls_sync(rank):
+    def test_rpc_pair(rank):
         world = get_world()
+        service = WorkerService()
         if rank == 0:
             group = world.create_rpc_group("group", ["0", "1"])
-            group.rpc_pair("service", WorkerService())
-            sleep(5)
+            service.counter = 20
+            group.pair("service", service)
+
+            # cannot pair an already used key
+            with pytest.raises(KeyError, match="already paired to Group"):
+                group.pair("service", service)
+
+            sleep(4)
+            group.unpair("service")
             group.destroy()
         elif rank == 1:
             group = world.create_rpc_group("group", ["0", "1"])
-            for i in range(10):
-                group.rpc_paired_class_sync("0", "service",
-                                            WorkerService.counter,
-                                            timeout=1)
-            group.destroy()
-        elif rank == 2:
-            group = world.get_rpc_group("group", "0")
             sleep(2)
-            assert group.rpc_paired_class_sync("0", "service",
-                                               WorkerService.get_count,
-                                               timeout=1) == 10
-            group.destroy()
+            assert group.is_paired("service")
+
+            # cannot pair an already used key
+            with pytest.raises(KeyError, match="already paired to Group"):
+                group.pair("service", service)
+
+            # cannot unpair the key paired by another process
+            with pytest.raises(KeyError, match="not paired to"):
+                group.unpair("service")
+
+            # cannot find a not paired value
+            with pytest.raises(KeyError, match="not found on Group"):
+                group.get_paired("service2")
+
+            assert group.get_paired("service").to_here().counter == 20
+            sleep(4)
+            assert not group.is_paired("service")
         return True
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_rpc_paired_cls_async(rank):
+    def test_rpc_register(rank):
         world = get_world()
+        service = WorkerService()
         if rank == 0:
             group = world.create_rpc_group("group", ["0", "1"])
-            group.rpc_pair("service", WorkerService())
-            sleep(5)
+            service.counter = 20
+            group.register("count", service.count)
+            group.register("get_count", service.get_count)
+
+            # cannot register an already used key
+            with pytest.raises(KeyError, match="already registered in Group"):
+                group.register("count", service.count)
+
+            sleep(4)
+            assert service.get_count() == 23
+            group.deregister("count")
+            group.deregister("get_count")
             group.destroy()
         elif rank == 1:
             group = world.create_rpc_group("group", ["0", "1"])
-            for i in range(10):
-                group.rpc_paired_class_async("0", "service",
-                                             WorkerService.counter,
-                                             timeout=1).wait()
-            group.destroy()
-        elif rank == 2:
-            group = world.get_rpc_group("group", "0")
             sleep(2)
-            assert group.rpc_paired_class_async("0", "service",
-                                                WorkerService.get_count,
-                                                timeout=1).wait() == 10
-            group.destroy()
+            assert (group.is_registered("count") and
+                    group.is_registered("get_count"))
+
+            # cannot register an already used key
+            with pytest.raises(KeyError, match="already registered in Group"):
+                group.register("count", service.count)
+
+            # cannot deregister the key registered by another process
+            with pytest.raises(KeyError, match="not registered in"):
+                group.deregister("count")
+
+            # cannot find a not registered service
+            with pytest.raises(KeyError, match="not found on Group"):
+                group.registered_sync("service2", args=())
+
+            assert group.registered_sync("count") == 21
+            assert group.registered_async("count").wait() == 22
+            assert group.registered_remote("count").to_here() == 23
+            sleep(4)
+            assert (not group.is_registered("count") and
+                    not group.is_registered("get_count"))
         return True
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_rpc_paired_cls_remote(rank):
-        world = get_world()
-        if rank == 0:
-            group = world.create_rpc_group("group", ["0", "1"])
-            group.rpc_pair("service", WorkerService())
-            sleep(5)
-            group.destroy()
-        elif rank == 1:
-            group = world.create_rpc_group("group", ["0", "1"])
-            for i in range(10):
-                group.rpc_paired_class_remote("0", "service",
-                                              WorkerService.counter,
-                                              timeout=1).to_here()
-            group.destroy()
-        elif rank == 2:
-            group = world.get_rpc_group("group", "0")
-            sleep(2)
-            assert group.rpc_paired_class_remote("0", "service",
-                                                 WorkerService.get_count,
-                                                 timeout=1).to_here() == 10
-            group.destroy()
-        return True
-
-    @staticmethod
-    @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
-    def test_rpc_paired_nn_sync(rank):
-        world = get_world()
-        if rank == 0:
-            group = world.create_rpc_group("group", ["0"])
-            group.rpc_pair("model", WorkerModel())
-            sleep(3)
-            group.destroy()
-        else:
-            group = world.get_rpc_group("group", "0")
-            assert (group.rpc_paired_model_sync(
-                "0", "model", args=(t.ones([1, 1])), timeout=1).item()
-                    == 1)
-            group.destroy()
-        return True
-
-    @staticmethod
-    @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
-    def test_rpc_paired_nn_async(rank):
-        world = get_world()
-        if rank == 0:
-            group = world.create_rpc_group("group", ["0"])
-            group.rpc_pair("model", WorkerModel())
-            sleep(3)
-            group.destroy()
-        else:
-            group = world.get_rpc_group("group", "0")
-            assert (group.rpc_paired_model_async(
-                "0", "model", args=(t.ones([1, 1])), timeout=1).wait().item()
-                    == 1)
-            group.destroy()
-        return True
-
-    @staticmethod
-    @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
-    def test_rpc_paired_nn_remote(rank):
-        world = get_world()
-        if rank == 0:
-            group = world.create_rpc_group("group", ["0"])
-            group.rpc_pair("model", WorkerModel())
-            sleep(3)
-            group.destroy()
-        else:
-            group = world.get_rpc_group("group", "0")
-            assert (group.rpc_paired_model_remote(
-                "0", "model", args=(t.ones([1, 1])), timeout=1).to_here().item()
-                    == 1)
-            group.destroy()
-        return True
-
-    @staticmethod
-    @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
-    def test_rpc_misc(_):
+    def test_rpc_get_info(rank):
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
         assert group.size() == 3
         assert group.is_member("0")
         assert group.get_group_members() == ["0", "1", "2"]
+        assert group.get_cur_name() == str(rank)
         return True

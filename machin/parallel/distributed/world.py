@@ -1,14 +1,19 @@
-from time import sleep, time
+from threading import Lock
 from datetime import timedelta
 from typing import Union, List, Any, Callable
 from torch.distributed import rpc
 
-import inspect
+import enum
 import torch as t
 import torch.distributed as dist
 import torch.distributed.distributed_c10d as dist_c10d
 
 WORLD = None  # type: Union[None, World]
+
+
+class LUTType(enum.Enum):
+    VALUE = 0
+    SERVICE = 1
 
 
 def _copy_doc(from_func):
@@ -30,6 +35,54 @@ def _copy_doc(from_func):
     return _decorator
 
 
+def _rpc_set_lut_entry(group_name, key,
+                       proc_name, lut_type):  # pragma: no cover
+    table = (WORLD.value_lut
+             if lut_type == LUTType.VALUE
+             else WORLD.service_lut)
+    with WORLD.lut_lock:
+        if (group_name, key) in table:
+            return False
+        else:
+            table[(group_name, key)] = proc_name
+            return True
+
+
+def _rpc_unset_lut_entry(group_name, key,
+                         proc_name, lut_type):  # pragma: no cover
+    table = (WORLD.value_lut
+             if lut_type == LUTType.VALUE
+             else WORLD.service_lut)
+    with WORLD.lut_lock:
+        if (group_name, key) in table:
+            if table[(group_name, key)] == proc_name:
+                table.pop((group_name, key))
+                return True
+        return False
+
+
+def _rpc_get_lut_entry(group_name, key, lut_type):  # pragma: no cover
+    table = (WORLD.value_lut
+             if lut_type == LUTType.VALUE
+             else WORLD.service_lut)
+    with WORLD.lut_lock:
+        if (group_name, key) in table:
+            return True, table[(group_name, key)]
+        else:
+            return False, None
+
+
+def _rpc_has_lut_entry(group_name, key, lut_type):  # pragma: no cover
+    table = (WORLD.value_lut
+             if lut_type == LUTType.VALUE
+             else WORLD.service_lut)
+    with WORLD.lut_lock:
+        if (group_name, key) in table:
+            return True
+        else:
+            return False
+
+
 def _rpc_call_func(func, args, kwargs):  # pragma: no cover
     # Call a function/bound method
     try:
@@ -39,53 +92,58 @@ def _rpc_call_func(func, args, kwargs):  # pragma: no cover
     raise RpcException(exc)
 
 
-def _rpc_call_remote_method(method, inst_rref,
-                            args, kwargs):  # pragma: no cover
-    # Call a method function of a class,
-    # ``inst_rref`` is a class instance wrapped by ``RRef``
+def _rpc_call_service(group_name, key, args, kwargs):  # pragma: no cover
+    # call a registered service
+    world = get_world()
+    if group_name not in world.groups:
+        # could happen if group has been destroyed on this process
+        # deregister the entry from lut manager
+        rpc.rpc_sync(world.lut_manager, _rpc_unset_lut_entry,
+                     args=(group_name, key, get_cur_name(), LUTType.SERVICE))
+        raise KeyError("Group [{}], not found on Process [{}]"
+                       .format(group_name, get_cur_name()))
+    lut = WORLD.groups[group_name].group_service_lut
 
-    # will throw TimeoutError if timeout
-    local_value = inst_rref.local_value()
-
-    try:
-        return method(local_value, *args, **kwargs)
-    except BaseException as e:
-        exc = e
-    raise RpcException(exc)
-
-
-def _rpc_call_model(model, args, kwargs):  # pragma: no cover
-    # will throw TimeoutError if timeout
-    local_module = model.local_value()
-
-    try:
-        return local_module(*args, **kwargs)
-    except BaseException as e:
-        exc = e
-    raise RpcException(exc)
+    if key in lut:
+        try:
+            return lut[key](*args, **kwargs)
+        except BaseException as e:
+            exc = e
+        raise RpcException(exc)
+    else:
+        # could happen if local map is not synchronized with the
+        # global map
+        # deregister the entry from lut manager
+        rpc.rpc_sync(world.lut_manager, _rpc_unset_lut_entry,
+                     args=(group_name, key, get_cur_name(), LUTType.VALUE))
+        raise KeyError("Service [{}] not found on Group [{}], Process [{}]"
+                       .format(key, group_name, get_cur_name()))
 
 
-def _rpc_get_remote_paired_value(group_name, key):  # pragma: no cover
-    global WORLD
-    begin = time()
-    while group_name not in WORLD.groups:
-        if time() - begin >= WORLD.rpc_timeout - 0.1:
-            # so that it can be retried
-            raise TimeoutError("Group [{}] not registered on Process [{}], "
-                               "timeout".format(group_name, WORLD.name))
-        # wait for group to be registered
-        sleep(1e-2)
-    paired_map = WORLD.groups[group_name].group_paired_map
+def _rpc_get_paired_value(group_name, key):  # pragma: no cover
+    # get a paired value
+    world = get_world()
+    if group_name not in world.groups:
+        # could happen if group has been destroyed on this process
+        # deregister the entry from lut manager
+        rpc.rpc_sync(world.lut_manager, _rpc_unset_lut_entry,
+                     args=(group_name, key, get_cur_name(), LUTType.VALUE))
+        raise KeyError("Group [{}], not found on Process [{}]"
+                       .format(group_name, get_cur_name()))
+
+    paired_map = WORLD.groups[group_name].group_value_lut
 
     if key in paired_map:
         return paired_map[key]
     else:
-        raise RpcException("""
-            Failed to find key ({}) in the paired value map of 
-            Group [{}] Process[{}].\n
-            Existing map is:\n
-            {}
-        """.format(key, group_name, WORLD.name, paired_map))
+        # could happen if local map is not synchronized with the
+        # global map
+        # deregister the entry from lut manager
+        rpc.rpc_sync(world.lut_manager, _rpc_unset_lut_entry,
+                     args=(group_name, key, get_cur_name(), LUTType.VALUE))
+        raise KeyError("Value with key [{}] not found on Group [{}], "
+                       "Process [{}]"
+                       .format(key, group_name, get_cur_name()))
 
 
 def _world_singleton(cls):
@@ -132,6 +190,17 @@ def get_world():  # pragma: no cover
 
 def _get_rpc_group(group_name):  # pragma: no cover
     return WORLD.groups.get(group_name, None)
+
+
+def _check_executor(func):
+    def wrapped(self, *args, **kwargs):
+        if get_cur_name() not in self.group_members:
+            raise RuntimeError("You should not execute function {} when"
+                               "current process is not a member of the "
+                               "group"
+                               .format(func.__qualname__))
+        return func(self, *args, **kwargs)
+    return wrapped
 
 
 class RpcException(Exception):  # pragma: no cover
@@ -184,9 +253,20 @@ class World:
                          rpc_timeout=timedelta(seconds=rpc_timeout)
                      ))
 
+        # get rank-name mapping
+        self.rank_name_map = {}
+        for wi in rpc._get_current_rpc_agent().get_worker_infos():
+            self.rank_name_map[wi.id] = wi.name
+
         # Start role dispatching.
         self.started = True
         self.rpc_timeout = rpc_timeout
+
+        # map for paired values and registered services
+        self.value_lut = {}
+        self.service_lut = {}
+        self.lut_lock = Lock()
+        self.lut_manager = self.rank_name_map[0]
 
     def stop(self):  # pragma: no cover
         if not self.started:
@@ -239,7 +319,8 @@ class World:
     def get_rpc_group(self, group_name: str, target: str = None):
         """
         Get group with name ``group_name``, supports group not created
-        on this process.
+        on this process. You should only use it if you really needs to
+        access a value/service only exposed in the target group.
 
         Args:
             group_name: Group name.
@@ -377,6 +458,30 @@ class CollectiveGroup:
     def barrier(self, async_op=False):
         return dist.barrier(self.group, async_op)
 
+    @_copy_doc(dist.broadcast_multigpu)
+    def broadcast_multigpu(self, tensor_list, src, async_op=False,
+                           src_tensor=0):
+        return dist.broadcast_multigpu(tensor_list, src, self.group,
+                                       async_op, src_tensor)
+
+    @_copy_doc(dist.all_reduce_multigpu)
+    def all_reduce_multigpu(self, tensor_list, op=dist.ReduceOp.SUM,
+                            async_op=False):
+        return dist.all_reduce_multigpu(tensor_list, op,
+                                        self.group, async_op)
+
+    @_copy_doc(dist.reduce_multigpu)
+    def reduce_multigpu(self, tensor_list, dst, op=dist.ReduceOp.SUM,
+                        async_op=False, dst_tensor=0):  # pragma: no cover
+        return dist.reduce_multigpu(tensor_list, dst, op, self.group,
+                                    async_op, dst_tensor)
+
+    @_copy_doc(dist.all_gather_multigpu)
+    def all_gather_multigpu(self, output_tensor_lists, input_tensor_list,
+                            async_op=False):  # pragma: no cover
+        return dist.all_gather_multigpu(output_tensor_lists, input_tensor_list,
+                                        self.group, async_op)
+
     def destroy(self):
         """
         Destroy this collective communication group.
@@ -399,20 +504,15 @@ class CollectiveGroup:
         self.destroy()
 
 
-# Since roles are executed by threads scattered to all processes,
-# we use (get_cur_role(), group_name) as a unique key to identify groups
-# in the global WORLD.groups map, the first key is used to prevent:
-#
-#   Roles from the same RpcGroup are assigned to the same rpc process, then
-#   their group_paired_map will overlap if we only use "group_name" as a unique
-#   key in the global WORLD.groups map
-
+# TODO:
+# add the heartbeat mechanism to the lut_manager, to increase robustness
 
 class RpcGroup:
     def __init__(self, group_name, group_members, is_local):
         self.group_name = group_name
         self.group_members = group_members
-        self.group_paired_map = {}
+        self.group_value_lut = {}
+        self.group_service_lut = {}
         self.is_local = is_local
         self.destroyed = False
 
@@ -440,12 +540,13 @@ class RpcGroup:
         return self._rpc_normal_call(rpc.remote, to, func,
                                      timeout, args, kwargs)
 
-    def rpc_pair(self, name: Any, value: Any):
+    @_check_executor
+    def pair(self, key: Any, value: Any):
         """
         Pair a value to current process group.
 
         Args:
-            name: A key which uniquely identifies this value in this group.
+            key: A key which uniquely identifies this value in this group.
                  The name only needs to be unique for this value in this
                  group.
 
@@ -454,206 +555,211 @@ class RpcGroup:
         Raise:
             ``KeyError`` if value has already been paired.
         """
-        if name in self.group_paired_map:
-            raise KeyError('Name "{}" already paired to group [{}]'
-                           .format(name, self.group_name))
-        self.group_paired_map[name] = value
+        if key in self.group_value_lut:
+            raise KeyError('Value with key "{}" already paired to Group [{}]'
+                           .format(key, self.group_name))
+        # announce the pairing
+        status = rpc.rpc_sync(get_world().lut_manager, _rpc_set_lut_entry,
+                              args=(self.group_name, key,
+                                    get_cur_name(), LUTType.VALUE))
+        if status:
+            self.group_value_lut[key] = value
+        else:
+            raise KeyError('Value with key "{}" already paired to Group [{}]'
+                           .format(key, self.group_name))
 
-    def rpc_unpair(self, name: Any):
+    @_check_executor
+    def unpair(self, key: Any):
         """
-        Unpair a paired value from current process group.
+        Unpair a paired value from current process group. The key must be
+        paired by the current process.
 
         Args:
-            name: A key which uniquely identifies this value in this group.
+            key: A key which uniquely identifies this value in this group.
                  The name only needs to be unique for this value in this
                  group.
         Raise:
             ``KeyError`` if value has not been paired.
         """
-        if name not in self.group_paired_map:
-            raise KeyError('Name "{}" not paired to group [{}]'
-                           .format(name, self.group_name))
-        self.group_paired_map.pop(name)
+        if key not in self.group_value_lut:
+            raise KeyError('Value with key "{}" not paired to Group [{}] '
+                           'on Process[{}]'
+                           .format(key, self.group_name, get_cur_name()))
+        # announce the unpairing
+        status = rpc.rpc_sync(get_world().lut_manager, _rpc_unset_lut_entry,
+                              args=(self.group_name, key,
+                                    get_cur_name(), LUTType.VALUE))
+        if status:
+            self.group_value_lut.pop(key)
+        else:  # pragma: no cover
+            # should never happen
+            raise RuntimeError('Failed to unpair value with key "{}" '
+                               'from Group [{}], executor is Process[{}]'
+                               .format(key, self.group_name, get_cur_name()))
 
-    def rpc_get_paired(self, target: str, name: Any, timeout=-1):
+    def is_paired(self, key: Any):
+        """
+        Check whether a key has been paired to the current group.
+
+        Args:
+            key: A key which uniquely identifies this value in this group.
+                 The name only needs to be unique for this value in this
+                 group.
+        """
+        return rpc.rpc_sync(get_world().lut_manager, _rpc_has_lut_entry,
+                            args=(self.group_name, key, LUTType.VALUE))
+
+    def get_paired(self, key: Any):
         """
         Args:
-            target: Target process name.
-            name: Name of the paired value.
-            timeout: Call timeout.
+            key: Key of the paired value, in this group.
 
         Returns:
-            An RRef to the paired value.
+            A RRef to the paired value.
 
         Raises:
-            :class:`.RpcException` if not found.
+            ``KeyError`` if not found.
         """
-        if _torch_version_less_than(1, 6, 0):
-            return rpc.remote(target,
-                              _rpc_get_remote_paired_value,
-                              args=(self.group_name, name))
+        status, holder = rpc.rpc_sync(get_world().lut_manager,
+                                      _rpc_get_lut_entry,
+                                      args=(self.group_name, key,
+                                            LUTType.VALUE))
+        if not status:
+            raise KeyError("Value with key [{}] not found on Group [{}], "
+                           .format(key, self.group_name))
+        return rpc.remote(holder, _rpc_get_paired_value,
+                          args=(self.group_name, key))
 
-        return rpc.remote(target,
-                          _rpc_get_remote_paired_value,
-                          args=(self.group_name, name), timeout=timeout)
-
-    def rpc_paired_class_sync(self,
-                              to: str, name: Any, cls_method: Callable,
-                              timeout=-1, args=(), kwargs=None):
+    @_check_executor
+    def register(self, key: Any, service: Any):
         """
-        Call the specified ``cls_method`` on ``to`` using ``name`` to find
-        the class instance.
+        Register a service to current process group.
 
         Args:
-            to: Target process name.
-            name: Registered paired class instance name.
-            cls_method: Class method, e.g.:``some_class.some_method``.
-            timeout: Call timeout.
-            args: Arguments.
-            kwargs: Key arguments.
+            key: A key which uniquely identifies this service in this group.
+                 The name only needs to be unique for this service in this
+                 group.
+            service: Service to be registered.
+
+        Raise:
+            ``KeyError`` if service has already been registered.
+        """
+        if key in self.group_service_lut:
+            raise KeyError('Service with key "{}" already registered in '
+                           'Group [{}]'
+                           .format(key, self.group_name))
+        # announce the pairing
+        status = rpc.rpc_sync(get_world().lut_manager, _rpc_set_lut_entry,
+                              args=(self.group_name, key,
+                                    get_cur_name(), LUTType.SERVICE))
+        if status:
+            self.group_service_lut[key] = service
+        else:
+            raise KeyError('Service with key "{}" already registered in '
+                           'Group [{}]'
+                           .format(key, self.group_name))
+
+    @_check_executor
+    def deregister(self, key: Any):
+        """
+        Deregister service from current process group. The key must be
+        paired by the current process.
+
+        Args:
+            key: A key which uniquely identifies this value in this group.
+                 The name only needs to be unique for this value in this
+                 group.
+        Raise:
+            ``KeyError`` if srvice has not been registered.
+        """
+        if key not in self.group_service_lut:
+            raise KeyError('Service with key "{}" not registered in Group [{}] '
+                           'on Process[{}]'
+                           .format(key, self.group_name, get_cur_name()))
+        # announce the deregistration
+        status = rpc.rpc_sync(get_world().lut_manager, _rpc_unset_lut_entry,
+                              args=(self.group_name, key,
+                                    get_cur_name(), LUTType.SERVICE))
+        if status:
+            self.group_service_lut.pop(key)
+        else:  # pragma: no cover
+            # should never happen
+            raise RuntimeError('Failed to deregister service with key "{}" '
+                               'from Group [{}], executor is Process[{}]'
+                               .format(key, self.group_name, get_cur_name()))
+
+    def is_registered(self, key: Any):
+        """
+        Check whether a service has been registered in the current group.
+
+        Args:
+            key: A key which uniquely identifies this service in this group.
+                 The name only needs to be unique for this service in this
+                 group.
+        """
+        return rpc.rpc_sync(get_world().lut_manager, _rpc_has_lut_entry,
+                            args=(self.group_name, key, LUTType.SERVICE))
+
+    def registered_sync(self, key: Any, args=(), kwargs=None):
+        """
+        Args:
+            key: Key of the registered service, in this group.
+            args: Service arguments.
+            kwargs: Service keyword arguments.
+
+        Returns:
+            Result returned by the service.
+
+        Raises:
+            ``KeyError`` if service is not found.
         """
         if kwargs is None:
             kwargs = {}
-        return self._rpc_paired_class_call(rpc.rpc_sync, to, name, cls_method,
-                                           timeout, args, kwargs)
+        return self._rpc_service_call(rpc.rpc_sync, key, args, kwargs)
 
-    def rpc_paired_class_async(self,
-                               to: str, name: Any, cls_method: Callable,
-                               timeout=-1, args=(), kwargs=None):
+    def registered_async(self, key: Any, args=(), kwargs=None):
         """
-        Call the specified ``cls_method`` on ``to`` using ``name`` to find
-        the class instance.
-
         Args:
-            to: Role name "some_role:10" or role tuple ("some_role", 10).
-            cls_method: Class method, e.g.:``some_class.some_method``
-            name: Class instance name.
-            timeout: Call timeout.
-            args: Arguments.
-            kwargs: Key arguments.
+            key: Key of the registered service, in this group.
+            args: Service arguments.
+            kwargs: Service keyword arguments.
+
+        Returns:
+            A future object you can call ``wait()``on.
+            ``wait()`` will block the thread until execution is completed,
+            and will return the result returned by the service.
+
+        Raises:
+            ``KeyError`` if service is not found.
         """
         if kwargs is None:
             kwargs = {}
-        return self._rpc_paired_class_call(rpc.rpc_async, to, name, cls_method,
-                                           timeout, args, kwargs)
+        return self._rpc_service_call(rpc.rpc_async, key, args, kwargs)
 
-    def rpc_paired_class_remote(self,
-                                to: str, name: Any, cls_method: Callable,
-                                timeout=-1, args=(), kwargs=None):
+    def registered_remote(self, key: Any, args=(), kwargs=None):
         """
-        Call the specified ``cls_method`` on ``to`` using ``name`` to find
-        the class instance.
-
         Args:
-            to: Role name "some_role:10" or role tuple ("some_role", 10).
-            cls_method: Class method, e.g.:``some_class.some_method``
-            name: Class instance name.
-            timeout: Call timeout.
-            args: Arguments.
-            kwargs: Key arguments.
+            key: Key of the registered service, in this group.
+            args: Service arguments.
+            kwargs: Service keyword arguments.
+
+        Returns:
+            A RRef object pointing to the result returned by the service.
+
+        Raises:
+            ``KeyError`` if service is not found.
         """
         if kwargs is None:
             kwargs = {}
-        return self._rpc_paired_class_call(rpc.remote, to, name, cls_method,
-                                           timeout, args, kwargs)
+        return self._rpc_service_call(rpc.remote, key, args, kwargs)
 
-    def rpc_paired_model_sync(self,
-                              to: str, name: Any,
-                              timeout=-1, args=(), kwargs=None):
-        """
-        Run the forward pass on ``to`` using ``name`` to find
-        the model instance.
-
-        Args:
-            to: Role name "some_role:10" or role tuple ("some_role", 10).
-            name: Model instance name.
-            timeout: Call timeout.
-            args: Arguments.
-            kwargs: Key arguments.
-        """
-        if kwargs is None:
-            kwargs = {}
-        return self._rpc_paired_model_call(rpc.rpc_sync, to, name,
-                                           timeout, args, kwargs)
-
-    def rpc_paired_model_async(self,
-                               to: str, name: Any,
-                               timeout=-1, args=(), kwargs=None):
-        """
-        Run the forward pass on ``to`` using ``name`` to find
-        the model instance.
-
-        Args:
-            to: Role name "some_role:10" or role tuple ("some_role", 10).
-            name: Model instance name.
-            timeout: Call timeout.
-            args: Arguments.
-            kwargs: Key arguments.
-        """
-        if kwargs is None:
-            kwargs = {}
-        return self._rpc_paired_model_call(rpc.rpc_async, to, name,
-                                           timeout, args, kwargs)
-
-    def rpc_paired_model_remote(self,
-                                to: str, name: Any,
-                                timeout=-1, args=(), kwargs=None):
-        """
-        Run the forward pass on ``to`` using ``name`` to find
-        the model instance.
-
-        Args:
-            to: Role name "some_role:10" or role tuple ("some_role", 10).
-            name: Model instance name.
-            timeout: Call timeout.
-            args: Arguments.
-            kwargs: Key arguments.
-
-        See Also:
-            :meth:`.RpcGroup.rpc_remote`
-        """
-        if kwargs is None:
-            kwargs = {}
-        return self._rpc_paired_model_call(rpc.remote, to, name,
-                                           timeout, args, kwargs)
-
-    def _rpc_normal_call(self, rpc_method, to, func, timeout, args, kwargs):
-        if not self.is_member(to):  # pragma: no cover
-            raise RuntimeError("RPC target is not a member of group.")
-
-        new_args = (func, args, kwargs)
-        if _torch_version_less_than(1, 6, 0):
-            return rpc_method(to, _rpc_call_func, args=new_args)
-        return rpc_method(to, _rpc_call_func, args=new_args, timeout=timeout)
-
-    def _rpc_paired_class_call(self, rpc_method, to, name, cls_method,
-                               timeout, args, kwargs):
-        if not self.is_member(to):  # pragma: no cover
-            raise RuntimeError("RPC target is not a member of group.")
-
-        cls_method = self._get_real_class_method(cls_method)
-        inst_rref = self.rpc_get_paired(to, name)
-        new_args = (cls_method, inst_rref, args, kwargs)
-        if _torch_version_less_than(1, 6, 0):
-            return rpc_method(to, _rpc_call_remote_method, args=new_args)
-        return rpc_method(to, _rpc_call_remote_method, args=new_args,
-                          timeout=timeout)
-
-    def _rpc_paired_model_call(self, rpc_method, to, name,
-                               timeout, args, kwargs):
-        if not self.is_member(to):  # pragma: no cover
-            raise RuntimeError("RPC target is not a member of group.")
-
-        m_rref = self.rpc_get_paired(to, name)
-        new_args = (m_rref, args, kwargs)
-        if _torch_version_less_than(1, 6, 0):
-            return rpc_method(to, _rpc_call_model, args=new_args)
-        return rpc_method(to, _rpc_call_model, args=new_args,
-                          timeout=timeout)
-
+    @_check_executor
     def destroy(self):
         """
         Destroy the rpc group.
+
+        Note: deregistration is not considered, because they will be purged
+            when any lookup fail.
         """
         if not self.destroyed:
             if self.is_local:
@@ -672,6 +778,13 @@ class RpcGroup:
         """
         return target in self.group_members
 
+    def get_group_name(self) -> str:
+        """
+        Returns:
+            Name of this group.
+        """
+        return self.group_name
+
     def get_group_members(self) -> List[str]:
         """
         Returns:
@@ -683,19 +796,25 @@ class RpcGroup:
     def get_cur_name() -> str:
         return get_world().name
 
-    @staticmethod
-    def _get_real_class_method(method):  # pragma: no cover
-        # suppose class A has a method "func1" and a class method "func2"
-        # suppose a is an instance of class A
-        # then:
-        # A.func1 is a function
-        # A.func2 is a bound method with __self__ set to class A
-        # a.func1 is a bound method with __self__ set to instance a
-        # a.func2 is a bound method with __self__ set to class A
-        if inspect.ismethod(method):
-            return method.__func__
-        else:
-            return method
+    def _rpc_normal_call(self, rpc_method, to, func, timeout, args, kwargs):
+        if not self.is_member(to):  # pragma: no cover
+            raise RuntimeError("RPC target is not a member of group.")
+
+        new_args = (func, args, kwargs)
+        if _torch_version_less_than(1, 6, 0):
+            return rpc_method(to, _rpc_call_func, args=new_args)
+        return rpc_method(to, _rpc_call_func, args=new_args, timeout=timeout)
+
+    def _rpc_service_call(self, rpc_method, key, args, kwargs):
+        status, holder = rpc.rpc_sync(get_world().lut_manager,
+                                      _rpc_get_lut_entry,
+                                      args=(self.group_name, key,
+                                            LUTType.SERVICE))
+        if not status:
+            raise KeyError("Service with key [{}] not found on Group [{}], "
+                           .format(key, self.group_name))
+        return rpc_method(holder, _rpc_call_service,
+                          args=(self.group_name, key, args, kwargs))
 
     def __reduce__(self):  # pragma: no cover
         # returns a complete description of group

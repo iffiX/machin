@@ -60,6 +60,11 @@ def processes():
     default_logger.info("processes stopped")
 
 
+@pytest.fixture(scope="function", autouse=True)
+def gpu(pytestconfig):
+    return pytestconfig.getoption("gpu_device")
+
+
 def exec_with_process(processes, func, args_list, kwargs_list,
                       expected_results, timeout, *pass_through):
     procs, proc_pipes = processes
