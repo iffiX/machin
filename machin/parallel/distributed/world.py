@@ -312,7 +312,7 @@ class World:
         """
         if group_name in self.groups:  # pragma: no cover
             raise RuntimeError("Group {} already exists!".format(group_name))
-        group = RpcGroup(group_name, members, True)
+        group = RpcGroup(group_name, members)
         self.groups[group_name] = group
         return group
 
@@ -508,12 +508,11 @@ class CollectiveGroup:
 # add the heartbeat mechanism to the lut_manager, to increase robustness
 
 class RpcGroup:
-    def __init__(self, group_name, group_members, is_local):
+    def __init__(self, group_name, group_members):
         self.group_name = group_name
         self.group_members = group_members
         self.group_value_lut = {}
         self.group_service_lut = {}
-        self.is_local = is_local
         self.destroyed = False
 
     @_copy_doc(rpc.rpc_sync)
@@ -762,8 +761,7 @@ class RpcGroup:
             when any lookup fail.
         """
         if not self.destroyed:
-            if self.is_local:
-                WORLD.groups.pop(self.group_name)
+            WORLD.groups.pop(self.group_name)
             self.destroyed = True
 
     def size(self):
@@ -772,10 +770,12 @@ class RpcGroup:
         """
         return len(self.group_members)
 
-    def is_member(self, target: str) -> bool:
+    def is_member(self, target: str = None) -> bool:
         """
         Check whether target name is a group member.
         """
+        if target is None:
+            target = self.get_cur_name()
         return target in self.group_members
 
     def get_group_name(self) -> str:
@@ -818,7 +818,4 @@ class RpcGroup:
 
     def __reduce__(self):  # pragma: no cover
         # returns a complete description of group
-        return RpcGroup, (self.group_name, self.group_members, False)
-
-    def __del__(self):
-        self.destroy()
+        return RpcGroup, (self.group_name, self.group_members)

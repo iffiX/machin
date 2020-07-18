@@ -1,6 +1,6 @@
 from machin.parallel.server import (
-    PushPullGradServer,
-    PushPullModelServer
+    PushPullGradServerImpl,
+    PushPullModelServerImpl
 )
 from test.util_run_multi import *
 import random
@@ -48,6 +48,7 @@ class Optimizer(object):
     def step(self):
         with t.no_grad():
             for p in self.params:
+                default_logger.critical(p.grad)
                 p -= p.grad
 
 
@@ -59,11 +60,12 @@ class TestPushPullModelServer(WorldTestBase):
         world = get_world()
         if rank == 0:
             group = world.create_rpc_group("group", ["0"])
-            _server = PushPullModelServer("server", group)
-            sleep(3)
+            _server = PushPullModelServerImpl("server", group)
+            sleep(4)
         else:
+            sleep(2)
             group = world.get_rpc_group("group", "0")
-            server = group.rpc_get_paired("0", "server").to_here()
+            server = group.get_paired("server").to_here()
             model = Model()
             pull_model = Model()
             for i in range(10):
@@ -91,14 +93,20 @@ class TestPushPullModelServer(WorldTestBase):
 
 class TestPushPullGradServer(WorldTestBase):
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @pytest.mark.parametrize("reduce_method,new_weight",
+                             [("mean", (-5, -1, 1)),
+                              ("sum", (-23, -10, -5))])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["reduce_method", "new_weight"])
     @WorldTestBase.setup_world
-    def test_push_pull(rank):
+    def test_push_pull(rank, reduce_method, new_weight):
         world = get_world()
         if rank == 0:
             # only one reduce slave, so result is controllable
             group = world.create_rpc_group("group", ["0"])
-            server = PushPullGradServer("server", group, reduce_batch_size=2)
+            server = PushPullGradServerImpl("server", group,
+                                            reduce_method=reduce_method,
+                                            reduce_batch_size=2)
             model = Model()
             server.manage_model(model, Optimizer(model.parameters()))
             begin = time()
@@ -107,8 +115,9 @@ class TestPushPullGradServer(WorldTestBase):
                 server.watch()
             server.stop()
         else:
+            sleep(2)
             group = world.get_rpc_group("group", "0")
-            server = group.rpc_get_paired("0", "server").to_here()
+            server = group.get_paired("server").to_here()
             model = Model()
 
             # "0" will be wake up twice as a slave reducer, and once
@@ -123,7 +132,15 @@ class TestPushPullGradServer(WorldTestBase):
             sleep(3)
             server.pull(model)
             _log(rank, "reduced model: {}".format(model))
-            assert model.fc1.weight.item() == -5
-            assert model.fc2.weight.item() == -1
-            assert model.fc3.weight.item() == 1
+            # reduce_method = "mean":
+            # fc1: weight(1) - 6 = -5
+            # fc2: weight(2) - 3 = -1
+            # fc3: weight(3) - 2 = 1
+            # reduce_method = "sum":
+            # fc1: weight(1) - 4 * 6 = -23
+            # fc2: weight(2) - 4 * 3 = -10
+            # fc3: weight(3) - 4 * 2 = -5
+            assert model.fc1.weight.item() == new_weight[0]
+            assert model.fc2.weight.item() == new_weight[1]
+            assert model.fc3.weight.item() == new_weight[2]
         return True

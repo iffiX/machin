@@ -4,34 +4,29 @@ from copy import deepcopy
 from queue import Queue
 from threading import Event
 
+import enum
 import torch as t
 import torch.nn as nn
 
 from machin.parallel.thread import Thread
-from machin.parallel.distributed import RpcGroup, get_cur_name
+from machin.parallel.distributed import RpcGroup
 from machin.utils.prepare import prep_load_state_dict
-from .ordered_server import OrderedServerBase, OrderedServerSimple
+from .ordered_server import (
+    OrderedServerBase,
+    OrderedServerSimple,
+    OrderedServerSimpleImpl
+)
 
 
 class PushPullModelServer:
-    """
-    A simple parameter server, which synchronize model parameters
-    by pushing and pulling all parameters and maintaining a strict
-    ordered version chain.
-
-    Warning:
-        ``DistributedDataParallel`` is not supported.
-
-    Warning:
-        Only one model is supported.
-    """
-
     def __init__(self,
                  server_name: str,
                  group: RpcGroup,
-                 model_name: str = "model",
-                 server: OrderedServerBase = None):
+                 model_name: str,
+                 o_server: OrderedServerBase = None):
         """
+        Create an accessor to the services provided by
+        :class:`PushPullModelServerImpl`
         Args:
             server_name: Name of this server, used to registered
                 the server as a paired class of ``group``.
@@ -40,17 +35,12 @@ class PushPullModelServer:
             model_name: Name of the managed model in the ordered server,
                 only needed if ``server`` needs such a identifier. The default
                 ordered server does not require this.
-            server: Custom ordered server.
+            o_server: Custom ordered server accessor.
         """
         self.server_name = server_name
         self.group = group
-        self.group.rpc_pair(server_name, self)
         self.model_name = model_name
-        self.server = (
-            OrderedServerSimple(server_name + "_o_server", group)
-            if server is None
-            else server
-        )
+        self.o_server = o_server
 
     def push(self, model: nn.Module):
         """
@@ -65,11 +55,11 @@ class PushPullModelServer:
             model.pp_version = 0
 
         copied_model = deepcopy(model)
-        if not self.server.push(
+        if not self.o_server.push(
                 self.model_name, copied_model.to("cpu").state_dict(),
                 version=model.pp_version + 1, prev_version=model.pp_version
         ):
-            result = self.server.pull(self.model_name)
+            result = self.o_server.pull(self.model_name)
             if result is None:  # pragma: no cover
                 raise RuntimeError("Pull failed, this should not happen.")
             st_dict, version = result
@@ -88,7 +78,7 @@ class PushPullModelServer:
         Args:
             model: Model to pull.
         """
-        result = self.server.pull(self.model_name)
+        result = self.o_server.pull(self.model_name)
         if result is None:  # pragma: no cover
             return False
         st_dict, version = result
@@ -97,125 +87,77 @@ class PushPullModelServer:
             model.pp_version = version
         return True
 
-    def __reduce__(self):  # pragma: no cover
-        return PushPullModelServer, (self.server_name, self.group,
-                                     self.model_name, self.server)
 
-
-class PushPullGradServer:
+class PushPullModelServerImpl:
     """
     A simple parameter server, which synchronize model parameters
-    by pushing gradients and pulling back new parameters, no strict
-    order is guaranteed.
+    by pushing and pulling all parameters and maintaining a strict
+    ordered version chain.
 
     Warning:
-        ``DistributedDataParallel`` is not supported. since we cannot
-        load state dictionary after creation.
+        ``DistributedDataParallel`` is not supported.
+
+    Warning:
+        Only one model is supported.
     """
-    REDUCE_MASTER = 0
-    REDUCE_SLAVE = 1
 
     def __init__(self,
                  server_name: str,
                  group: RpcGroup,
                  model_name: str = "model",
-                 reduce_master: str = None,
-                 server: OrderedServerBase = None,
-                 reduce_device: Union[t.device, str] = "cpu",
-                 reduce_batch_size: int = 8,
-                 max_queue_size: int = 1024):
+                 o_server: OrderedServerBase = None):
         """
-        Note:
-            You should initialize ``PushPullGradServer`` on all roles of the
-            rpc ``group``, and ``master_reduce_role`` must be one member of
-            the rpc group.
-
-        Note:
-            Internally the master reducer will push updated versions
-            to the ordered server.
-
-        Hint:
-            Reduction is performed in a tree fashion:
-
-            1. In the first step, clients will push new gradients to a
-               random slave reducer, and the slave reducer will perform
-               the first reduction pass, then slave reducers will push
-               their results to the master reducer.
-            2. In the second step, the master reducer will reduce results
-               from the slave reducer to get the final reduced gradient
-               dictionary (has the same structure as state_dict), and assign
-               gradients to its **managed model**, and perform the
-               optimization.
-            3. In the final step, the master reducer will push the final
-               model to the model server group, then clients can pull the
-               newest model.
+        This init function must be only invoked on the runner process,
+        and the runner process must be a member process of ``group``.
 
         Args:
             server_name: Name of this server, used to registered
                 the server as a paired class of ``group``.
-            group: Server group.
+            group: RpcGroup of the default server :class:`.OrderedServerSimple`
+                mutually exclusive with ``server``
             model_name: Name of the managed model in the ordered server,
                 only needed if ``server`` needs such a identifier. The default
                 ordered server does not require this.
-            reduce_master: Name of the process serving as the master reducer,
-                which collects reduced gradients from slave reducers and
-                perform the final reduction.
-            server: Custom ordered server, mutually exclusive with
-                ``reduce_master``.
-            reduce_device: Device to perform reduction, by default it is "cpu".
-            reduce_batch_size: Size of a single reduction batch, server will
-                wait until the number of requests in the reduction queue have
-                reached this size.
-            max_queue_size: Maximum reduction request queue size.
+            o_server: Custom ordered server accessor.
         """
         self.server_name = server_name
         self.group = group
         self.model_name = model_name
-        self.server = (
-            OrderedServerSimple(server_name + "_o_server", group)
-            if server is None
-            else server
-        )
+        # actual running server started by OrderedServerSimpleStarter
+        self._o_server_impl = None
+        if o_server is None:
+            self._o_server_impl = OrderedServerSimpleImpl(
+                server_name + "_o_server", group
+            )
+            self.o_server = group.get_paired(server_name + "_o_server")\
+                                 .to_here()
+        else:
+            self.o_server = o_server
+        # pair self to group
+        self.group.pair(server_name, self)
+
+    def __reduce__(self):  # pragma: no cover
+        return PushPullModelServer, (self.server_name, self.group,
+                                     self.model_name, self.o_server)
+
+
+class ReduceType(enum.Enum):
+    REDUCE_PRIMARY = 0
+    REDUCE_SECONDARY = 1
+
+
+class PushPullGradServer:
+    def __init__(self,
+                 server_name: str,
+                 group: RpcGroup,
+                 model_name: str,
+                 o_server: OrderedServerBase):
         self.group = group
-        self.group.rpc_pair(server_name, self)
-
-        if reduce_master is None:
-            reduce_master = group.get_group_members()[0]
-        assert group.is_member(reduce_master)
-        self.reduce_master = reduce_master
-        self.reduce_slaves = self.group.get_group_members()
-        self.reduce_batch_size = reduce_batch_size
-        self.reduce_device = reduce_device
-        self.max_queue_size = max_queue_size
-        self.model = None  # type: Union[nn.Module, None]
-        self.optimizer = None
-
-        # prepare to start the reduction subprocess
-        self.started = False
-        self.master_queue = Queue(maxsize=max_queue_size)
-        self.slave_queue = Queue(maxsize=max_queue_size)
-        self.work_event = Event()
-        self.stop_event = Event()
-        self.reduce_task = Thread(target=self._task_reduce_grad)
-        self.reduce_task.daemon = True
-
-    def start(self):
-        if not self.started:
-            members = self.group.get_group_members()
-            if get_cur_name() not in members:  # pragma: no cover
-                raise RuntimeError("Current process is not a member of the"
-                                   " gradient server group")
-            self.reduce_task.start()
-            self.started = True
-
-    def stop(self):
-        if self.started:
-            self.stop_event.set()
-            self.reduce_task.join()
-            self.stop_event.clear()
-
-    def watch(self):
-        self.reduce_task.watch()
+        self.model_name = model_name
+        self.o_server = o_server
+        self.secondary_services = [server_name +
+                                   "/" + m + "/_push_service"
+                                   for m in group.get_group_members()]
 
     def push(self, model: nn.Module):
         """
@@ -233,11 +175,9 @@ class PushPullGradServer:
                 raise RuntimeError("Parameter {} doesn't have gradient "
                                    "to push!".format(k))
             grad_dict[k] = deepcopy(v.grad).to("cpu")
-        self.group.rpc_paired_class_async(
-            choice(self.reduce_slaves),
-            self.server_name,
-            self._push_reply,
-            args=(grad_dict, self.REDUCE_SLAVE)
+        self.group.registered_sync(
+            choice(self.secondary_services),
+            args=(grad_dict, ReduceType.REDUCE_SECONDARY)
         )
         self.pull(model)
 
@@ -249,11 +189,148 @@ class PushPullGradServer:
             model: Model to push.
         """
         model.zero_grad()
-        params = self.server.pull(self.model_name)
+        params = self.o_server.pull(self.model_name)
         if params is not None:
             # params could be None if the master reducer has't performed
             # a single reduction operation yet
             prep_load_state_dict(model, params[0])
+
+
+class PushPullGradServerImpl:
+    """
+    A simple parameter server, which synchronize model parameters
+    by pushing gradients and pulling back new parameters, no strict
+    order is guaranteed.
+
+    Warning:
+        ``DistributedDataParallel`` is not supported. since we cannot
+        load state dictionary after creation.
+    """
+    REDUCE_MASTER = 0
+    REDUCE_SLAVE = 1
+
+    def __init__(self,
+                 server_name: str,
+                 group: RpcGroup,
+                 model_name: str = "model",
+                 primary_reducer: str = None,
+                 o_server: OrderedServerBase = None,
+                 reduce_method: str = "sum",
+                 reduce_device: Union[t.device, str] = "cpu",
+                 reduce_batch_size: int = 8,
+                 max_queue_size: int = 1024):
+        """
+        Note:
+            You should initialize ``PushPullGradServer`` on all members of the
+            rpc ``group``, and ``primary_reducer`` must be one member of
+            the rpc group.
+
+        Note:
+            Internally the primary reducer will push updated versions
+            to the ordered server.
+
+        Hint:
+            Reduction is performed in a tree fashion:
+
+            1. In the first step, clients will push new gradients to a
+               random secondary reducer, and the secondary reducer will perform
+               the first reduction pass, then secondary reducers will push
+               their results to the primary reducer.
+            2. In the second step, the primary reducer will reduce results
+               from the secondary reducer to get the final reduced gradient
+               dictionary (has the same structure as state_dict), and assign
+               gradients to its **managed model**, and perform the
+               optimization.
+            3. In the final step, the primary reducer will push the final
+               model to the model server group, then clients can pull the
+               newest model.
+
+        Args:
+            server_name: Name of this server, used to registered
+                the server as a paired class of ``group``.
+            group: Server group.
+            model_name: Name of the managed model in the ordered server,
+                only needed if ``server`` needs such a identifier. The default
+                ordered server does not require this.
+            primary_reducer: Name of the process serving as the primary reducer,
+                which collects reduced gradients from secondary reducers and
+                perform the final reduction.
+            o_server: Custom ordered server accessor. By default, the ordered
+                server is a :class:`.OrderedServerSimple` hosted on the primary
+                reducer.
+            reduce_method: "mean" or "sum"
+            reduce_device: Device to perform reduction, by default it is "cpu".
+            reduce_batch_size: Size of a single reduction batch, server will
+                wait until the number of requests in the reduction queue have
+                reached this size.
+            max_queue_size: Maximum reduction request queue size.
+        """
+        self.server_name = server_name
+        self.group = group
+        self.model_name = model_name
+
+        if primary_reducer is None:
+            primary_reducer = group.get_group_members()[0]
+        assert group.is_member(primary_reducer)
+        assert group.is_member()
+
+        # actual running server started by OrderedServerSimpleStarter
+        self._o_server_impl = None
+        self.o_server = None
+        if o_server is None:
+            if group.get_cur_name() == primary_reducer:
+                self._o_server_impl = OrderedServerSimpleImpl(
+                    server_name + "_o_server", group
+                )
+            self.o_server = OrderedServerSimple(server_name + "_o_server",
+                                                group)
+        else:
+            self.o_server = o_server
+
+        # pair self to group
+        if group.get_cur_name() == primary_reducer:
+            self.group.pair(server_name, self)
+
+        self.primary_reducer = primary_reducer
+        self.primary_service = (server_name +
+                                "/" + primary_reducer +
+                                "/_push_service")
+        self.secondary_services = [server_name +
+                                   "/" + m + "/_push_service"
+                                   for m in group.get_group_members()]
+        # register secondary reducer service
+        self.group.register(server_name + "/" + group.get_cur_name() +
+                            "/_push_service", self._push_service)
+
+        # prepare to start the reduction sub-thread
+        assert reduce_method in ("mean", "sum")
+        self.started = False
+        self.reduce_method = reduce_method
+        self.reduce_batch_size = reduce_batch_size
+        self.reduce_device = reduce_device
+        self.max_queue_size = max_queue_size
+        self.model = None  # type: Union[nn.Module, None]
+        self.optimizer = None
+        self.master_queue = Queue(maxsize=max_queue_size)
+        self.secondary_queue = Queue(maxsize=max_queue_size)
+        self.work_event = Event()
+        self.stop_event = Event()
+        self.reduce_task = Thread(target=self._task_reduce_grad)
+        self.reduce_task.daemon = True
+
+    def start(self):
+        if not self.started:
+            self.reduce_task.start()
+            self.started = True
+
+    def stop(self):
+        if self.started:
+            self.stop_event.set()
+            self.reduce_task.join()
+            self.stop_event.clear()
+
+    def watch(self):
+        self.reduce_task.watch()
 
     def manage_model(self, model: nn.Module, optimizer: Any):
         """
@@ -271,7 +348,7 @@ class PushPullGradServer:
         Raises:
             ``RuntimeError`` if current rpc role is not the main reducer.
         """
-        if self.group.get_cur_name() == self.reduce_master:
+        if self.group.get_cur_name() == self.primary_reducer:
             self.model = model
             self.optimizer = optimizer
             self.model.pp_version = 0
@@ -279,22 +356,24 @@ class PushPullGradServer:
             raise RuntimeError("Current worker is not the reduce master, and"
                                "cannot manage the model.")
 
-    def _push_reply(self, grad_dict, level):  # pragma: no cover
+    def _push_service(self, grad_dict, level):  # pragma: no cover
         # Append reduce requests to queue.
-        if level == self.REDUCE_SLAVE:
-            self.slave_queue.put_nowait(grad_dict)
+        if level == ReduceType.REDUCE_SECONDARY:
+            self.secondary_queue.put_nowait(grad_dict)
             self.work_event.set()
             self.work_event.clear()
-        elif level == self.REDUCE_MASTER:
+        elif level == ReduceType.REDUCE_PRIMARY:
             self.master_queue.put_nowait(grad_dict)
             self.work_event.set()
             self.work_event.clear()
+        else:  # pragma: no cover
+            raise ValueError("Unknown push level: {}".format(level))
 
     def _task_reduce_grad(self):
         while True:
             # Wait until one queue has reached target batch size
             while (self.master_queue.qsize() < self.reduce_batch_size and
-                   self.slave_queue.qsize() < self.reduce_batch_size):
+                   self.secondary_queue.qsize() < self.reduce_batch_size):
                 self.work_event.wait(timeout=1e-1)
                 if self.stop_event.is_set():
                     return
@@ -303,6 +382,7 @@ class PushPullGradServer:
                 # Only the master reducer will execute this branch
                 grad_dict = self._reduce_batch(self.master_queue,
                                                self.reduce_batch_size,
+                                               self.reduce_method,
                                                self.reduce_device)
                 # Assign gradients to the managed model and
                 # perform optimization.
@@ -312,29 +392,28 @@ class PushPullGradServer:
                         for k, v in self.model.named_parameters():
                             v.grad = grad_dict[k].to(v.device)
                     self.optimizer.step()
-                    self.server.push(self.model_name,
-                                     self.model.to("cpu").state_dict(),
-                                     self.model.pp_version + 1,
-                                     self.model.pp_version)
+                    self.o_server.push(self.model_name,
+                                       self.model.to("cpu").state_dict(),
+                                       self.model.pp_version + 1,
+                                       self.model.pp_version)
                     self.model.pp_version += 1
 
-            if self.slave_queue.qsize() >= self.reduce_batch_size:
-                # Perform reduction on the slave reduction queue
+            if self.secondary_queue.qsize() >= self.reduce_batch_size:
+                # Perform reduction on the secondary reduction queue
                 # All processes(including master) in the reduction
                 # group will execute this branch.
-                grad_dict = self._reduce_batch(self.slave_queue,
+                grad_dict = self._reduce_batch(self.secondary_queue,
                                                self.reduce_batch_size,
+                                               self.reduce_method,
                                                self.reduce_device)
                 # Push reduced results to the master queue.
-                self.group.rpc_paired_class_async(
-                    self.reduce_master,
-                    self.server_name,
-                    self._push_reply,
-                    args=(grad_dict, self.REDUCE_MASTER)
+                self.group.registered_sync(
+                    self.primary_service,
+                    args=(grad_dict, ReduceType.REDUCE_PRIMARY)
                 )
 
     @staticmethod
-    def _reduce_batch(queue, batch_size, reduce_device):
+    def _reduce_batch(queue, batch_size, reduce_method, reduce_device):
         """
         Perform batched gradient reduction
 
@@ -353,14 +432,15 @@ class PushPullGradServer:
                     grad_dict[k].append(v.to(reduce_device))
         for k, v in grad_dict.items():
             # Stack parameter tensors in dim 0 and reduce.
-            grad_dict[k] = t.sum(t.stack(v, dim=0), dim=0, keepdim=False)
+            if reduce_method == "sum":
+                grad_dict[k] = t.sum(t.stack(v, dim=0), dim=0, keepdim=False)
+            elif reduce_method == "mean":
+                grad_dict[k] = t.mean(t.stack(v, dim=0), dim=0, keepdim=False)
+            else:  # pragma: no cover
+                raise RuntimeError("Unknown reduce method.")
         return grad_dict
 
     def __reduce__(self):  # pragma: no cover
         return PushPullGradServer, \
                (self.server_name, self.group, self.model_name,
-                self.reduce_master,
-                self.server,
-                self.reduce_device,
-                self.reduce_batch_size,
-                self.max_queue_size)
+                self.o_server)

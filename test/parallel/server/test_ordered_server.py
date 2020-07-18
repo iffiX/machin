@@ -1,5 +1,5 @@
 from machin.parallel.distributed import RpcGroup
-from machin.parallel.server import OrderedServerSimple
+from machin.parallel.server import OrderedServerSimpleImpl
 from test.util_run_multi import *
 
 
@@ -9,9 +9,12 @@ def _log(rank, msg):
 
 class TestOrderedServerSimple(WorldTestBase):
     def test__push_pull_service(self):
-        fake_group = RpcGroup("fake_group", ("proc1", "proc2"), False)
+        fake_group = RpcGroup("fake_group", ("proc1", "proc2"))
+        fake_group.pair = lambda *_: None
+        fake_group.register = lambda *_: None
         fake_group.destroy = lambda: None
-        server = OrderedServerSimple("fake_server", fake_group)
+        fake_group.is_member = lambda *_: True
+        server = OrderedServerSimpleImpl("fake_server", fake_group)
         assert server._push_service("a", "value", 1, None)
         assert not server._push_service("a", "value1", 2, 0)
         assert server._push_service("a", "value2", 2, 1)
@@ -29,11 +32,12 @@ class TestOrderedServerSimple(WorldTestBase):
         world = get_world()
         if rank == 0:
             group = world.create_rpc_group("group", ["0"])
-            _server = OrderedServerSimple("server", group)
+            _server = OrderedServerSimpleImpl("server", group)
             sleep(5)
         else:
+            sleep(2)
             group = world.get_rpc_group("group", "0")
-            server = group.rpc_get_paired("0", "server").to_here()
+            server = group.get_paired("server").to_here()
 
             if server.push("a", "value", 1, None):
                 _log(rank, "push 1 success")

@@ -4,8 +4,6 @@ from threading import Lock
 from copy import deepcopy
 from ..distributed import RpcGroup
 
-from test.util_run_multi import *
-
 
 class OrderedServerBase(ABC):  # pragma: no cover
     """
@@ -51,61 +49,60 @@ class OrderedServerBase(ABC):  # pragma: no cover
         """
         pass
 
-    @abstractmethod
-    def __reduce__(self):
-        """
-        Subclasses must implement this method, so that server can be
-        passed around as a handle
-        """
-        pass
-
 
 class OrderedServerSimple(OrderedServerBase):
+    def __init__(self, server_name: str, group: RpcGroup):
+        self._push_service = server_name + "/_push_service"
+        self._pull_service = server_name + "/_pull_service"
+        self.group = group
+
+    def push(self, key, value, version, prev_version):
+        # DOC INHERITED
+        return self.group.registered_sync(
+            self._push_service, args=(key, value, version, prev_version)
+        )
+
+    def pull(self, key, version=None):
+        # DOC INHERITED
+        return self.group.registered_sync(
+            self._pull_service, args=(key, version)
+        )
+
+
+class OrderedServerSimpleImpl(object):
     """
     A simple key-value server, with strict ordered update
     """
     def __init__(self,
                  server_name: str,
                  group: RpcGroup,
-                 server_runner: str = None,
                  version_depth: int = 1,
                  **__):
         """
+        This init function must be only invoked on the runner process,
+        and the runner process must be a member process of ``group``.
+
         Args:
             server_name: Name of this server, used to registered
                 the server as a paired class of ``group``.
             group: Rpc group where server locates.
             server_runner: Name of the process serving the ordered server.
+                By default is the first member of the group.
             version_depth: Storage depth of old versions of the same
                 key. If ``depth = 1``, then only the newest version
                 of the key will be saved.
         """
-        if server_runner is None:
-            server_runner = group.get_group_members()[0]
-        assert group.is_member(server_runner)
+        assert group.is_member()
         assert version_depth > 0 and isinstance(version_depth, int)
 
         self.server_name = server_name
-        self.server_runner = server_runner
         self.group = group
         self.storage = {}
         self.lock = Lock()
         self.version_depth = version_depth
-        self.group.rpc_pair(server_name, self)
-
-    def push(self, key, value, version, prev_version):
-        # DOC INHERITED
-        return self.group.rpc_paired_class_sync(
-            self.server_runner, self.server_name, self._push_service,
-            args=(key, value, version, prev_version)
-        )
-
-    def pull(self, key, version=None):
-        # DOC INHERITED
-        return self.group.rpc_paired_class_sync(
-            self.server_runner, self.server_name, self._pull_service,
-            args=(key, version)
-        )
+        self.group.pair(server_name, self)
+        self.group.register(server_name + "/_push_service", self._push_service)
+        self.group.register(server_name + "/_pull_service", self._pull_service)
 
     def _push_service(self, key, value, version, prev_version):
         success = False
@@ -140,5 +137,4 @@ class OrderedServerSimple(OrderedServerBase):
         return result
 
     def __reduce__(self):  # pragma: no cover
-        return OrderedServerSimple, (self.server_name, self.group,
-                                     self.server_runner, self.version_depth)
+        return OrderedServerSimple, (self.server_name, self.group)
