@@ -131,7 +131,7 @@ class PushPullModelServerImpl:
             )
             self.o_server = group.get_paired(server_name + "_o_server")\
                                  .to_here()
-        else:
+        else:  # pragma: no cover
             self.o_server = o_server
         # pair self to group
         self.group.pair(server_name, self)
@@ -284,7 +284,7 @@ class PushPullGradServerImpl:
                 )
             self.o_server = OrderedServerSimple(server_name + "_o_server",
                                                 group)
-        else:
+        else:  # pragma: no cover
             self.o_server = o_server
 
         # pair self to group

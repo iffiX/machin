@@ -87,6 +87,9 @@ class Buffer(object):
         return len(self.buffer)
 
     def clear(self):
+        """
+        Remove all entries from the buffer
+        """
         self.buffer.clear()
 
     @staticmethod

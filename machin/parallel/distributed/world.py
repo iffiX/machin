@@ -619,13 +619,16 @@ class RpcGroup:
         Raises:
             ``KeyError`` if not found.
         """
-        status, holder = rpc.rpc_sync(get_world().lut_manager,
-                                      _rpc_get_lut_entry,
-                                      args=(self.group_name, key,
-                                            LUTType.VALUE))
-        if not status:
-            raise KeyError("Value with key [{}] not found on Group [{}], "
-                           .format(key, self.group_name))
+        if key in self.group_value_lut:
+            holder = get_cur_name()
+        else:
+            status, holder = rpc.rpc_sync(get_world().lut_manager,
+                                          _rpc_get_lut_entry,
+                                          args=(self.group_name, key,
+                                                LUTType.VALUE))
+            if not status:
+                raise KeyError("Value with key [{}] not found on Group [{}], "
+                               .format(key, self.group_name))
         return rpc.remote(holder, _rpc_get_paired_value,
                           args=(self.group_name, key))
 
@@ -806,13 +809,16 @@ class RpcGroup:
         return rpc_method(to, _rpc_call_func, args=new_args, timeout=timeout)
 
     def _rpc_service_call(self, rpc_method, key, args, kwargs):
-        status, holder = rpc.rpc_sync(get_world().lut_manager,
-                                      _rpc_get_lut_entry,
-                                      args=(self.group_name, key,
-                                            LUTType.SERVICE))
-        if not status:
-            raise KeyError("Service with key [{}] not found on Group [{}], "
-                           .format(key, self.group_name))
+        if key in self.group_service_lut:
+            holder = get_cur_name()
+        else:
+            status, holder = rpc.rpc_sync(get_world().lut_manager,
+                                          _rpc_get_lut_entry,
+                                          args=(self.group_name, key,
+                                                LUTType.SERVICE))
+            if not status:
+                raise KeyError("Service with key [{}] not found on Group [{}], "
+                               .format(key, self.group_name))
         return rpc_method(holder, _rpc_call_service,
                           args=(self.group_name, key, args, kwargs))
 
