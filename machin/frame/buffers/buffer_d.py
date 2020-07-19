@@ -36,7 +36,7 @@ class DistributedBuffer:
         """
         if (get_cur_name() not in self.group.get_group_members() and
                 buffer_process is None):
-            raise ValueError('You must specify "buffer_process" because'
+            raise ValueError('You must specify "buffer_process" because '
                              'current Process [{}] is not a member of '
                              'Group [{}]'
                              .format(get_cur_name(), self.group.group_name))
@@ -95,7 +95,7 @@ class DistributedBuffer:
         """
         if (get_cur_name() not in self.group.get_group_members() and
                 buffer_process is None):
-            raise ValueError('You must specify "buffer_process" because'
+            raise ValueError('You must specify "buffer_process" because '
                              'current Process [{}] is not a member of '
                              'Group [{}]'
                              .format(get_cur_name(), self.group.group_name))
@@ -118,7 +118,7 @@ class DistributedBuffer:
 
         future = [
             self.group.registered_async(
-                self.buffer_name + "/" + m + "/_get_batch_service",
+                self.buffer_name + "/" + m + "/_sample_service",
                 args=(local_batch_size, sample_method)
             )
             for m in self.group.get_group_members()
@@ -142,8 +142,7 @@ class DistributedBuffer:
 
 
 class DistributedBufferImpl(Buffer):
-    def __init__(self, buffer_name: str, group: RpcGroup,
-                 buffer_size: int, timeout: float = 10,
+    def __init__(self, buffer_name: str, group: RpcGroup, buffer_size: int,
                  *_, **__):
         """
         Create a distributed replay buffer instance.
@@ -171,7 +170,6 @@ class DistributedBufferImpl(Buffer):
             buffer_size: Maximum local buffer size.
             group: Process group which holds this buffer.
             buffer_name: A unique name of your buffer.
-            timeout: Timeout value of rpc requests.
         """
         super(DistributedBufferImpl, self).__init__(buffer_size, "cpu")
         self.buffer_name = buffer_name
@@ -187,9 +185,8 @@ class DistributedBufferImpl(Buffer):
                             self._clear_service)
         self.group.register(buffer_name + _name + "/_append_service",
                             self._append_service)
-        self.group.register(buffer_name + _name + "/_get_batch_service",
-                            self._get_batch_service)
-        self.timeout = timeout
+        self.group.register(buffer_name + _name + "/_sample_service",
+                            self._sample_service)
         self.wr_lock = Lock()
 
     def _append_service(self, transition: Union[Transition, Dict],
@@ -208,7 +205,7 @@ class DistributedBufferImpl(Buffer):
         with self.wr_lock:
             super(DistributedBufferImpl, self).clear()
 
-    def _get_batch_service(self, batch_size, sample_method):  # pragma: no cover
+    def _sample_service(self, batch_size, sample_method):  # pragma: no cover
         if isinstance(sample_method, str):
             if not hasattr(self, "sample_method_" + sample_method):
                 raise RuntimeError("Cannot find specified sample method: {}"
