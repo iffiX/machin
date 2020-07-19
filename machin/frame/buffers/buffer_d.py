@@ -174,8 +174,11 @@ class DistributedBufferImpl(Buffer):
         super(DistributedBufferImpl, self).__init__(buffer_size, "cpu")
         self.buffer_name = buffer_name
         self.group = group
+
+        # pair an accessor to group
         if group.get_cur_name() == group.get_group_members()[0]:
-            self.group.pair(buffer_name, self)
+            self.group.pair(buffer_name,
+                            DistributedBuffer(self.buffer_name, self.group))
         
         _name = "/" + group.get_cur_name()
 
@@ -218,6 +221,3 @@ class DistributedBufferImpl(Buffer):
                                                           batch_size)
 
         return local_batch_size, local_batch
-
-    def __reduce__(self):  # pragma: no cover
-        return DistributedBuffer, (self.buffer_name, self.group)

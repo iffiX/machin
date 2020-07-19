@@ -133,12 +133,10 @@ class PushPullModelServerImpl:
                                  .to_here()
         else:  # pragma: no cover
             self.o_server = o_server
-        # pair self to group
-        self.group.pair(server_name, self)
-
-    def __reduce__(self):  # pragma: no cover
-        return PushPullModelServer, (self.server_name, self.group,
-                                     self.model_name, self.o_server)
+        # pair an accessor to group
+        self.group.pair(server_name,
+                        PushPullModelServer(self.server_name, self.group,
+                                            self.model_name, self.o_server))
 
 
 class ReduceType(enum.Enum):
@@ -217,8 +215,8 @@ class PushPullGradServerImpl:
                  o_server: OrderedServerBase = None,
                  reduce_method: str = "sum",
                  reduce_device: Union[t.device, str] = "cpu",
-                 reduce_batch_size: int = 8,
-                 max_queue_size: int = 1024):
+                 reduce_batch_size: int = 4,
+                 max_queue_size: int = 64):
         """
         Note:
             You should initialize ``PushPullGradServer`` on all members of the
@@ -287,10 +285,6 @@ class PushPullGradServerImpl:
         else:  # pragma: no cover
             self.o_server = o_server
 
-        # pair self to group
-        if group.get_cur_name() == primary_reducer:
-            self.group.pair(server_name, self)
-
         self.primary_reducer = primary_reducer
         self.primary_service = (server_name +
                                 "/" + primary_reducer +
@@ -304,6 +298,9 @@ class PushPullGradServerImpl:
 
         # prepare to start the reduction sub-thread
         assert reduce_method in ("mean", "sum")
+        assert max_queue_size > 1
+        assert reduce_batch_size > 1
+        assert max_queue_size > reduce_batch_size
         self.started = False
         self.reduce_method = reduce_method
         self.reduce_batch_size = reduce_batch_size
@@ -311,8 +308,9 @@ class PushPullGradServerImpl:
         self.max_queue_size = max_queue_size
         self.model = None  # type: Union[nn.Module, None]
         self.optimizer = None
-        self.master_queue = Queue(maxsize=max_queue_size)
-        self.secondary_queue = Queue(maxsize=max_queue_size)
+        # do not set max_queue_size here, will raise queue.Full
+        self.master_queue = Queue()
+        self.secondary_queue = Queue()
         self.work_event = Event()
         self.stop_event = Event()
         self.reduce_task = Thread(target=self._task_reduce_grad)
@@ -320,6 +318,13 @@ class PushPullGradServerImpl:
 
     def start(self):
         if not self.started:
+            # pair an accessor to group
+            if self.group.get_cur_name() == self.primary_reducer:
+                self.group.pair(
+                    self.server_name,
+                    PushPullGradServer(self.server_name, self.group,
+                                       self.model_name, self.o_server)
+                )
             self.reduce_task.start()
             self.started = True
 
@@ -377,6 +382,12 @@ class PushPullGradServerImpl:
                 self.work_event.wait(timeout=1e-1)
                 if self.stop_event.is_set():
                     return
+            # discard oldest messages
+            while self.master_queue.qsize() > self.max_queue_size:
+                self.master_queue.get()
+            while self.secondary_queue.qsize() > self.max_queue_size:
+                self.secondary_queue.get()
+
             if self.master_queue.qsize() >= self.reduce_batch_size:
                 # Perform reduction on the master reduction queue
                 # Only the master reducer will execute this branch
@@ -439,8 +450,3 @@ class PushPullGradServerImpl:
             else:  # pragma: no cover
                 raise RuntimeError("Unknown reduce method.")
         return grad_dict
-
-    def __reduce__(self):  # pragma: no cover
-        return PushPullGradServer, \
-               (self.server_name, self.group, self.model_name,
-                self.o_server)

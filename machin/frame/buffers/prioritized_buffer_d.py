@@ -240,8 +240,12 @@ class DistributedPrioritizedBufferImpl(PrioritizedBuffer):
             .__init__(buffer_size, "cpu")
         self.buffer_name = buffer_name
         self.group = group
+
+        # pair an accessor to group
         if group.get_cur_name() == group.get_group_members()[0]:
-            self.group.pair(buffer_name, self)
+            self.group.pair(buffer_name,
+                            DistributedPrioritizedBuffer(
+                                self.buffer_name, self.group))
 
         _name = "/" + group.get_cur_name()
 
@@ -317,6 +321,3 @@ class DistributedPrioritizedBufferImpl(PrioritizedBuffer):
             self.wr_lock.acquire()
         else:
             self.wr_lock.release()
-
-    def __reduce__(self):  # pragma: no cover
-        return DistributedPrioritizedBuffer, (self.buffer_name, self.group)

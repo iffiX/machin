@@ -1,5 +1,6 @@
 from machin.model.nets.base import static_module_wrapper as smw
-from machin.frame.algorithms.a3c import A3C, PushPullGradServer
+from machin.frame.algorithms.a3c import A3C
+from machin.frame.helpers.servers import grad_server_helper
 from machin.utils.helper_classes import Counter
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
@@ -67,40 +68,25 @@ class TestA3C(object):
     c.solved_repeat = 5
     c.device = "cpu"
 
-    # in all test scenarios, p0 and p1 will server as the reducer,
-    # while p1 and p2 will serve as the actor and updater
     @staticmethod
-    def a3c(rank):
+    def a3c():
         c = TestA3C.c
-        world = get_world()
-        reduce_group = world.create_rpc_group("reduce_group", ["0", "1"])
         actor = smw(Actor(c.observe_dim, c.action_num)
                     .to(c.device), c.device, c.device)
         critic = smw(Critic(c.observe_dim)
                      .to(c.device), c.device, c.device)
-        actor_g_server = PushPullGradServer("actor_g_server", reduce_group,
-                                            reduce_batch_size=2)
-        critic_g_server = PushPullGradServer("critic_g_server", reduce_group,
-                                             reduce_batch_size=2)
-        if rank == 0:
-            actor_m = Actor(c.observe_dim, c.action_num).to(c.device)
-            critic_m = Critic(c.observe_dim).to(c.device)
-            actor_g_server.manage_model(actor_m,
-                                        t.optim.Adam(actor_m.parameters(),
-                                                     lr=1e-3))
-            critic_g_server.manage_model(critic_m,
-                                         t.optim.Adam(critic_m.parameters(),
-                                                      lr=1e-3))
-        if rank in (0, 1):
-            actor_g_server.start()
-            critic_g_server.start()
-
+        # in all test scenarios, all processes will be used as reducers
+        actor_g_server, critic_g_server = grad_server_helper(
+            lambda: Actor(c.observe_dim, c.action_num),
+            lambda: Critic(c.observe_dim),
+            learning_rate=5e-3
+        )
         a3c = A3C(actor, critic,
                   nn.MSELoss(reduction='sum'),
                   (actor_g_server, critic_g_server),
                   replay_device=c.device,
                   replay_size=c.replay_size)
-        return a3c, actor_g_server, critic_g_server
+        return a3c
 
     ########################################################################
     # Test for A3C acting
@@ -108,8 +94,8 @@ class TestA3C(object):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_act(rank):
-        a3c = TestA3C.a3c(rank)[0]
+    def test_act(_):
+        a3c = TestA3C.a3c()
         c = TestA3C.c
         state = t.zeros([1, c.observe_dim])
         a3c.act({"state": state})
@@ -121,8 +107,8 @@ class TestA3C(object):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_eval_action(rank):
-        a3c = TestA3C.a3c(rank)[0]
+    def test_eval_action(_):
+        a3c = TestA3C.a3c()
         c = TestA3C.c
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -135,8 +121,8 @@ class TestA3C(object):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_criticize(rank):
-        a3c = TestA3C.a3c(rank)[0]
+    def test_criticize(_):
+        a3c = TestA3C.a3c()
         c = TestA3C.c
         state = t.zeros([1, c.observe_dim])
         a3c.criticize({"state": state})
@@ -154,7 +140,7 @@ class TestA3C(object):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_update(rank):
-        a3c = TestA3C.a3c(rank)[0]
+        a3c = TestA3C.a3c()
         c = TestA3C.c
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -175,7 +161,7 @@ class TestA3C(object):
                 sleep(0.01)
         if rank == 1:
             # pull the newest model
-            a3c.act({"state": state})
+            a3c.manual_sync()
         return True
 
     ########################################################################
@@ -199,10 +185,8 @@ class TestA3C(object):
     @WorldTestBase.setup_world
     def test_full_train(rank, gae_lambda):
         c = TestA3C.c
-        a3c, actor_g_server, critic_g_server = TestA3C.a3c(rank)
+        a3c = TestA3C.a3c()
 
-        # make sure all processes are up
-        sleep(2)
         # begin training
         episode, step = Counter(), Counter()
         reward_fulfilled = Counter()
@@ -240,8 +224,6 @@ class TestA3C(object):
             # update
             a3c.store_episode(tmp_observations)
             a3c.update()
-            actor_g_server.watch()
-            critic_g_server.watch()
 
             smoother.update(total_reward)
             step.reset()

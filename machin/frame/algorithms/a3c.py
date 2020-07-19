@@ -1,4 +1,5 @@
 from .a2c import *
+from machin.parallel.distributed import RpcGroup
 from machin.parallel.server import PushPullGradServer
 from machin.utils.helper_classes import Switch
 from torch.optim import Adam
@@ -30,13 +31,35 @@ class A3C(A2C):
         See Also:
             :class:`.A2C`
 
+        Note:
+            A3C algorithm relies on parameter servers to synchronize
+            parameters of actor and critic models across samplers (
+            interact with environment) and trainers (using samples
+            to train.
+
+            The parameter server type :class:`.PushPullGradServer`
+            used here utilizes gradients calculated by trainers:
+
+            1. perform a "sum" reduction process on the collected
+            gradients, then apply this reduced gradient to the model
+            managed by its primary reducer
+
+            2. push the parameters of this updated managed model to
+            a ordered key-value server so that all processes,
+            including samplers and trainers, can access the updated
+            parameters.
+
+            The ``grad_servers`` argument is a pair of accessors to
+            two :class:`.PushPullGradServerImpl` class.
+
         Args:
             actor: Actor network module.
             critic: Critic network module.
             optimizer: Optimizer used to optimize ``actor`` and ``critic``.
             criterion: Criterion used to evaluate the value loss.
-            grad_servers: Gradient sync servers, the first server is for
-                actor, and the second one is for critic.
+
+            grad_servers: Custom gradient sync server accessors, the first
+                server accessor is for actor, and the second one is for critic.
             entropy_weight: Weight of entropy in your loss function, a positive
                 entropy weight will minimize entropy, while a negative one will
                 maximize entropy.

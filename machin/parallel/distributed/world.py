@@ -1,7 +1,9 @@
 from threading import Lock
 from datetime import timedelta
 from typing import Union, List, Any, Callable
+from time import sleep
 from torch.distributed import rpc
+from machin.parallel.exception import ExceptionWithTraceback
 
 import enum
 import torch as t
@@ -88,8 +90,7 @@ def _rpc_call_func(func, args, kwargs):  # pragma: no cover
     try:
         return func(*args, **kwargs)
     except BaseException as e:
-        exc = e
-    raise RpcException(exc)
+        raise RpcException(e)
 
 
 def _rpc_call_service(group_name, key, args, kwargs):  # pragma: no cover
@@ -108,8 +109,7 @@ def _rpc_call_service(group_name, key, args, kwargs):  # pragma: no cover
         try:
             return lut[key](*args, **kwargs)
         except BaseException as e:
-            exc = e
-        raise RpcException(exc)
+            raise RpcException(e)
     else:
         # could happen if local map is not synchronized with the
         # global map
@@ -192,6 +192,14 @@ def _get_rpc_group(group_name):  # pragma: no cover
     return WORLD.groups.get(group_name, None)
 
 
+def _is_group_ready(group_name):  # pragma: no cover
+    return WORLD.group_create_signals.get(group_name, None) is False
+
+
+def _unlock_group(group_name):  # pragma: no cover
+    WORLD.group_create_signals[group_name] = True
+
+
 def _check_executor(func):
     def wrapped(self, *args, **kwargs):
         if get_cur_name() not in self.group_members:
@@ -210,9 +218,11 @@ class RpcException(Exception):  # pragma: no cover
 
     def __init__(self, msg):
         if isinstance(msg, str):
+            # used by rpc when reraising the exception on the caller side
             super(RpcException, self).__init__(msg)
-        elif isinstance(msg, BaseException):
-            super(RpcException, self).__init__(str(msg))
+        else:
+            tb = ExceptionWithTraceback(msg).tb
+            super(RpcException, self).__init__(tb)
 
 
 @_world_singleton
@@ -242,6 +252,7 @@ class World:
         self.rank = rank
         self.name = name
         self.groups = {}
+        self.group_create_signals = {}
 
         # "<rank-number>" is used as the unique name.
         rpc.init_rpc(self.name,
@@ -280,7 +291,7 @@ class World:
                                 backend: Any = None):
         """
         Create a sub process group for collective communications. This function
-        is blocking and requires that all processes in the world enter this
+        is blocking and requires that all processes in the world to enter this
         function.
 
         Warning:
@@ -301,7 +312,9 @@ class World:
 
     def create_rpc_group(self, group_name: str, members: List[str]):
         """
-        Create a sub process group for rpc calls.
+        Create a sub process group for rpc calls. This function
+        is blocking and requires that all processes in ``members`` to
+        enter this function.
 
         Args:
             group_name: A unique group name.
@@ -310,9 +323,40 @@ class World:
         Returns:
             A rpc group.
         """
+        if get_cur_name() not in members:  # pragma: no cover
+            raise RuntimeError("Creator Process [{}] not in Group [{}]"
+                               .format(get_cur_name(), group_name))
         if group_name in self.groups:  # pragma: no cover
             raise RuntimeError("Group {} already exists!".format(group_name))
         group = RpcGroup(group_name, members)
+
+        # temporarily set a signal
+        self.group_create_signals[group_name] = False
+        # wait for other members to enter
+        if get_cur_name() == members[0]:
+            while True:
+                sleep(0.1)
+                future = [
+                    rpc.rpc_async(m, _is_group_ready, args=(group_name,))
+                    for m in members
+                ]
+                for fut in future:
+                    if not fut.wait():
+                        break
+                else:
+                    future = [
+                        rpc.rpc_async(m, _unlock_group, args=(group_name,))
+                        for m in members
+                    ]
+                    for fut in future:
+                        fut.wait()
+                    # finish syncing all processes
+                    break
+        else:
+            while self.group_create_signals[group_name] is not True:
+                sleep(0.1)
+
+        # set the group
         self.groups[group_name] = group
         return group
 
@@ -338,6 +382,13 @@ class World:
             return rpc.rpc_sync(target,
                                 _get_rpc_group,
                                 args=(group_name,))
+
+    def get_members(self):
+        """
+        Returns:
+            A list of names of all processes.
+        """
+        return list(self.rank_name_map.values())
 
     def __reduce__(self):  # pragma: no cover
         raise RuntimeError("World is not picklable, create it per process!")

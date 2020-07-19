@@ -100,7 +100,9 @@ class OrderedServerSimpleImpl(object):
         self.storage = {}
         self.lock = Lock()
         self.version_depth = version_depth
-        self.group.pair(server_name, self)
+        # pair an accessor to group
+        self.group.pair(server_name,
+                        OrderedServerSimple(self.server_name, self.group))
         self.group.register(server_name + "/_push_service", self._push_service)
         self.group.register(server_name + "/_pull_service", self._pull_service)
 
@@ -135,6 +137,3 @@ class OrderedServerSimpleImpl(object):
                     version = next(reversed(ref))
                     result = (deepcopy(ref[version]), version)
         return result
-
-    def __reduce__(self):  # pragma: no cover
-        return OrderedServerSimple, (self.server_name, self.group)
