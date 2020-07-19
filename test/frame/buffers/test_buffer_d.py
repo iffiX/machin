@@ -23,7 +23,8 @@ class TestDistributedBuffer(WorldTestBase):
                 "terminal": True}
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedBufferImpl("buffer", group, 5)
+            _buffer_impl = DistributedBufferImpl("buffer", group, 5)
+            buffer = group.get_paired("buffer").to_here()
             begin = time()
             while time() - begin < 5:
                 buffer.append(data)
@@ -63,7 +64,8 @@ class TestDistributedBuffer(WorldTestBase):
                 "terminal": True}
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedBufferImpl("buffer", group, 5)
+            _buffer_impl = DistributedBufferImpl("buffer", group, 5)
+            buffer = group.get_paired("buffer").to_here()
             if rank == 0:
                 for _ in range(5):
                     buffer.append(data)
@@ -97,7 +99,8 @@ class TestDistributedBuffer(WorldTestBase):
                 "terminal": True}
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedBufferImpl("buffer", group, 5)
+            _buffer_impl = DistributedBufferImpl("buffer", group, 5)
+            buffer = group.get_paired("buffer").to_here()
             for i in range(5):
                 buffer.append(data)
             sleep(5)

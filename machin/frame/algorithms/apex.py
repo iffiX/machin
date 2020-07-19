@@ -1,8 +1,8 @@
 from .dqn_per import *
 from .ddpg_per import *
-from ..buffers.prioritized_buffer_d import DistributedPrioritizedBuffer
+from ..buffers.prioritized_buffer_d import DistributedPrioritizedBufferImpl
 from machin.parallel.server import PushPullModelServer
-from machin.parallel.distributed import RpcGroup
+from machin.parallel.distributed import RpcGroup, get_cur_name
 
 
 class DQNApex(DQNPer):
@@ -20,20 +20,17 @@ class DQNApex(DQNPer):
                  optimizer: Callable,
                  criterion: Callable,
                  worker_group: RpcGroup,
-                 trainer_group: RpcGroup,
+                 model_servers: Tuple[PushPullModelServer,
+                                      PushPullModelServer],
                  *_,
-                 pull_function: Callable = None,
-                 push_function: Callable = None,
                  lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
+                 lr_scheduler_args: Tuple[Tuple] = (),
+                 lr_scheduler_kwargs: Tuple[Dict] = (),
                  batch_size: int = 100,
                  update_rate: float = 0.005,
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
                  replay_size: int = 500000,
-                 replay_device: Union[str, t.device] = "cpu",
-                 replay_buffer: Buffer = None,
                  reward_func: Callable = None,
                  visualize: bool = False,
                  **__):
@@ -41,23 +38,21 @@ class DQNApex(DQNPer):
         See Also:
             :class:`.DQNPer`
 
-        Hint:
-            Your push and pull function will be called like::
-
-                function(actor_model, "actor")
-
-            The default implementation of pull and push functions
-            is provided by :class:`.PushPullModelServer`.
+        Note:
+            Apex framework supports multiple workers(samplers), and only
+            one trainer, you may use ``DistributedDataParallel`` in trainer.
+            If you use ``DistributedDataParallel``, you must call ``update()``
+            in all member processes of ``DistributedDataParallel``.
 
         Args:
             qnet: Q network module.
             qnet_target: Target Q network module.
             optimizer: Optimizer used to optimize ``qnet``.
             criterion: Criterion used to evaluate the value loss.
-            worker_group: Rpc group of roll out workers.
-            trainer_group: Rpc group of model trainers.
-            pull_function: User defined function used to pull the newest model.
-            push_function: User defined function used to push the newest model.
+            worker_group: Rpc group of sample workers.
+            model_servers: Custom model sync server accessors, the first
+                server accessor is for ``qnet``, and the second one is for
+                ``qnet_target``.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
@@ -70,8 +65,7 @@ class DQNApex(DQNPer):
             learning_rate: Learning rate of the optimizer, not compatible with
                 ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
-            replay_size: Replay buffer size. Not compatible with
-                ``replay_buffer``.
+            replay_size: Local replay buffer size of a single worker.
             reward_func: Reward function used in training.
             visualize: Whether visualize the network flow in the first pass.
         """
@@ -83,27 +77,20 @@ class DQNApex(DQNPer):
                                       update_rate=update_rate,
                                       learning_rate=learning_rate,
                                       discount=discount,
-                                      replay_size=replay_size,
-                                      replay_device=replay_device,
-                                      replay_buffer=replay_buffer,
                                       reward_func=reward_func,
                                       visualize=visualize)
 
-        # Currently, worker group is not used, reserved.
+        # will not support sharing rpc group,
+        # use static buffer_name is ok here.
+        if get_cur_name() in worker_group.get_group_members():
+            self._replay_buffer_impl = DistributedPrioritizedBufferImpl(
+                buffer_name="buffer", group=worker_group,
+                buffer_size=replay_size
+            )
+        self.replay_buffer = worker_group.get_paired("buffer").to_here()
         self.worker_group = worker_group
-        self.trainer_group = trainer_group
-
-        self.replay_buffer = DistributedPrioritizedBuffer(
-            buffer_size=replay_size, buffer_group=trainer_group
-        )
-
-        if push_function is None or pull_function is None:
-            self.pp = PushPullModelServer(trainer_group)
-            self.pull_function = self.pp.pull
-            self.push_function = self.pp.push
-        else:
-            self.pull_function = pull_function
-            self.push_function = push_function
+        self.qnet_model_server, self.qnet_t_model_server = \
+            model_servers[0], model_servers[1]
 
     def act_discreet(self,
                      state: Dict[str, Any],
@@ -111,9 +98,9 @@ class DQNApex(DQNPer):
                      **__):
         # DOC INHERITED
         if use_target:
-            self.pull_function(self.qnet_target, "qnet_target")
+            self.qnet_t_model_server.pull(self.qnet_target)
         else:
-            self.pull_function(self.qnet, "qnet")
+            self.qnet_model_server.pull(self.qnet)
         return super(DQNApex, self).act_discreet(state, use_target)
 
     def act_discreet_with_noise(self,
@@ -122,9 +109,9 @@ class DQNApex(DQNPer):
                                 **__):
         # DOC INHERITED
         if use_target:
-            self.pull_function(self.qnet_target, "qnet_target")
+            self.qnet_t_model_server.pull(self.qnet_target)
         else:
-            self.pull_function(self.qnet, "qnet")
+            self.qnet_model_server.pull(self.qnet)
         return super(DQNApex, self).act_discreet_with_noise(state, use_target)
 
     def criticize(self,
@@ -133,9 +120,9 @@ class DQNApex(DQNPer):
                   **__):
         # DOC INHERITED
         if use_target:
-            self.pull_function(self.qnet_target, "qnet_target")
+            self.qnet_t_model_server.pull(self.qnet_target)
         else:
-            self.pull_function(self.qnet, "qnet")
+            self.qnet_model_server.pull(self.qnet)
         return super(DQNApex, self).criticize(state, use_target)
 
     def update(self,
@@ -147,9 +134,9 @@ class DQNApex(DQNPer):
         result = super(DQNApex, self).update(update_value, update_target,
                                              concatenate_samples)
         if update_target:
-            self.push_function(self.qnet_target, "qnet_target")
+            self.qnet_t_model_server.push(self.qnet_target)
         if update_value:
-            self.push_function(self.qnet, "qnet")
+            self.qnet_model_server.push(self.qnet)
         return result
 
 

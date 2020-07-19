@@ -76,14 +76,14 @@ class TestA3C(object):
         critic = smw(Critic(c.observe_dim)
                      .to(c.device), c.device, c.device)
         # in all test scenarios, all processes will be used as reducers
-        actor_g_server, critic_g_server = grad_server_helper(
+        servers = grad_server_helper(
             lambda: Actor(c.observe_dim, c.action_num),
             lambda: Critic(c.observe_dim),
             learning_rate=5e-3
         )
         a3c = A3C(actor, critic,
                   nn.MSELoss(reduction='sum'),
-                  (actor_g_server, critic_g_server),
+                  servers,
                   replay_device=c.device,
                   replay_size=c.replay_size)
         return a3c

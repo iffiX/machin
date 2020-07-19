@@ -203,7 +203,7 @@ def _unlock_group(group_name):  # pragma: no cover
 def _check_executor(func):
     def wrapped(self, *args, **kwargs):
         if get_cur_name() not in self.group_members:
-            raise RuntimeError("You should not execute function {} when"
+            raise RuntimeError("You should not execute function {} when "
                                "current process is not a member of the "
                                "group"
                                .format(func.__qualname__))

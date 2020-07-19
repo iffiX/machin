@@ -49,6 +49,8 @@ class DistributedPrioritizedBuffer:
                              'current Process [{}] is not a member of '
                              'Group [{}]'
                              .format(get_cur_name(), self.group.group_name))
+        if buffer_process is None:
+            buffer_process = get_cur_name()
         return self.group.registered_sync(
             self.buffer_name + "/" + buffer_process + "/_append_service",
             args=(transition, priority, required_attrs)
@@ -70,6 +72,8 @@ class DistributedPrioritizedBuffer:
                              'current Process [{}] is not a member of '
                              'Group [{}]'
                              .format(get_cur_name(), self.group.group_name))
+        if buffer_process is None:
+            buffer_process = get_cur_name()
         return self.group.registered_sync(
             self.buffer_name + "/" + buffer_process + "/_size_service"
         )
@@ -197,9 +201,8 @@ class DistributedPrioritizedBuffer:
         return all_batch_len, all_batch, all_index, all_is_weight
 
 
-class DistributedPrioritizedBufferImpl(PrioritizedBuffer):
-    def __init__(self, buffer_name: str, group: RpcGroup,
-                 buffer_size: int, timeout: float = 10,
+class DistributedPrioritizedBufferImpl:
+    def __init__(self, buffer_name: str, group: RpcGroup, buffer_size: int,
                  *_, **__):
         """
         Create a distributed prioritized replay buffer instance.
@@ -236,8 +239,7 @@ class DistributedPrioritizedBufferImpl(PrioritizedBuffer):
             buffer_size: Maximum local buffer size.
             group: Process group which holds this buffer.
         """
-        super(DistributedPrioritizedBufferImpl, self) \
-            .__init__(buffer_size, "cpu")
+        self.buffer = PrioritizedBuffer(buffer_size, "cpu")
         self.buffer_name = buffer_name
         self.group = group
 
@@ -263,15 +265,14 @@ class DistributedPrioritizedBufferImpl(PrioritizedBuffer):
                             self._sample_service)
         self.group.register(buffer_name + _name + "/_lock_service",
                             self._lock_service)
-        self.timeout = timeout
         self.wr_lock = Lock()
 
     def _size_service(self):  # pragma: no cover
-        return len(self.buffer)
+        return self.buffer.size()
 
     def _clear_service(self):  # pragma: no cover
         with self.wr_lock:
-            super(DistributedPrioritizedBufferImpl, self).clear()
+            self.buffer.clear()
 
     def _append_service(self,
                         transition: Union[Transition, Dict],
@@ -281,38 +282,41 @@ class DistributedPrioritizedBufferImpl(PrioritizedBuffer):
                         ):  # pragma: no cover
         # DOC INHERITED
         with self.wr_lock:
-            super(DistributedPrioritizedBufferImpl, self)\
-                .append(transition, priority, required_attrs)
+            self.buffer.append(transition, priority, required_attrs)
 
     def _weight_sum_service(self):  # pragma: no cover
-        return self.wt_tree.get_weight_sum()
+        return self.buffer.wt_tree.get_weight_sum()
 
     def _update_priority_service(self,
                                  priorities, indexes):  # pragma: no cover
-        super(DistributedPrioritizedBufferImpl, self)\
-            .update_priority(priorities, indexes)
+        self.buffer.update_priority(priorities, indexes)
 
     def _sample_service(self, batch_size, all_weight_sum):  # pragma: no cover
         # the local batch size
-        if batch_size <= 0 or self.size() == 0:
+        if batch_size <= 0 or self.buffer.size() == 0:
             return 0, None, None, None
 
-        segment_length = self.wt_tree.get_weight_sum() / batch_size
+        wt_tree = self.buffer.wt_tree
+
+        segment_length = wt_tree.get_weight_sum() / batch_size
         rand_priority = np.random.uniform(size=batch_size) * segment_length
         rand_priority += np.arange(batch_size, dtype=np.float) * segment_length
         rand_priority = np.clip(rand_priority, 0,
-                                max(self.wt_tree.get_weight_sum() - 1e-6, 0))
-        index = self.wt_tree.find_leaf_index(rand_priority)
+                                max(wt_tree.get_weight_sum() - 1e-6, 0))
+        index = wt_tree.find_leaf_index(rand_priority)
 
-        batch = [self.buffer[idx] for idx in index]
-        priority = self.wt_tree.get_leaf_weight(index)
+        batch = [self.buffer.buffer[idx] for idx in index]
+        priority = wt_tree.get_leaf_weight(index)
 
         # calculate importance sampling weight
         sample_probability = priority / all_weight_sum
-        is_weight = np.power(len(self.buffer) * sample_probability, -self.beta)
+        is_weight = np.power(self.buffer.size() * sample_probability,
+                             -self.buffer.curr_beta)
         is_weight /= is_weight.max()
-        self.curr_beta = np.min(
-            [1., self.curr_beta + self.beta_increment_per_sampling]
+        self.buffer.curr_beta = np.min(
+            [1.,
+             self.buffer.curr_beta +
+             self.buffer.beta_increment_per_sampling]
         )
         return len(batch), batch, index, is_weight
 

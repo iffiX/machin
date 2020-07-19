@@ -57,7 +57,6 @@ class A3C(A2C):
             critic: Critic network module.
             optimizer: Optimizer used to optimize ``actor`` and ``critic``.
             criterion: Criterion used to evaluate the value loss.
-
             grad_servers: Custom gradient sync server accessors, the first
                 server accessor is for actor, and the second one is for critic.
             entropy_weight: Weight of entropy in your loss function, a positive

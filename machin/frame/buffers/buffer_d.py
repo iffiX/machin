@@ -40,6 +40,8 @@ class DistributedBuffer:
                              'current Process [{}] is not a member of '
                              'Group [{}]'
                              .format(get_cur_name(), self.group.group_name))
+        if buffer_process is None:
+            buffer_process = get_cur_name()
         return self.group.registered_sync(
             self.buffer_name + "/" + buffer_process + "/_size_service"
         )
@@ -99,6 +101,8 @@ class DistributedBuffer:
                              'current Process [{}] is not a member of '
                              'Group [{}]'
                              .format(get_cur_name(), self.group.group_name))
+        if buffer_process is None:
+            buffer_process = get_cur_name()
         return self.group.registered_sync(
             self.buffer_name + "/" + buffer_process + "/_append_service",
             args=(transition, required_attrs)
@@ -141,7 +145,7 @@ class DistributedBuffer:
                                       sample_attrs, additional_concat_attrs)
 
 
-class DistributedBufferImpl(Buffer):
+class DistributedBufferImpl:
     def __init__(self, buffer_name: str, group: RpcGroup, buffer_size: int,
                  *_, **__):
         """
@@ -171,9 +175,9 @@ class DistributedBufferImpl(Buffer):
             group: Process group which holds this buffer.
             buffer_name: A unique name of your buffer.
         """
-        super(DistributedBufferImpl, self).__init__(buffer_size, "cpu")
         self.buffer_name = buffer_name
         self.group = group
+        self.buffer = Buffer(buffer_size, "cpu")
 
         # pair an accessor to group
         if group.get_cur_name() == group.get_group_members()[0]:
@@ -198,26 +202,26 @@ class DistributedBufferImpl(Buffer):
                         ):  # pragma: no cover
         # DOC INHERITED
         with self.wr_lock:
-            super(DistributedBufferImpl, self)\
-                .append(transition, required_attrs)
+            self.buffer.append(transition, required_attrs)
 
     def _size_service(self):  # pragma: no cover
-        return len(self.buffer)
+        return self.buffer.size()
 
     def _clear_service(self):  # pragma: no cover
         with self.wr_lock:
-            super(DistributedBufferImpl, self).clear()
+            self.buffer.clear()
 
     def _sample_service(self, batch_size, sample_method):  # pragma: no cover
         if isinstance(sample_method, str):
-            if not hasattr(self, "sample_method_" + sample_method):
+            if not hasattr(self.buffer, "sample_method_" + sample_method):
                 raise RuntimeError("Cannot find specified sample method: {}"
                                    .format(sample_method))
-            sample_method = getattr(self, "sample_method_" + sample_method)
+            sample_method = getattr(self.buffer,
+                                    "sample_method_" + sample_method)
 
         # sample raw local batch from local buffer
         with self.wr_lock:
-            local_batch_size, local_batch = sample_method(self.buffer,
+            local_batch_size, local_batch = sample_method(self.buffer.buffer,
                                                           batch_size)
 
         return local_batch_size, local_batch

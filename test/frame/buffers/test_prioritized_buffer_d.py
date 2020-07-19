@@ -58,7 +58,8 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         default_logger.info("{} started".format(rank))
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedPrioritizedBufferImpl("buffer", group, 5)
+            _buffer_impl = DistributedPrioritizedBufferImpl("buffer", group, 5)
+            buffer = group.get_paired("buffer").to_here()
             begin = time()
             while time() - begin < 10:
                 trans, prior = random.choice(trans_list)
@@ -115,7 +116,8 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         np.random.seed(0)
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedPrioritizedBufferImpl("buffer", group, 5)
+            _buffer_impl = DistributedPrioritizedBufferImpl("buffer", group, 5)
+            buffer = group.get_paired("buffer").to_here()
             for i in range(5):
                 trans, prior = trans_list[i]
                 buffer.append(trans, prior)
@@ -176,7 +178,8 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         np.random.seed(0)
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedPrioritizedBufferImpl("buffer", group, 5)
+            _buffer_impl = DistributedPrioritizedBufferImpl("buffer", group, 5)
+            buffer = group.get_paired("buffer").to_here()
             for i in range(5):
                 trans, prior = trans_list[i]
                 buffer.append(trans, prior)
@@ -205,7 +208,8 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         np.random.seed(0)
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedPrioritizedBufferImpl("buffer", group, 5)
+            _buffer_impl = DistributedPrioritizedBufferImpl("buffer", group, 5)
+            buffer = group.get_paired("buffer").to_here()
             if rank == 0:
                 for i in range(5):
                     data, prior = trans_list[i]
@@ -239,7 +243,8 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         np.random.seed(0)
         if rank in (0, 1):
             group = world.create_rpc_group("group", ["0", "1"])
-            buffer = DistributedPrioritizedBufferImpl("buffer", group, 5)
+            _buffer_impl = DistributedPrioritizedBufferImpl("buffer", group, 5)
+            buffer = group.get_paired("buffer").to_here()
             for i in range(5):
                 trans, prior = trans_list[i]
                 buffer.append(trans, prior)

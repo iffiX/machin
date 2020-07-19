@@ -372,7 +372,8 @@ class PrioritizedBuffer(Buffer):
 
         # calculate importance sampling weight
         sample_probability = priority / self.wt_tree.get_weight_sum()
-        is_weight = np.power(len(self.buffer) * sample_probability, -self.beta)
+        is_weight = np.power(len(self.buffer) * sample_probability,
+                             -self.curr_beta)
         is_weight /= is_weight.max()
         self.curr_beta = np.min(
             [1., self.curr_beta + self.beta_increment_per_sampling]
