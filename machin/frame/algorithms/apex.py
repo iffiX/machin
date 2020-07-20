@@ -20,8 +20,7 @@ class DQNApex(DQNPer):
                  optimizer: Callable,
                  criterion: Callable,
                  worker_group: RpcGroup,
-                 model_servers: Tuple[PushPullModelServer,
-                                      PushPullModelServer],
+                 model_server: Tuple[PushPullModelServer],
                  *_,
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple] = (),
@@ -50,9 +49,7 @@ class DQNApex(DQNPer):
             optimizer: Optimizer used to optimize ``qnet``.
             criterion: Criterion used to evaluate the value loss.
             worker_group: Rpc group of sample workers.
-            model_servers: Custom model sync server accessors, the first
-                server accessor is for ``qnet``, and the second one is for
-                ``qnet_target``.
+            model_server: Custom model sync server accessor for ``qnet``.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
@@ -83,23 +80,24 @@ class DQNApex(DQNPer):
         # will not support sharing rpc group,
         # use static buffer_name is ok here.
         if get_cur_name() in worker_group.get_group_members():
+            self.qnet_optim.step = lambda: None
             self._replay_buffer_impl = DistributedPrioritizedBufferImpl(
                 buffer_name="buffer", group=worker_group,
                 buffer_size=replay_size
             )
         self.replay_buffer = worker_group.get_paired("buffer").to_here()
         self.worker_group = worker_group
-        self.qnet_model_server, self.qnet_t_model_server = \
-            model_servers[0], model_servers[1]
+        self.qnet_model_server = model_server[0]
+
+    def manual_sync(self):
+        self.qnet_model_server.pull(self.qnet)
 
     def act_discreet(self,
                      state: Dict[str, Any],
                      use_target: bool = False,
                      **__):
         # DOC INHERITED
-        if use_target:
-            self.qnet_t_model_server.pull(self.qnet_target)
-        else:
+        if not use_target:
             self.qnet_model_server.pull(self.qnet)
         return super(DQNApex, self).act_discreet(state, use_target)
 
@@ -108,9 +106,7 @@ class DQNApex(DQNPer):
                                 use_target: bool = False,
                                 **__):
         # DOC INHERITED
-        if use_target:
-            self.qnet_t_model_server.pull(self.qnet_target)
-        else:
+        if not use_target:
             self.qnet_model_server.pull(self.qnet)
         return super(DQNApex, self).act_discreet_with_noise(state, use_target)
 
@@ -119,9 +115,7 @@ class DQNApex(DQNPer):
                   use_target: bool = False,
                   **__):
         # DOC INHERITED
-        if use_target:
-            self.qnet_t_model_server.pull(self.qnet_target)
-        else:
+        if not use_target:
             self.qnet_model_server.pull(self.qnet)
         return super(DQNApex, self).criticize(state, use_target)
 
@@ -133,8 +127,6 @@ class DQNApex(DQNPer):
         # DOC INHERITED
         result = super(DQNApex, self).update(update_value, update_target,
                                              concatenate_samples)
-        if update_target:
-            self.qnet_t_model_server.push(self.qnet_target)
         if update_value:
             self.qnet_model_server.push(self.qnet)
         return result
@@ -158,10 +150,9 @@ class DDPGApex(DDPGPer):
                  optimizer: Callable,
                  criterion: Callable,
                  worker_group: RpcGroup,
-                 trainer_group: RpcGroup,
+                 model_server: Tuple[PushPullModelServer,
+                                     PushPullModelServer],
                  *_,
-                 pull_function: Callable = None,
-                 push_function: Callable = None,
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
@@ -194,9 +185,9 @@ class DDPGApex(DDPGPer):
             optimizer: Optimizer used to optimize ``qnet``.
             criterion: Criterion used to evaluate the value loss.
             worker_group: Rpc group of roll out workers.
-            trainer_group: Rpc group of model trainers.
-            pull_function: User defined function used to pull the newest model.
-            push_function: User defined function used to push the newest model.
+            model_server: Custom model sync server accessors, the first
+                server accessor is for ``actor``, and the second one is for
+                ``critic``.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
@@ -209,7 +200,7 @@ class DDPGApex(DDPGPer):
             learning_rate: Learning rate of the optimizer, not compatible with
                 ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
-            replay_size: Size of the local replay buffer.
+            replay_size: Local replay buffer size of a single worker.
             reward_func: Reward function used in training.
             visualize: Whether visualize the network flow in the first pass.
         """
@@ -223,38 +214,35 @@ class DDPGApex(DDPGPer):
                                        update_rate=update_rate,
                                        learning_rate=learning_rate,
                                        discount=discount,
-                                       replay_size=0,
-                                       replay_device="cpu",
-                                       replay_buffer=None,
                                        reward_func=reward_func,
                                        action_trans_func=action_trans_func,
                                        visualize=visualize)
 
-        # Currently, worker group is not used, reserved.
+        # will not support sharing rpc group,
+        # use static buffer_name is ok here.
+        if get_cur_name() in worker_group.get_group_members():
+            self.actor_optim.step = lambda: None
+            self.critic_optim.step = lambda: None
+            self._replay_buffer_impl = DistributedPrioritizedBufferImpl(
+                buffer_name="buffer", group=worker_group,
+                buffer_size=replay_size
+            )
+        self.replay_buffer = worker_group.get_paired("buffer").to_here()
         self.worker_group = worker_group
-        self.trainer_group = trainer_group
+        self.actor_model_server, self.critic_model_server = \
+            model_server[0], model_server[1]
 
-        self.replay_buffer = DistributedPrioritizedBuffer(
-            buffer_size=replay_size, buffer_group=trainer_group
-        )
-
-        if push_function is None or pull_function is None:
-            self.pp = PushPullModelServer(trainer_group)
-            self.pull_function = self.pp.pull
-            self.push_function = self.pp.push
-        else:
-            self.pull_function = pull_function
-            self.push_function = push_function
+    def manual_sync(self):
+        self.actor_model_server.pull(self.actor)
+        self.critic_model_server.pull(self.critic)
 
     def act(self,
             state: Dict[str, Any],
             use_target: bool = False,
             **__):
         # DOC INHERITED
-        if use_target:
-            self.pull_function(self.actor_target, "actor_target")
-        else:
-            self.pull_function(self.actor, "actor")
+        if not use_target:
+            self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act(state, use_target)
 
     def act_with_noise(self,
@@ -265,10 +253,8 @@ class DDPGApex(DDPGPer):
                        use_target: bool = False,
                        **__):
         # DOC INHERITED
-        if use_target:
-            self.pull_function(self.actor_target, "actor_target")
-        else:
-            self.pull_function(self.actor, "actor")
+        if not use_target:
+            self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act_with_noise(state,
                                                     noise_param=noise_param,
                                                     ratio=ratio,
@@ -280,10 +266,8 @@ class DDPGApex(DDPGPer):
                      use_target: bool = False,
                      **__):
         # DOC INHERITED
-        if use_target:
-            self.pull_function(self.actor_target, "actor_target")
-        else:
-            self.pull_function(self.actor, "actor")
+        if not use_target:
+            self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act_discreet(state, use_target)
 
     def act_discreet_with_noise(self,
@@ -291,10 +275,8 @@ class DDPGApex(DDPGPer):
                                 use_target: bool = False,
                                 **__):
         # DOC INHERITED
-        if use_target:
-            self.pull_function(self.actor_target, "actor_target")
-        else:
-            self.pull_function(self.actor, "actor")
+        if not use_target:
+            self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act_discreet_with_noise(state, use_target)
 
     def criticize(self,
@@ -303,10 +285,8 @@ class DDPGApex(DDPGPer):
                   use_target: bool = False,
                   **__):
         # DOC INHERITED
-        if use_target:
-            self.pull_function(self.critic_target, "critic_target")
-        else:
-            self.pull_function(self.critic, "critic")
+        if not use_target:
+            self.critic_model_server.pull(self.critic)
         return super(DDPGApex, self).criticize(state, action, use_target)
 
     def update(self,
@@ -319,10 +299,7 @@ class DDPGApex(DDPGPer):
         result = super(DDPGApex, self).update(update_value, update_policy,
                                               update_target,
                                               concatenate_samples)
-        if update_target:
-            self.push_function(self.critic_target, "critic_target")
-            self.push_function(self.actor_target, "actor_target")
         if update_value:
-            self.push_function(self.critic, "critic")
-            self.push_function(self.actor, "actor")
+            self.actor_model_server.push(self.actor)
+            self.critic_model_server.push(self.critic)
         return result

@@ -13,8 +13,8 @@ class A3C(A2C):
                  actor: Union[NeuralNetworkModule, nn.Module],
                  critic: Union[NeuralNetworkModule, nn.Module],
                  criterion: Callable,
-                 grad_servers: Tuple[PushPullGradServer,
-                                     PushPullGradServer],
+                 grad_server: Tuple[PushPullGradServer,
+                                    PushPullGradServer],
                  *_,
                  entropy_weight: float = None,
                  value_weight: float = 0.5,
@@ -57,7 +57,7 @@ class A3C(A2C):
             critic: Critic network module.
             optimizer: Optimizer used to optimize ``actor`` and ``critic``.
             criterion: Criterion used to evaluate the value loss.
-            grad_servers: Custom gradient sync server accessors, the first
+            grad_server: Custom gradient sync server accessors, the first
                 server accessor is for actor, and the second one is for critic.
             entropy_weight: Weight of entropy in your loss function, a positive
                 entropy weight will minimize entropy, while a negative one will
@@ -93,7 +93,7 @@ class A3C(A2C):
         self.actor_optim.step = lambda: None
         self.critic_optim.step = lambda: None
         self.actor_grad_server, self.critic_grad_server = \
-            grad_servers[0], grad_servers[1]
+            grad_server[0], grad_server[1]
 
         self._disable_sync = Switch()
 
