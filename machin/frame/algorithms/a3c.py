@@ -1,7 +1,5 @@
 from .a2c import *
-from machin.parallel.distributed import RpcGroup
 from machin.parallel.server import PushPullGradServer
-from machin.utils.helper_classes import Switch
 from torch.optim import Adam
 
 
@@ -94,16 +92,18 @@ class A3C(A2C):
         self.critic_optim.step = lambda: None
         self.actor_grad_server, self.critic_grad_server = \
             grad_server[0], grad_server[1]
+        self.is_syncing = True
 
-        self.disable_sync = Switch()
+    def set_sync(self, is_syncing):
+        self.is_syncing = is_syncing
 
     def manual_sync(self):
         self.actor_grad_server.pull(self.actor)
         self.critic_grad_server.pull(self.critic)
 
-    def act(self, state: Dict[str, Any], pull: bool = True, **__):
+    def act(self, state: Dict[str, Any], **__):
         # DOC INHERITED
-        if pull and not self.disable_sync.get():
+        if self.is_syncing:
             self.actor_grad_server.pull(self.actor)
 
         return safe_call(self.actor, state)
@@ -111,16 +111,15 @@ class A3C(A2C):
     def eval_act(self,
                  state: Dict[str, Any],
                  action: Dict[str, Any],
-                 pull: bool = True,
                  **__):
         # DOC INHERITED
-        if pull and not self.disable_sync.get():
+        if self.is_syncing:
             self.actor_grad_server.pull(self.actor)
         return safe_call(self.actor, state, action)
 
-    def criticize(self, state: Dict[str, Any], *_, pull=True, **__):
+    def criticize(self, state: Dict[str, Any], *_, **__):
         # DOC INHERITED
-        if pull and not self.disable_sync.get():
+        if self.is_syncing:
             self.critic_grad_server.pull(self.critic)
         return safe_call(self.critic, state)
 
@@ -130,9 +129,10 @@ class A3C(A2C):
                concatenate_samples=True,
                **__):
         # DOC INHERITED
-        self.disable_sync.on()
+        org_sync = self.is_syncing
+        self.is_syncing = False
         super(A3C, self).update(update_value, update_policy,
                                 concatenate_samples)
-        self.disable_sync.off()
+        self.is_syncing = org_sync
         self.actor_grad_server.push(self.actor)
         self.critic_grad_server.push(self.critic)

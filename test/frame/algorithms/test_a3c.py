@@ -187,6 +187,7 @@ class TestA3C(object):
     def test_full_train(rank, gae_lambda):
         c = TestA3C.c
         a3c = TestA3C.a3c()
+        a3c.set_sync(False)
 
         # begin training
         episode, step = Counter(), Counter()
@@ -204,11 +205,10 @@ class TestA3C(object):
             total_reward = 0
             state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
 
+            a3c.manual_sync()
             tmp_observations = []
             while not terminal and step <= c.max_steps:
                 step.count()
-                a3c.manual_sync()
-                a3c.disable_sync.on()
                 with t.no_grad():
                     old_state = state
                     # agent model inference
@@ -225,7 +225,6 @@ class TestA3C(object):
                         "reward": float(reward),
                         "terminal": terminal or step == c.max_steps
                     })
-                a3c.disable_sync.off()
 
             # update
             a3c.store_episode(tmp_observations)
