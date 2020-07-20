@@ -6,6 +6,7 @@ from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
 from torch.distributions import Categorical
 
+import os
 import torch as t
 import torch.nn as nn
 import gym
@@ -194,6 +195,8 @@ class TestA3C(object):
         terminal = False
 
         env = c.env
+        # for cpu usage viewing
+        default_logger.info("{}, pid {}".format(rank, os.getpid()))
         while episode < c.max_episodes:
             episode.count()
 
@@ -204,6 +207,8 @@ class TestA3C(object):
             tmp_observations = []
             while not terminal and step <= c.max_steps:
                 step.count()
+                a3c.manual_sync()
+                a3c.disable_sync.on()
                 with t.no_grad():
                     old_state = state
                     # agent model inference
@@ -220,6 +225,7 @@ class TestA3C(object):
                         "reward": float(reward),
                         "terminal": terminal or step == c.max_steps
                     })
+                a3c.disable_sync.off()
 
             # update
             a3c.store_episode(tmp_observations)

@@ -1,17 +1,12 @@
 from .buffer import Buffer
-from .buffer_d import DistributedBuffer, DistributedBufferImpl
+from .buffer_d import DistributedBuffer
 from .prioritized_buffer import WeightTree, PrioritizedBuffer
-from .prioritized_buffer_d import (
-    DistributedPrioritizedBuffer,
-    DistributedPrioritizedBufferImpl
-)
+from .prioritized_buffer_d import DistributedPrioritizedBuffer
 
 __all__ = [
     "Buffer",
     "DistributedBuffer",
-    "DistributedBufferImpl",
     "PrioritizedBuffer",
     "DistributedPrioritizedBuffer",
-    "DistributedPrioritizedBufferImpl",
     "WeightTree"
 ]

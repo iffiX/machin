@@ -5,6 +5,7 @@ from machin.utils.helper_classes import Counter
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
 
+import os
 import torch as t
 import torch.nn as nn
 import gym
@@ -93,7 +94,7 @@ class TestDQNApex(object):
     c.device = "cpu"
 
     @staticmethod
-    def dqn_apex(rank):
+    def dqn_apex():
         c = TestDQNApex.c
         q_net = smw(QNet(c.observe_dim, c.action_num)
                     .to(c.device), c.device, c.device)
@@ -102,15 +103,11 @@ class TestDQNApex(object):
         servers = model_server_helper()
         world = get_world()
         # process 0 and 1 will be workers, and 2 will be trainer
-        if rank in (0, 1):
-            worker_group = world.create_rpc_group("worker", ["0", "1"])
-        else:
-            sleep(2)
-            worker_group = world.get_rpc_group("worker", "0")
+        apex_group = world.create_rpc_group("worker", ["0", "1", "2"])
         dqn_per = DQNApex(q_net, q_net_t,
                           t.optim.Adam,
                           nn.MSELoss(reduction='sum'),
-                          worker_group,
+                          apex_group,
                           (servers[0],),
                           replay_device=c.device,
                           replay_size=c.replay_size)
@@ -122,9 +119,9 @@ class TestDQNApex(object):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_act(rank):
+    def test_act(_):
         c = TestDQNApex.c
-        dqn_apex = TestDQNApex.dqn_apex(rank)
+        dqn_apex = TestDQNApex.dqn_apex()
         state = t.zeros([1, c.observe_dim])
         dqn_apex.act_discreet({"state": state})
         dqn_apex.act_discreet({"state": state}, True)
@@ -138,9 +135,9 @@ class TestDQNApex(object):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_criticize(rank):
+    def test_criticize(_):
         c = TestDQNApex.c
-        dqn_apex = TestDQNApex.dqn_apex(rank)
+        dqn_apex = TestDQNApex.dqn_apex()
         state = t.zeros([1, c.observe_dim])
         dqn_apex.criticize({"state": state})
         dqn_apex.criticize({"state": state}, True)
@@ -159,7 +156,7 @@ class TestDQNApex(object):
     @WorldTestBase.setup_world
     def test_update(rank):
         c = TestDQNApex.c
-        dqn_apex = TestDQNApex.dqn_apex(rank)
+        dqn_apex = TestDQNApex.dqn_apex()
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
         if rank in (0, 1):
@@ -198,7 +195,9 @@ class TestDQNApex(object):
     @WorldTestBase.setup_world
     def test_full_train(rank):
         c = TestDQNApex.c
-        dqn_apex = TestDQNApex.dqn_apex(rank)
+        dqn_apex = TestDQNApex.dqn_apex()
+        # perform manual syncing to decrease the number of rpc calls
+        dqn_apex.set_sync(False)
 
         # begin training
         episode, step = Counter(), Counter()
@@ -213,12 +212,15 @@ class TestDQNApex(object):
 
         if rank in (0, 1):
             while episode < c.max_episodes:
+                # wait for trainer to keep up
+                sleep(0.2)
                 episode.count()
 
                 # batch size = 1
                 total_reward = 0
                 state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
 
+                dqn_apex.manual_sync()
                 while not terminal and step <= c.max_steps:
                     step.count()
                     with t.no_grad():
@@ -239,7 +241,6 @@ class TestDQNApex(object):
                             "reward": float(reward),
                             "terminal": terminal or step == c.max_steps
                         })
-
                 smoother.update(total_reward)
                 step.reset()
                 terminal = False
@@ -264,7 +265,8 @@ class TestDQNApex(object):
                     reward_fulfilled.reset()
         else:
             # wait for some samples
-            sleep(10)
+            while dqn_apex.replay_buffer.all_size() < 500:
+                sleep(0.1)
             while (all_group.is_paired("0_running") or
                    all_group.is_paired("1_running")):
                 dqn_apex.update()
@@ -294,7 +296,7 @@ class TestDDPGApex(object):
     c.device = "cpu"
 
     @staticmethod
-    def ddpg_apex(rank, discreet=False):
+    def ddpg_apex(discreet=False):
         c = TestDDPGApex.c
         if not discreet:
             actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
@@ -314,15 +316,11 @@ class TestDDPGApex(object):
         servers = model_server_helper()
         world = get_world()
         # process 0 and 1 will be workers, and 2 will be trainer
-        if rank in (0, 1):
-            worker_group = world.create_rpc_group("worker", ["0", "1"])
-        else:
-            sleep(2)
-            worker_group = world.get_rpc_group("worker", "0")
+        apex_group = world.create_rpc_group("worker", ["0", "1", "2"])
         ddpg_apex = DDPGApex(actor, actor_t, critic, critic_t,
                              t.optim.Adam,
                              nn.MSELoss(reduction='sum'),
-                             worker_group,
+                             apex_group,
                              servers,
                              replay_device=c.device,
                              replay_size=c.replay_size)
@@ -334,9 +332,9 @@ class TestDDPGApex(object):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_contiguous_act(rank):
+    def test_contiguous_act(_):
         c = TestDDPGApex.c
-        ddpg_apex = TestDDPGApex.ddpg_apex(rank)
+        ddpg_apex = TestDDPGApex.ddpg_apex()
         state = t.zeros([1, c.observe_dim])
         ddpg_apex.act({"state": state})
         ddpg_apex.act({"state": state}, use_target=True)
@@ -352,9 +350,9 @@ class TestDDPGApex(object):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_discreet_act(rank):
+    def test_discreet_act(_):
         c = TestDDPGApex.c
-        ddpg_apex = TestDDPGApex.ddpg_apex(rank, discreet=True)
+        ddpg_apex = TestDDPGApex.ddpg_apex(discreet=True)
         state = t.zeros([1, c.observe_dim])
         ddpg_apex.act_discreet({"state": state})
         ddpg_apex.act_discreet({"state": state}, use_target=True)
@@ -368,9 +366,9 @@ class TestDDPGApex(object):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_criticize(rank):
+    def test_criticize(_):
         c = TestDDPGApex.c
-        ddpg_apex = TestDDPGApex.ddpg_apex(rank)
+        ddpg_apex = TestDDPGApex.ddpg_apex()
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
         ddpg_apex.criticize({"state": state}, {"action": action})
@@ -391,7 +389,7 @@ class TestDDPGApex(object):
     @WorldTestBase.setup_world
     def test_update(rank):
         c = TestDDPGApex.c
-        ddpg_apex = TestDDPGApex.ddpg_apex(rank)
+        ddpg_apex = TestDDPGApex.ddpg_apex()
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
         if rank in (0, 1):
@@ -431,7 +429,9 @@ class TestDDPGApex(object):
     @WorldTestBase.setup_world
     def test_full_train(rank):
         c = TestDDPGApex.c
-        ddpg_apex = TestDDPGApex.ddpg_apex(rank)
+        ddpg_apex = TestDDPGApex.ddpg_apex()
+        # perform manual syncing to decrease the number of rpc calls
+        ddpg_apex.set_sync(False)
 
         # begin training
         episode, step = Counter(), Counter()
@@ -443,17 +443,21 @@ class TestDDPGApex(object):
         world = get_world()
         all_group = world.create_rpc_group("all", ["0", "1", "2"])
         all_group.pair("{}_running".format(rank), True)
+        default_logger.info("{}, pid {}".format(rank, os.getpid()))
         if rank == 0:
             all_group.pair("episode", episode)
 
         if rank in (0, 1):
             while episode < c.max_episodes:
+                # wait for trainer to keep up
+                sleep(0.2)
                 episode.count()
 
                 # batch size = 1
                 total_reward = 0
                 state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
 
+                ddpg_apex.manual_sync()
                 while not terminal and step <= c.max_steps:
                     step.count()
                     with t.no_grad():
@@ -503,18 +507,11 @@ class TestDDPGApex(object):
                     reward_fulfilled.reset()
         else:
             # wait for some samples
-            sleep(10)
+            while ddpg_apex.replay_buffer.all_size() < 500:
+                sleep(0.1)
             while (all_group.is_paired("0_running") or
                    all_group.is_paired("1_running")):
-                episode = all_group.get_paired("episode").to_here()
-                if episode.get() % 5 == 0:
-                    default_logger.info("Process 2 begin update for episode {}"
-                                        .format(episode))
-                    for _ in range(100):
-                        ddpg_apex.update()
-                    default_logger.info("Process 2 updated for episode {}"
-                                        .format(episode))
-                sleep(0.1)
+                ddpg_apex.update()
             return True
 
         raise RuntimeError("DDPG-Apex Training failed.")

@@ -1,8 +1,8 @@
 from .dqn_per import *
 from .ddpg_per import *
-from ..buffers.prioritized_buffer_d import DistributedPrioritizedBufferImpl
+from ..buffers.prioritized_buffer_d import DistributedPrioritizedBuffer
 from machin.parallel.server import PushPullModelServer
-from machin.parallel.distributed import RpcGroup, get_cur_name
+from machin.parallel.distributed import RpcGroup
 
 
 class DQNApex(DQNPer):
@@ -19,7 +19,7 @@ class DQNApex(DQNPer):
                  qnet_target: Union[NeuralNetworkModule, nn.Module],
                  optimizer: Callable,
                  criterion: Callable,
-                 worker_group: RpcGroup,
+                 apex_group: RpcGroup,
                  model_server: Tuple[PushPullModelServer],
                  *_,
                  lr_scheduler: Callable = None,
@@ -48,7 +48,8 @@ class DQNApex(DQNPer):
             qnet_target: Target Q network module.
             optimizer: Optimizer used to optimize ``qnet``.
             criterion: Criterion used to evaluate the value loss.
-            worker_group: Rpc group of sample workers.
+            apex_group: Group of all processes using the apex-DQN framework,
+                including all samplers and trainers.
             model_server: Custom model sync server accessor for ``qnet``.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
@@ -79,15 +80,16 @@ class DQNApex(DQNPer):
 
         # will not support sharing rpc group,
         # use static buffer_name is ok here.
-        if get_cur_name() in worker_group.get_group_members():
-            self.qnet_optim.step = lambda: None
-            self._replay_buffer_impl = DistributedPrioritizedBufferImpl(
-                buffer_name="buffer", group=worker_group,
-                buffer_size=replay_size
-            )
-        self.replay_buffer = worker_group.get_paired("buffer").to_here()
-        self.worker_group = worker_group
+        self.replay_buffer = DistributedPrioritizedBuffer(
+            buffer_name="buffer", group=apex_group,
+            buffer_size=replay_size
+        )
+        self.apex_group = apex_group
         self.qnet_model_server = model_server[0]
+        self.is_syncing = True
+
+    def set_sync(self, is_syncing):
+        self.is_syncing = is_syncing
 
     def manual_sync(self):
         self.qnet_model_server.pull(self.qnet)
@@ -97,7 +99,7 @@ class DQNApex(DQNPer):
                      use_target: bool = False,
                      **__):
         # DOC INHERITED
-        if not use_target:
+        if self.is_syncing and not use_target:
             self.qnet_model_server.pull(self.qnet)
         return super(DQNApex, self).act_discreet(state, use_target)
 
@@ -106,7 +108,7 @@ class DQNApex(DQNPer):
                                 use_target: bool = False,
                                 **__):
         # DOC INHERITED
-        if not use_target:
+        if self.is_syncing and not use_target:
             self.qnet_model_server.pull(self.qnet)
         return super(DQNApex, self).act_discreet_with_noise(state, use_target)
 
@@ -115,7 +117,7 @@ class DQNApex(DQNPer):
                   use_target: bool = False,
                   **__):
         # DOC INHERITED
-        if not use_target:
+        if self.is_syncing and not use_target:
             self.qnet_model_server.pull(self.qnet)
         return super(DQNApex, self).criticize(state, use_target)
 
@@ -149,7 +151,7 @@ class DDPGApex(DDPGPer):
                  critic_target: Union[NeuralNetworkModule, nn.Module],
                  optimizer: Callable,
                  criterion: Callable,
-                 worker_group: RpcGroup,
+                 apex_group: RpcGroup,
                  model_server: Tuple[PushPullModelServer,
                                      PushPullModelServer],
                  *_,
@@ -184,7 +186,8 @@ class DDPGApex(DDPGPer):
             critic_target: Target critic network module.
             optimizer: Optimizer used to optimize ``qnet``.
             criterion: Criterion used to evaluate the value loss.
-            worker_group: Rpc group of roll out workers.
+            apex_group: Group of all processes using the apex-DDPG framework,
+                including all samplers and trainers.
             model_server: Custom model sync server accessors, the first
                 server accessor is for ``actor``, and the second one is for
                 ``critic``.
@@ -220,17 +223,17 @@ class DDPGApex(DDPGPer):
 
         # will not support sharing rpc group,
         # use static buffer_name is ok here.
-        if get_cur_name() in worker_group.get_group_members():
-            self.actor_optim.step = lambda: None
-            self.critic_optim.step = lambda: None
-            self._replay_buffer_impl = DistributedPrioritizedBufferImpl(
-                buffer_name="buffer", group=worker_group,
-                buffer_size=replay_size
-            )
-        self.replay_buffer = worker_group.get_paired("buffer").to_here()
-        self.worker_group = worker_group
+        self.replay_buffer = DistributedPrioritizedBuffer(
+            buffer_name="buffer", group=apex_group,
+            buffer_size=replay_size
+        )
+        self.apex_group = apex_group
         self.actor_model_server, self.critic_model_server = \
             model_server[0], model_server[1]
+        self.is_syncing = True
+
+    def set_sync(self, is_syncing):
+        self.is_syncing = is_syncing
 
     def manual_sync(self):
         self.actor_model_server.pull(self.actor)
@@ -241,7 +244,7 @@ class DDPGApex(DDPGPer):
             use_target: bool = False,
             **__):
         # DOC INHERITED
-        if not use_target:
+        if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act(state, use_target)
 
@@ -253,7 +256,7 @@ class DDPGApex(DDPGPer):
                        use_target: bool = False,
                        **__):
         # DOC INHERITED
-        if not use_target:
+        if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act_with_noise(state,
                                                     noise_param=noise_param,
@@ -266,7 +269,7 @@ class DDPGApex(DDPGPer):
                      use_target: bool = False,
                      **__):
         # DOC INHERITED
-        if not use_target:
+        if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act_discreet(state, use_target)
 
@@ -275,7 +278,7 @@ class DDPGApex(DDPGPer):
                                 use_target: bool = False,
                                 **__):
         # DOC INHERITED
-        if not use_target:
+        if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act_discreet_with_noise(state, use_target)
 
@@ -285,7 +288,7 @@ class DDPGApex(DDPGPer):
                   use_target: bool = False,
                   **__):
         # DOC INHERITED
-        if not use_target:
+        if self.is_syncing and not use_target:
             self.critic_model_server.pull(self.critic)
         return super(DDPGApex, self).criticize(state, action, use_target)
 

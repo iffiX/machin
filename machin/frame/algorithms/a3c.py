@@ -95,7 +95,7 @@ class A3C(A2C):
         self.actor_grad_server, self.critic_grad_server = \
             grad_server[0], grad_server[1]
 
-        self._disable_sync = Switch()
+        self.disable_sync = Switch()
 
     def manual_sync(self):
         self.actor_grad_server.pull(self.actor)
@@ -103,7 +103,7 @@ class A3C(A2C):
 
     def act(self, state: Dict[str, Any], pull: bool = True, **__):
         # DOC INHERITED
-        if pull and not self._disable_sync.get():
+        if pull and not self.disable_sync.get():
             self.actor_grad_server.pull(self.actor)
 
         return safe_call(self.actor, state)
@@ -114,13 +114,13 @@ class A3C(A2C):
                  pull: bool = True,
                  **__):
         # DOC INHERITED
-        if pull and not self._disable_sync.get():
+        if pull and not self.disable_sync.get():
             self.actor_grad_server.pull(self.actor)
         return safe_call(self.actor, state, action)
 
     def criticize(self, state: Dict[str, Any], *_, pull=True, **__):
         # DOC INHERITED
-        if pull and not self._disable_sync.get():
+        if pull and not self.disable_sync.get():
             self.critic_grad_server.pull(self.critic)
         return safe_call(self.critic, state)
 
@@ -130,9 +130,9 @@ class A3C(A2C):
                concatenate_samples=True,
                **__):
         # DOC INHERITED
-        self._disable_sync.on()
+        self.disable_sync.on()
         super(A3C, self).update(update_value, update_policy,
                                 concatenate_samples)
-        self._disable_sync.off()
+        self.disable_sync.off()
         self.actor_grad_server.push(self.actor)
         self.critic_grad_server.push(self.critic)

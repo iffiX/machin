@@ -3,80 +3,87 @@ from threading import Lock
 from collections import OrderedDict
 from ..transition import Transition
 from .prioritized_buffer import PrioritizedBuffer
-from machin.parallel.distributed import RpcGroup, get_cur_name
+from machin.parallel.distributed import RpcGroup
 import numpy as np
 import torch as t
 
 
-class DistributedPrioritizedBuffer:
-    def __init__(self, buffer_name: str, group: RpcGroup):
+class DistributedPrioritizedBuffer(PrioritizedBuffer):
+    def __init__(self, buffer_name: str, group: RpcGroup, buffer_size: int,
+                 *_, **__):
         """
-        an accessor to a distributed prioritized replay buffer instance.
+        Create a distributed prioritized replay buffer instance.
+
+        To avoid issues caused by tensor device difference, all transition
+        objects are stored in device "cpu".
+
+        Distributed prioritized replay buffer constitutes of many local buffers
+        held per process, since it is very inefficient to maintain a weight
+        tree across processes, each process holds a weight tree of records in
+        its local buffer and a local buffer (same as ``DistributedBuffer``).
+
+        The sampling process(es) will first use rpc to acquire the wr_lock,
+        signalling "stop" to appending performed by actor processes,
+        then perform a sum of all local weight trees, and finally perform
+        sampling, after sampling and updating the importance weight,
+        the lock will be released.
+
+
+        During sampling, the tensors in "state", "action" and "next_state"
+        dictionaries, along with "reward", will be concatenated in dimension 0.
+        any other custom keys specified in ``**kwargs`` will not be
+        concatenated.
+
+        .. seealso:: :class:`PrioritizedBuffer`
+
+        Note:
+            :class:`DistributedPrioritizedBuffer` is not split into an
+            accessor and an implementation, because we would like to operate
+            on the buffer directly, when calling "size()" or "append()", to
+            increase efficiency (since rpc layer is bypassed).
 
         Args:
-            buffer_name: A unique name of your buffer.
+            buffer_size: Maximum local buffer size.
             group: Process group which holds this buffer.
         """
+        super(DistributedPrioritizedBuffer, self).__init__(buffer_size, "cpu")
         self.buffer_name = buffer_name
+        self.buffer_version_table = np.zeros([buffer_size], dtype=np.uint64)
         self.group = group
+
+        assert group.is_member()
+
+        # register services, so that we may access other buffers
+        _name = "/" + group.get_cur_name()
+        self.group.register(buffer_name + _name + "/_size_service",
+                            self._size_service)
+        self.group.register(buffer_name + _name + "/_clear_service",
+                            self._clear_service)
+        self.group.register(buffer_name + _name + "/_weight_sum_service",
+                            self._weight_sum_service)
+        self.group.register(buffer_name + _name + "/_update_priority_service",
+                            self._update_priority_service)
+        self.group.register(buffer_name + _name + "/_sample_service",
+                            self._sample_service)
+        self.wr_lock = Lock()
 
     def append(self,
                transition: Union[Transition, Dict],
                priority: Union[float, None] = None,
                required_attrs=("state", "action", "next_state",
-                               "reward", "terminal"),
-               buffer_process: str = None):
-        """
-        Store a transition object to buffer.
-
-        Args:
-            transition: A transition object.
-            priority: Priority of transition.
-            required_attrs: Required attributes. Could be an empty tuple if
-                no attribute is required.
-            buffer_process: The process holding the local buffer you would
-                like to append to. You can omit this argument if current
-                process is holding a local buffer.
-
-        Raises:
-            ``ValueError`` if transition object doesn't have required
-            attributes in ``required_attrs`` or has different attributes
-            compared to other transition objects stored in buffer.
-        """
-        if (get_cur_name() not in self.group.get_group_members() and
-                buffer_process is None):
-            raise ValueError('You must specify "buffer_process" because '
-                             'current Process [{}] is not a member of '
-                             'Group [{}]'
-                             .format(get_cur_name(), self.group.group_name))
-        if buffer_process is None:
-            buffer_process = get_cur_name()
-        return self.group.registered_sync(
-            self.buffer_name + "/" + buffer_process + "/_append_service",
-            args=(transition, priority, required_attrs)
-        )
-
-    def size(self, buffer_process: str = None):
-        """
-        Args:
-            buffer_process: The process holding the local buffer you would
-                like to query the size. You can omit this argument if current
-                process is holding a local buffer.
-
-        Returns:
-            Length of current local buffer.
-        """
-        if (get_cur_name() not in self.group.get_group_members() and
-                buffer_process is None):
-            raise ValueError('You must specify "buffer_process" because '
-                             'current Process [{}] is not a member of '
-                             'Group [{}]'
-                             .format(get_cur_name(), self.group.group_name))
-        if buffer_process is None:
-            buffer_process = get_cur_name()
-        return self.group.registered_sync(
-            self.buffer_name + "/" + buffer_process + "/_size_service"
-        )
+                               "reward", "terminal")):
+        # DOC INHERITED
+        with self.wr_lock:
+            position = super(PrioritizedBuffer, self).append(transition,
+                                                             required_attrs)
+            if priority is None:
+                # the initialization method used in the original essay
+                priority = self.wt_tree.get_leaf_max()
+            self.wt_tree.update_leaf(self._normalize_priority(priority),
+                                     position)
+            # increase the version counter to mark it as tainted
+            # later priority update will ignore this position
+            self.buffer_version_table[position] += 1
 
     def all_size(self):
         """
@@ -113,24 +120,16 @@ class DistributedPrioritizedBuffer:
         # update priority on all local buffers
         future = []
         offset = 0
-        for m, sub_idx in indexes.items():
-            length = len(sub_idx)
+
+        # indexes is an OrderedDict, key is sampled process name,
+        # value is a tuple of an index np.ndarray and a version np.ndarray
+        for m, sub in indexes.items():
+            length = len(sub[0])
             future.append(self.group.registered_async(
                 self.buffer_name + "/" + m + "/_update_priority_service",
-                args=(priorities[offset: offset + length], sub_idx)
+                args=(priorities[offset: offset + length], sub[0], sub[1])
             ))
             offset += length
-        for fut in future:
-            fut.wait()
-
-        # release the wr-lock on all local buffers
-        future = [
-            self.group.registered_async(
-                self.buffer_name + "/" + m + "/_lock_service",
-                args=(False,)
-            )
-            for m in self.group.get_group_members()
-        ]
         for fut in future:
             fut.wait()
 
@@ -143,17 +142,6 @@ class DistributedPrioritizedBuffer:
                      *_, **__) -> Any:
         if batch_size <= 0:
             return 0, None, None, None
-
-        # acquire the wr-lock on all local buffers.
-        future = [
-            self.group.registered_async(
-                self.buffer_name + "/" + m + "/_lock_service",
-                args=(True,)
-            )
-            for m in self.group.get_group_members()
-        ]
-        for fut in future:
-            fut.wait()
 
         # calculate all weight sum
         future = [
@@ -184,13 +172,14 @@ class DistributedPrioritizedBuffer:
         all_index = OrderedDict()
         all_is_weight = []
         for m, fut in future:
-            batch_len, batch, index, is_weight = fut.wait()
+            batch_len, batch, index, version, is_weight = fut.wait()
             if batch_len == 0:
                 continue
             all_batch_len += batch_len
             all_batch += batch
             all_is_weight.append(is_weight)
-            all_index[m] = index
+            # store them together to make API compatible with PrioritizedBuffer
+            all_index[m] = (index, version)
         if all_batch_len == 0:
             return 0, None, None, None
         all_batch = PrioritizedBuffer.post_process_batch(
@@ -200,128 +189,60 @@ class DistributedPrioritizedBuffer:
         all_is_weight = np.concatenate(all_is_weight, axis=0)
         return all_batch_len, all_batch, all_index, all_is_weight
 
-
-class DistributedPrioritizedBufferImpl:
-    def __init__(self, buffer_name: str, group: RpcGroup, buffer_size: int,
-                 *_, **__):
-        """
-        Create a distributed prioritized replay buffer instance.
-
-        To avoid issues caused by tensor device difference, all transition
-        objects are stored in device "cpu".
-
-        Distributed prioritized replay buffer constitutes of many local buffers
-        held per process, since it is very inefficient to maintain a weight
-        tree across processes, each process holds a weight tree of records in
-        its local buffer and a local buffer (same as ``DistributedBuffer``).
-
-        The sampling process(es) will first use rpc to acquire the wr_lock,
-        signalling "stop" to appending performed by actor processes,
-        then perform a sum of all local weight trees, and finally perform
-        sampling, after sampling and updating the importance weight,
-        the lock will be released.
-
-
-        During sampling, the tensors in "state", "action" and "next_state"
-        dictionaries, along with "reward", will be concatenated in dimension 0.
-        any other custom keys specified in ``**kwargs`` will not be
-        concatenated.
-
-        .. seealso:: :class:`PrioritizedBuffer`
-
-        Note:
-            Since ``append()`` operates on the local buffer, in order to
-            append to the distributed buffer correctly, please make sure
-            that your actor is also the local buffer holder, i.e. a member
-            of the ``group``
-
-        Args:
-            buffer_size: Maximum local buffer size.
-            group: Process group which holds this buffer.
-        """
-        self.buffer = PrioritizedBuffer(buffer_size, "cpu")
-        self.buffer_name = buffer_name
-        self.group = group
-
-        # pair an accessor to group
-        if group.get_cur_name() == group.get_group_members()[0]:
-            self.group.pair(buffer_name,
-                            DistributedPrioritizedBuffer(
-                                self.buffer_name, self.group))
-
-        _name = "/" + group.get_cur_name()
-
-        self.group.register(buffer_name + _name + "/_size_service",
-                            self._size_service)
-        self.group.register(buffer_name + _name + "/_clear_service",
-                            self._clear_service)
-        self.group.register(buffer_name + _name + "/_append_service",
-                            self._append_service)
-        self.group.register(buffer_name + _name + "/_weight_sum_service",
-                            self._weight_sum_service)
-        self.group.register(buffer_name + _name + "/_update_priority_service",
-                            self._update_priority_service)
-        self.group.register(buffer_name + _name + "/_sample_service",
-                            self._sample_service)
-        self.group.register(buffer_name + _name + "/_lock_service",
-                            self._lock_service)
-        self.wr_lock = Lock()
-
     def _size_service(self):  # pragma: no cover
-        return self.buffer.size()
+        with self.wr_lock:
+            return super(DistributedPrioritizedBuffer, self).size()
 
     def _clear_service(self):  # pragma: no cover
         with self.wr_lock:
-            self.buffer.clear()
-
-    def _append_service(self,
-                        transition: Union[Transition, Dict],
-                        priority: Union[float, None] = None,
-                        required_attrs=("state", "action", "next_state",
-                                        "reward", "terminal")
-                        ):  # pragma: no cover
-        # DOC INHERITED
-        with self.wr_lock:
-            self.buffer.append(transition, priority, required_attrs)
+            super(DistributedPrioritizedBuffer, self).clear()
+            # also clear the version table
+            self.buffer_version_table.fill(0)
 
     def _weight_sum_service(self):  # pragma: no cover
-        return self.buffer.wt_tree.get_weight_sum()
+        with self.wr_lock:
+            return self.wt_tree.get_weight_sum()
 
-    def _update_priority_service(self,
-                                 priorities, indexes):  # pragma: no cover
-        self.buffer.update_priority(priorities, indexes)
+    def _update_priority_service(
+            self, priorities, indexes, versions):  # pragma: no cover
+        with self.wr_lock:
+            # compare original entry versions to the current version table
+            is_same = self.buffer_version_table[indexes] == versions
+            # select unchanged entries
+            priorities = priorities[is_same]
+            indexes = indexes[is_same]
+            super(DistributedPrioritizedBuffer, self)\
+                .update_priority(priorities, indexes)
 
     def _sample_service(self, batch_size, all_weight_sum):  # pragma: no cover
         # the local batch size
-        if batch_size <= 0 or self.buffer.size() == 0:
-            return 0, None, None, None
+        with self.wr_lock:
+            if batch_size <= 0 or len(self.buffer) == 0:
+                return 0, None, None, None, None
 
-        wt_tree = self.buffer.wt_tree
+            wt_tree = self.wt_tree
 
-        segment_length = wt_tree.get_weight_sum() / batch_size
-        rand_priority = np.random.uniform(size=batch_size) * segment_length
-        rand_priority += np.arange(batch_size, dtype=np.float) * segment_length
-        rand_priority = np.clip(rand_priority, 0,
-                                max(wt_tree.get_weight_sum() - 1e-6, 0))
-        index = wt_tree.find_leaf_index(rand_priority)
+            segment_length = wt_tree.get_weight_sum() / batch_size
+            rand_priority = (np.random.uniform(size=batch_size) *
+                             segment_length)
+            rand_priority += (np.arange(batch_size, dtype=np.float) *
+                              segment_length)
+            rand_priority = np.clip(rand_priority, 0,
+                                    max(wt_tree.get_weight_sum() - 1e-6, 0))
+            index = wt_tree.find_leaf_index(rand_priority)
+            version = self.buffer_version_table[index]
 
-        batch = [self.buffer.buffer[idx] for idx in index]
-        priority = wt_tree.get_leaf_weight(index)
+            batch = [self.buffer[idx] for idx in index]
+            priority = wt_tree.get_leaf_weight(index)
 
-        # calculate importance sampling weight
-        sample_probability = priority / all_weight_sum
-        is_weight = np.power(self.buffer.size() * sample_probability,
-                             -self.buffer.curr_beta)
-        is_weight /= is_weight.max()
-        self.buffer.curr_beta = np.min(
-            [1.,
-             self.buffer.curr_beta +
-             self.buffer.beta_increment_per_sampling]
-        )
-        return len(batch), batch, index, is_weight
-
-    def _lock_service(self, acquire):  # pragma: no cover
-        if acquire:
-            self.wr_lock.acquire()
-        else:
-            self.wr_lock.release()
+            # calculate importance sampling weight
+            sample_probability = priority / all_weight_sum
+            is_weight = np.power(len(self.buffer) * sample_probability,
+                                 -self.curr_beta)
+            is_weight /= is_weight.max()
+            self.curr_beta = np.min(
+                [1.,
+                 self.curr_beta +
+                 self.beta_increment_per_sampling]
+            )
+            return len(batch), batch, index, version, is_weight
