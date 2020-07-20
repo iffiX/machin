@@ -105,7 +105,6 @@ class A3C(A2C):
         # DOC INHERITED
         if self.is_syncing:
             self.actor_grad_server.pull(self.actor)
-
         return safe_call(self.actor, state)
 
     def eval_act(self,
