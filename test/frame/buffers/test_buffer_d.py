@@ -1,4 +1,4 @@
-from machin.frame.buffers import DistributedBufferImpl
+from machin.frame.buffers import DistributedBuffer
 from test.util_run_multi import *
 
 import torch as t
@@ -21,21 +21,16 @@ class TestDistributedBuffer(WorldTestBase):
                 "next_state": {"next_state_1": t.zeros([1, 2])},
                 "reward": 1.5,
                 "terminal": True}
+        group = world.create_rpc_group("group", ["0", "1", "2"])
+        buffer = DistributedBuffer("buffer", group, 5)
         if rank in (0, 1):
-            group = world.create_rpc_group("group", ["0", "1"])
-            _buffer_impl = DistributedBufferImpl("buffer", group, 5)
-            buffer = group.get_paired("buffer").to_here()
             begin = time()
             while time() - begin < 5:
                 buffer.append(data)
                 sleep(0.01)
         else:
             sleep(2)
-            group = world.get_rpc_group("group", "0")
-            buffer = group.get_paired("buffer").to_here()
             batch_size, sample = buffer.sample_batch(7)
-            with pytest.raises(ValueError):
-                buffer.append(data)
             assert batch_size > 0
             assert len(sample) == 5
             # state
@@ -62,10 +57,9 @@ class TestDistributedBuffer(WorldTestBase):
                 "next_state": {"next_state_1": t.zeros([1, 2])},
                 "reward": 1.5,
                 "terminal": True}
+        group = world.create_rpc_group("group", ["0", "1", "2"])
+        buffer = DistributedBuffer("buffer", group, 5)
         if rank in (0, 1):
-            group = world.create_rpc_group("group", ["0", "1"])
-            _buffer_impl = DistributedBufferImpl("buffer", group, 5)
-            buffer = group.get_paired("buffer").to_here()
             if rank == 0:
                 for _ in range(5):
                     buffer.append(data)
@@ -73,15 +67,8 @@ class TestDistributedBuffer(WorldTestBase):
             sleep(5)
         else:
             sleep(2)
-            group = world.get_rpc_group("group", "0")
-            buffer = group.get_paired("buffer").to_here()
-            with pytest.raises(ValueError):
-                buffer.size()
-            assert buffer.size("0") == 5
-            assert buffer.size("1") == 0
-            buffer.append(data, buffer_process="1")
-            assert buffer.size("1") == 1
-            assert buffer.all_size() == 6
+            assert buffer.size() == 0
+            assert buffer.all_size() == 5
         return True
 
     ########################################################################
@@ -97,18 +84,18 @@ class TestDistributedBuffer(WorldTestBase):
                 "next_state": {"next_state_1": t.zeros([1, 2])},
                 "reward": 1.5,
                 "terminal": True}
+        group = world.create_rpc_group("group", ["0", "1", "2"])
+        buffer = DistributedBuffer("buffer", group, 5)
         if rank in (0, 1):
-            group = world.create_rpc_group("group", ["0", "1"])
-            _buffer_impl = DistributedBufferImpl("buffer", group, 5)
-            buffer = group.get_paired("buffer").to_here()
             for i in range(5):
                 buffer.append(data)
+            if rank == 0:
+                buffer.clear()
+                assert buffer.size() == 0
             sleep(5)
         else:
             sleep(2)
-            group = world.get_rpc_group("group", "0")
-            buffer = group.get_paired("buffer").to_here()
-            assert buffer.all_size() == 10
-            buffer.clear()
+            assert buffer.all_size() == 5
+            buffer.all_clear()
             assert buffer.all_size() == 0
         return True

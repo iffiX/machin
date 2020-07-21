@@ -1,5 +1,5 @@
 from typing import Union, Dict, List, Any
-from threading import Lock
+from threading import RLock
 from collections import OrderedDict
 from ..transition import Transition
 from .prioritized_buffer import PrioritizedBuffer
@@ -65,7 +65,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
                             self._update_priority_service)
         self.group.register(buffer_name + _name + "/_sample_service",
                             self._sample_service)
-        self.wr_lock = Lock()
+        self.wr_lock = RLock()
 
     def append(self,
                transition: Union[Transition, Dict],
@@ -85,6 +85,14 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             # later priority update will ignore this position
             self.buffer_version_table[position] += 1
 
+    def size(self):
+        """
+        Returns:
+            Length of current local buffer.
+        """
+        with self.wr_lock:
+            return super(DistributedPrioritizedBuffer, self).size()
+
     def all_size(self):
         """
         Returns:
@@ -101,6 +109,15 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
         return count
 
     def clear(self):
+        """
+        Remove all entries from current local buffer.
+        """
+        with self.wr_lock:
+            super(DistributedPrioritizedBuffer, self).clear()
+            # also clear the version table
+            self.buffer_version_table.fill(0)
+
+    def all_clear(self):
         """
         Remove all entries from all local buffers.
         """

@@ -62,7 +62,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
             begin = time()
             while time() - begin < 10:
                 trans, prior = random.choice(trans_list)
-                buffer.append(trans, prior)
+                buffer.append(trans)
                 default_logger.info("{} append {} success".format(rank, count))
                 count += 1
                 sleep(random.random() * 0.5)
@@ -168,7 +168,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         if rank in (0, 1):
             for i in range(5):
                 trans, prior = trans_list[i]
-                buffer.append(trans, prior)
+                buffer.append(trans)
             sleep(5)
         else:
             sleep(2)
@@ -224,10 +224,13 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
             for i in range(5):
                 trans, prior = trans_list[i]
                 buffer.append(trans, prior)
+            if rank == 0:
+                buffer.clear()
+                assert buffer.size() == 0
             sleep(5)
         else:
             sleep(2)
-            assert buffer.all_size() == 10
-            buffer.clear()
+            assert buffer.all_size() == 5
+            buffer.all_clear()
             assert buffer.all_size() == 0
         return True
