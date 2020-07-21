@@ -92,9 +92,6 @@ class IMPALA(TorchFramework):
                  visualize: bool = False,
                  **__):
         """
-        TODO: test IMPAlA and add more explanations in document.
-        TODO: add visualization in update.
-
         Args:
             actor: Actor network module.
             critic: Critic network module.

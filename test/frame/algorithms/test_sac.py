@@ -30,25 +30,42 @@ class Actor(nn.Module):
     def forward(self, state, action=None):
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
-        mu = t.tanh(self.mu_head(a)) * self.action_range
+        mu = self.mu_head(a)
         sigma = softplus(self.sigma_head(a))
         dist = Normal(mu, sigma)
         act = (action
                if action is not None
                else dist.rsample())
         act_entropy = dist.entropy()
-        # do not clamp actions here, because
-        # we action probability might be extremely small,
-        # and network will "nan".
+
+        # the suggested way to confine your actions within a valid range
+        # is not clamping, but remapping the distribution
         act_log_prob = dist.log_prob(act)
+        act_tanh = t.tanh(act)
+        act = act_tanh * self.action_range
 
-        # do not clamp actions here, because
-        # actions will be stored in replay buffer
-        # and new evaluated log probability in update
-        # might also be extremely small, and network will "nan".
+        # the distribution remapping process used in the original essay.
+        act_log_prob -= t.log(self.action_range *
+                              (1 - act_tanh.pow(2)) +
+                              1e-6)
+        act_log_prob = act_log_prob.sum(1, keepdim=True)
 
-        # clamp actions only before sending your actions into
-        # the environment.
+        # If your distribution is different from "Normal" then you may either:
+        # 1. deduce the remapping function for your distribution and clamping
+        #    function such as tanh
+        # 2. clamp you action, but please take care:
+        #    1. do not clamp actions before calculating their log probability,
+        #       because the log probability of clamped actions might will be
+        #       extremely small, and will cause nan
+        #    2. do not clamp actions after sampling and before storing them in
+        #       the replay buffer, because during update, log probability will
+        #       be re-evaluated they might also be extremely small, and network
+        #       will "nan". (might happen in PPO, not in SAC because there is
+        #       no re-evaluation)
+        # Only clamp actions sent to the environment, this is equivalent to
+        # change the action reward distribution, will not cause "nan", but
+        # this makes your training environment further differ from you real
+        # environment.
         return act, act_log_prob, act_entropy
 
 
@@ -259,7 +276,7 @@ class TestSAC(object):
     ########################################################################
     def test_full_train(self, train_config, sac):
         c = train_config
-        sac.target_entropy = c.action_dim
+        sac.target_entropy = -c.action_dim
 
         # begin training
         episode, step = Counter(), Counter()
@@ -302,6 +319,8 @@ class TestSAC(object):
             if episode > 100:
                 for i in range(step.get()):
                     sac.update()
+                logger.info("new entropy alpha: {}"
+                            .format(sac.entropy_alpha.item()))
 
             smoother.update(total_reward)
             step.reset()

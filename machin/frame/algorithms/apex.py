@@ -129,8 +129,7 @@ class DQNApex(DQNPer):
         # DOC INHERITED
         result = super(DQNApex, self).update(update_value, update_target,
                                              concatenate_samples)
-        if update_value:
-            self.qnet_model_server.push(self.qnet)
+        self.qnet_model_server.push(self.qnet)
         return result
 
 
@@ -302,7 +301,7 @@ class DDPGApex(DDPGPer):
         result = super(DDPGApex, self).update(update_value, update_policy,
                                               update_target,
                                               concatenate_samples)
-        if update_value:
-            self.actor_model_server.push(self.actor)
-            self.critic_model_server.push(self.critic)
+
+        self.actor_model_server.push(self.actor)
+        self.critic_model_server.push(self.critic)
         return result

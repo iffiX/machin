@@ -318,10 +318,8 @@ class SAC(TorchFramework):
         act_value2 = self.criticize2(state, cur_action)
         act_value = t.min(act_value, act_value2)
 
-        # "-" is applied because we want to maximize Q value.
-        # but optimizer workers by minimizing the target
-        act_policy_loss = -(act_value -
-                            self.entropy_alpha * cur_action_log_prob).mean()
+        act_policy_loss = (self.entropy_alpha * cur_action_log_prob -
+                           act_value).mean()
 
         if self.visualize:
             self.visualize_model(act_policy_loss, "actor", self.visualize_dir)
@@ -346,6 +344,9 @@ class SAC(TorchFramework):
             self.alpha_optim.zero_grad()
             alpha_loss.backward()
             self.alpha_optim.step()
+            # prevent nan
+            with t.no_grad():
+                self.entropy_alpha.clamp_(1e-6, 1e6)
 
         # use .item() to prevent memory leakage
         return (-act_policy_loss.item(),
