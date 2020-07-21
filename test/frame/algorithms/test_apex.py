@@ -103,7 +103,7 @@ class TestDQNApex(object):
         servers = model_server_helper()
         world = get_world()
         # process 0 and 1 will be workers, and 2 will be trainer
-        apex_group = world.create_rpc_group("worker", ["0", "1", "2"])
+        apex_group = world.create_rpc_group("apex", ["0", "1", "2"])
         dqn_per = DQNApex(q_net, q_net_t,
                           t.optim.Adam,
                           nn.MSELoss(reduction='sum'),

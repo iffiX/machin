@@ -2,7 +2,7 @@ from typing import Union, Dict, List, Any, Callable
 from threading import RLock
 from ..transition import Transition
 from .buffer import Buffer
-from machin.parallel.distributed import RpcGroup, get_cur_name
+from machin.parallel.distributed import RpcGroup
 import torch as t
 import numpy as np
 import itertools as it

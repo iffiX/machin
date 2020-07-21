@@ -1,19 +1,20 @@
 from machin.model.nets.base import static_module_wrapper as smw
-from machin.frame.algorithms.a2c import A2C
-from machin.utils.learning_rate import gen_learning_rate_func
-from machin.utils.logging import default_logger as logger
+from machin.frame.algorithms.impala import IMPALA
+from machin.frame.helpers.servers import model_server_helper
 from machin.utils.helper_classes import Counter
+from machin.utils.learning_rate import gen_learning_rate_func
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
 from torch.optim.lr_scheduler import LambdaLR
 from torch.distributions import Categorical
 
-import pytest
+import os
 import torch as t
 import torch.nn as nn
 import gym
 
 from .utils import unwrap_time_limit, Smooth
+from test.util_run_multi import *
 
 
 class Actor(nn.Module):
@@ -52,130 +53,123 @@ class Critic(nn.Module):
         return v
 
 
-class TestA2C(object):
+class TestIMPALA(object):
     # configs and definitions
-    @pytest.fixture(scope="class")
-    def train_config(self, pytestconfig):
-        disable_view_window()
-        c = Config()
-        # Note: online policy algorithms such as PPO and A2C does not
-        # work well in Pendulum (reason unknown)
-        # and MountainCarContinuous (sparse returns)
-        c.env_name = "CartPole-v0"
-        c.env = unwrap_time_limit(gym.make(c.env_name))
-        c.observe_dim = 4
-        c.action_num = 2
-        c.max_episodes = 1000
-        c.max_steps = 200
-        c.replay_size = 10000
-        c.solved_reward = 190
-        c.solved_repeat = 5
-        c.device = "cpu"
-        return c
+    disable_view_window()
+    c = Config()
+    # Note: online policy algorithms such as PPO and A3C does not
+    # work well in Pendulum (reason unknown)
+    # and MountainCarContinuous (sparse returns)
+    c.env_name = "CartPole-v0"
+    c.env = unwrap_time_limit(gym.make(c.env_name))
+    c.observe_dim = 4
+    c.action_num = 2
+    c.max_episodes = 2000
+    c.max_steps = 200
+    c.replay_size = 10000
+    c.solved_reward = 190
+    c.solved_repeat = 5
+    c.device = "cpu"
 
-    @pytest.fixture(scope="function")
-    def a2c(self, train_config):
-        c = train_config
+    @staticmethod
+    def impala(use_lr_sch=False):
+        c = TestIMPALA.c
         actor = smw(Actor(c.observe_dim, c.action_num)
                     .to(c.device), c.device, c.device)
         critic = smw(Critic(c.observe_dim)
                      .to(c.device), c.device, c.device)
-        a2c = A2C(actor, critic,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device=c.device,
-                  replay_size=c.replay_size)
-        return a2c
+        servers = model_server_helper()
+        world = get_world()
+        # process 0 and 1 will be workers, and 2 will be trainer
+        impala_group = world.create_rpc_group("impala", ["0", "1", "2"])
 
-    @pytest.fixture(scope="function")
-    def a2c_vis(self, train_config, tmpdir):
-        # not used for training, only used for testing apis
-        c = train_config
-        tmp_dir = tmpdir.make_numbered_dir()
-        actor = smw(Actor(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
-        critic = smw(Critic(c.observe_dim)
-                     .to(c.device), c.device, c.device)
-        a2c = A2C(actor, critic,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device=c.device,
-                  replay_size=c.replay_size,
-                  visualize=True,
-                  visualize_dir=str(tmp_dir))
-        return a2c
-
-    @pytest.fixture(scope="function")
-    def a2c_lr(self, train_config):
-        # not used for training, only used for testing apis
-        c = train_config
-        actor = smw(Actor(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
-        critic = smw(Critic(c.observe_dim)
-                     .to(c.device), c.device, c.device)
-        lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
-                                         logger=logger)
-        with pytest.raises(TypeError, match="missing .+ positional argument"):
-            _ = A2C(actor, critic,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    replay_size=c.replay_size,
-                    lr_scheduler=LambdaLR)
-        a2c = A2C(actor, critic,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device=c.device,
-                  replay_size=c.replay_size,
-                  lr_scheduler=LambdaLR,
-                  lr_scheduler_args=((lr_func,), (lr_func,)))
-        return a2c
+        if use_lr_sch:
+            lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
+                                             logger=default_logger)
+            impala = IMPALA(actor, critic,
+                            t.optim.Adam,
+                            nn.MSELoss(reduction='sum'),
+                            impala_group,
+                            servers,
+                            lr_scheduler=LambdaLR,
+                            lr_scheduler_args=((lr_func,), (lr_func,)))
+        else:
+            impala = IMPALA(actor, critic,
+                            t.optim.Adam,
+                            nn.MSELoss(reduction='sum'),
+                            impala_group,
+                            servers)
+        return impala
 
     ########################################################################
-    # Test for A2C acting
+    # Test for IMPALA acting
     ########################################################################
-    def test_act(self, train_config, a2c):
-        c = train_config
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_act(_):
+        impala = TestIMPALA.impala()
+        c = TestIMPALA.c
         state = t.zeros([1, c.observe_dim])
-        a2c.act({"state": state})
+        impala.act({"state": state})
+        return True
 
     ########################################################################
-    # Test for A2C action evaluation
+    # Test for IMPALA action evaluation
     ########################################################################
-    def test_eval_action(self, train_config, a2c):
-        c = train_config
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_eval_action(_):
+        impala = TestIMPALA.impala()
+        c = TestIMPALA.c
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
-        a2c.eval_act({"state": state}, {"action": action})
+        impala.eval_act({"state": state}, {"action": action})
+        return True
 
     ########################################################################
-    # Test for A2C criticizing
+    # Test for IMPALA criticizing
     ########################################################################
-    def test_criticize(self, train_config, a2c):
-        c = train_config
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_criticize(_):
+        impala = TestIMPALA.impala()
+        c = TestIMPALA.c
         state = t.zeros([1, c.observe_dim])
-        a2c.criticize({"state": state})
+        impala.criticize({"state": state})
+        return True
 
     ########################################################################
-    # Test for A2C storage
+    # Test for IMPALA storage
     ########################################################################
-    def test_store_step(self, train_config, a2c):
-        c = train_config
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_store_step(_):
+        impala = TestIMPALA.impala()
+        c = TestIMPALA.c
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
-        a2c.store_transition({
-            "state": {"state": old_state.clone()},
-            "action": {"action": action.clone()},
-            "next_state": {"state": state.clone()},
-            "reward": 0,
-            "value": 0,
-            "gae": 0,
-            "terminal": False
-        })
 
-    @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
-    def test_store_episode(self, train_config, a2c, gae_lambda):
-        c = train_config
+        with pytest.raises(NotImplementedError):
+            impala.store_transition({
+                "state": {"state": old_state.clone()},
+                "action": {"action": action.clone()},
+                "next_state": {"state": state.clone()},
+                "reward": 0,
+                "action_log_prob": 0.1,
+                "terminal": False
+            })
+        return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_store_episode(_):
+        impala = TestIMPALA.impala()
+        c = TestIMPALA.c
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
         episode = [
@@ -183,59 +177,81 @@ class TestA2C(object):
              "action": {"action": action.clone()},
              "next_state": {"state": state.clone()},
              "reward": 0,
+             "action_log_prob": 0.1,
              "terminal": False}
             for _ in range(3)
         ]
-        a2c.gae_lambda = gae_lambda
-        a2c.store_episode(episode)
+        impala.store_episode(episode)
+        return True
 
     ########################################################################
-    # Test for A2C update
+    # Test for IMPALA update
     ########################################################################
-    def test_update(self, train_config, a2c_vis):
-        c = train_config
+    @staticmethod
+    @run_multi(expected_results=[True, True, True], timeout=300)
+    @WorldTestBase.setup_world
+    def test_update(rank):
+        impala = TestIMPALA.impala()
+        c = TestIMPALA.c
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
-        a2c_vis.store_episode([
-            {"state": {"state": old_state.clone()},
-             "action": {"action": action.clone()},
-             "next_state": {"state": state.clone()},
-             "reward": 0,
-             "terminal": False}
-            for _ in range(3)
-        ])
-        a2c_vis.update(update_value=True, update_policy=True,
-                       update_target=True, concatenate_samples=True)
-        a2c_vis.entropy_weight = 1e-3
-        a2c_vis.store_episode([
-            {"state": {"state": old_state.clone()},
-             "action": {"action": action.clone()},
-             "next_state": {"state": state.clone()},
-             "reward": 0,
-             "terminal": False}
-            for _ in range(3)
-        ])
-        a2c_vis.update(update_value=False, update_policy=False,
-                       update_target=False, concatenate_samples=True)
+        if rank == 0:
+            # episode length = 3
+            impala.store_episode([
+                {"state": {"state": old_state.clone()},
+                 "action": {"action": action.clone()},
+                 "next_state": {"state": state.clone()},
+                 "reward": 0,
+                 "action_log_prob": 0.1,
+                 "terminal": False}
+                for _ in range(3)
+            ])
+        elif rank == 1:
+            # episode length = 2
+            impala.store_episode([
+                {"state": {"state": old_state.clone()},
+                 "action": {"action": action.clone()},
+                 "next_state": {"state": state.clone()},
+                 "reward": 0,
+                 "action_log_prob": 0.1,
+                 "terminal": False}
+                for _ in range(2)
+            ])
+        if rank == 2:
+            sleep(2)
+            impala.update(update_value=True,
+                          update_target=True,
+                          concatenate_samples=True)
+        return True
 
     ########################################################################
-    # Test for A2C save & load
+    # Test for IMPALA save & load
     ########################################################################
-    # Skipped, it is the same as base
+    # Skipped, it is the same as base framework
 
     ########################################################################
-    # Test for A2C lr_scheduler
+    # Test for IMPALA lr_scheduler
     ########################################################################
-    def test_lr_scheduler(self, train_config, a2c_lr):
-        a2c_lr.update_lr_scheduler()
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_lr_scheduler(_):
+        impala = TestIMPALA.impala()
+        impala.update_lr_scheduler()
+        return True
 
     ########################################################################
-    # Test for A2C full training.
+    # Test for IMPALA full training.
     ########################################################################
-    @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
-    def test_full_train(self, train_config, a2c, gae_lambda):
-        c = train_config
-        a2c.gae_lambda = gae_lambda
+    @staticmethod
+    @run_multi(expected_results=[True, True, True],
+               timeout=1800)
+    @WorldTestBase.setup_world
+    def test_full_train(rank):
+        c = TestIMPALA.c
+        impala = TestIMPALA.impala()
+        # perform manual syncing to decrease the number of rpc calls
+        impala.set_sync(False)
 
         # begin training
         episode, step = Counter(), Counter()
@@ -244,50 +260,79 @@ class TestA2C(object):
         terminal = False
 
         env = c.env
-        while episode < c.max_episodes:
-            episode.count()
+        world = get_world()
+        all_group = world.create_rpc_group("all", ["0", "1", "2"])
+        all_group.pair("{}_running".format(rank), True)
+        default_logger.info("{}, pid {}".format(rank, os.getpid()))
+        if rank == 0:
+            all_group.pair("episode", episode)
 
-            # batch size = 1
-            total_reward = 0
-            state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+        if rank in (0, 1):
+            while episode < c.max_episodes:
+                # wait for trainer to keep up
+                sleep(0.2)
+                episode.count()
 
-            tmp_observations = []
-            while not terminal and step <= c.max_steps:
-                step.count()
-                with t.no_grad():
-                    old_state = state
-                    # agent model inference
-                    action = a2c.act({"state": old_state.unsqueeze(0)})[0]
-                    state, reward, terminal, _ = env.step(action.item())
-                    state = t.tensor(state, dtype=t.float32, device=c.device) \
-                        .flatten()
-                    total_reward += float(reward)
+                # batch size = 1
+                total_reward = 0
+                state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
 
-                    tmp_observations.append({
-                        "state": {"state": old_state.unsqueeze(0).clone()},
-                        "action": {"action": action.clone()},
-                        "next_state": {"state": state.unsqueeze(0).clone()},
-                        "reward": float(reward),
-                        "terminal": terminal or step == c.max_steps
-                    })
+                impala.manual_sync()
+                tmp_observations = []
+                while not terminal and step <= c.max_steps:
+                    step.count()
+                    with t.no_grad():
+                        old_state = state
+                        action, action_log_prob, *_ = impala.act(
+                            {"state": old_state.unsqueeze(0)})
+                        state, reward, terminal, _ = env.step(action.item())
+                        state = t.tensor(state, dtype=t.float32,
+                                         device=c.device) \
+                            .flatten()
+                        total_reward += float(reward)
 
-            # update
-            a2c.store_episode(tmp_observations)
-            a2c.update()
+                        tmp_observations.append({
+                            "state": {"state": old_state.unsqueeze(0).clone()},
+                            "action": {"action": action.clone()},
+                            "next_state": {"state": state.unsqueeze(0).clone()},
+                            "reward": float(reward),
+                            "action_log_prob": action_log_prob.item(),
+                            "terminal": terminal or step == c.max_steps
+                        })
+                impala.store_episode(tmp_observations)
 
-            smoother.update(total_reward)
-            step.reset()
-            terminal = False
+                smoother.update(total_reward)
+                step.reset()
+                terminal = False
 
-            logger.info("Episode {} total reward={:.2f}"
-                        .format(episode, smoother.value))
+                default_logger.info("Process {} Episode {} "
+                                    "total reward={:.2f}"
+                                    .format(rank, episode, smoother.value))
 
-            if smoother.value > c.solved_reward:
-                reward_fulfilled.count()
-                if reward_fulfilled >= c.solved_repeat:
-                    logger.info("Environment solved!")
-                    return
-            else:
-                reward_fulfilled.reset()
+                if smoother.value > c.solved_reward:
+                    reward_fulfilled.count()
+                    if reward_fulfilled >= c.solved_repeat:
+                        default_logger.info("Environment solved!")
 
-        pytest.fail("A2C Training failed.")
+                        all_group.unpair("{}_running".format(rank))
+                        while (all_group.is_paired("0_running") or
+                               all_group.is_paired("1_running")):
+                            # wait for all workers to join
+                            sleep(1)
+                        # wait for trainer
+                        sleep(5)
+                        return True
+                else:
+                    reward_fulfilled.reset()
+        else:
+            # wait for some samples
+            # Note: the number of entries in buffer means "episodes"
+            # rather than steps here!
+            while impala.replay_buffer.all_size() < 5:
+                sleep(0.1)
+            while (all_group.is_paired("0_running") or
+                   all_group.is_paired("1_running")):
+                impala.update()
+            return True
+
+        raise RuntimeError("IMPALA Training failed.")
