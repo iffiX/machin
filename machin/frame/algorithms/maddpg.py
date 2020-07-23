@@ -1,37 +1,36 @@
 import copy
 import itertools
-from machin.frame.transition import TransitionBase
-from machin.utils.logging import default_logger
+from random import choice, randint
 from machin.parallel.pool import Pool
-from machin.parallel import get_context
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .ddpg import *
 
 
-def _average_parameters(*params: t.Tensor):
-    # Average parameters from all sub policies, store the
-    # averaged result in the first sub policy, then broadcast
-    # result to remaining sub policies.
-    target_param = params[0]
-    target_param.data.copy_(
-        t.mean(
-            t.stack([p.to(target_param.device) for p in params], dim=0),
-            dim=0
-        )
-    )
-    for param in params[1:]:
-        param.data.copy_(target_param)
-
-
-def _check_parameters_device(models):
-    devices = set()
-    for model in models:
-        for k, v in model.named_parameters():
-            devices.add(v.device.type)
-            if len(devices) > 1:
-                raise RuntimeError("All of your models should either"
-                                   "locate on GPUs or your CPU!")
-    return list(devices)[0]
+class SHMBuffer(Buffer):
+    @staticmethod
+    def make_tensor_from_batch(batch, device, concatenate):
+        # this function is used in post processing, and we will
+        # move all cpu tensors to shared memory.
+        if concatenate and len(batch) != 0:
+            item = batch[0]
+            batch_size = len(batch)
+            if t.is_tensor(item):
+                batch = [it.to(device) for it in batch]
+                result = t.cat(batch, dim=0).to(device)
+                result.share_memory_()
+            else:
+                try:
+                    result = t.tensor(batch, device=device)\
+                        .view(batch_size, -1)
+                    result.share_memory_()
+                except Exception:
+                    raise ValueError("Batch not concatenable: {}"
+                                     .format(batch))
+        else:
+            for it in batch:
+                if t.is_tensor(it):
+                    it.share_memory_()
+            return batch
 
 
 class MADDPG(TorchFramework):
@@ -52,7 +51,6 @@ class MADDPG(TorchFramework):
                  actor_targets: List[Union[NeuralNetworkModule, nn.Module]],
                  critics: List[Union[NeuralNetworkModule, nn.Module]],
                  critic_targets: List[Union[NeuralNetworkModule, nn.Module]],
-                 critic_observe_indexes: List[List[int]],
                  optimizer: Callable,
                  criterion: Callable,
                  *_,
@@ -70,7 +68,9 @@ class MADDPG(TorchFramework):
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
                  reward_func: Callable = None,
-                 action_trans_funcs: List[Callable] = None,
+                 action_trans_func: Callable = None,
+                 action_concat_func: Callable = None,
+                 state_concat_func: Callable = None,
                  visualize: bool = False,
                  visualize_dir: str = "",
                  pool_size: int = None):
@@ -83,6 +83,18 @@ class MADDPG(TorchFramework):
             internally. However, in order to minimize memory copy / CUDA memory
             copy, the location of all of your models must be either "cpu", or
             "cuda" (Using multiple CUDA devices is supported).
+
+        Note:
+            MADDPG framework assumes that all of your actors are homogeneous,
+            and critics are homogeneous as well.
+
+        Note:
+            This implementation contains:
+                - Ensemble Training
+
+            This implementation doe not contain:
+                - Inferring other agents' policies
+                - Mixed continuous/discrete action spaces
 
         Args:
             actors: Actor network modules.
@@ -115,9 +127,12 @@ class MADDPG(TorchFramework):
                 compatible with ``replay_buffer``.
             replay_buffer: Custom replay buffer. Will be replicated for actor.
             reward_func: Reward function used in training.
-            action_trans_funcs: A list of action transform functions,
-                used to transform the collected list of raw outputs
-                of actors visible to each critic.
+            action_trans_func: Action transform function, used to transform
+                the raw output of your actor.
+            action_concat_func: Action concatenation function, used to
+                concatenate a list of action dicts into one dict.
+            state_concat_func: State concatenation function, used to
+                concatenate a list of state dicts into one dict.
             visualize: Whether visualize the network flow in the first pass.
             visualize_dir: Visualized graph save directory.
             pool_size: Size of the internal execution pool.
@@ -126,7 +141,9 @@ class MADDPG(TorchFramework):
         self.update_rate = update_rate
         self.discount = discount
         self.visualize = visualize
+        self.visualize_dir = visualize_dir
         self.agent_num = agent_num
+        self.grad_max = gradient_max
 
         # create ensembles of policies
         self.actors = [[actor] +
@@ -146,24 +163,21 @@ class MADDPG(TorchFramework):
                                         lr=critic_learning_rate)
                               for cr in self.critics]
         self.ensemble_size = sub_policy_num + 1
-        self.replay_buffer = [Buffer(replay_size, replay_device)
-                              if replay_buffer is None
-                              else copy.deepcopy(replay_buffer)
-                              for _ in range(len(actors))]
+        self.replay_buffers = [SHMBuffer(replay_size, replay_device)
+                               if replay_buffer is None
+                               else copy.deepcopy(replay_buffer)
+                               for _ in range(len(actors))]
 
         # check devices of all parameters,
         # determine the pool process starting method.
-        device = _check_parameters_device(
+        device = self._check_parameters_device(
             itertools.chain(*self.actors, self.critics)
         )
-        if device == "cpu":
-            # use fork method
-            ctx = get_context("fork")
-            self.pool = Pool(processes=pool_size, context=ctx)
-        else:
-            # use spawn method
-            ctx = get_context("spawn")
-            self.pool = Pool(processes=pool_size, context=ctx)
+        self.device = device
+        self.pool = Pool(processes=pool_size,
+                         is_recursive=False,
+                         is_copy_tensor=False,
+                         share_method=device)
 
         # Create wrapper for target actors and target critics.
         # So their parameters can be saved.
@@ -186,7 +200,8 @@ class MADDPG(TorchFramework):
         # Make sure target and online networks have the same weight
         with t.no_grad():
             self.pool.starmap(hard_update,
-                              zip(self.actors, self.actor_targets))
+                              zip(itertools.chain(*self.actors),
+                                  itertools.chain(*self.actor_targets)))
             self.pool.starmap(hard_update,
                               zip(self.critics, self.critic_targets))
 
@@ -206,89 +221,91 @@ class MADDPG(TorchFramework):
         self.reward_func = (MADDPG.bellman_function
                             if reward_func is None
                             else reward_func)
-
-        if action_trans_funcs is None:
-            self.action_transform_funcs = [DDPG.action_transform_function
-                                           for _ in range(len(actors))]
-        else:
-            self.action_transform_funcs = action_trans_funcs
+        self.action_trans_func = (MADDPG.action_transform_function
+                                  if action_trans_func is None
+                                  else action_trans_func)
+        self.action_concat_func = (MADDPG.action_concat_function
+                                   if action_concat_func is None
+                                   else action_concat_func)
+        self.state_concat_func = (MADDPG.state_concat_function
+                                  if state_concat_func is None
+                                  else state_concat_func)
 
         super(MADDPG, self).__init__()
 
     def act(self,
-            state: Dict[str, Any],
+            states: List[Dict[str, Any]],
             use_target: bool = False,
-            index: int = -1,
             **__):
         """
-        Use actor network to produce an action for the current state.
+        Use all actor networks to produce actions for the current state.
+        A random sub-policy from the policy ensemble of each actor will
+        be chosen.
 
         Args:
-            state: Current state.
+            states: A list of current states of each actor.
             use_target: Whether use the target network.
-            index: The sub-policy index to use.
 
         Returns:
-            Action of shape ``[batch_size, action_dim]``.
+            A list of actions of shape ``[batch_size, action_dim]``.
         """
-        if index not in range(self.sub_policy_num):
-            index = np.random.randint(0, self.sub_policy_num)
-
         if use_target:
-            return safe_call(self.actor_targets[index], state)
+            actors = [choice(sub_actors) for sub_actors in self.actor_targets]
+            return self.pool.starmap(safe_call, zip(actors, states))
         else:
-            return safe_call(self.actors[index], state)
+            actors = [choice(sub_actors) for sub_actors in self.actors]
+            return self.pool.starmap(safe_call, zip(actors, states))
 
     def act_with_noise(self,
-                       state: Dict[str, Any],
+                       states: List[Dict[str, Any]],
                        noise_param: Any = (0.0, 1.0),
                        ratio: float = 1.0,
                        mode: str = "uniform",
                        use_target: bool = False,
-                       index: int = -1,
                        **__):
         """
-        Use actor network to produce a noisy action for the current state.
+        Use all actor networks to produce noisy actions for the current state.
+        A random sub-policy from the policy ensemble of each actor will
+        be chosen.
 
         See Also:
              :mod:`machin.frame.noise.action_space_noise`
 
         Args:
-            state: Current state.
+            states: A list of current states of each actor.
             noise_param: Noise params.
             ratio: Noise ratio.
             mode: Noise mode. Supported are:
                 ``"uniform", "normal", "clipped_normal", "ou"``
             use_target: Whether use the target network.
-            index: The sub-policy index to use.
 
         Returns:
-            Noisy action of shape ``[batch_size, action_dim]``.
+            A list of noisy actions of shape ``[batch_size, action_dim]``.
         """
+        actions = self.act(states, use_target)
+
         if mode == "uniform":
-            return add_uniform_noise_to_action(
-                self.act(state, use_target, index), noise_param, ratio
-            )
+            return [add_uniform_noise_to_action(act, noise_param, ratio)
+                    for act in actions]
         if mode == "normal":
-            return add_normal_noise_to_action(
-                self.act(state, use_target, index), noise_param, ratio
-            )
+            return [add_normal_noise_to_action(act, noise_param, ratio)
+                    for act in actions]
         if mode == "clipped_normal":
-            return add_clipped_normal_noise_to_action(
-                self.act(state, use_target, index), noise_param, ratio
-            )
+            return [add_clipped_normal_noise_to_action(act, noise_param, ratio)
+                    for act in actions]
         if mode == "ou":
-            return add_ou_noise_to_action(
-                self.act(state, use_target, index), noise_param, ratio
-            )
+            return [add_ou_noise_to_action(act, noise_param, ratio)
+                    for act in actions]
         raise RuntimeError("Unknown noise type: " + str(mode))
 
     def act_discreet(self,
-                     state: Dict[str, Any],
-                     use_target: bool = False,
-                     index: int = -1):
+                     states: List[Dict[str, Any]],
+                     use_target: bool = False):
         """
-        Use actor network to produce a discreet action for the current state.
+        Use all actor networks to produce discreet actions for the current
+        state.
+        A random sub-policy from the policy ensemble of each actor will
+        be chosen.
 
         Notes:
             actor network must output a probability tensor, of shape
@@ -296,33 +313,30 @@ class MADDPG(TorchFramework):
             in dimension 1.
 
         Args:
-            state: Current state.
-            use_target: Whether to use the target network.
-            index: The sub-policy index to use.
+            states: A list of current states of each actor.
+            use_target: Whether use the target network.
 
         Returns:
-            Action of shape ``[batch_size, 1]``.
+            A list of discreet actions of shape ``[batch_size, 1]``.
+            A list of action probability tensors of shape
+            ``[batch_size, action_num]``.
         """
-        if index not in range(self.sub_policy_num):
-            index = np.random.randint(0, self.sub_policy_num)
-
-        if use_target:
-            result = safe_call(self.actor_targets[index], state)
-        else:
-            result = safe_call(self.actors[index], state)
-
-        assert_output_is_probs(result)
-        batch_size = result.shape[0]
-        result = t.argmax(result, dim=1).view(batch_size, 1)
-        return result
+        actions = self.act(states, use_target)
+        result = []
+        for action in actions:
+            assert_output_is_probs(action)
+            batch_size = action.shape[0]
+            result.append(t.argmax(action, dim=1).view(batch_size, 1))
+        return result, actions
 
     def act_discreet_with_noise(self,
-                                state: Dict[str, Any],
-                                use_target: bool = False,
-                                index=-1):
+                                states: List[Dict[str, Any]],
+                                use_target: bool = False):
         """
-        Use actor network to produce a noisy discreet action for
-        the current state.
+        Use all actor networks to produce discreet actions for the current
+        state.
+        A random sub-policy from the policy ensemble of each actor will
+        be chosen.
 
         Notes:
             actor network must output a probability tensor, of shape
@@ -330,25 +344,22 @@ class MADDPG(TorchFramework):
             in dimension 1.
 
         Args:
-            state: Current state.
-            use_target: Whether to use the target network.
-            index: The sub-policy index to use.
+            states: A list of current states of each actor.
+            use_target: Whether use the target network.
 
         Returns:
-            Noisy action of shape ``[batch_size, 1]``.
+            A list of noisy discreet actions of shape ``[batch_size, 1]``.
+            A list of action probability tensors of shape
+            ``[batch_size, action_num]``.
         """
-        if index not in range(self.sub_policy_num):
-            index = np.random.randint(0, self.sub_policy_num)
-
-        if use_target:
-            result = safe_call(self.actor_targets[index], state)
-        else:
-            result = safe_call(self.actors[index], state)
-
-        assert_output_is_probs(result)
-        dist = Categorical(result)
-        batch_size = result.shape[0]
-        return dist.sample([batch_size, 1])
+        actions = self.act(states, use_target)
+        result = []
+        for action in actions:
+            assert_output_is_probs(action)
+            batch_size = action.shape[0]
+            dist = Categorical(result)
+            result.append(dist.sample([batch_size, 1]))
+        return result, actions
 
     def criticize(self, all_states, all_actions, use_target=False, index=-1):
         """
@@ -358,14 +369,11 @@ class MADDPG(TorchFramework):
             all_states: Current states of all actors.
             all_actions: Current actions of all actors.
             use_target: Whether to use the target network.
-            index: The sub-critic index to use.
+            index: Index of the used critic.
 
         Returns:
             Value of shape ``[batch_size, 1]``.
         """
-        if index not in range(self.sub_policy_num):
-            index = np.random.randint(0, self.sub_policy_num)
-
         if use_target:
             return safe_call(self.critic_targets[index],
                              all_states, all_actions)
@@ -373,31 +381,40 @@ class MADDPG(TorchFramework):
             return safe_call(self.critics[index],
                              all_states, all_actions)
 
-    def store_transition(self, transition: Union[Transition, Dict]):
+    def store_transitions(self, transitions: List[Union[Transition, Dict]]):
         """
-        Add a transition sample to the replay buffer.
-        """
-        self.replay_buffer.append(transition, required_attrs=(
-            "state", "all_states", "all_actions", "all_next_states",
-            "reward", "terminal", "index"
-        ))
+        Add a list of transition samples, from all actors at the same time
+        step, to the replay buffers.
 
-    def store_episode(self, episode: List[Union[Transition, Dict]]):
+        Args:
+            transitions: List of transition objects.
         """
-        Add a full episode of transition samples to the replay buffer.
-        """
-        for trans in episode:
-            self.replay_buffer.append(trans, required_attrs=(
-                "state", "all_states", "all_actions", "all_next_states",
-                "reward", "terminal", "index"
+        assert len(transitions) == len(self.replay_buffers)
+        for buff, trans in zip(self.replay_buffers, transitions):
+            buff.append(trans, required_attrs=(
+                "state", "actions", "next_state", "reward", "terminal"
             ))
+
+    def store_episodes(self, episodes: List[List[Union[Transition, Dict]]]):
+        """
+        Add a List of full episodes, from all actors, to the replay buffers.
+        Each episode is a list of transition samples.
+        """
+        assert len(episodes) == len(self.replay_buffers)
+        all_length = [len(ep) for ep in episodes]
+        assert len(set(all_length)) == 1, \
+            "All episodes must have the same length!"
+        for buff, ep in zip(self.replay_buffers, episodes):
+            for trans in ep:
+                buff.append(trans, required_attrs=(
+                    "state", "actions", "next_state", "reward", "terminal"
+                ))
 
     def update(self,
                update_value=True,
                update_policy=True,
                update_target=True,
-               concatenate_samples=True,
-               average_target_parameter=False):
+               concatenate_samples=True):
         """
         Update network weights by sampling from replay buffer.
 
@@ -406,89 +423,77 @@ class MADDPG(TorchFramework):
             update_policy: Whether to update the actor network.
             update_target: Whether to update targets.
             concatenate_samples: Whether to concatenate the samples.
-            average_target_parameter: Whether to average sub target networks,
-                including actors and critics.
         Returns:
             mean value of estimated policy value, value loss
         """
-        batch_size, (state, all_states, all_actions, all_next_states,
-                     reward, terminal, agent_indexes, *others) = \
-            self.replay_buffer.sample_batch(self.batch_size,
-                                            concatenate_samples,
-                                            sample_attrs=[
-                                                "state", "all_states",
-                                                "all_actions",
-                                                "all_next_states",
-                                                "reward", "terminal", "index",
-                                                "*"
-                                            ])
+        # All buffers should have the same length now.
 
-        def update_inner(i):
-            with t.no_grad():
-                # Produce all_next_actions for all_next_states, using target i,
-                # so the target critic can evaluate the value of the next step.
-                all_next_actions_t = \
-                    self.action_concat_func(
-                        self.act(
-                            self.state_split_func(
-                                all_next_states, batch_size,
-                                self.agent_num, others
-                            ),
-                            True, i
-                        ),
-                        batch_size, self.agent_num, others
+        # Create a sample method per update
+        # this sample method will sample the same indexes
+        # (different for each update() call) on all buffers.
+        buffer_length = self.replay_buffers[0].size()
+        if buffer_length == 0:
+            return
+        batch_size = min(buffer_length, self.batch_size)
+        sample_indexes = [[randint(0, buffer_length)
+                           for _ in range(self.batch_size)]
+                          for __ in range(self.ensemble_size)]
+
+        sample_methods = [self._create_sample_method(indexes)
+                          for indexes in sample_indexes]
+
+        # Now sample from buffer for each sub-policy in the ensemble.
+        # To reduce memory usage, for each sub-policy "i" of each actor,
+        # the same sample "i" will be used for training.
+
+        # Tensors in the sampled batch will be moved to shared memory.
+
+        # size: [ensemble size, num of actors]
+        batches = []
+        for e_idx in range(self.ensemble_size):
+            ensemble_batch = []
+            for a_idx in range(len(self.actors)):
+                batch_size_, batch = \
+                    self.replay_buffers[a_idx].sample_batch(
+                        self.batch_size, concatenate_samples,
+                        sample_method=sample_methods[e_idx],
+                        sample_attrs=[
+                            "state", "action", "reward", "next_state",
+                            "terminal", "*"]
                     )
+                ensemble_batch.append(batch)
+                assert batch_size_ == batch_size
+            batches.append(ensemble_batch)
 
-            # Update critic network first
-            # Generate target value using target critic.
-            with t.no_grad():
-                next_value = self.criticize(all_next_states,
-                                            all_next_actions_t,
-                                            True, i)
-                next_value = next_value.view(batch_size, -1)
-                y_i = self.reward_func(reward, self.discount, next_value,
-                                       terminal, others)
+        args = []
+        for e_idx in range(self.ensemble_size):
+            for a_idx in range(len(self.actors)):
+                args.append((
+                    batch_size, batches, a_idx, e_idx,
+                    self.actors, self.actor_targets,
+                    self.critics, self.critic_targets,
+                    self.actor_optims, self.critic_optims,
+                    update_value, update_policy, update_target,
+                    self.action_trans_func, self.action_concat_func,
+                    self.state_concat_func, self.reward_func,
+                    self.criterion, self.discount, self.update_rate,
+                    self.grad_max
+                ))
 
-            # action contain actions of all agents, same for state
-            cur_value = self.criticize(all_states, all_actions, index=i)
-            value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
-
-            if update_value:
-                self.critics[i].zero_grad()
-                value_loss.backward()
-                self.critic_optims[i].step()
-
-            # Update actor network
-            cur_all_actions = copy.deepcopy(all_actions)
-            cur_all_actions = self.action_alter_func(
-                self.act(state, index=i), cur_all_actions, agent_indexes,
-                batch_size, self.agent_num, others
+        if not self.visualize:
+            all_loss = self.pool.starmap(self._update_sub_policy, args)
+        else:
+            all_loss = [[0], [0]]
+            # only run one pass and exit
+            self._update_sub_policy(
+                *args[0],
+                visualize=True,
+                visualize_func=self.visualize_model,
+                visualize_dir=self.visualize_dir
             )
-            act_value = self.criticize(state, cur_all_actions, index=i)
+            exit(0)
 
-            # "-" is applied because we want to maximize J_b(u),
-            # but optimizer workers by minimizing the target
-            act_policy_loss = -act_value.mean()
-
-            if update_policy:
-                self.actors[i].zero_grad()
-                act_policy_loss.backward()
-                self.actor_optims[i].step()
-
-            # Update target networks
-            if update_target:
-                soft_update(self.actor_targets[i], self.actors[i],
-                            self.update_rate)
-                soft_update(self.critic_targets[i], self.critics[i],
-                            self.update_rate)
-
-            return act_policy_loss.item(), value_loss.item()
-
-        all_loss = self.pool.map(update_inner, range(self.sub_policy_num))
         mean_loss = t.tensor(all_loss).mean(dim=0)
-
-        if average_target_parameter:
-            self.average_target_parameters()
 
         # returns action value and policy loss
         return -mean_loss[0].item(), mean_loss[1].item()
@@ -509,80 +514,182 @@ class MADDPG(TorchFramework):
         super(MADDPG, self).load(model_dir, network_map, version)
         with t.no_grad():
             self.pool.starmap(hard_update,
-                              zip(self.actors, self.actor_targets))
+                              zip(itertools.chain(*self.actors),
+                                  itertools.chain(*self.actor_targets)))
             self.pool.starmap(hard_update,
                               zip(self.critics, self.critic_targets))
 
-    def average_target_parameters(self):
-        """
-        Average parameters of sub-policies and sub-critics. Averaging
-        is performed on target networks.
-        """
+    @staticmethod
+    def _update_sub_policy(batch_size, batches, actor_index, policy_index,
+                           actors, actor_targets, critics, critic_targets,
+                           actor_optims, critic_optims,
+                           update_value, update_policy, update_target,
+                           atf, acf, scf, rf,
+                           criterion, discount, update_rate, grad_max,
+                           visualize=False, visualize_func=None,
+                           visualize_dir=None):
+        # atf: action transform function, used to transform the
+        #      raw output of a single actor to a arg dict like:
+        #      {"action": tensor}, where "action" is the keyword argument
+        #      name of the critic.
+        #
+        # acf: action concatenation function, used to concatenate
+        #      a list of action dicts into a single arg dict readable
+        #      by critic.
+        # scf: state concatenation function, used to concatenate
+        #      a list of state dicts into a single arg dict readable
+        #      by critic.
+        # rf: reward function
+
+        # The innermost element of ``batches``:
+        # (state, action, reward, next_state, terminal, *)
+        # ``batches`` size: [ensemble_size, actor_num]
+        # select the batch for this sub-policy in the ensemble
+        ensemble_batch = batches[policy_index]
+
         with t.no_grad():
-            actor_params = [net.parameters() for net in self.actor_targets]
-            critic_params = [net.parameters() for net in self.critic_targets]
-            self.pool.starmap(
-                _average_parameters,
-                itertools.chain(zip(*actor_params), zip(*critic_params))
+            # Produce all_next_actions for all_next_states, using target i,
+            # so the target critic can evaluate the value of the next step.
+            all_next_actions_t = [
+                atf(safe_call(choice(actor_targets[a_idx]),
+                              ensemble_batch[a_idx][3]),
+                    ensemble_batch[a_idx][5])
+                if a_idx != actor_index else
+                atf(safe_call(actor_targets[a_idx][policy_index],
+                              ensemble_batch[a_idx][3]),
+                    ensemble_batch[a_idx][5])
+                for a_idx in range(len(actors))
+            ]
+            all_next_actions_t = acf(all_next_actions_t)
+
+            cur_all_actions = [
+                batch[1] for batch in ensemble_batch
+            ]
+            cur_all_actions = acf(cur_all_actions)
+
+            all_next_states = [
+                batch[3] for batch in ensemble_batch
+            ]
+            all_next_states = scf(all_next_states)
+
+            all_states = [
+                batch[0] for batch in ensemble_batch
+            ]
+            all_states = scf(all_states)
+
+        # Update critic network first
+        # Generate target value using target critic.
+        with t.no_grad():
+            reward = ensemble_batch[actor_index][2]
+            terminal = ensemble_batch[actor_index][4]
+            next_value = safe_call(critic_targets[actor_index],
+                                   all_next_states,
+                                   all_next_actions_t)
+            next_value = next_value.view(batch_size, -1)
+            y_i = rf(reward, discount, next_value, terminal,
+                     ensemble_batch[actor_index][5])
+
+        cur_value = safe_call(critics[actor_index],
+                              all_states,
+                              cur_all_actions)
+        value_loss = criterion(cur_value, y_i.to(cur_value.device))
+
+        if visualize:
+            # only invoked if not running by pool
+            visualize_func(value_loss, "critic", visualize_dir)
+
+        if update_value:
+            critics[actor_index].zero_grad()
+            value_loss.backward()
+            nn.utils.clip_grad_norm_(
+                critics[actor_index].parameters(), grad_max
             )
+            critic_optims[actor_index].step()
+
+        # Update actor network
+        all_actions = [
+            batch[1] for batch in ensemble_batch
+        ]
+        all_actions[actor_index] = atf(safe_call(
+            actors[actor_index][policy_index],
+            ensemble_batch[actor_index][3]
+        ), ensemble_batch[actor_index][5])
+        all_actions = acf(all_actions)
+        act_value = safe_call(critics[actor_index],
+                              all_states,
+                              all_actions)
+
+        # "-" is applied because we want to maximize J_b(u),
+        # but optimizer workers by minimizing the target
+        act_policy_loss = -act_value.mean()
+
+        if visualize:
+            # only invoked if not running by pool
+            visualize_func(act_policy_loss, "actor", visualize_dir)
+
+        if update_policy:
+            actors[actor_index][policy_index].zero_grad()
+            act_policy_loss.backward()
+            nn.utils.clip_grad_norm_(
+                actors[actor_index][policy_index].parameters(), grad_max
+            )
+            actor_optims[actor_index][policy_index].step()
+
+        # Update target networks
+        if update_target:
+            soft_update(actor_targets[actor_index][policy_index],
+                        actors[actor_index][policy_index],
+                        update_rate)
+            soft_update(critic_targets[actor_index],
+                        critics[actor_index],
+                        update_rate)
+
+        return -act_policy_loss.item(), value_loss.item()
 
     @staticmethod
-    def action_alter_function(raw_output_action, all_actions, indexes,
-                              batch_size, agent_num, *_):
-        """
-        This function is used to alternate an action inside all actions,
-        using output from the online actor network.
+    def _check_parameters_device(models):
+        devices = set()
+        for model in models:
+            for k, v in model.named_parameters():
+                devices.add(v.device.type)
+                if len(devices) > 1:
+                    raise RuntimeError("All of your models should either"
+                                       "locate on GPUs or on your CPU!")
+        return list(devices)[0]
 
-        Args:
-            raw_output_action: Raw output of actor.
-            all_actions: All actions of all agents.
-            indexes: Agent index among all agents.
-            batch_size: Sampled batch size.
-            agent_num: Number of agents.
+    @staticmethod
+    def _create_sample_method(indexes):
+        def sample_method(buffer, _len):
+            nonlocal indexes
+            return [buffer[i] for i in indexes
+                    if i < len(buffer)]
+        return sample_method
 
-        Returns:
-            Alternated all actions.
-        """
-        all_actions["action"][indexes] = \
-            raw_output_action.view(batch_size, agent_num, -1)
+    @staticmethod
+    def action_transform_function(raw_output_action: Any, *_):
+        return {"action": raw_output_action}
+
+    @staticmethod
+    def action_concat_function(actions: List[Dict], *_):
+        # Assume an atom action is [batch_size, action_dim]
+        # concatenate actions in the second dimension.
+        # becomes [batch_size, actor_num * action_dim]
+        keys = actions[0].keys()
+        all_actions = {}
+        for k in keys:
+            all_actions[k] = t.cat([act[k] for act in actions], dim=1)
         return all_actions
 
     @staticmethod
-    def state_split_function(all_states: Dict[str, t.Tensor],
-                             batch_size: int,
-                             agent_num: int,
-                             *_):
-        """
-        This function is used to split states from multiple agents into
-        batched single states, usable by actor network.
-
-        Args:
-            all_states: All states of all agents.
-            batch_size: Sampled batch size.
-            agent_num: Number of agents.
-        Returns:
-            Splitted states.
-        """
-        all_states["state"] = all_states["state"]\
-            .view(batch_size * agent_num, -1)
+    def state_concat_function(states: List[Dict], *_):
+        # Assume an atom state is [batch_size, state_dim]
+        # concatenate states in the second dimension.
+        # becomes [batch_size, actor_num * state_dim]
+        keys = states[0].keys()
+        all_states = {}
+        for k in keys:
+            all_states[k] = t.cat([st[k] for st in states], dim=1)
         return all_states
-
-    @staticmethod
-    def action_concat_function(raw_output_action, batch_size, agent_num, *_):
-        """
-        This function is used to transform the actions produced by actor
-        from the splitted states, to the final output of all actions of
-        all agents.
-
-        Args:
-            raw_output_action: Raw output of actor.
-            batch_size: Sampled batch size.
-            agent_num: Number of agents.
-
-        Returns:
-            Concatenated actions.
-        """
-        return {"action": raw_output_action.view(batch_size, agent_num)}
 
     @staticmethod
     def bellman_function(reward, discount, next_value, terminal, *_):

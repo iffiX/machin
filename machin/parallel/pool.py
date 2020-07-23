@@ -68,6 +68,11 @@ class Pool(pool.Pool):
                 is_copy_tensor=False,
                 share_method="cuda"
 
+        Note:
+            The default context used in pool is "spawn", to avoid any issues
+            brought by "fork". "fork" will only be used if you want to pass
+            cpu tensors in shared memory.
+
         Args:
             processes: Number of processes in the pool.
             initializer: Initializer function executed by the pool/
