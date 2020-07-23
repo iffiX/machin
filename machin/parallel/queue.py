@@ -1,10 +1,8 @@
 from typing import Any
 from multiprocessing import context, connection, get_context
 import sys
-import dill
-import torch as t
 
-from .pickle import dump_tensor
+from .pickle import dumps, loads
 
 
 class ConnectionWrapper(object):  # pragma: no cover
@@ -63,7 +61,6 @@ class SimpleQueue(object):  # pragma: no cover
         self._writer = ConnectionWrapper(self._writer)
         # _rlock will be used by _help_stuff_finish() of multiprocessing.Pool
         self._rlock = ctx.Lock()
-        self._poll = self._reader.poll
         self._copy_tensor = copy_tensor
         if sys.platform == 'win32':
             self._wlock = None
@@ -75,7 +72,7 @@ class SimpleQueue(object):  # pragma: no cover
         Returns:
             Whether the queue is empty or not.
         """
-        return not self._poll()
+        return not self._reader.poll()
 
     def close(self):
         self._reader.close()
@@ -83,10 +80,12 @@ class SimpleQueue(object):  # pragma: no cover
 
     def __getstate__(self):
         context.assert_spawning(self)
-        return self._reader, self._writer, self._rlock, self._wlock
+        return (self._reader, self._writer, self._rlock, self._wlock,
+                self._copy_tensor)
 
     def __setstate__(self, state):
-        (self._reader, self._writer, self._rlock, self._wlock) = state
+        (self._reader, self._writer, self._rlock, self._wlock,
+         self._copy_tensor) = state
 
     def get(self, timeout=None):
         """
@@ -104,7 +103,7 @@ class SimpleQueue(object):  # pragma: no cover
         with self._rlock:
             res = self._reader.recv_bytes(timeout)
         # deserialize the data after having released the lock
-        return dill.loads(res)
+        return loads(res)
 
     def put(self, obj: Any):
         """
@@ -120,10 +119,7 @@ class SimpleQueue(object):  # pragma: no cover
             obj: Any object.
         """
         # serialize the data before acquiring the lock
-        if t.is_tensor(obj):
-            obj = dump_tensor(obj, self._copy_tensor)
-        else:
-            obj = dill.dumps(obj)
+        obj = dumps(obj, copy_tensor=self._copy_tensor)
         if self._wlock is None:
             # writes to a message oriented win32 pipe are atomic
             self._writer.send_bytes(obj)
@@ -144,7 +140,7 @@ class SimpleQueue(object):  # pragma: no cover
             Any object.
         """
         res = self._reader.recv_bytes(timeout)
-        return dill.loads(res)
+        return loads(res)
 
     def quick_put(self, obj: Any):
         """
@@ -157,10 +153,7 @@ class SimpleQueue(object):  # pragma: no cover
         Args:
             obj: Any object.
         """
-        if t.is_tensor(obj):
-            obj = dump_tensor(obj, self._copy_tensor)
-        else:
-            obj = dill.dumps(obj)
+        obj = dumps(obj, copy_tensor=self._copy_tensor)
         self._writer.send_bytes(obj)
 
     def __del__(self):

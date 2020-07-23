@@ -1,7 +1,17 @@
 from typing import Any
-from torch.multiprocessing.reductions import ForkingPickler
-import dill
+from dill import Pickler as DillPickler, loads as d_loads
+from torch.multiprocessing import set_sharing_strategy
+from torch.multiprocessing.reductions import (
+    reduce_event, reduce_storage, reduce_tensor
+)
+import io
+import copyreg
 import torch as t
+
+# strategy "file_descriptor" will not work if sender
+# process has been terminated before receiver process receives the tensor
+# because the receiver needs to connect to sender to get FDs
+set_sharing_strategy("file_system")
 
 
 def mark_static_module(module: Any):  # pragma: no cover
@@ -25,9 +35,67 @@ def mark_static_module(module: Any):  # pragma: no cover
     del module.__file__
 
 
-def dump_tensor(tensor: t.Tensor, reduce_as_reference=False):
+def _rebuild_full(data):
+    buffer = io.BytesIO(data)
+    return t.load(buffer)
+
+
+def _reduce_full(obj):
+    # supports saving tensors, storage, etc.
+    # will always save all data and not by reference.
+    buffer = io.BytesIO()
+    t.save(obj, buffer)
+    return _rebuild_full, (buffer.getvalue(),)
+
+
+class Pickler(DillPickler):
     """
-    Convert tensor to bytes. Works for cpu and gpu tensors.
+    Note:
+        Picklers shares ".dispatch" among instances, and owns
+        "dispatch_table" per instance.
+
+        The base Pickler (not dill, from builtin pickle library),
+        will first look up the default dump method in ".dispatch", if
+        no valid method is found, it will try to find a custom dump
+        method in ".dispatch_table".
+    """
+    def __init__(self, file, recurse=False, copy_tensor=False):
+        super(Pickler, self).__init__(
+            file, byref=False, recurse=recurse
+        )
+        self.dispatch_table = copyreg.dispatch_table.copy()
+        if not copy_tensor:
+            # register the reduction methods provided by pytorch
+            # same as init_reductions() in
+            # torch.multiprocessing.reductions
+
+            # In this case, receiver processes must be created by "fork",
+            # and _share_memory()/share_memory() must be invoked on all
+            # tensors/modules.
+            # Otherwise "cpu" tensors will probably get a serious exception,
+            # because the receiver processes are only getting pointers.
+            # "cuda" tensors should will be fine
+            self.dispatch_table[t.cuda.Event] = reduce_event
+            for typ in t._storage_classes:
+                self.dispatch_table[typ] = reduce_storage
+            for typ in t._tensor_classes:
+                self.dispatch_table[typ] = reduce_tensor
+            self.dispatch_table[t.Tensor] = reduce_tensor
+            self.dispatch_table[t.nn.parameter.Parameter] = reduce_tensor
+
+        else:
+            self.dispatch_table[t.cuda.Event] = reduce_event
+            for typ in t._storage_classes:
+                self.dispatch_table[typ] = _reduce_full
+            for typ in t._tensor_classes:
+                self.dispatch_table[typ] = _reduce_full
+            self.dispatch_table[t.Tensor] = _reduce_full
+            self.dispatch_table[t.nn.parameter.Parameter] = _reduce_full
+
+
+def dumps(obj, recurse=False, copy_tensor=True):
+    """
+    Convert objects to bytes. Works for cpu and gpu tensors.
 
     Warning:
         Till pytorch 1.5.0, there is a bug for referenced gpu tensors,
@@ -38,25 +106,20 @@ def dump_tensor(tensor: t.Tensor, reduce_as_reference=False):
         See `here <https://github.com/pytorch/pytorch/issues/39541>`_
 
     Args:
-        tensor: Some tensor.
-        reduce_as_reference: Whether to dump the tensor as a reference,
-            useful in same-node cross-process tensor transmission.
+        obj: Object to dump.
+        recurse: Enable recursive dumping, enable this to dump local
+            functions and lambdas.
+        copy_tensor: Whether to dump tensors, storage as a full copy.
+            If it is set to "False", then dumped tensors must either
+            locate on GPUs or in shared memory.
 
     Returns:
         Bytes.
     """
-    if reduce_as_reference:
-        # Only works on the same node, where tensor transmission
-        # is needed between processes.
-        # Since the registered reduction functions also return
-        # constructor function (in torch/multiprocessing/reductions.py)
-        # we can use dill to directly loads tensors.
-        return ForkingPickler.dumps(tensor)
-    else:
-        # Pytorch implemented __reduce__ in the _StorageBase class
-        # Storage is the base of all types of storage, and the
-        # container of all types of tensors.
-        # Internally it uses torch.save to convert the tensor to
-        # raw bytes.
-        tensor.share_memory_()
-        return dill.dumps(tensor)
+    buffer = io.BytesIO()
+    pickler = Pickler(buffer, recurse, copy_tensor)
+    pickler.dump(obj)
+    return buffer.getvalue()
+
+
+loads = d_loads

@@ -1,10 +1,9 @@
 import copy
 import itertools
-import numpy as np
 from machin.frame.transition import TransitionBase
 from machin.utils.logging import default_logger
 from machin.parallel.pool import Pool
-from machin.parallel.assigner import ModelAssigner
+from machin.parallel import get_context
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .ddpg import *
 
@@ -24,35 +23,15 @@ def _average_parameters(*params: t.Tensor):
         param.data.copy_(target_param)
 
 
-class MultiAgentTransition(TransitionBase):
-    """
-    Multi agent Transition class used in MADDPG.
-    """
-    state = None  # type: Dict[str, t.Tensor]
-    all_states = None  # type: Dict[str, t.Tensor]
-    all_actions = None  # type: Dict[str, t.Tensor]
-    all_next_states = None  # type: Dict[str, t.Tensor]
-    reward = None  # type: Union[float, t.Tensor]
-    terminal = None  # type: bool
-
-    def __init__(self,
-                 state: Dict[str, t.Tensor],
-                 all_states: Dict[str, t.Tensor],
-                 all_actions: Dict[str, t.Tensor],
-                 all_next_states: Dict[str, t.Tensor],
-                 reward: Union[float, t.Tensor],
-                 index: int,
-                 terminal: bool,
-                 **kwargs):
-        super(MultiAgentTransition, self).__init__(
-            major_attr=["state", "all_states", "all_actions",
-                        "all_next_states"],
-            sub_attr=["reward", "terminal"],
-            custom_attr=kwargs.keys(),
-            major_data=[state, all_states, all_actions, all_next_states],
-            sub_data=[reward, terminal, index],
-            custom_data=kwargs.values()
-        )
+def _check_parameters_device(models):
+    devices = set()
+    for model in models:
+        for k, v in model.named_parameters():
+            devices.add(v.device.type)
+            if len(devices) > 1:
+                raise RuntimeError("All of your models should either"
+                                   "locate on GPUs or your CPU!")
+    return list(devices)[0]
 
 
 class MADDPG(TorchFramework):
@@ -64,58 +43,59 @@ class MADDPG(TorchFramework):
     """
     # Since the number of sub-policies is automatically determined,
     # they are not considered here.
-    _is_top = ["actor_target", "critic_target"]
-    _is_restorable = ["actor_target", "critic_target"]
+    _is_top = ["all_actor_target", "all_critic_target"]
+    _is_restorable = ["all_actor_target", "all_critic_target"]
 
     def __init__(self,
                  agent_num,
-                 actor: Union[NeuralNetworkModule, nn.Module],
-                 actor_target: Union[NeuralNetworkModule, nn.Module],
-                 critic: Union[NeuralNetworkModule, nn.Module],
-                 critic_target: Union[NeuralNetworkModule, nn.Module],
+                 actors: List[Union[NeuralNetworkModule, nn.Module]],
+                 actor_targets: List[Union[NeuralNetworkModule, nn.Module]],
+                 critics: List[Union[NeuralNetworkModule, nn.Module]],
+                 critic_targets: List[Union[NeuralNetworkModule, nn.Module]],
+                 critic_observe_indexes: List[List[int]],
                  optimizer: Callable,
                  criterion: Callable,
-                 available_devices: Union[list, None] = None,
-                 sub_policy_num: int = 1,
+                 *_,
+                 sub_policy_num: int = 0,
                  lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict, Dict] = (),
+                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
+                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
                  batch_size: int = 100,
-                 update_rate: float = 0.005,
-                 learning_rate: float = 0.001,
+                 update_rate: float = 0.001,
+                 actor_learning_rate: float = 0.0005,
+                 critic_learning_rate: float = 0.001,
                  discount: float = 0.99,
+                 gradient_max: float = np.inf,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
                  reward_func: Callable = None,
-                 action_concat_func: Callable = None,
-                 action_alter_func: Callable = None,
-                 state_split_func: Callable = None,
+                 action_trans_funcs: List[Callable] = None,
                  visualize: bool = False,
-                 pool: Any = None):
+                 visualize_dir: str = "",
+                 pool_size: int = None):
         """
         See Also:
             :class:`.DDPG`
 
-        Hint:
-            Please reference:
-
-            - :meth:`MADDPG.action_concat_function`
-            - :meth:`MADDPG.action_alter_function`
-            - :meth:`MADDPG.state_split_function`
-
-            for ``action_concat_func``, ``action_alter_func``, and
-            ``state_split_func`` design, if your actor does not output
-            a simple action of shape ``[batch_size, action_dim]`` which
-            should be directly accepted by your critic.
+        Note:
+            In order to parallelize agent inference, a process pool is used
+            internally. However, in order to minimize memory copy / CUDA memory
+            copy, the location of all of your models must be either "cpu", or
+            "cuda" (Using multiple CUDA devices is supported).
 
         Args:
-            actor: Actor network module.
-            actor_target: Target actor network module.
-            critic: Critic network module.
-            critic_target: Target critic network module.
-            optimizer: Optimizer used to optimize ``actor`` and ``critic``.
+            actors: Actor network modules.
+            actor_targets: Target actor network modules.
+            critics: Critic network modules.
+            critic_targets: Target critic network modules.
+            critic_observe_indexes: List of observable actor indexes for
+                each critic. Index corresponds to the actor index in
+                ``actors``.
+            optimizer: Optimizer used to optimize ``actors`` and ``critics``.
             criterion: Criterion used to evaluate the value loss.
+            sub_policy_num: Times to replicate each actor. Equals to
+                `ensemble_policy_num - 1`
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
@@ -124,19 +104,23 @@ class MADDPG(TorchFramework):
             update_rate: :math:`\\tau` used to update target networks.
                 Target parameters are updated as:
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
-            learning_rate: Learning rate of the optimizer, not compatible with
-                ``lr_scheduler``.
+            actor_learning_rate: Learning rate of the actor optimizer,
+                not compatible with ``lr_scheduler``.
+            critic_learning_rate: Learning rate of the critic optimizer,
+                not compatible with ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
-            replay_size: Replay buffer size. Not compatible with
+            replay_size: Replay buffer size for each actor. Not compatible with
                 ``replay_buffer``.
             replay_device: Device where the replay buffer locates on, Not
                 compatible with ``replay_buffer``.
-            replay_buffer: Custom replay buffer.
+            replay_buffer: Custom replay buffer. Will be replicated for actor.
             reward_func: Reward function used in training.
-            action_concat_func: Action concatenation function.
-            action_alter_func: Action alternation function.
-            state_split_func: All states spli function.
+            action_trans_funcs: A list of action transform functions,
+                used to transform the collected list of raw outputs
+                of actors visible to each critic.
             visualize: Whether visualize the network flow in the first pass.
+            visualize_dir: Visualized graph save directory.
+            pool_size: Size of the internal execution pool.
         """
         self.batch_size = batch_size
         self.update_rate = update_rate
@@ -144,58 +128,60 @@ class MADDPG(TorchFramework):
         self.visualize = visualize
         self.agent_num = agent_num
 
-        self.actors = [copy.deepcopy(actor)
-                       for _ in range(sub_policy_num)]
-        self.actor_targets = [copy.deepcopy(actor_target)
-                              for _ in range(sub_policy_num)]
-        self.critics = [copy.deepcopy(critic)
-                        for _ in range(sub_policy_num)]
-        self.critic_targets = [copy.deepcopy(critic_target)
+        # create ensembles of policies
+        self.actors = [[actor] +
+                       [copy.deepcopy(actor) for _ in range(sub_policy_num)]
+                       for actor in actors]
+        self.actor_targets = [[actor_target] +
+                              [copy.deepcopy(actor_target)
                                for _ in range(sub_policy_num)]
-        self.actor_optims = [optimizer(ac.parameters(), lr=learning_rate)
+                              for actor_target in actor_targets]
+        self.critics = critics
+        self.critic_targets = critic_targets
+        self.actor_optims = [[optimizer(acc.parameters(),
+                                        lr=actor_learning_rate)
+                             for acc in ac]
                              for ac in self.actors]
-        self.critic_optims = [optimizer(cr.parameters(), lr=learning_rate)
+        self.critic_optims = [optimizer(cr.parameters(),
+                                        lr=critic_learning_rate)
                               for cr in self.critics]
-        self.sub_policy_num = sub_policy_num
-        self.pool = Pool() if pool is None else pool
-        self.replay_buffer = (Buffer(replay_size, replay_device)
+        self.ensemble_size = sub_policy_num + 1
+        self.replay_buffer = [Buffer(replay_size, replay_device)
                               if replay_buffer is None
-                              else replay_buffer)
+                              else copy.deepcopy(replay_buffer)
+                              for _ in range(len(actors))]
 
-        # Distribute models to available devices.
-        if available_devices is not None and available_devices:
-            nets = self.actors + self.actor_targets + \
-                   self.critics + self.critic_targets
-            # Only actors and critics are related
-            connections = {(i, i + self.sub_policy_num * 2): 1
-                           for i in range(self.sub_policy_num)}
-            # We do not need the assigner after construction.
-            _assigner = ModelAssigner(nets, connections, available_devices)
-
-            # For debugging:
-            (act_assign, act_target_assign,
-             critic_assign, critic_target_assign) = \
-                np.array_split(_assigner.assignment, 4)
-            default_logger.log("Actors assigned to:")
-            default_logger.log(act_assign)
-            default_logger.log("Actors (target) assigned to:")
-            default_logger.log(act_target_assign)
-            default_logger.log("Critics assigned to:")
-            default_logger.log(critic_assign)
-            default_logger.log("Critics (target) assigned to:")
-            default_logger.log(critic_target_assign)
+        # check devices of all parameters,
+        # determine the pool process starting method.
+        device = _check_parameters_device(
+            itertools.chain(*self.actors, self.critics)
+        )
+        if device == "cpu":
+            # use fork method
+            ctx = get_context("fork")
+            self.pool = Pool(processes=pool_size, context=ctx)
+        else:
+            # use spawn method
+            ctx = get_context("spawn")
+            self.pool = Pool(processes=pool_size, context=ctx)
 
         # Create wrapper for target actors and target critics.
         # So their parameters can be saved.
-        self.actor_target = nn.Module()
-        self.critic_target = nn.Module()
-        for actor_t, idx in zip(self.actor_targets,
-                                range(self.sub_policy_num)):
-            self.actor_target.add_module("actor_{}".format(idx), actor_t)
+        self.all_actor_target = nn.Module()
+        self.all_critic_target = nn.Module()
 
-        for critic_t, idx in zip(self.critic_targets,
-                                 range(self.sub_policy_num)):
-            self.critic_target.add_module("critic_{}".format(idx), critic_t)
+        for ac, idx in zip(self.actor_targets, range(len(actors))):
+            for acc, idxx in zip(ac, range(self.ensemble_size)):
+                acc.share_memory()
+                self.all_actor_target.add_module(
+                    "actor_{}_{}".format(idx, idxx), acc
+                )
+
+        for cr, idx in zip(self.critic_targets, range(len(critics))):
+            cr.share_memory()
+            self.all_critic_target.add_module(
+                "critic_{}".format(idx), cr
+            )
 
         # Make sure target and online networks have the same weight
         with t.no_grad():
@@ -208,7 +194,8 @@ class MADDPG(TorchFramework):
             self.actor_lr_schs = [lr_scheduler(ac_opt,
                                                *lr_scheduler_args[0],
                                                *lr_scheduler_kwargs[0])
-                                  for ac_opt in self.actor_optims]
+                                  for acc_opt in self.actor_optims
+                                  for ac_opt in acc_opt]
             self.critic_lr_schs = [lr_scheduler(cr_opt,
                                                 *lr_scheduler_args[1],
                                                 *lr_scheduler_kwargs[1])
@@ -220,17 +207,11 @@ class MADDPG(TorchFramework):
                             if reward_func is None
                             else reward_func)
 
-        self.action_alter_func = (MADDPG.action_alter_function
-                                  if action_alter_func is None
-                                  else action_alter_func)
-
-        self.action_concat_func = (MADDPG.action_concat_function
-                                   if action_concat_func is None
-                                   else action_concat_func)
-
-        self.state_split_func = (MADDPG.state_split_function
-                                 if state_split_func is None
-                                 else state_split_func)
+        if action_trans_funcs is None:
+            self.action_transform_funcs = [DDPG.action_transform_function
+                                           for _ in range(len(actors))]
+        else:
+            self.action_transform_funcs = action_trans_funcs
 
         super(MADDPG, self).__init__()
 
@@ -260,7 +241,7 @@ class MADDPG(TorchFramework):
 
     def act_with_noise(self,
                        state: Dict[str, Any],
-                       noise_param: Tuple = (0.0, 1.0),
+                       noise_param: Any = (0.0, 1.0),
                        ratio: float = 1.0,
                        mode: str = "uniform",
                        use_target: bool = False,
@@ -392,7 +373,7 @@ class MADDPG(TorchFramework):
             return safe_call(self.critics[index],
                              all_states, all_actions)
 
-    def store_transition(self, transition: Union[MultiAgentTransition, Dict]):
+    def store_transition(self, transition: Union[Transition, Dict]):
         """
         Add a transition sample to the replay buffer.
         """
@@ -401,7 +382,7 @@ class MADDPG(TorchFramework):
             "reward", "terminal", "index"
         ))
 
-    def store_episode(self, episode: List[Union[MultiAgentTransition, Dict]]):
+    def store_episode(self, episode: List[Union[Transition, Dict]]):
         """
         Add a full episode of transition samples to the replay buffer.
         """

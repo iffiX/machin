@@ -22,7 +22,8 @@ setuptools.setup(
     license="MIT",
     python_requires=">=3.5",
     packages=setuptools.find_packages(
-        exclude=["test", "test.*", "examples", "examples.*",
+        exclude=["test", "test.*", "test_lib", "test_lib.*",
+                 "examples", "examples.*",
                  "docs", "docs.*"]
     ),
     classifiers=[

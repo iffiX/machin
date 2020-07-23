@@ -2,9 +2,12 @@ from typing import Any, List
 import threading
 import multiprocessing.pool as pool
 from torch.multiprocessing.pool import clean_worker
+from torch.multiprocessing import get_context
 
-import dill
+from .pickle import dumps, loads
 from .queue import SimpleQueue
+
+from machin.utils.logging import default_logger
 
 
 def proxy_caller(*input_):
@@ -15,7 +18,7 @@ def proxy_caller(*input_):
         func_str, args, kwargs = input_[0]
     else:
         func_str, args, kwargs = input_
-    func = dill.loads(func_str)
+    func = loads(func_str)
     return func(*args, **kwargs)
 
 
@@ -27,11 +30,11 @@ def proxy_ctx_caller(*input_):
         func_str, args, kwargs = input_[0]
     else:
         func_str, args, kwargs = input_
-    func = dill.loads(func_str)
+    func = loads(func_str)
     return func(CtxPoolStorage.storage, *args, **kwargs)
 
 
-def proxy_dumper(recurse, func, args_list):
+def proxy_dumper(recurse, copy_tensor, func, args_list):
     """
     Serialize a function so it can be called.
 
@@ -39,7 +42,7 @@ def proxy_dumper(recurse, func, args_list):
         List[function string, arguments...]
     """
     # recurse will enable context variable saving
-    dump = dill.dumps(func, protocol=dill.HIGHEST_PROTOCOL, recurse=recurse)
+    dump = dumps(func, recurse=recurse, copy_tensor=copy_tensor)
     for args in args_list:
         yield [dump, args, {}]
 
@@ -50,17 +53,50 @@ class Pool(pool.Pool):
      1. Support for lambdas and local functions.
      2. Ability to select the tensor serialize scheme.
     """
-
-    # Multiprocessing pool is badly written.
-    # python IDEs will complain a lot.
-
     def __init__(self, processes=None, initializer=None, initargs=(),
-                 maxtasksperchild=None, context=None,
-                 is_global=False, is_daemon=True, is_copy_tensors=False):
-        self._is_global = is_global
+                 maxtasksperchild=None, is_recursive=False, is_daemon=True,
+                 is_copy_tensor=True, share_method=None):
+        """
+        Note:
+            To share "cpu" tensors in shared memory, you must set::
+
+                is_copy_tensor=False,
+                share_method="cpu"
+
+            To share "cuda" tensors, you must set::
+
+                is_copy_tensor=False,
+                share_method="cuda"
+
+        Args:
+            processes: Number of processes in the pool.
+            initializer: Initializer function executed by the pool/
+            initargs: Args passed to the init function.
+            maxtasksperchild: Maximum number of tasks per worker process.
+            is_recursive: Set to ``True`` to support local functions
+                and lambdas.
+            is_daemon: Whether worker processes in the pool are started as
+                daemon processes.
+            is_copy_tensor: Whether to copy tensors or pass tensors by
+                reference to worker processes.
+            share_method: If ``is_copy_tensor`` is ``False``, you must
+                specify this argument. "cpu" means you may use cpu tensors
+                in the shared memory, "cuda" means cuda tensors, you can only
+                specify one share method.
+        """
+        self._is_recursive = is_recursive
         self._is_daemon = is_daemon
-        self._is_copy_tensors = is_copy_tensors
+        self._is_copy_tensor = is_copy_tensor
         self._caller = proxy_caller
+
+        context = get_context("spawn")
+        if not is_copy_tensor:
+            if share_method not in ("cpu", "cuda"):
+                raise RuntimeError('Invalid share method: "{}"'
+                                   .format(share_method))
+            if share_method == "cpu":
+                context = get_context("fork")
+
         super(Pool, self).__init__(
             processes=processes,
             initializer=initializer,
@@ -71,9 +107,9 @@ class Pool(pool.Pool):
 
     def _setup_queues(self):
         self._inqueue = SimpleQueue(ctx=self._ctx,
-                                    copy_tensor=self._is_copy_tensors)
+                                    copy_tensor=self._is_copy_tensor)
         self._outqueue = SimpleQueue(ctx=self._ctx,
-                                     copy_tensor=self._is_copy_tensors)
+                                     copy_tensor=self._is_copy_tensor)
         self._quick_put = self._inqueue.quick_put
         self._quick_get = self._outqueue.quick_get
 
@@ -82,8 +118,9 @@ class Pool(pool.Pool):
         if kwds is None:
             kwds = {}
         return pool.Pool.apply(self, self._caller,
-                               [(dill.dumps(
-                                   func, recurse=self._is_global),
+                               [(dumps(func,
+                                       recurse=self._is_recursive,
+                                       copy_tensor=self._is_copy_tensor),
                                 args, kwds)])
 
     def apply_async(self, func, args=(), kwds=None, callback=None,
@@ -92,15 +129,17 @@ class Pool(pool.Pool):
         if kwds is None:
             kwds = {}
         return pool.Pool.apply_async(self, self._caller,
-                                     [(dill.dumps(
-                                         func, recurse=self._is_global),
+                                     [(dumps(func,
+                                       recurse=self._is_recursive,
+                                       copy_tensor=self._is_copy_tensor),
                                       args, kwds)])
 
     def map(self, func, iterable, chunksize=None):
         # DOC INHERITED
         return pool.Pool.map(self, self._caller,
                              proxy_dumper(
-                                 self._is_global,
+                                 self._is_recursive,
+                                 self._is_copy_tensor,
                                  func,
                                  [(arg,) for arg in iterable]
                              ),
@@ -111,7 +150,8 @@ class Pool(pool.Pool):
         # DOC INHERITED
         return pool.Pool.map_async(self, self._caller,
                                    proxy_dumper(
-                                       self._is_global,
+                                       self._is_recursive,
+                                       self._is_copy_tensor,
                                        func,
                                        [(arg,) for arg in iterable]
                                    ),
@@ -121,7 +161,8 @@ class Pool(pool.Pool):
         # DOC INHERITED
         return pool.Pool.imap(self, self._caller,
                               proxy_dumper(
-                                  self._is_global,
+                                  self._is_recursive,
+                                  self._is_copy_tensor,
                                   func,
                                   [(arg,) for arg in iterable]
                               ),
@@ -131,7 +172,8 @@ class Pool(pool.Pool):
         # DOC INHERITED
         return pool.Pool.imap_unordered(self, self._caller,
                                         proxy_dumper(
-                                            self._is_global,
+                                            self._is_recursive,
+                                            self._is_copy_tensor,
                                             func,
                                             [(arg,) for arg in iterable]
                                         ),
@@ -141,7 +183,8 @@ class Pool(pool.Pool):
         # DOC INHERITED
         return pool.Pool.starmap(self, self._caller,
                                  proxy_dumper(
-                                     self._is_global,
+                                     self._is_recursive,
+                                     self._is_copy_tensor,
                                      func,
                                      iterable
                                  ),
@@ -152,7 +195,8 @@ class Pool(pool.Pool):
         # DOC INHERITED
         return pool.Pool.starmap_async(self, self._caller,
                                        proxy_dumper(
-                                           self._is_global,
+                                           self._is_recursive,
+                                           self._is_copy_tensor,
                                            func,
                                            iterable
                                        ),
@@ -209,8 +253,9 @@ class CtxPool(Pool):
     The length of ``worker_contexts`` must be the same as ``processes``
     """
     def __init__(self, processes: int, initializer=None, initargs=(),
-                 maxtasksperchild=None, context=None, worker_contexts=None,
-                 is_global=False, is_daemon=True, is_copy_tensors=False):
+                 maxtasksperchild=None, worker_contexts=None,
+                 is_recursive=False, is_daemon=True,
+                 is_copy_tensor=True, share_method=None):
 
         if worker_contexts is not None:
             if len(worker_contexts) != processes:
@@ -224,10 +269,10 @@ class CtxPool(Pool):
             initializer=self._init_with_context,
             initargs=(worker_contexts, initializer) + initargs,
             maxtasksperchild=maxtasksperchild,
-            context=context,
-            is_global=is_global,
+            is_recursive=is_recursive,
             is_daemon=is_daemon,
-            is_copy_tensors=is_copy_tensors
+            is_copy_tensor=is_copy_tensor,
+            share_method=share_method
         )
         self._caller = proxy_ctx_caller
 

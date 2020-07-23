@@ -2,13 +2,12 @@ from itertools import repeat
 from typing import Tuple, Callable
 from threading import Lock
 from multiprocessing import get_context
-
 import gym
-import dill
 import numpy as np
 
 from machin.parallel.exception import ExceptionWithTraceback
 from machin.parallel.queue import SimpleQueue
+from machin.parallel.pickle import dumps, loads
 
 from .base import *
 from ..utils.openai_gym import disable_view_window
@@ -194,19 +193,23 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
 
         # Some environments will hang or collapse when using fork context.
         # E.g.: in "CarRacing-v0". pyglet used by gym will have render problems.
+
+        # In case users wants to pass tensors to environments,
+        # always copy all tensors to avoid errors
         ctx = get_context("spawn")
-        self.cmd_queues = [SimpleQueue(ctx=ctx)
+        self.cmd_queues = [SimpleQueue(ctx=ctx, copy_tensor=True)
                            for _ in range(len(env_creators))]
-        self.result_queue = SimpleQueue(ctx=ctx)
+        self.result_queue = SimpleQueue(ctx=ctx, copy_tensor=True)
         for cmd_queue, ec, env_idx in zip(self.cmd_queues,
                                           env_creators,
                                           range(len(env_creators))):
-            # lambda & local function creators must be serialized by dill,
-            # the default pickler in spawn context doesn't work.
+            # enable recursive serialization to support
+            # lambda & local function creators.
             self.workers.append(
                 ctx.Process(target=self._worker,
                             args=(cmd_queue, self.result_queue,
-                                  dill.dumps(ec), env_idx))
+                                  dumps(ec, recurse=True, copy_tensor=True),
+                                  env_idx))
             )
 
         for worker in self.workers:
@@ -389,7 +392,7 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
                 env_creator, env_idx):
         env = None
         try:
-            env = dill.loads(env_creator)(env_idx)
+            env = loads(env_creator)(env_idx)
         except Exception:
             # Something has gone wrong during environment creation,
             # exit with error.

@@ -4,7 +4,6 @@ from machin.parallel.pool import (
     ThreadPool,
     CtxThreadPool
 )
-import time
 import dill
 import pytest
 import torch as t
@@ -117,7 +116,7 @@ class TestPool(object):
         x = [t.ones([10], device=pytestconfig.getoption("gpu_device")) * i
              for i in range(5)]
 
-        pool = Pool(processes=2, is_copy_tensors=True)
+        pool = Pool(processes=2, is_copy_tensor=True)
         assert all(out == expect_out for
                    out, expect_out in
                    zip(
@@ -127,7 +126,21 @@ class TestPool(object):
         pool.close()
         pool.join()
 
-        pool = Pool(processes=2, is_copy_tensors=False)
+        pool = Pool(processes=2, is_copy_tensor=False, share_method="cuda")
+        assert all(out == expect_out for
+                   out, expect_out in
+                   zip(
+                       pool.map(func, x),
+                       [0, 20, 40, 60, 80]
+                   ))
+        pool.close()
+        pool.join()
+
+    def test_cpu_shared_tensor(self):
+        x = [t.ones([10]) * i for i in range(5)]
+        for xx in x:
+            xx.share_memory_()
+        pool = Pool(processes=2, is_copy_tensor=False, share_method="cpu")
         assert all(out == expect_out for
                    out, expect_out in
                    zip(
@@ -148,7 +161,7 @@ class TestPool(object):
             nonlocal y
             return t.sum(xx + y)
 
-        pool = Pool(processes=2, is_global=True)
+        pool = Pool(processes=2, is_recursive=True)
         assert all(out == expect_out for
                    out, expect_out in
                    zip(
@@ -164,7 +177,7 @@ class TestPool(object):
         pool.close()
         pool.join()
 
-        pool = Pool(processes=2, is_copy_tensors=False)
+        pool = Pool(processes=2)
         assert all(out == expect_out for
                    out, expect_out in
                    zip(
