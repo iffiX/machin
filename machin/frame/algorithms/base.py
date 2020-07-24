@@ -97,7 +97,7 @@ class TorchFramework:
                                        .format(r))
                 t.save(getattr(self, r),
                        join(model_dir,
-                            "/{}_{}.pt".format(r, version)))
+                            "{}_{}.pt".format(r, version)))
 
     def visualize_model(self,
                         final_tensor: t.Tensor,

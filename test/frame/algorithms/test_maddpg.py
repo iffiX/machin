@@ -1,18 +1,19 @@
 from machin.model.nets.base import static_module_wrapper as smw
-from machin.frame.algorithms.ddpg import DDPG
+from machin.frame.algorithms.maddpg import MADDPG
 from machin.utils.learning_rate import gen_learning_rate_func
 from machin.utils.logging import default_logger as logger
 from machin.utils.helper_classes import Counter
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
 from torch.optim.lr_scheduler import LambdaLR
+from copy import deepcopy
 
 import pytest
 import torch as t
 import torch.nn as nn
 import gym
 
-from .utils import unwrap_time_limit, Smooth
+from test.util_create_ma_env import create_env
 
 
 class Actor(nn.Module):
@@ -48,6 +49,11 @@ class ActorDiscreet(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
+        # This critic implementation is shared by the prey(DDPG) and
+        # predators(MADDPG)
+        # Note: For MADDPG
+        #       state_dim is the dimension of all states from all agents.
+        #       action_dim is the dimension of all actions from all agents.
         super(Critic, self).__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
@@ -68,222 +74,272 @@ class TestDDPG(object):
     def train_config(self, pytestconfig):
         disable_view_window()
         c = Config()
-        c.env_name = "Pendulum-v0"
-        c.env = unwrap_time_limit(gym.make(c.env_name))
-        c.observe_dim = 3
-        c.action_dim = 1
-        c.action_range = 2
+        # the predator-prey environment provided in
+        # https://github.com/openai/multiagent-particle-envs
+        c.env_name = "simple_tag"
+        c.env = create_env(c.env_name)
+        c.pred_num = 3
+        c.prey_num = 1
+        # first three agents are predators,
+        # the last one is prey
+        # these observation dims include all states of all agents
+        c.prey_observe_dim = c.env.observation_space[3].shape[0]
+        c.prey_action_num = c.env.action_space[3].n
+        c.pred_observe_dim = c.env.observation_space[0].shape[0]
+        c.pred_action_num = c.env.action_space[0].n
+        # for contiguous tests
+        c.test_action_dim = 5
+        c.test_action_range = 1
+        c.test_observe_dim = 5
+        c.test_agent_num = 3
         c.max_episodes = 1000
         c.max_steps = 200
-        c.noise_param = (0, 0.2)
-        c.noise_mode = "normal"
-        c.noise_interval = 2
         c.replay_size = 100000
-        c.solved_reward = -150
+        # from https://github.com/wsjeon/maddpg-rllib/tree/master/plots
+        c.pred_solved_reward = 10
+        c.prey_solved_reward = -20
         c.solved_repeat = 5
         c.device = "cpu"
         return c
 
     @pytest.fixture(scope="function")
-    def ddpg(self, train_config):
+    def maddpg_full(self, train_config):
         c = train_config
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
+        actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
                     .to(c.device), c.device, c.device)
-        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                      .to(c.device), c.device, c.device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
                      .to(c.device), c.device, c.device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    replay_size=c.replay_size)
-        return ddpg
+        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        t.optim.Adam,
+                        nn.MSELoss(reduction='sum'),
+                        replay_device=c.device,
+                        replay_size=c.replay_size)
+        return maddpg
 
     @pytest.fixture(scope="function")
-    def ddpg_vis(self, train_config, tmpdir):
-        # not used for training, only used for testing apis
+    def maddpg_disc(self, train_config):
+        c = train_config
+        actor = smw(ActorDiscreet(c.test_observe_dim, c.test_action_dim)
+                    .to(c.device), c.device, c.device)
+        critic = smw(Critic(c.test_observe_dim * c.test_agent_num,
+                            c.test_action_dim * c.test_agent_num)
+                     .to(c.device), c.device, c.device)
+
+        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        t.optim.Adam,
+                        nn.MSELoss(reduction='sum'),
+                        replay_device=c.device,
+                        replay_size=c.replay_size)
+        return maddpg
+
+    @pytest.fixture(scope="function")
+    def maddpg_cont(self, train_config):
+        c = train_config
+        actor = smw(Actor(c.test_observe_dim, c.test_action_dim,
+                          c.test_action_range)
+                    .to(c.device), c.device, c.device)
+        critic = smw(Critic(c.test_observe_dim * c.test_agent_num,
+                            c.test_action_dim * c.test_agent_num)
+                     .to(c.device), c.device, c.device)
+
+        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        t.optim.Adam,
+                        nn.MSELoss(reduction='sum'),
+                        replay_device=c.device,
+                        replay_size=c.replay_size)
+        return maddpg
+
+    @pytest.fixture(scope="function")
+    def maddpg_vis(self, train_config, tmpdir):
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
+        actor = smw(Actor(c.test_observe_dim, c.test_action_dim,
+                          c.test_action_range)
                     .to(c.device), c.device, c.device)
-        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                      .to(c.device), c.device, c.device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
+        critic = smw(Critic(c.test_observe_dim * c.test_agent_num,
+                            c.test_action_dim * c.test_agent_num)
                      .to(c.device), c.device, c.device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    replay_size=c.replay_size,
-                    visualize=True,
-                    visualize_dir=str(tmp_dir))
-        return ddpg
+
+        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        t.optim.Adam,
+                        nn.MSELoss(reduction='sum'),
+                        replay_device=c.device,
+                        replay_size=c.replay_size,
+                        visualize=True,
+                        visualize_dir=str(tmp_dir))
+        return maddpg
 
     @pytest.fixture(scope="function")
-    def ddpg_disc(self, train_config):
-        # not used for training, only used for testing apis
+    def maddpg_lr(self, train_config):
         c = train_config
-        actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
+        actor = smw(Actor(c.test_observe_dim, c.test_action_dim,
+                          c.test_action_range)
                     .to(c.device), c.device, c.device)
-        actor_t = smw(ActorDiscreet(c.observe_dim, c.action_dim)
-                      .to(c.device), c.device, c.device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
+        critic = smw(Critic(c.test_observe_dim * c.test_agent_num,
+                            c.test_action_dim * c.test_agent_num)
                      .to(c.device), c.device, c.device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    replay_size=c.replay_size)
-        return ddpg
-
-    @pytest.fixture(scope="function")
-    def ddpg_lr(self, train_config):
-        # not used for training, only used for testing apis
-        c = train_config
-        actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
-                    .to(c.device), c.device, c.device)
-        actor_t = smw(ActorDiscreet(c.observe_dim, c.action_dim)
-                      .to(c.device), c.device, c.device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
         lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
                                          logger=logger)
         with pytest.raises(TypeError, match="missing .+ positional argument"):
-            _ = DDPG(actor, actor_t, critic, critic_t,
-                     t.optim.Adam,
-                     nn.MSELoss(reduction='sum'),
-                     replay_device=c.device,
-                     replay_size=c.replay_size,
-                     lr_scheduler=LambdaLR)
-        ddpg = DDPG(actor, actor_t, critic, critic_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
-                    replay_size=c.replay_size,
-                    lr_scheduler=LambdaLR,
-                    lr_scheduler_args=((lr_func,), (lr_func,)))
-        return ddpg
+            _ = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
+                       [deepcopy(actor) for _ in range(c.test_agent_num)],
+                       [deepcopy(critic) for _ in range(c.test_agent_num)],
+                       [deepcopy(critic) for _ in range(c.test_agent_num)],
+                       t.optim.Adam,
+                       nn.MSELoss(reduction='sum'),
+                       replay_device=c.device,
+                       replay_size=c.replay_size,
+                       lr_scheduler=LambdaLR)
+        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        t.optim.Adam,
+                        nn.MSELoss(reduction='sum'),
+                        replay_device=c.device,
+                        replay_size=c.replay_size,
+                        lr_scheduler=LambdaLR,
+                        lr_scheduler_args=((lr_func,), (lr_func,)))
+        return maddpg
 
     ########################################################################
-    # Test for DDPG contiguous domain acting
+    # Test for MADDPG contiguous domain acting
     ########################################################################
-    def test_contiguous_act(self, train_config, ddpg):
+    def test_contiguous_act(self, train_config, maddpg_cont):
         c = train_config
-        state = t.zeros([1, c.observe_dim])
-        ddpg.act({"state": state})
-        ddpg.act({"state": state}, use_target=True)
-        ddpg.act_with_noise({"state": state}, noise_param=(0, 1.0),
-                            mode="uniform")
-        ddpg.act_with_noise({"state": state}, noise_param=(0, 1.0),
-                            mode="normal")
-        ddpg.act_with_noise({"state": state}, noise_param=(0, 1.0, -1.0, 1.0),
-                            mode="clipped_normal")
-        ddpg.act_with_noise({"state": state}, noise_param={"mu": 0, "sigma": 1},
-                            mode="ou")
+        states = ([{"state": t.zeros([1, c.test_observe_dim])}]
+                  * c.test_agent_num)
+        maddpg_cont.act(states)
+        maddpg_cont.act(states, use_target=True)
+        maddpg_cont.act_with_noise(states, noise_param=(0, 1.0),
+                                   mode="uniform")
+        maddpg_cont.act_with_noise(states, noise_param=(0, 1.0),
+                                   mode="normal")
+        maddpg_cont.act_with_noise(states, noise_param=(0, 1.0, -1.0, 1.0),
+                                   mode="clipped_normal")
+        maddpg_cont.act_with_noise(states, noise_param={"mu": 0, "sigma": 1},
+                                   mode="ou")
         with pytest.raises(ValueError, match="Unknown noise type"):
-            ddpg.act_with_noise({"state": state},
-                                noise_param=None,
-                                mode="some_unknown_noise")
+            maddpg_cont.act_with_noise(states, noise_param=None,
+                                       mode="some_unknown_noise")
 
     ########################################################################
-    # Test for DDPG discreet domain acting
+    # Test for MADDPG discreet domain acting
     ########################################################################
-    def test_discreet_act(self, train_config, ddpg_disc):
+    def test_discreet_act(self, train_config, maddpg_disc):
         c = train_config
-        state = t.zeros([1, c.observe_dim])
-        ddpg_disc.act_discreet({"state": state})
-        ddpg_disc.act_discreet({"state": state}, use_target=True)
-        ddpg_disc.act_discreet_with_noise({"state": state})
-        ddpg_disc.act_discreet_with_noise({"state": state}, use_target=True)
+        states = ([{"state": t.zeros([1, c.test_observe_dim])}]
+                  * c.test_agent_num)
+        maddpg_disc.act_discreet(states)
+        maddpg_disc.act_discreet(states, use_target=True)
+        maddpg_disc.act_discreet_with_noise(states)
+        maddpg_disc.act_discreet_with_noise(states, use_target=True)
 
     ########################################################################
-    # Test for DDPG criticizing
+    # Test for MADDPG criticizing
     ########################################################################
-    def test_criticize(self, train_config, ddpg):
+    def test_criticize(self, train_config, maddpg_cont):
         c = train_config
-        state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
-        ddpg.criticize({"state": state}, {"action": action})
-        ddpg.criticize({"state": state}, {"action": action}, use_target=True)
+        states = ([{"state": t.zeros([1, c.test_observe_dim])}]
+                  * c.test_agent_num)
+        actions = ([{"action": t.zeros([1, c.test_action_dim])}]
+                   * c.test_agent_num)
+        maddpg_cont.criticize(states, actions, 0)
+        maddpg_cont.criticize(states, actions, 1, use_target=True)
 
     ########################################################################
-    # Test for DDPG storage
+    # Test for MADDPG storage
     ########################################################################
-    def test_store(self, train_config, ddpg):
+    def test_store(self, train_config, maddpg_cont):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
-        ddpg.store_transition({
+        old_state = state = t.zeros([1, c.test_observe_dim])
+        action = t.zeros([1, c.test_action_dim])
+        maddpg_cont.store_transitions([{
             "state": {"state": old_state.clone()},
             "action": {"action": action.clone()},
             "next_state": {"state": state.clone()},
             "reward": 0,
             "terminal": False
-        })
-        ddpg.store_episode([{
+        }] * c.test_agent_num)
+        maddpg_cont.store_episodes([[{
             "state": {"state": old_state.clone()},
             "action": {"action": action.clone()},
             "next_state": {"state": state.clone()},
             "reward": 0,
             "terminal": False
-        }])
+        }]] * c.test_agent_num)
 
     ########################################################################
-    # Test for DDPG update
+    # Test for MADDPG update
     ########################################################################
-    def test_update(self, train_config, ddpg_vis):
+    def test_update(self, train_config, maddpg_cont):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
-        ddpg_vis.store_transition({
+        old_state = state = t.zeros([1, c.test_observe_dim])
+        action = t.zeros([1, c.test_action_dim])
+        maddpg_cont.store_episodes([[{
             "state": {"state": old_state.clone()},
             "action": {"action": action.clone()},
             "next_state": {"state": state.clone()},
             "reward": 0,
             "terminal": False
-        })
-        ddpg_vis.update(update_value=True, update_policy=True,
-                        update_target=True, concatenate_samples=True)
-        ddpg_vis.update(update_value=False, update_policy=False,
-                        update_target=False, concatenate_samples=True)
+        }]] * c.test_agent_num)
+        maddpg_cont.update(update_value=True, update_policy=True,
+                           update_target=True, concatenate_samples=True)
+
+    def test_vis_update(self, train_config, maddpg_vis):
+        c = train_config
+        old_state = state = t.zeros([1, c.test_observe_dim])
+        action = t.zeros([1, c.test_action_dim])
+        maddpg_vis.store_episodes([[{
+            "state": {"state": old_state.clone()},
+            "action": {"action": action.clone()},
+            "next_state": {"state": state.clone()},
+            "reward": 0,
+            "terminal": False
+        }]] * c.test_agent_num)
+        maddpg_vis.update(update_value=True, update_policy=True,
+                          update_target=True, concatenate_samples=True)
 
     ########################################################################
-    # Test for DDPG save & load
+    # Test for MADDPG save & load
     ########################################################################
-    def test_save_load(self, train_config, ddpg, tmpdir):
+    def test_save_load(self, train_config, maddpg_cont, tmpdir):
         save_dir = tmpdir.make_numbered_dir()
-        ddpg.save(model_dir=str(save_dir),
-                  network_map={
-                      "critic_target": "critic_t",
-                      "actor_target": "actor_t"
-                  },
-                  version=1000)
-        ddpg.load(model_dir=str(save_dir),
-                  network_map={
-                      "critic_target": "critic_t",
-                      "actor_target": "actor_t"
-                  },
-                  version=1000)
+        maddpg_cont.save(model_dir=str(save_dir),
+                         network_map={
+                             "critic_target": "critic_t",
+                             "actor_target": "actor_t"
+                         },
+                         version=1000)
+        maddpg_cont.load(model_dir=str(save_dir),
+                         network_map={
+                             "critic_target": "critic_t",
+                             "actor_target": "actor_t"
+                         },
+                         version=1000)
 
     ########################################################################
-    # Test for DDPG lr_scheduler
+    # Test for MADDPG lr_scheduler
     ########################################################################
-    def test_lr_scheduler(self, train_config, ddpg_lr):
-        ddpg_lr.update_lr_scheduler()
+    def test_lr_scheduler(self, train_config, maddpg_lr):
+        maddpg_lr.update_lr_scheduler()
 
     ########################################################################
-    # Test for DDPG full training.
+    # Test for MADDPG full training.
     ########################################################################
-    def test_full_train(self, train_config, ddpg):
+    def tes_full_train(self, train_config, ddpg):
         c = train_config
 
         # begin training
