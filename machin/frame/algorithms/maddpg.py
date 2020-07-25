@@ -379,7 +379,8 @@ class MADDPG(TorchFramework):
             use_target: Whether use the target network.
 
         Returns:
-            A list of integer discrete actions.
+            A list of integer discrete actions of shape
+            ``[batch_size, 1]``.
             A list of action probability tensors of shape
             ``[batch_size, action_num]``.
         """

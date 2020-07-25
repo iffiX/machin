@@ -247,16 +247,17 @@ class DDPG(TorchFramework):
 
         Returns:
             Action of shape ``[batch_size, 1]``.
+            Action probability tensor of shape ``[batch_size, action_num]``.
         """
         if use_target:
-            result = safe_call(self.actor_target, state)
+            action = safe_call(self.actor_target, state)
         else:
-            result = safe_call(self.actor, state)
+            action = safe_call(self.actor, state)
 
-        assert_output_is_probs(result)
-        batch_size = result.shape[0]
-        result = t.argmax(result, dim=1).view(batch_size, 1)
-        return result
+        assert_output_is_probs(action)
+        batch_size = action.shape[0]
+        result = t.argmax(action, dim=1).view(batch_size, 1)
+        return result, action
 
     def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
@@ -277,16 +278,17 @@ class DDPG(TorchFramework):
 
         Returns:
             Noisy action of shape ``[batch_size, 1]``.
+            Action probability tensor of shape ``[batch_size, action_num]``.
         """
         if use_target:
-            result = safe_call(self.actor_target, state)
+            action = safe_call(self.actor_target, state)
         else:
-            result = safe_call(self.actor, state)
+            action = safe_call(self.actor, state)
 
-        assert_output_is_probs(result)
-        dist = Categorical(result)
-        batch_size = result.shape[0]
-        return dist.sample([batch_size, 1])
+        assert_output_is_probs(action)
+        dist = Categorical(action)
+        batch_size = action.shape[0]
+        return dist.sample([batch_size, 1]).view(batch_size, 1), action
 
     def criticize(self,
                   state: Dict[str, Any],
