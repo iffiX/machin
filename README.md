@@ -28,11 +28,14 @@
 </div>
 
 <br/>
-**Readable**, **Reusable**, **Extendable**.
+
+<div align="center">
+<p><strong>Readable, Reusable, Extendable</strong></p>
+
+<p><strong>Machin</strong> is a reinforcement library designed for pytorch.</p> 
+</div>
 
 <br/>
-
-**Machin** is a reinforcement library designed for pytorch. 
 
 ### Supported algorithms
 ---
