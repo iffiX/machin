@@ -1,12 +1,19 @@
+from multiprocessing import log_to_stderr
 from machin.parallel.pool import (
     Pool,
+    P2PPool,
     CtxPool,
     ThreadPool,
     CtxThreadPool
 )
+from logging import DEBUG
+
 import dill
 import pytest
 import torch as t
+
+# enable pool logging
+log_to_stderr(DEBUG)
 
 
 def init_func(*_):
@@ -22,8 +29,10 @@ def func2(x, y):
 
 
 class TestPool(object):
+    pool_impl = Pool
+
     def test_apply(self):
-        pool = Pool(processes=2)
+        pool = self.pool_impl(processes=2)
         x = t.ones([10])
         assert pool.apply(func, (x,)) == 20
 
@@ -32,14 +41,14 @@ class TestPool(object):
         pool.join()
 
     def test_apply_async(self):
-        pool = Pool(processes=2)
+        pool = self.pool_impl(processes=2)
         x = t.ones([10])
         assert pool.apply_async(func, (x,)).get() == 20
         pool.close()
         pool.join()
 
     def test_map(self):
-        pool = Pool(processes=2)
+        pool = self.pool_impl(processes=2)
         x = [t.ones([10]) * i for i in range(5)]
         assert all(out == expect_out for
                    out, expect_out in
@@ -51,7 +60,7 @@ class TestPool(object):
         pool.join()
 
     def test_map_async(self):
-        pool = Pool(processes=2)
+        pool = self.pool_impl(processes=2)
         x = [t.ones([10]) * i for i in range(5)]
         assert all(out == expect_out for
                    out, expect_out in
@@ -63,7 +72,7 @@ class TestPool(object):
         pool.join()
 
     def test_imap(self):
-        pool = Pool(processes=2)
+        pool = self.pool_impl(processes=2)
         x = [t.ones([10]) * i for i in range(5)]
         assert all(out == expect_out for
                    out, expect_out in
@@ -75,7 +84,7 @@ class TestPool(object):
         pool.join()
 
     def test_imap_unordered(self):
-        pool = Pool(processes=2)
+        pool = self.pool_impl(processes=2)
         x = [t.ones([10]) * i for i in range(5)]
         assert all(out == expect_out for
                    out, expect_out in
@@ -87,7 +96,7 @@ class TestPool(object):
         pool.join()
 
     def test_starmap(self):
-        pool = Pool(processes=2)
+        pool = self.pool_impl(processes=2)
         x = [(t.ones([10]) * i, t.ones([10]) * i)
              for i in range(5)]
         assert all(out == expect_out for
@@ -100,7 +109,7 @@ class TestPool(object):
         pool.join()
 
     def test_starmap_async(self):
-        pool = Pool(processes=2)
+        pool = self.pool_impl(processes=2)
         x = [(t.ones([10]) * i, t.ones([10]) * i)
              for i in range(5)]
         assert all(out == expect_out for
@@ -116,7 +125,7 @@ class TestPool(object):
         x = [t.ones([10], device=pytestconfig.getoption("gpu_device")) * i
              for i in range(5)]
 
-        pool = Pool(processes=2, is_copy_tensor=True)
+        pool = self.pool_impl(processes=2, is_copy_tensor=True)
         assert all(out == expect_out for
                    out, expect_out in
                    zip(
@@ -126,7 +135,8 @@ class TestPool(object):
         pool.close()
         pool.join()
 
-        pool = Pool(processes=2, is_copy_tensor=False, share_method="cuda")
+        pool = self.pool_impl(processes=2, is_copy_tensor=False,
+                              share_method="cuda")
         assert all(out == expect_out for
                    out, expect_out in
                    zip(
@@ -140,7 +150,8 @@ class TestPool(object):
         x = [t.ones([10]) * i for i in range(5)]
         for xx in x:
             xx.share_memory_()
-        pool = Pool(processes=2, is_copy_tensor=False, share_method="cpu")
+        pool = self.pool_impl(processes=2, is_copy_tensor=False,
+                              share_method="cpu")
         assert all(out == expect_out for
                    out, expect_out in
                    zip(
@@ -161,7 +172,7 @@ class TestPool(object):
             nonlocal y
             return t.sum(xx + y)
 
-        pool = Pool(processes=2, is_recursive=True)
+        pool = self.pool_impl(processes=2, is_recursive=True)
         assert all(out == expect_out for
                    out, expect_out in
                    zip(
@@ -177,7 +188,7 @@ class TestPool(object):
         pool.close()
         pool.join()
 
-        pool = Pool(processes=2)
+        pool = self.pool_impl(processes=2)
         assert all(out == expect_out for
                    out, expect_out in
                    zip(
@@ -188,7 +199,7 @@ class TestPool(object):
         pool.join()
 
     def test_size(self):
-        pool = Pool(processes=2)
+        pool = self.pool_impl(processes=2)
         assert pool.size() == 2
         pool.close()
         pool.join()
@@ -196,6 +207,10 @@ class TestPool(object):
     def test_reduce(self):
         with pytest.raises(RuntimeError, match="not reducible"):
             dill.dumps(Pool(processes=2))
+
+
+class TestP2PPool(TestPool):
+    pool_impl = P2PPool
 
 
 def ctx_func(ctx, x):

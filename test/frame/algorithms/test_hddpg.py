@@ -115,7 +115,7 @@ class TestDDPG(object):
     # Skipped, it is the same as DDPG
 
     ########################################################################
-    # Test for HDDPG discreet domain acting
+    # Test for HDDPG discrete domain acting
     ########################################################################
     # Skipped, it is the same as DDPG
 

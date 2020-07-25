@@ -156,10 +156,10 @@ class TestDQN(object):
     def test_act(self, train_config, dqn):
         c = train_config
         state = t.zeros([1, c.observe_dim])
-        dqn.act_discreet({"state": state})
-        dqn.act_discreet({"state": state}, True)
-        dqn.act_discreet_with_noise({"state": state})
-        dqn.act_discreet_with_noise({"state": state}, True)
+        dqn.act_discrete({"state": state})
+        dqn.act_discrete({"state": state}, True)
+        dqn.act_discrete_with_noise({"state": state})
+        dqn.act_discrete_with_noise({"state": state}, True)
 
     ########################################################################
     # Test for DQN criticizing
@@ -282,7 +282,7 @@ class TestDQN(object):
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action = dqn.act_discreet_with_noise(
+                    action = dqn.act_discrete_with_noise(
                         {"state": old_state.unsqueeze(0)}
                     )
                     state, reward, terminal, _ = env.step(action.item())

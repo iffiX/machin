@@ -31,9 +31,9 @@ class Actor(nn.Module):
         return a
 
 
-class ActorDiscreet(nn.Module):
+class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(ActorDiscreet, self).__init__()
+        super(ActorDiscrete, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -136,9 +136,9 @@ class TestTD3(object):
     def td3_lr(self, train_config):
         # not used for training, only used for testing apis
         c = train_config
-        actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
+        actor = smw(ActorDiscrete(c.observe_dim, c.action_dim)
                     .to(c.device), c.device, c.device)
-        actor_t = smw(ActorDiscreet(c.observe_dim, c.action_dim)
+        actor_t = smw(ActorDiscrete(c.observe_dim, c.action_dim)
                       .to(c.device), c.device, c.device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
                      .to(c.device), c.device, c.device)
@@ -172,7 +172,7 @@ class TestTD3(object):
     # Skipped, it is the same as DDPG
 
     ########################################################################
-    # Test for TD3 discreet domain acting
+    # Test for TD3 discrete domain acting
     ########################################################################
     # Skipped, it is the same as DDPG
 

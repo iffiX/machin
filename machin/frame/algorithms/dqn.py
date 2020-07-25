@@ -43,7 +43,7 @@ class DQN(TorchFramework):
                  **__):
         """
         Note:
-            DQN is only available for discreet environments.
+            DQN is only available for discrete environments.
 
         Note:
             Dueling DQN is a network structure rather than a framework, so
@@ -172,12 +172,12 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
         super(DQN, self).__init__()
 
-    def act_discreet(self,
+    def act_discrete(self,
                      state: Dict[str, Any],
                      use_target: bool = False,
                      **__):
         """
-        Use Q network to produce a discreet action for
+        Use Q network to produce a discrete action for
         the current state.
 
         Args:
@@ -195,12 +195,12 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         result = t.argmax(result, dim=1).view(-1, 1)
         return result
 
-    def act_discreet_with_noise(self,
+    def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
                                 use_target: bool = False,
                                 **__):
         """
-        Use Q network to produce a noisy discreet action for
+        Use Q network to produce a noisy discrete action for
         the current state.
 
         Args:
@@ -360,7 +360,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
             with t.no_grad():
                 target_next_q_value = self.criticize(next_state, True)
-                next_action = (self.act_discreet(next_state)
+                next_action = (self.act_discrete(next_state)
                                .to(device=q_value.device, dtype=t.long))
                 target_next_q_value = target_next_q_value.gather(
                     dim=1, index=next_action)
@@ -408,7 +408,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
     def action_get_function(sampled_actions):
         """
         This function is used to get action numbers (int tensor indicating
-        which discreet actions are used) from the sampled action dictionary.
+        which discrete actions are used) from the sampled action dictionary.
         """
         return sampled_actions["action"]
 

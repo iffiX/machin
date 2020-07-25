@@ -81,7 +81,7 @@ def safe_call(model, *named_args, required_argument=()):
             if arg not in args:
                 missing.append(arg)
         raise RuntimeError("Model missing required argument field(s): {}, "
-                           "check your store_observe() function."
+                           "check your storage functions."
                            .format(missing))
     for na in named_args:
         for k, v in na.items():
@@ -93,7 +93,15 @@ def safe_call(model, *named_args, required_argument=()):
     return model(**args_dict)
 
 
+asserted_output_is_probs = False
+
+
 def assert_output_is_probs(tensor):
+    global asserted_output_is_probs
+    if asserted_output_is_probs:
+        return
+    asserted_output_is_probs = True
+
     if tensor.dim() == 2 and \
             torch.all(torch.abs(torch.sum(tensor, dim=1) - 1.0) < 1e-5) and \
             torch.all(tensor > 0):

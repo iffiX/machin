@@ -44,9 +44,9 @@ class Actor(nn.Module):
         return a
 
 
-class ActorDiscreet(nn.Module):
+class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(ActorDiscreet, self).__init__()
+        super(ActorDiscrete, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -123,10 +123,10 @@ class TestDQNApex(object):
         c = TestDQNApex.c
         dqn_apex = TestDQNApex.dqn_apex()
         state = t.zeros([1, c.observe_dim])
-        dqn_apex.act_discreet({"state": state})
-        dqn_apex.act_discreet({"state": state}, True)
-        dqn_apex.act_discreet_with_noise({"state": state})
-        dqn_apex.act_discreet_with_noise({"state": state}, True)
+        dqn_apex.act_discrete({"state": state})
+        dqn_apex.act_discrete({"state": state}, True)
+        dqn_apex.act_discrete_with_noise({"state": state})
+        dqn_apex.act_discrete_with_noise({"state": state}, True)
         return True
 
     ########################################################################
@@ -226,7 +226,7 @@ class TestDQNApex(object):
                     with t.no_grad():
                         old_state = state
                         # agent model inference
-                        action = dqn_apex.act_discreet_with_noise(
+                        action = dqn_apex.act_discrete_with_noise(
                             {"state": old_state.unsqueeze(0)}
                         )
                         state, reward, terminal, _ = env.step(action.item())
@@ -296,17 +296,17 @@ class TestDDPGApex(object):
     c.device = "cpu"
 
     @staticmethod
-    def ddpg_apex(discreet=False):
+    def ddpg_apex(discrete=False):
         c = TestDDPGApex.c
-        if not discreet:
+        if not discrete:
             actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
                         .to(c.device), c.device, c.device)
             actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
                           .to(c.device), c.device, c.device)
         else:
-            actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
+            actor = smw(ActorDiscrete(c.observe_dim, c.action_dim)
                         .to(c.device), c.device, c.device)
-            actor_t = smw(ActorDiscreet(c.observe_dim, c.action_dim)
+            actor_t = smw(ActorDiscrete(c.observe_dim, c.action_dim)
                           .to(c.device), c.device, c.device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
                      .to(c.device), c.device, c.device)
@@ -345,19 +345,19 @@ class TestDDPGApex(object):
         return True
 
     ########################################################################
-    # Test for DDPGApex discreet domain acting
+    # Test for DDPGApex discrete domain acting
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_discreet_act(_):
+    def test_discrete_act(_):
         c = TestDDPGApex.c
-        ddpg_apex = TestDDPGApex.ddpg_apex(discreet=True)
+        ddpg_apex = TestDDPGApex.ddpg_apex(discrete=True)
         state = t.zeros([1, c.observe_dim])
-        ddpg_apex.act_discreet({"state": state})
-        ddpg_apex.act_discreet({"state": state}, use_target=True)
-        ddpg_apex.act_discreet_with_noise({"state": state})
-        ddpg_apex.act_discreet_with_noise({"state": state}, use_target=True)
+        ddpg_apex.act_discrete({"state": state})
+        ddpg_apex.act_discrete({"state": state}, use_target=True)
+        ddpg_apex.act_discrete_with_noise({"state": state})
+        ddpg_apex.act_discrete_with_noise({"state": state}, use_target=True)
         return True
 
     ########################################################################

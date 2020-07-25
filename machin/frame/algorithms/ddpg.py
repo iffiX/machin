@@ -229,12 +229,12 @@ class DDPG(TorchFramework):
             )
         raise ValueError("Unknown noise type: " + str(mode))
 
-    def act_discreet(self,
+    def act_discrete(self,
                      state: Dict[str, Any],
                      use_target: bool = False,
                      **__):
         """
-        Use actor network to produce a discreet action for the current state.
+        Use actor network to produce a discrete action for the current state.
 
         Notes:
             actor network must output a probability tensor, of shape
@@ -258,12 +258,12 @@ class DDPG(TorchFramework):
         result = t.argmax(result, dim=1).view(batch_size, 1)
         return result
 
-    def act_discreet_with_noise(self,
+    def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
                                 use_target: bool = False,
                                 **__):
         """
-        Use actor network to produce a noisy discreet action for
+        Use actor network to produce a noisy discrete action for
         the current state.
 
         Notes:

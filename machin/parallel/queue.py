@@ -1,3 +1,4 @@
+from time import time
 from typing import Any
 from multiprocessing import context, connection, get_context
 import sys
@@ -41,7 +42,8 @@ class ConnectionWrapper(object):  # pragma: no cover
 
 class SimpleQueue(object):  # pragma: no cover
     """
-    A simple queue for inter-process communications.
+    A simple single direction queue for inter-process communications.
+    There could be multiple receivers and multiple senders on each side.
     """
     def __init__(self, *, ctx=None, copy_tensor=False):
         """
@@ -158,6 +160,113 @@ class SimpleQueue(object):  # pragma: no cover
 
     def __del__(self):
         self.close()
+
+
+class SimpleP2PQueue(object):  # pragma: no cover
+    """
+    A simple single direction queue for inter-process P2P communications.
+    Each end only have one process.
+    """
+    def __init__(self, *, copy_tensor=False):
+        """
+        Args:
+            copy_tensor: Set the queue to send a fully serialized tensor
+                if ``True``, and only a stub of reference if ``False``.
+
+        See Also:
+            :func:`.dump_tensor`
+        """
+        self._reader, self._writer = connection.Pipe(duplex=False)
+        self._reader = ConnectionWrapper(self._reader)
+        self._writer = ConnectionWrapper(self._writer)
+        self._copy_tensor = copy_tensor
+
+    def empty(self):
+        """
+        Returns:
+            Used by receiver, Whether the queue is empty or not.
+        """
+        return not self._reader.poll()
+
+    def close(self):
+        self._reader.close()
+        self._writer.close()
+
+    def __getstate__(self):
+        context.assert_spawning(self)
+        return self._reader, self._writer, self._copy_tensor
+
+    def __setstate__(self, state):
+        (self._reader, self._writer, self._copy_tensor) = state
+
+    def get(self, timeout=None):
+        """
+        Get an object from the queue. This api is required by
+        ``multiprocessing.pool`` to perform inter-process
+        communication.
+
+        Note:
+            This api is used by sub-processes in pool to get tasks
+            and work.
+
+        Returns:
+            Any object.
+        """
+        res = self._reader.recv_bytes(timeout)
+        # deserialize the data after having released the lock
+        return loads(res)
+
+    def put(self, obj: Any):
+        """
+        Put an object into the queue. This api is required by
+        ``multiprocessing.pool`` to perform inter-process
+        communication.
+
+        Note:
+            This api is used by sub-processes in pool to put results
+            and respond.
+
+        Args:
+            obj: Any object.
+        """
+        # serialize the data before acquiring the lock
+        obj = dumps(obj, copy_tensor=self._copy_tensor)
+        self._writer.send_bytes(obj)
+
+    def __del__(self):
+        self.close()
+
+
+class MultiP2PQueue(object):
+    def __init__(self, queue_num, *, copy_tensor=False):
+        self.counter = 0
+        self.queues = [SimpleP2PQueue(copy_tensor=copy_tensor)
+                       for _ in range(queue_num)]
+
+    def put(self, obj: Any):
+        # randomly choose a worker's queue
+        queue = self.queues[self.counter]
+        self.counter = (self.counter + 1) % len(self.queues)
+        queue.put(obj)
+
+    def get(self, timeout=None):
+        begin = time()
+        while True:
+            if timeout is not None and time() - begin > timeout:
+                raise TimeoutError("Timeout")
+            for queue in self.queues:
+                try:
+                    obj = queue.get(timeout=1e-3)
+                    return obj
+                except TimeoutError:
+                    continue
+
+    def get_sub_queue(self, index):
+        return self.queues[index]
+
+    def __del__(self):
+        for q in self.queues:
+            q.close()
 
 
 __all__ = ["SimpleQueue"]

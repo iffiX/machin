@@ -98,7 +98,7 @@ class RAINBOW(DQN):
         self.v_max = value_max
         self.reward_future_steps = reward_future_steps
 
-    def act_discreet(self,
+    def act_discrete(self,
                      state: Dict[str, Any],
                      use_target: bool = False,
                      **__):
@@ -122,7 +122,7 @@ class RAINBOW(DQN):
         result = t.argmax(q_value, dim=1).view(-1, 1)
         return result
 
-    def act_discreet_with_noise(self,
+    def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
                                 use_target: bool = False,
                                 **__):
@@ -220,7 +220,7 @@ class RAINBOW(DQN):
 
         with t.no_grad():
             target_next_q_dist = self.criticize(next_state, True)
-            next_action = (self.act_discreet(next_state).flatten()
+            next_action = (self.act_discrete(next_state).flatten()
                            .to(device=target_next_q_dist.device, dtype=t.long))
 
             # shape: [batch_size, atom_num]

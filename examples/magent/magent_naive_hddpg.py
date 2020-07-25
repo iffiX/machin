@@ -57,9 +57,9 @@ def run_agents(env, ddpg, group_handle, add_noise=False):
     features = t.from_numpy(features).to(c.device)
 
     if add_noise:
-        actions = ddpg.act_discreet_with_noise({"view": views, "feature": features})
+        actions = ddpg.act_discrete_with_noise({"view": views, "feature": features})
     else:
-        actions = ddpg.act_discreet({"view": views, "feature": features})
+        actions = ddpg.act_discrete({"view": views, "feature": features})
 
     env.set_action(group_handle, actions.flatten().to("cpu").numpy().astype(np.int32))
 

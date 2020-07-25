@@ -49,7 +49,7 @@ class A2C(TorchFramework):
 
               For **contiguous environments**, action must be of shape
               ``[batch_size, action_dim]`` and *clamped by action space*.
-              For **discreet environments**, action could be of shape
+              For **discrete environments**, action could be of shape
               ``[batch_size, action_dim]`` if it is a one hot vector, or
               ``[batch_size, 1]`` if it is a categorically encoded integer.
 
@@ -77,7 +77,7 @@ class A2C(TorchFramework):
             (eg: :class:`~torch.distributions.categorical.Normal`)
             and then draw action from it.
 
-            For discreet environments,
+            For discrete environments,
             :class:`~torch.distributions.categorical.Categorical` is sufficient,
             since differentiable ``rsample()`` is not needed.
 

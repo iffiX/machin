@@ -9,8 +9,8 @@ class DQNApex(DQNPer):
     """
     Massively parallel version of a Double DQN with prioritized replay.
 
-    The pull function is invoked before using ``act_discreet``,
-    ``act_discreet_with_noise`` and ``criticize``.
+    The pull function is invoked before using ``act_discrete``,
+    ``act_discrete_with_noise`` and ``criticize``.
 
     The push function is invoked after ``update``.
     """
@@ -94,23 +94,23 @@ class DQNApex(DQNPer):
     def manual_sync(self):
         self.qnet_model_server.pull(self.qnet)
 
-    def act_discreet(self,
+    def act_discrete(self,
                      state: Dict[str, Any],
                      use_target: bool = False,
                      **__):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.qnet_model_server.pull(self.qnet)
-        return super(DQNApex, self).act_discreet(state, use_target)
+        return super(DQNApex, self).act_discrete(state, use_target)
 
-    def act_discreet_with_noise(self,
+    def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
                                 use_target: bool = False,
                                 **__):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.qnet_model_server.pull(self.qnet)
-        return super(DQNApex, self).act_discreet_with_noise(state, use_target)
+        return super(DQNApex, self).act_discrete_with_noise(state, use_target)
 
     def criticize(self,
                   state: Dict[str, Any],
@@ -138,8 +138,8 @@ class DDPGApex(DDPGPer):
     Massively parallel version of a DDPG with prioritized replay.
 
     The pull function is invoked before using
-    ``act``, ``act_with_noise``, ``act_discreet``,
-    ``act_discreet_with_noise`` and ``criticize``.
+    ``act``, ``act_with_noise``, ``act_discrete``,
+    ``act_discrete_with_noise`` and ``criticize``.
 
     The push function is invoked after ``update``.
     """
@@ -263,23 +263,23 @@ class DDPGApex(DDPGPer):
                                                     mode=mode,
                                                     use_target=use_target)
 
-    def act_discreet(self,
+    def act_discrete(self,
                      state: Dict[str, Any],
                      use_target: bool = False,
                      **__):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
-        return super(DDPGApex, self).act_discreet(state, use_target)
+        return super(DDPGApex, self).act_discrete(state, use_target)
 
-    def act_discreet_with_noise(self,
+    def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
                                 use_target: bool = False,
                                 **__):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
-        return super(DDPGApex, self).act_discreet_with_noise(state, use_target)
+        return super(DDPGApex, self).act_discrete_with_noise(state, use_target)
 
     def criticize(self,
                   state: Dict[str, Any],

@@ -138,7 +138,7 @@ class TestDDPGPer(object):
     # Skipped, it is the same as DDPG
 
     ########################################################################
-    # Test for DDPGPer discreet domain acting
+    # Test for DDPGPer discrete domain acting
     ########################################################################
     # Skipped, it is the same as DDPG
 

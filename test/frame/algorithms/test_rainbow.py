@@ -103,10 +103,10 @@ class TestRAINBOW(object):
     def test_act(self, train_config, rainbow):
         c = train_config
         state = t.zeros([1, c.observe_dim])
-        rainbow.act_discreet({"state": state})
-        rainbow.act_discreet({"state": state}, True)
-        rainbow.act_discreet_with_noise({"state": state})
-        rainbow.act_discreet_with_noise({"state": state}, True)
+        rainbow.act_discrete({"state": state})
+        rainbow.act_discrete({"state": state}, True)
+        rainbow.act_discrete_with_noise({"state": state})
+        rainbow.act_discrete_with_noise({"state": state}, True)
 
     ########################################################################
     # Test for RAINBOW criticizing
@@ -209,7 +209,7 @@ class TestRAINBOW(object):
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action = rainbow.act_discreet_with_noise(
+                    action = rainbow.act_discrete_with_noise(
                         {"state": old_state.unsqueeze(0)}
                     )
                     state, reward, terminal, _ = env.step(action.item())

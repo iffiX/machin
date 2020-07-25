@@ -1,13 +1,14 @@
 from typing import Any, List
+import os
+import random
 import threading
 import multiprocessing.pool as pool
+from multiprocessing.pool import TERMINATE
 from torch.multiprocessing.pool import clean_worker
 from torch.multiprocessing import get_context
 
 from .pickle import dumps, loads
-from .queue import SimpleQueue
-
-from machin.utils.logging import default_logger
+from .queue import SimpleQueue, MultiP2PQueue
 
 
 def proxy_caller(*input_):
@@ -53,6 +54,7 @@ class Pool(pool.Pool):
      1. Support for lambdas and local functions.
      2. Ability to select the tensor serialize scheme.
     """
+
     def __init__(self, processes=None, initializer=None, initargs=(),
                  maxtasksperchild=None, is_recursive=False, is_daemon=True,
                  is_copy_tensor=True, share_method=None):
@@ -89,6 +91,12 @@ class Pool(pool.Pool):
                 in the shared memory, "cuda" means cuda tensors, you can only
                 specify one share method.
         """
+        if processes is None:
+            processes = os.cpu_count() or 1
+        if processes < 1:
+            raise ValueError("Number of processes must be at least 1")
+        self._processes = processes
+
         self._is_recursive = is_recursive
         self._is_daemon = is_daemon
         self._is_copy_tensor = is_copy_tensor
@@ -111,10 +119,9 @@ class Pool(pool.Pool):
         )
 
     def _setup_queues(self):
-        self._inqueue = SimpleQueue(ctx=self._ctx,
-                                    copy_tensor=self._is_copy_tensor)
-        self._outqueue = SimpleQueue(ctx=self._ctx,
-                                     copy_tensor=self._is_copy_tensor)
+        # queues are only used to send dumped strings
+        self._inqueue = SimpleQueue(ctx=self._ctx)
+        self._outqueue = SimpleQueue(ctx=self._ctx)
         self._quick_put = self._inqueue.quick_put
         self._quick_get = self._outqueue.quick_get
 
@@ -126,7 +133,7 @@ class Pool(pool.Pool):
                                [(dumps(func,
                                        recurse=self._is_recursive,
                                        copy_tensor=self._is_copy_tensor),
-                                args, kwds)])
+                                 args, kwds)])
 
     def apply_async(self, func, args=(), kwds=None, callback=None,
                     error_callback=None):
@@ -135,9 +142,9 @@ class Pool(pool.Pool):
             kwds = {}
         return pool.Pool.apply_async(self, self._caller,
                                      [(dumps(func,
-                                       recurse=self._is_recursive,
-                                       copy_tensor=self._is_copy_tensor),
-                                      args, kwds)])
+                                             recurse=self._is_recursive,
+                                             copy_tensor=self._is_copy_tensor),
+                                       args, kwds)])
 
     def map(self, func, iterable, chunksize=None):
         # DOC INHERITED
@@ -231,10 +238,71 @@ class Pool(pool.Pool):
         Returns:
             The number of workers in pool.
         """
-        return len(self._pool)
+        return self._processes
 
     def __reduce__(self):
         raise RuntimeError("Process pool is not reducible.")
+
+
+class P2PPool(Pool):
+    def _setup_queues(self):
+        # queues are only used to send dumped strings
+        self._inqueue = MultiP2PQueue(self._processes)
+        self._outqueue = MultiP2PQueue(self._processes)
+        self._quick_put = self._inqueue.put
+        self._quick_get = self._outqueue.get
+
+    def _repopulate_pool(self):
+        """
+        Bring the number of pool processes up to the specified number,
+        for use after reaping workers which have exited.
+        """
+        for idx in range(self._processes - len(self._pool)):
+            # changed worker -> clean_worker
+            args = (self._inqueue.get_sub_queue(idx),
+                    self._outqueue.get_sub_queue(idx),
+                    self._initializer,
+                    self._initargs, self._maxtasksperchild)
+            if hasattr(self, '_wrap_exception'):
+                args += (self._wrap_exception,)
+            worker = self.Process(target=clean_worker, args=args)
+            self._pool.append(worker)
+            worker.name = worker.name.replace('Process', 'PoolWorker')
+            worker.daemon = self._is_daemon
+            worker.start()
+            pool.util.debug('added worker')
+
+    def close(self):
+        # we cannot rely on sentinels to shutdown worker processes
+        # since there is no gaurantee that each worker will get 1
+        # "None" sentinel
+        self.terminate()
+
+    @classmethod
+    def _terminate_pool(cls, taskqueue, inqueue, outqueue, pool,
+                        worker_handler, task_handler, result_handler, cache):
+
+        worker_handler._state = TERMINATE
+        task_handler._state = TERMINATE
+        result_handler._state = TERMINATE
+
+        # send sentinels so that handlers will exit
+        outqueue.put(None)
+
+        if threading.current_thread() is not worker_handler:
+            worker_handler.join()
+
+        if threading.current_thread() is not task_handler:
+            task_handler.join()
+
+        if threading.current_thread() is not result_handler:
+            result_handler.join()
+
+        # terminate workers directly
+        if pool and hasattr(pool[0], 'terminate'):
+            for p in pool:
+                p.terminate()
+                p.join(timeout=1e-1)
 
 
 class CtxPoolStorage:
@@ -257,6 +325,7 @@ class CtxPool(Pool):
 
     The length of ``worker_contexts`` must be the same as ``processes``
     """
+
     def __init__(self, processes: int, initializer=None, initargs=(),
                  maxtasksperchild=None, worker_contexts=None,
                  is_recursive=False, is_daemon=True,
@@ -323,6 +392,7 @@ class ThreadPool(pool.ThreadPool):
     """
     A typical thread pool.
     """
+
     # Multiprocessing pool is badly written.
     # python IDEs will complain a lot.
 
@@ -446,6 +516,7 @@ class CtxThreadPool(ThreadPool):
         def call(*args, **kwargs):
             ctx = cls._context.storage
             return func(ctx, *args, **kwargs)
+
         return call
 
     @staticmethod

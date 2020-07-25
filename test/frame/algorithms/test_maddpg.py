@@ -1,5 +1,6 @@
 from machin.model.nets.base import static_module_wrapper as smw
 from machin.frame.algorithms.maddpg import MADDPG
+#from machin.frame.algorithms.maddpg_jit import MADDPG
 from machin.utils.learning_rate import gen_learning_rate_func
 from machin.utils.logging import default_logger as logger
 from machin.utils.helper_classes import Counter
@@ -11,7 +12,8 @@ from copy import deepcopy
 import pytest
 import torch as t
 import torch.nn as nn
-import gym
+
+from .utils import Smooth
 
 from test.util_create_ma_env import create_env
 
@@ -32,13 +34,13 @@ class Actor(nn.Module):
         return a
 
 
-class ActorDiscreet(nn.Module):
+class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(ActorDiscreet, self).__init__()
+        super(ActorDiscrete, self).__init__()
 
-        self.fc1 = nn.Linear(state_dim, 16)
-        self.fc2 = nn.Linear(16, 16)
-        self.fc3 = nn.Linear(16, action_dim)
+        self.fc1 = nn.Linear(state_dim, 160)
+        self.fc2 = nn.Linear(160, 160)
+        self.fc3 = nn.Linear(160, action_dim)
 
     def forward(self, state):
         a = t.relu(self.fc1(state))
@@ -68,7 +70,7 @@ class Critic(nn.Module):
         return q
 
 
-class TestDDPG(object):
+class TestMADDPG(object):
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self, pytestconfig):
@@ -78,14 +80,14 @@ class TestDDPG(object):
         # https://github.com/openai/multiagent-particle-envs
         c.env_name = "simple_tag"
         c.env = create_env(c.env_name)
+        c.env.discrete_action_input = True
         c.pred_num = 3
         c.prey_num = 1
         # first three agents are predators,
         # the last one is prey
-        # these observation dims include all states of all agents
         c.prey_observe_dim = c.env.observation_space[3].shape[0]
-        c.prey_action_num = c.env.action_space[3].n
         c.pred_observe_dim = c.env.observation_space[0].shape[0]
+        c.prey_action_num = c.env.action_space[3].n
         c.pred_action_num = c.env.action_space[0].n
         # for contiguous tests
         c.test_action_dim = 5
@@ -96,33 +98,49 @@ class TestDDPG(object):
         c.max_steps = 200
         c.replay_size = 100000
         # from https://github.com/wsjeon/maddpg-rllib/tree/master/plots
-        c.pred_solved_reward = 10
-        c.prey_solved_reward = -20
+        c.solved_reward = [-20, 10]
         c.solved_repeat = 5
         c.device = "cpu"
         return c
 
     @pytest.fixture(scope="function")
-    def maddpg_full(self, train_config):
+    def maddpg(self, train_config):
         c = train_config
-        actor = smw(ActorDiscreet(c.observe_dim, c.action_dim)
-                    .to(c.device), c.device, c.device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
-        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+        # for simplicity, prey will be trained with predators,
+        # Predator can get the observation of prey, same for prey.
+        pred_actor = smw(ActorDiscrete(c.pred_observe_dim,
+                                       c.pred_action_num)
+                         .to(c.device), c.device, c.device)
+        prey_actor = smw(ActorDiscrete(c.prey_observe_dim,
+                                       c.prey_action_num)
+                         .to(c.device), c.device, c.device)
+        pred_critic = smw(Critic(c.pred_observe_dim * 3,
+                                 c.pred_action_num * 3)
+                          .to(c.device), c.device, c.device)
+        prey_critic = smw(Critic(c.prey_observe_dim, c.prey_action_num)
+                          .to(c.device), c.device, c.device)
+        # first three agents are preds, the last agent is prey
+        # Thread pool is more efficient because the models are small.
+        maddpg = MADDPG([deepcopy(pred_actor) for _ in range(3)] +
+                        [deepcopy(prey_actor)],
+                        [deepcopy(pred_actor) for _ in range(3)] +
+                        [deepcopy(prey_actor)],
+                        [deepcopy(pred_critic) for _ in range(3)] +
+                        [deepcopy(prey_critic)],
+                        [deepcopy(pred_critic) for _ in range(3)] +
+                        [deepcopy(prey_critic)],
+                        [[0, 1, 2], [0, 1, 2], [0, 1, 2], [3]],
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device=c.device,
-                        replay_size=c.replay_size)
+                        replay_size=c.replay_size,
+                        pool_type="thread")
         return maddpg
 
     @pytest.fixture(scope="function")
     def maddpg_disc(self, train_config):
         c = train_config
-        actor = smw(ActorDiscreet(c.test_observe_dim, c.test_action_dim)
+        actor = smw(ActorDiscrete(c.test_observe_dim, c.test_action_dim)
                     .to(c.device), c.device, c.device)
         critic = smw(Critic(c.test_observe_dim * c.test_agent_num,
                             c.test_action_dim * c.test_agent_num)
@@ -236,16 +254,16 @@ class TestDDPG(object):
                                        mode="some_unknown_noise")
 
     ########################################################################
-    # Test for MADDPG discreet domain acting
+    # Test for MADDPG discrete domain acting
     ########################################################################
-    def test_discreet_act(self, train_config, maddpg_disc):
+    def test_discrete_act(self, train_config, maddpg_disc):
         c = train_config
         states = ([{"state": t.zeros([1, c.test_observe_dim])}]
                   * c.test_agent_num)
-        maddpg_disc.act_discreet(states)
-        maddpg_disc.act_discreet(states, use_target=True)
-        maddpg_disc.act_discreet_with_noise(states)
-        maddpg_disc.act_discreet_with_noise(states, use_target=True)
+        maddpg_disc.act_discrete(states)
+        maddpg_disc.act_discrete(states, use_target=True)
+        maddpg_disc.act_discrete_with_noise(states)
+        maddpg_disc.act_discrete_with_noise(states, use_target=True)
 
     ########################################################################
     # Test for MADDPG criticizing
@@ -339,13 +357,16 @@ class TestDDPG(object):
     ########################################################################
     # Test for MADDPG full training.
     ########################################################################
-    def tes_full_train(self, train_config, ddpg):
+    def test_full_train(self, train_config, maddpg):
         c = train_config
 
         # begin training
         episode, step = Counter(), Counter()
-        reward_fulfilled = Counter()
-        smoother = Smooth()
+
+        # first for prey, second for pred
+        smoothers = [Smooth(), Smooth()]
+        fulfilled = [Counter(), Counter()]
+        solved = [False, False]
         terminal = False
 
         env = c.env
@@ -353,57 +374,64 @@ class TestDDPG(object):
             episode.count()
 
             # batch size = 1
-            total_reward = 0
-            state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+            pred_total_reward = 0
+            prey_total_reward = 0
+            states = [t.tensor(st, dtype=t.float32, device=c.device)
+                      for st in env.reset()]
 
             while not terminal and step <= c.max_steps:
                 step.count()
                 with t.no_grad():
-                    old_state = state
+                    old_states = states
 
                     # agent model inference
-                    if episode.get() % c.noise_interval == 0:
-                        action = ddpg.act_with_noise(
-                            {"state": old_state.unsqueeze(0)},
-                            noise_param=c.noise_param,
-                            mode=c.noise_mode
-                        )
-                    else:
-                        action = ddpg.act({"state": old_state.unsqueeze(0)}) \
-                            .clamp(-c.action_range, c.action_range)
+                    actions, action_probs = maddpg.act_discrete_with_noise(
+                        [{"state": st.unsqueeze(0)} for st in states]
+                    )
+                    actions = [int(act) for act in actions]
+                    states, rewards, terminals, _ = env.step(actions)
+                    states = [t.tensor(st, dtype=t.float32, device=c.device)
+                              for st in states]
+                    pred_total_reward += float(sum(rewards[:3])) / 3
+                    prey_total_reward += float(rewards[3])
 
-                    state, reward, terminal, _ = env.step(action.cpu().numpy())
-                    state = t.tensor(state, dtype=t.float32, device=c.device) \
-                        .flatten()
-                    total_reward += float(reward)
+                    maddpg.store_transitions([{
+                        "state": {"state": ost.unsqueeze(0).clone()},
+                        "action": {"action": act.clone()},
+                        "next_state": {"state": st.unsqueeze(0).clone()},
+                        "reward": float(rew),
+                        "terminal": term or step == c.max_steps
+                    } for ost, act, st, rew, term in zip(
+                        old_states, action_probs, states, rewards, terminals
+                    )])
 
-                    ddpg.store_transition({
-                        "state": {"state": old_state.unsqueeze(0).clone()},
-                        "action": {"action": action.clone()},
-                        "next_state": {"state": state.unsqueeze(0).clone()},
-                        "reward": float(reward),
-                        "terminal": terminal or step == c.max_steps
-                    })
             # update
-            if episode > 100:
+            if episode > 5:
                 for i in range(step.get()):
-                    ddpg.update()
+                    maddpg.update()
 
-            smoother.update(total_reward)
+            smoothers[0].update(prey_total_reward)
+            smoothers[1].update(pred_total_reward)
             step.reset()
             terminal = False
 
-            if episode.get() % c.noise_interval != 0:
-                # only log result without noise
-                logger.info("Episode {} total reward={:.2f}"
-                            .format(episode, smoother.value))
+            logger.info("Episode {} prey total reward={:.2f}, "
+                        "pred_total_reward={:.2f}"
+                        .format(episode,
+                                smoothers[0].value,
+                                smoothers[1].value))
 
-            if smoother.value > c.solved_reward:
-                reward_fulfilled.count()
-                if reward_fulfilled >= c.solved_repeat:
-                    logger.info("Environment solved!")
-                    return
-            else:
-                reward_fulfilled.reset()
+            for smoother, idx, name in zip(smoothers, [0, 1],
+                                           ["prey", "pred"]):
+                if smoother.value > c.solved_reward[idx]:
+                    fulfilled[idx].count()
+                    if fulfilled[idx] >= c.solved_repeat and not solved[idx]:
+                        solved[idx] = True
+                        logger.info("Environment {} solved!".format(name))
+                else:
+                    fulfilled[idx].reset()
 
-        pytest.fail("DDPG Training failed.")
+            if all(solved):
+                return
+
+        pytest.fail("MADDPG Training failed.")

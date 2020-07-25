@@ -2,9 +2,13 @@ import copy
 import inspect
 import itertools
 from random import choice, randint
-from machin.parallel.pool import P2PPool, ThreadPool
+from machin.parallel.pool import Pool, ThreadPool
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .ddpg import *
+from machin.utils.helper_classes import Timer
+from machin.utils.logging import default_logger
+
+t.set_num_threads(2)
 
 
 class SHMBuffer(Buffer):
@@ -53,7 +57,6 @@ class MADDPG(TorchFramework):
                  actor_targets: List[Union[NeuralNetworkModule, nn.Module]],
                  critics: List[Union[NeuralNetworkModule, nn.Module]],
                  critic_targets: List[Union[NeuralNetworkModule, nn.Module]],
-                 critic_visible_actors: List[List[int]],
                  optimizer: Callable,
                  criterion: Callable,
                  *_,
@@ -76,8 +79,7 @@ class MADDPG(TorchFramework):
                  state_concat_func: Callable = None,
                  visualize: bool = False,
                  visualize_dir: str = "",
-                 use_jit: bool = True,
-                 pool_type: str = "thread",
+                 use_process_pool: bool = True,
                  pool_size: int = None):
         """
         See Also:
@@ -137,22 +139,14 @@ class MADDPG(TorchFramework):
                 concatenate a list of state dicts into one dict.
             visualize: Whether visualize the network flow in the first pass.
             visualize_dir: Visualized graph save directory.
-            use_jit: Whether use torch jit to perform the forward pass
-                in parallel instead of using the internal pool. Provides
-                significant speed and efficiency advantage, but requires
-                actors and critics convertible to TorchScript.
-            pool_type: Type of the internal execution pool, either "process"
-                or "thread".
             pool_size: Size of the internal execution pool.
         """
-        assert pool_type in ("process", "thread")
         self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
         self.visualize = visualize
         self.visualize_dir = visualize_dir
         self.grad_max = gradient_max
-        self.critic_visible_actors = critic_visible_actors
 
         # create ensembles of policies
         self.actors = [[actor] +
@@ -164,6 +158,23 @@ class MADDPG(TorchFramework):
                               for actor_target in actor_targets]
         self.critics = critics
         self.critic_targets = critic_targets
+
+        # only convert actor modules to jit scripts
+        # exclude "self"
+        self.actor_args = [[inspect.getfullargspec(acc.forward).args[1:]
+                            for acc in ac]
+                           for ac in self.actors]
+
+        self.actors = [[t.jit.script(acc) for acc in ac]
+                       for ac in self.actors]
+        self.actor_targets = [[t.jit.script(acc) for acc in ac]
+                              for ac in self.actor_targets]
+        for ac_idx, ac in enumerate(self.actors):
+            for acc_idx, acc in enumerate(ac):
+                self.actors[ac_idx][acc_idx].args = self.actor_args[ac_idx][acc_idx]
+                self.actor_targets[ac_idx][acc_idx].args = self.actor_args[ac_idx][
+                    acc_idx]
+
         self.actor_optims = [[optimizer(acc.parameters(),
                                         lr=actor_learning_rate)
                              for acc in ac]
@@ -177,7 +188,6 @@ class MADDPG(TorchFramework):
                                else copy.deepcopy(replay_buffer)
                                for _ in range(len(actors))]
 
-        # create the pool used to update()
         # check devices of all parameters,
         # determine the pool process starting method.
         device = self._check_parameters_device(
@@ -185,14 +195,17 @@ class MADDPG(TorchFramework):
         )
         self.device = device
 
-        self.pool_type = pool_type
-        if pool_type == "process":
-            self.pool = P2PPool(processes=pool_size,
-                                is_recursive=False,
-                                is_copy_tensor=False,
-                                share_method=device)
-        elif pool_type == "thread":
+        if use_process_pool:
+            self.pool = Pool(processes=pool_size,
+                             is_recursive=False,
+                             is_copy_tensor=False,
+                             share_method=device)
+        else:
             self.pool = ThreadPool(processes=pool_size)
+        self.pool_upd = Pool(processes=pool_size,
+                             is_recursive=False,
+                             is_copy_tensor=False,
+                             share_method=device)
 
         # Create wrapper for target actors and target critics.
         # So their parameters can be saved.
@@ -250,33 +263,6 @@ class MADDPG(TorchFramework):
                                   if state_concat_func is None
                                   else state_concat_func)
 
-        # make preparations if use jit
-        # jit modules will share the same parameter memory with original
-        # modules, therefore it is safe to use them together.
-        self.use_jit = use_jit
-        self.jit_actors = []
-        self.jit_actor_targets = []
-        if use_jit:
-            # only compile actors, since critics will not be
-            # launched in parallel
-            for ac in self.actors:
-                jit_actors = []
-                jit_actor_targets = []
-                for acc in ac:
-                    # exclude "self" by truncating element 0
-                    actor_args = inspect.getfullargspec(acc.forward).args[1:]
-                    jit_actor = t.jit.script(acc)
-                    jit_actor.args = actor_args
-                    jit_actor.model_type = type(acc)
-                    jit_actors.append(jit_actor)
-
-                    jit_actor_target = t.jit.script(acc)
-                    jit_actor_target.args = actor_args
-                    jit_actor_target.model_type = type(acc)
-                    jit_actor_targets.append(jit_actor_target)
-                self.jit_actors.append(jit_actors)
-                self.jit_actor_targets.append(jit_actor_targets)
-
         super(MADDPG, self).__init__()
 
     def act(self,
@@ -295,25 +281,16 @@ class MADDPG(TorchFramework):
         Returns:
             A list of actions of shape ``[batch_size, action_dim]``.
         """
-        if self.use_jit:
-            if use_target:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.jit_actor_targets]
-            else:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.jit_actors]
-            future = [self._jit_safe_call(ac, st) for ac, st in
-                      zip(actors, states)]
-            result = [t.jit._wait(fut) for fut in future]
+        #tim = Timer()
+        if use_target:
+            actors = [choice(sub_actors) for sub_actors in self.actor_targets]
         else:
-            if use_target:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.actor_targets]
-            else:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.actors]
-            result = self.pool.starmap(self._no_grad_safe_call,
-                                       zip(actors, states))
+            actors = [choice(sub_actors) for sub_actors in self.actors]
+
+        future = [self._jit_safe_call(ac, st) for ac, st in
+                  zip(actors, states)]
+        result = [t.jit._wait(fut) for fut in future]
+        #default_logger.critical("ax: {}".format(tim.end()))
         return result
 
     def act_with_noise(self,
@@ -516,7 +493,6 @@ class MADDPG(TorchFramework):
 
         # size: [ensemble size, num of actors]
         batches = []
-        next_actions_t = []
         for e_idx in range(self.ensemble_size):
             ensemble_batch = []
             for a_idx in range(len(self.actors)):
@@ -530,28 +506,15 @@ class MADDPG(TorchFramework):
                     )
                 ensemble_batch.append(batch)
                 assert batch_size_ == batch_size
-
             batches.append(ensemble_batch)
-            next_actions_t.append(
-                [self.action_trans_func(act)
-                 for act in
-                 self.act([batch[3] for batch in ensemble_batch],
-                          target=True)]
-            )
-
-        if self.pool_type == "process":
-            batches = self._move_to_shared_mem(batches)
-            next_actions_t = self._move_to_shared_mem(next_actions_t)
 
         args = []
         for e_idx in range(self.ensemble_size):
             for a_idx in range(len(self.actors)):
                 args.append((
-                    batch_size, batches, next_actions_t,
-                    a_idx, e_idx,
+                    batch_size, batches, a_idx, e_idx,
                     self.actors, self.actor_targets,
                     self.critics, self.critic_targets,
-                    self.critic_visible_actors,
                     self.actor_optims, self.critic_optims,
                     update_value, update_policy, update_target,
                     self.action_trans_func, self.action_concat_func,
@@ -599,66 +562,23 @@ class MADDPG(TorchFramework):
                               zip(self.critics, self.critic_targets))
 
     @staticmethod
-    def _no_grad_safe_call(model, *named_args, required_argument=()):
-        with t.no_grad():
-            result = safe_call(model, *named_args,
-                               required_argument=required_argument)
-            return result
-
-    @staticmethod
-    def _jit_safe_call(model, *named_args, required_argument=()):
-        if (not hasattr(model, "input_device") or
-                not hasattr(model, "output_device")):
-            raise RuntimeError(
-                "Wrap your model of type nn.Module with one of: \n"
-                "1. static_module_wrapper "
-                "from machin.model.nets.base \n"
-                "1. dynamic_module_wrapper "
-                "from machin.model.nets.base \n"
-                "Or construct your own module & model with: \n"
-                "NeuralNetworkModule from machin.model.nets.base")
+    def _jit_safe_call(model, *named_args):
         input_device = model.input_device
-        # set in __init__
         args = model.args
-        model_type = model.model_type
-        # t.jit._fork does not support keyword args
-        # fill arguments in by their positions.
         args_list = [None for _ in args]
-        args_filled = [False for _ in args]
-        if any(arg not in args for arg in required_argument):
-            missing = []
-            for arg in required_argument:
-                if arg not in args:
-                    missing.append(arg)
-            raise RuntimeError("Model missing required argument field(s): {}, "
-                               "check your storage functions."
-                               .format(missing))
         for na in named_args:
             for k, v in na.items():
-                if k in args:
-                    if k not in args:
-                        pass
-                    args_filled[args.index(k)] = True
-                    if t.is_tensor(v):
-                        args_list[args.index(k)] = v.to(input_device)
-                    else:
-                        args_list[args.index(k)] = v
-
-        if not all(args_filled):
-            not_filled = [arg
-                          for filled, arg in zip(args_filled, args)
-                          if not filled]
-            raise RuntimeError("These arguments of model {} are not filled: {}"
-                               .format(model_type, not_filled))
-
+                if k not in args:
+                    pass
+                if t.is_tensor(v):
+                    args_list[args.index(k)] = v.to(input_device)
+                else:
+                    args_list[args.index(k)] = v
         return t.jit._fork(model, *args_list)
 
     @staticmethod
-    def _update_sub_policy(batch_size, batches, next_actions_t,
-                           actor_index, policy_index,
-                           actors, actor_targets,
-                           critics, critic_targets,
-                           critic_visible_actors,
+    def _update_sub_policy(batch_size, batches, actor_index, policy_index,
+                           actors, actor_targets, critics, critic_targets,
                            actor_optims, critic_optims,
                            update_value, update_policy, update_target,
                            atf, acf, scf, rf,
@@ -683,32 +603,34 @@ class MADDPG(TorchFramework):
         # ``batches`` size: [ensemble_size, actor_num]
         # select the batch for this sub-policy in the ensemble
         ensemble_batch = batches[policy_index]
-        ensemble_n_act_t = next_actions_t[policy_index]
-        visible_actors = critic_visible_actors[actor_index]
 
         with t.no_grad():
-            # only select visible actors
+            # Produce all_next_actions for all_next_states, using target i,
+            # so the target critic can evaluate the value of the next step.
             all_next_actions_t = [
-                ensemble_n_act_t[a_idx]
-                if a_idx != actor_index
-                else atf(safe_call(actor_targets[actor_index][policy_index],
-                                   ensemble_batch[a_idx][3]))
-                for a_idx in visible_actors
+                atf(safe_call(choice(actor_targets[a_idx]),
+                              ensemble_batch[a_idx][3]),
+                    ensemble_batch[a_idx][5])
+                if a_idx != actor_index else
+                atf(safe_call(actor_targets[a_idx][policy_index],
+                              ensemble_batch[a_idx][3]),
+                    ensemble_batch[a_idx][5])
+                for a_idx in range(len(actors))
             ]
             all_next_actions_t = acf(all_next_actions_t)
 
-            all_actions = [
-                ensemble_batch[a_idx][1] for a_idx in visible_actors
+            cur_all_actions = [
+                batch[1] for batch in ensemble_batch
             ]
-            all_actions = acf(all_actions)
+            cur_all_actions = acf(cur_all_actions)
 
             all_next_states = [
-                ensemble_batch[a_idx][3] for a_idx in visible_actors
+                batch[3] for batch in ensemble_batch
             ]
             all_next_states = scf(all_next_states)
 
             all_states = [
-                ensemble_batch[a_idx][0] for a_idx in visible_actors
+                batch[0] for batch in ensemble_batch
             ]
             all_states = scf(all_states)
 
@@ -726,7 +648,7 @@ class MADDPG(TorchFramework):
 
         cur_value = safe_call(critics[actor_index],
                               all_states,
-                              all_actions)
+                              cur_all_actions)
         value_loss = criterion(cur_value, y_i.to(cur_value.device))
 
         if visualize:
@@ -743,22 +665,13 @@ class MADDPG(TorchFramework):
 
         # Update actor network
         all_actions = [
-            ensemble_batch[a_idx][1] for a_idx in visible_actors
+            batch[1] for batch in ensemble_batch
         ]
-        # find the actor index in the view range of critic
-        # Eg: there are 4 actors in total: a_0, a_1, a_2, a_3
-        # critic may have access to actor a_1 and a_2
-        # then:
-        #     visible_actors.index(a_1) = 0
-        #     visible_actors.index(a_2) = 1
-        # visible_actors.index returns the (critic-)local position of actor
-        # in the view range of its corresponding critic.
-        all_actions[visible_actors.index(actor_index)] = atf(safe_call(
+        all_actions[actor_index] = atf(safe_call(
             actors[actor_index][policy_index],
             ensemble_batch[actor_index][3]
         ), ensemble_batch[actor_index][5])
         all_actions = acf(all_actions)
-
         act_value = safe_call(critics[actor_index],
                               all_states,
                               all_actions)
@@ -789,26 +702,6 @@ class MADDPG(TorchFramework):
                         update_rate)
 
         return -act_policy_loss.item(), value_loss.item()
-
-    @staticmethod
-    def _move_to_shared_mem(obj):
-        if t.is_tensor(obj):
-            obj = obj.detach()
-            obj.share_memory_()
-            return obj
-        elif isinstance(obj, list):
-            for idx, sub_obj in enumerate(obj):
-                obj[idx] = MADDPG._move_to_shared_mem(sub_obj)
-            return obj
-        elif isinstance(obj, tuple):
-            obj = list(obj)
-            for idx, sub_obj in enumerate(obj):
-                obj[idx] = MADDPG._move_to_shared_mem(sub_obj)
-            return tuple(obj)
-        elif isinstance(obj, dict):
-            for k, v in obj.items():
-                obj[k] = MADDPG._move_to_shared_mem(v)
-            return obj
 
     @staticmethod
     def _check_parameters_device(models):

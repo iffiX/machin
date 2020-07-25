@@ -179,7 +179,7 @@ class TestDQNPer(object):
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action = dqn_per.act_discreet_with_noise(
+                    action = dqn_per.act_discrete_with_noise(
                         {"state": old_state.unsqueeze(0)}
                     )
                     state, reward, terminal, _ = env.step(action.item())
