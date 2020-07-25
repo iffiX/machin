@@ -1,6 +1,5 @@
 from machin.model.nets.base import static_module_wrapper as smw
 from machin.frame.algorithms.maddpg import MADDPG
-#from machin.frame.algorithms.maddpg_jit import MADDPG
 from machin.utils.learning_rate import gen_learning_rate_func
 from machin.utils.logging import default_logger as logger
 from machin.utils.helper_classes import Counter
@@ -38,9 +37,9 @@ class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(ActorDiscrete, self).__init__()
 
-        self.fc1 = nn.Linear(state_dim, 160)
-        self.fc2 = nn.Linear(160, 160)
-        self.fc3 = nn.Linear(160, action_dim)
+        self.fc1 = nn.Linear(state_dim, 16)
+        self.fc2 = nn.Linear(16, 16)
+        self.fc3 = nn.Linear(16, action_dim)
 
     def forward(self, state):
         a = t.relu(self.fc1(state))
@@ -76,19 +75,14 @@ class TestMADDPG(object):
     def train_config(self, pytestconfig):
         disable_view_window()
         c = Config()
-        # the predator-prey environment provided in
+        # the cooperative environment environment provided in
         # https://github.com/openai/multiagent-particle-envs
-        c.env_name = "simple_tag"
+        c.env_name = "simple_spread"
         c.env = create_env(c.env_name)
         c.env.discrete_action_input = True
-        c.pred_num = 3
-        c.prey_num = 1
-        # first three agents are predators,
-        # the last one is prey
-        c.prey_observe_dim = c.env.observation_space[3].shape[0]
-        c.pred_observe_dim = c.env.observation_space[0].shape[0]
-        c.prey_action_num = c.env.action_space[3].n
-        c.pred_action_num = c.env.action_space[0].n
+        c.agent_num = 3
+        c.action_num = c.env.action_space[0].n
+        c.observe_dim = c.env.observation_space[0].shape[0]
         # for contiguous tests
         c.test_action_dim = 5
         c.test_action_range = 1
@@ -98,7 +92,9 @@ class TestMADDPG(object):
         c.max_steps = 200
         c.replay_size = 100000
         # from https://github.com/wsjeon/maddpg-rllib/tree/master/plots
-        c.solved_reward = [-20, 10]
+        # PROBLEM: I have no idea how they calculate the rewards
+        # I cannot replicate their reward curve
+        c.solved_reward = -15
         c.solved_repeat = 5
         c.device = "cpu"
         return c
@@ -108,28 +104,18 @@ class TestMADDPG(object):
         c = train_config
         # for simplicity, prey will be trained with predators,
         # Predator can get the observation of prey, same for prey.
-        pred_actor = smw(ActorDiscrete(c.pred_observe_dim,
-                                       c.pred_action_num)
-                         .to(c.device), c.device, c.device)
-        prey_actor = smw(ActorDiscrete(c.prey_observe_dim,
-                                       c.prey_action_num)
-                         .to(c.device), c.device, c.device)
-        pred_critic = smw(Critic(c.pred_observe_dim * 3,
-                                 c.pred_action_num * 3)
-                          .to(c.device), c.device, c.device)
-        prey_critic = smw(Critic(c.prey_observe_dim, c.prey_action_num)
-                          .to(c.device), c.device, c.device)
-        # first three agents are preds, the last agent is prey
-        # Thread pool is more efficient because the models are small.
-        maddpg = MADDPG([deepcopy(pred_actor) for _ in range(3)] +
-                        [deepcopy(prey_actor)],
-                        [deepcopy(pred_actor) for _ in range(3)] +
-                        [deepcopy(prey_actor)],
-                        [deepcopy(pred_critic) for _ in range(3)] +
-                        [deepcopy(prey_critic)],
-                        [deepcopy(pred_critic) for _ in range(3)] +
-                        [deepcopy(prey_critic)],
-                        [[0, 1, 2], [0, 1, 2], [0, 1, 2], [3]],
+        actor = smw(ActorDiscrete(c.observe_dim,
+                                  c.action_num)
+                    .to(c.device), c.device, c.device)
+        critic = smw(Critic(c.observe_dim * c.agent_num,
+                            c.action_num * c.agent_num)
+                     .to(c.device), c.device, c.device)
+        # set visible indexes to [[0], [1], [2]] is equivalent to using DDPG
+        maddpg = MADDPG([deepcopy(actor) for _ in range(3)],
+                        [deepcopy(actor) for _ in range(3)],
+                        [deepcopy(critic) for _ in range(3)],
+                        [deepcopy(critic) for _ in range(3)],
+                        [[0, 1, 2], [0, 1, 2], [0, 1, 2]],
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device=c.device,
@@ -150,6 +136,7 @@ class TestMADDPG(object):
                         [deepcopy(actor) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device=c.device,
@@ -170,6 +157,7 @@ class TestMADDPG(object):
                         [deepcopy(actor) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device=c.device,
@@ -191,6 +179,7 @@ class TestMADDPG(object):
                         [deepcopy(actor) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device=c.device,
@@ -215,6 +204,7 @@ class TestMADDPG(object):
                        [deepcopy(actor) for _ in range(c.test_agent_num)],
                        [deepcopy(critic) for _ in range(c.test_agent_num)],
                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                       [list(range(c.test_agent_num))] * c.test_agent_num,
                        t.optim.Adam,
                        nn.MSELoss(reduction='sum'),
                        replay_device=c.device,
@@ -224,6 +214,7 @@ class TestMADDPG(object):
                         [deepcopy(actor) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device=c.device,
@@ -364,9 +355,8 @@ class TestMADDPG(object):
         episode, step = Counter(), Counter()
 
         # first for prey, second for pred
-        smoothers = [Smooth(), Smooth()]
-        fulfilled = [Counter(), Counter()]
-        solved = [False, False]
+        smoother = Smooth()
+        reward_fulfilled = Counter()
         terminal = False
 
         env = c.env
@@ -374,8 +364,7 @@ class TestMADDPG(object):
             episode.count()
 
             # batch size = 1
-            pred_total_reward = 0
-            prey_total_reward = 0
+            total_reward = 0
             states = [t.tensor(st, dtype=t.float32, device=c.device)
                       for st in env.reset()]
 
@@ -392,8 +381,8 @@ class TestMADDPG(object):
                     states, rewards, terminals, _ = env.step(actions)
                     states = [t.tensor(st, dtype=t.float32, device=c.device)
                               for st in states]
-                    pred_total_reward += float(sum(rewards[:3])) / 3
-                    prey_total_reward += float(rewards[3])
+
+                    total_reward += float(sum(rewards)) / c.agent_num
 
                     maddpg.store_transitions([{
                         "state": {"state": ost.unsqueeze(0).clone()},
@@ -410,28 +399,24 @@ class TestMADDPG(object):
                 for i in range(step.get()):
                     maddpg.update()
 
-            smoothers[0].update(prey_total_reward)
-            smoothers[1].update(pred_total_reward)
+            # total reward is divided by steps here, since:
+            # "Agents are rewarded based on minimum agent distance
+            #  to each landmark, penalized for collisions"
+            smoother.update(total_reward / step.get())
+            logger.info("Episode {} total steps={}"
+                        .format(episode, step))
             step.reset()
             terminal = False
 
-            logger.info("Episode {} prey total reward={:.2f}, "
-                        "pred_total_reward={:.2f}"
-                        .format(episode,
-                                smoothers[0].value,
-                                smoothers[1].value))
+            logger.info("Episode {} total reward={:.2f}"
+                        .format(episode, smoother.value))
 
-            for smoother, idx, name in zip(smoothers, [0, 1],
-                                           ["prey", "pred"]):
-                if smoother.value > c.solved_reward[idx]:
-                    fulfilled[idx].count()
-                    if fulfilled[idx] >= c.solved_repeat and not solved[idx]:
-                        solved[idx] = True
-                        logger.info("Environment {} solved!".format(name))
-                else:
-                    fulfilled[idx].reset()
-
-            if all(solved):
-                return
+            if smoother.value > c.solved_reward and episode > 20:
+                reward_fulfilled.count()
+                if reward_fulfilled >= c.solved_repeat:
+                    logger.info("Environment solved!")
+                    return
+            else:
+                reward_fulfilled.reset()
 
         pytest.fail("MADDPG Training failed.")

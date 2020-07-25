@@ -2,6 +2,7 @@ import copy
 import inspect
 import itertools
 from random import choice, randint
+from machin.utils.visualize import make_dot
 from machin.parallel.pool import P2PPool, ThreadPool
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .ddpg import *
@@ -149,6 +150,7 @@ class MADDPG(TorchFramework):
         self.batch_size = batch_size
         self.update_rate = update_rate
         self.discount = discount
+        self.has_visualized = False
         self.visualize = visualize
         self.visualize_dir = visualize_dir
         self.grad_max = gradient_max
@@ -557,21 +559,11 @@ class MADDPG(TorchFramework):
                     self.action_trans_func, self.action_concat_func,
                     self.state_concat_func, self.reward_func,
                     self.criterion, self.discount, self.update_rate,
-                    self.grad_max
+                    self.grad_max,
+                    self.visualize and not self.has_visualized,
+                    self.visualize_dir
                 ))
-        if not self.visualize:
-            all_loss = self.pool.starmap(self._update_sub_policy, args)
-        else:
-            all_loss = [[0.0, 0.0]]
-            # Since it is hard to keep track of visualized parts
-            # in a process pool (hard to share states between processes )
-            # Only visualize the first actor-critic pair
-            self._update_sub_policy(
-                *args[0],
-                visualize=True,
-                visualize_func=self.visualize_model,
-                visualize_dir=self.visualize_dir
-            )
+        all_loss = self.pool.starmap(self._update_sub_policy, args)
         mean_loss = t.tensor(all_loss).mean(dim=0)
 
         # returns action value and policy loss
@@ -663,8 +655,7 @@ class MADDPG(TorchFramework):
                            update_value, update_policy, update_target,
                            atf, acf, scf, rf,
                            criterion, discount, update_rate, grad_max,
-                           visualize=False, visualize_func=None,
-                           visualize_dir=None):
+                           visualize, visualize_dir):
         # atf: action transform function, used to transform the
         #      raw output of a single actor to a arg dict like:
         #      {"action": tensor}, where "action" is the keyword argument
@@ -731,7 +722,9 @@ class MADDPG(TorchFramework):
 
         if visualize:
             # only invoked if not running by pool
-            visualize_func(value_loss, "critic", visualize_dir)
+            MADDPG._visualize(value_loss,
+                              "critic_{}".format(actor_index),
+                              visualize_dir)
 
         if update_value:
             critics[actor_index].zero_grad()
@@ -769,7 +762,9 @@ class MADDPG(TorchFramework):
 
         if visualize:
             # only invoked if not running by pool
-            visualize_func(act_policy_loss, "actor", visualize_dir)
+            MADDPG._visualize(act_policy_loss,
+                              "actor_{}_{}".format(actor_index, policy_index),
+                              visualize_dir)
 
         if update_policy:
             actors[actor_index][policy_index].zero_grad()
@@ -789,6 +784,15 @@ class MADDPG(TorchFramework):
                         update_rate)
 
         return -act_policy_loss.item(), value_loss.item()
+
+    @staticmethod
+    def _visualize(final_tensor, name, directory):
+        g = make_dot(final_tensor)
+        g.render(filename=name,
+                 directory=directory,
+                 view=False,
+                 cleanup=False,
+                 quiet=True)
 
     @staticmethod
     def _move_to_shared_mem(obj):

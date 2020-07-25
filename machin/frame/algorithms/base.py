@@ -57,8 +57,7 @@ class TorchFramework:
             else:
                 default_logger.warning(
                     "Load path for module \"{}\" is not specified, "
-                    "module name is used.".format(r),
-                    RuntimeWarning
+                    "module name is used.".format(r)
                 )
                 restore_map[r] = getattr(self, r)
         prep_load_model(model_dir, restore_map, version)
