@@ -20,16 +20,19 @@
 	<a href="https://github.com/iffiX/machin">
 		<img alt="License" src="https://img.shields.io/github/license/iffiX/machin">
 	</a>
+	<a href="http://ci.beyond-infinity.com/reports/machin/">
+		<img alt="Report" src="https://img.shields.io/badge/report-allure-blue">
+	</a>
+	
 	
 </div>
 
 <br/>
-
-WARNING: currently Machin is in its early development stage, tests, code coverage, doc, examples are not complete.
+**Readable**, **Reusable**, **Extendable**.
 
 <br/>
 
-**Machin** is a reinforcement library purely based on pytorch. It is designed to be **readable**, **reusable** and **extendable**.
+**Machin** is a reinforcement library designed for pytorch. 
 
 ### Supported algorithms
 ---
@@ -60,7 +63,6 @@ Currently Machin has implemented the following algorithms, the list is still gro
 * [Generalized Advantage Estimation (GAE)](https://arxiv.org/pdf/1506.02438.pdf)
 * [Recurrent networks in DQN, etc.](https://arxiv.org/pdf/1507.06527.pdf)
 #### Algorithms to be supported:
-* [Distributed DDPG (D4PG)](https://arxiv.org/abs/1804.08617)
 * [Generative Adversarial Imitation Learning (GAIL)](https://arxiv.org/abs/1606.03476)
 * Evolution Strategies
 * [QMIX (multi agent)](https://arxiv.org/abs/1803.11485)
@@ -70,25 +72,26 @@ Currently Machin has implemented the following algorithms, the list is still gro
 ---
 #### 1. Readable
 
-The initial development drive for the Machin library originates from one common plague of reinforcement learning libraries such as the famous [rlpyt](https://github.com/astooke/rlpyt), [ray](https://github.com/ray-project/ray), and [baselines](https://github.com/openai/baselines): **complexity**. Machin tries to just provide a simple, clear implementation of RL algorithms and bring as little obstacles to users as possible.
+Compared to other reinforcement learning libraries such as the famous [rlpyt](https://github.com/astooke/rlpyt), [ray](https://github.com/ray-project/ray), and [baselines](https://github.com/openai/baselines). Machin tries to just provide a simple, clear implementation of RL algorithms.
 
-Therefore, Machin is designed with minimial abstractions and comes with a very detailed document, as well as various tutorials to help you build your own program.
+All algorithms in Machin are designed with minimial abstractions and have very detailed documents, as well as various helpful tutorials.
 
 #### 2. Reusable
 
-Machin takes a similar approach to that of pytorch, encasulating algorithms, data structures in their own classes. Users do not need to setup a series of `data collectors`, `trainers`, `runners`, `samplers`... to use them, **just import**. Although Machin do provide some parallel wrappers to aid you construct high-performance programs, **you are still the operator of your dataflow**.
+Machin takes a similar approach to that of pytorch, encasulating algorithms, data structures in their own classes. Users do not need to setup a series of `data collectors`, `trainers`, `runners`, `samplers`... to use them, **just import**.
 
-The only restriction placed on your models is their input / output format, however, these restrictions are minimal, and can still be customized to make Machin work happily. 
+The only restriction placed on your models is their input / output format, however, these restrictions are minimal, making it easy to adapt algorithms to your custom environments. 
 
 #### 3. Extendable
-Machin is built upon pytorch, and thanks to its powerful rpc api, we may construct complex distributed programs, Machin provides a reliable rpc execution layer upon raw rpc apis, based on a stable election algorithm, so that you can ignore threads, ranks, processes, and just need to define services! A service is much like a http server which can be moved around freely, will **never fail** (from clients' perspective) as long as you define how to restart after a crash. 
+Machin is built upon pytorch, it and thanks to its powerful rpc api, we may construct complex distributed programs. Machin provides implementations for enhanced parallel execution pools, automatic model assignment, role based rpc scaling, rpc service discovery and registration, etc.
 
-For production grade services, you might will want to have some persistency and consistency, but those are not what Machin designed to do, you will have to do it yourself, by using databases, log systems, etc..
-
-Apart from rpc, Machin also provides enhancements on multiprocessing pools so that you may use **lambdas and local functions**, and a light encapsule layer of collective communications (MPI style).
+Upon these core functions, Machin is able to provide tested high-performance distributed training algorithm implementations, such as A3C, APEX, IMPALA, to ease your design.
 
 #### 4. Reproducible
-Machin is reproducible, because for each release, our test framework will directly train every RL framework, if any framework cannot reach the target score, the test will fail directly.
+Machin is **weakly** reproducible, for each release, our test framework will directly train every RL framework, if any framework cannot reach the target score, the test will fail directly. 
+
+However, currently, the tests are not guaranteed to
+be exactly the same as the tests in original papers, due to the large variety of different environments used in original research papers.
 
 
 ### Documentation
