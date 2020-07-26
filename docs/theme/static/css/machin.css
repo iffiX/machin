@@ -157,7 +157,7 @@ a:visited {
 
 code,
 .rst-content dl:not(.docutils) code,
-.rst-content tt, .rst-content code {
+.rst-content tt, .rst-content code, .rst-content code.xref {
     border: none;
     color: #aaa;
     background-color: #3e3e3e;

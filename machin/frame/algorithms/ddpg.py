@@ -43,8 +43,6 @@ class DDPG(TorchFramework):
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
-                 reward_func: Callable = None,
-                 action_trans_func: Callable = None,
                  visualize: bool = False,
                  visualize_dir: str = "",
                  **__):
@@ -68,22 +66,6 @@ class DDPG(TorchFramework):
                     target_value.view(batch_size, 1),
                     predicted_value.view(batch_size, 1)
                 )
-
-        Note:
-            The action transform function is used to transform the output
-            of actor to the input of critic.
-            Action transform function must accept:
-
-              1. Raw action from the actor model.
-              2. Concatenated :attr:`.Transition.next_state`.
-              3. Any other concatenated lists of custom keys from \
-                  :class:`.Transition`.
-
-            and returns:
-
-              1. Something with the same form as :attr:`.Transition.action`
-
-            by default it is :meth:`.DDPG.action_transform_function`
 
         Args:
             actor: Actor network module.
@@ -111,9 +93,6 @@ class DDPG(TorchFramework):
             replay_device: Device where the replay buffer locates on, Not
                 compatible with ``replay_buffer``.
             replay_buffer: Custom replay buffer.
-            reward_func: Reward function used in training.
-            action_trans_func: Action transform function, used to transform
-                the raw output of your actor.
             visualize: Whether visualize the network flow in the first pass.
             visualize_dir: Visualized graph save directory.
         """
@@ -158,14 +137,6 @@ class DDPG(TorchFramework):
             )
 
         self.criterion = criterion
-
-        self.reward_func = (DDPG.bellman_function
-                            if reward_func is None
-                            else reward_func)
-        self.action_transform_func = (DDPG.action_transform_function
-                                      if action_trans_func is None
-                                      else action_trans_func)
-
         super(DDPG, self).__init__()
 
     def act(self,
@@ -360,13 +331,14 @@ class DDPG(TorchFramework):
         # Generate value reference :math: `y_i` using target actor and
         # target critic.
         with t.no_grad():
-            next_action = self.action_transform_func(self.act(next_state, True),
-                                                     next_state,
-                                                     others)
+            next_action = self.action_transform_function(
+                self.act(next_state, True), next_state, others
+            )
             next_value = self.criticize(next_state, next_action, True)
             next_value = next_value.view(batch_size, -1)
-            y_i = self.reward_func(reward, self.discount, next_value,
-                                   terminal, others)
+            y_i = self.reward_function(
+                reward, self.discount, next_value, terminal, others
+            )
 
         cur_value = self.criticize(state, action)
         value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
@@ -383,7 +355,9 @@ class DDPG(TorchFramework):
             self.critic_optim.step()
 
         # Update actor network
-        cur_action = self.action_transform_func(self.act(state), state, others)
+        cur_action = self.action_transform_function(
+            self.act(state), state, others
+        )
         act_value = self.criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),
@@ -428,10 +402,26 @@ class DDPG(TorchFramework):
 
     @staticmethod
     def action_transform_function(raw_output_action: Any, *_):
+        """
+        The action transform function is used to transform the output
+        of actor to the input of critic.
+        Action transform function must accept:
+
+          1. Raw action from the actor model.
+          2. Concatenated :attr:`.Transition.next_state`.
+          3. Any other concatenated lists of custom keys from \
+              :class:`.Transition`.
+
+        and returns:
+          1. A dictionary with the same form as :attr:`.Transition.action`
+
+        Args:
+          raw_output_action: Raw action from the actor model.
+        """
         return {"action": raw_output_action}
 
     @staticmethod
-    def bellman_function(reward, discount, next_value, terminal, _):
+    def reward_function(reward, discount, next_value, terminal, _):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value

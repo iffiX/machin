@@ -37,8 +37,6 @@ class DDPGPer(DDPG):
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
-                 reward_func: Callable = None,
-                 action_trans_func: Callable = None,
                  visualize: bool = False,
                  visualize_dir: str = "",
                  **__):
@@ -59,8 +57,6 @@ class DDPGPer(DDPG):
             replay_buffer=(PrioritizedBuffer(replay_size, replay_device)
                            if replay_buffer is None
                            else replay_buffer),
-            reward_func=reward_func,
-            action_trans_func=action_trans_func,
             visualize=visualize,
             visualize_dir=visualize_dir
         )
@@ -100,13 +96,14 @@ class DDPGPer(DDPG):
         # Generate value reference :math: `y_i` using target actor and
         # target critic.
         with t.no_grad():
-            next_action = self.action_transform_func(self.act(next_state, True),
-                                                     next_state,
-                                                     others)
+            next_action = self.action_transform_function(
+                self.act(next_state, True), next_state, others
+            )
             next_value = self.criticize(next_state, next_action, True)
             next_value = next_value.view(batch_size, -1)
-            y_i = self.reward_func(reward, self.discount, next_value,
-                                   terminal, others)
+            y_i = self.reward_function(
+                reward, self.discount, next_value, terminal, others
+            )
 
         # critic loss
         cur_value = self.criticize(state, action)
@@ -128,7 +125,9 @@ class DDPGPer(DDPG):
             self.critic_optim.step()
 
         # actor loss
-        cur_action = self.action_transform_func(self.act(state), state, others)
+        cur_action = self.action_transform_function(
+            self.act(state), state, others
+        )
         act_value = self.criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),

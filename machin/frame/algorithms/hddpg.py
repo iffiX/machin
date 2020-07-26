@@ -28,8 +28,6 @@ class HDDPG(DDPG):
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
-                 reward_func: Callable = None,
-                 action_trans_func: Callable = None,
                  visualize: bool = False,
                  visualize_dir: str = "",
                  **__):
@@ -63,9 +61,6 @@ class HDDPG(DDPG):
             replay_device: Device where the replay buffer locates on, Not
                 compatible with ``replay_buffer``.
             replay_buffer: Custom replay buffer.
-            reward_func: Reward function used in training.
-            action_trans_func: Action transform function, used to transform
-                the raw output of your actor.
             visualize: Whether visualize the network flow in the first pass.
             visualize_dir: Visualized graph save directory.
         """
@@ -83,8 +78,6 @@ class HDDPG(DDPG):
                                     replay_size=replay_size,
                                     replay_device=replay_device,
                                     replay_buffer=replay_buffer,
-                                    reward_func=reward_func,
-                                    action_trans_func=action_trans_func,
                                     visualize=visualize,
                                     visualize_dir=visualize_dir)
         self.q_increase_rate = q_increase_rate
@@ -111,13 +104,14 @@ class HDDPG(DDPG):
         # Generate value reference :math: `y_i` using target actor and
         # target critic.
         with t.no_grad():
-            next_action = self.action_transform_func(self.act(next_state, True),
-                                                     next_state,
-                                                     others)
+            next_action = self.action_transform_function(
+                self.act(next_state, True), next_state, others
+            )
             next_value = self.criticize(next_state, next_action, True)
             next_value = next_value.view(batch_size, -1)
-            y_i = self.reward_func(reward, self.discount, next_value,
-                                   terminal, others)
+            y_i = self.reward_function(
+                reward, self.discount, next_value, terminal, others
+            )
 
         cur_value = self.criticize(state, action)
         value_diff = y_i.to(cur_value.device) - cur_value
@@ -139,7 +133,9 @@ class HDDPG(DDPG):
             self.critic_optim.step()
 
         # Update actor network
-        cur_action = self.action_transform_func(self.act(state), state, others)
+        cur_action = self.action_transform_function(
+            self.act(state), state, others
+        )
         act_value = self.criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),

@@ -1,3 +1,5 @@
+from machin.utils.logging import default_logger
+from machin.model.nets.base import static_module_wrapper
 import inspect
 import torch
 import torch.nn as nn
@@ -44,6 +46,13 @@ def hard_update(target_net: nn.Module,
         target_param.data.copy_(param.data)
 
 
+def determine_device(model):
+    devices = set()
+    for k, v in model.named_parameters():
+        devices.add(str(v.device))
+    return list(devices)
+
+
 def safe_call(model, *named_args, required_argument=()):
     """
     Call a model and discard unnecessary arguments. safe_call will automatically
@@ -65,13 +74,35 @@ def safe_call(model, *named_args, required_argument=()):
     """
     if (not hasattr(model, "input_device") or
             not hasattr(model, "output_device")):
-        raise RuntimeError("Wrap your model of type nn.Module with one of: \n"
-                           "1. static_module_wrapper "
-                           "from machin.model.nets.base \n"
-                           "1. dynamic_module_wrapper "
-                           "from machin.model.nets.base \n"
-                           "Or construct your own module & model with: \n"
-                           "NeuralNetworkModule from machin.model.nets.base")
+        # try to automatically determine the input & output device of the model
+        model_type = type(model)
+        device = determine_device(model)
+        if len(device) > 1:
+            raise RuntimeError("Failed to automatically determine i/o device "
+                               "of your model: {}\n"
+                               "Detected multiple devices: {}\n"
+                               "You need to manually specify i/o device of "
+                               "your model.\n"
+                               "Wrap your model of type nn.Module with one "
+                               "of: \n"
+                               "1. static_module_wrapper "
+                               "from machin.model.nets.base \n"
+                               "1. dynamic_module_wrapper "
+                               "from machin.model.nets.base \n"
+                               "Or construct your own module & model with: \n"
+                               "NeuralNetworkModule from machin.model.nets.base"
+                               .format(model_type, device))
+        else:
+            # assume that i/o devices are the same as parameter device
+            # print a warning
+            default_logger.warning("You have not specified the i/o device of "
+                                   "your model {}, automatically determined and"
+                                   " set to: {}\n"
+                                   "The framework is not responsible for any "
+                                   "un-matching device issues caused by this"
+                                   "operation.".format(model_type, device[0]))
+            model = static_module_wrapper(model, device[0], device[0])
+
     input_device = model.input_device
     args = inspect.getfullargspec(model.forward).args
     args_dict = {}

@@ -35,7 +35,6 @@ class DQNPer(DQN):
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
-                 reward_func: Callable = None,
                  visualize: bool = False,
                  visualize_dir: str = "",
                  **__):
@@ -55,7 +54,6 @@ class DQNPer(DQN):
             replay_buffer=(PrioritizedBuffer(replay_size, replay_device)
                            if replay_buffer is None
                            else replay_buffer),
-            reward_func=reward_func,
             mode="double",
             visualize=visualize,
             visualize_dir=visualize_dir
@@ -107,8 +105,9 @@ class DQNPer(DQN):
                                           dtype=t.long))
 
         # Generate value reference :math: `y_i`.
-        y_i = self.reward_func(reward, self.discount, target_next_q_value,
-                               terminal, others)
+        y_i = self.reward_function(
+            reward, self.discount, target_next_q_value, terminal, others
+        )
         value_loss = self.criterion(action_value, y_i.to(action_value.device))
         value_loss = (value_loss *
                       t.from_numpy(is_weight).view([batch_size, 1])

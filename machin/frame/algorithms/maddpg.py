@@ -2,7 +2,10 @@ import copy
 import inspect
 import itertools
 from random import choice, randint
+from .utils import determine_device
 from machin.utils.visualize import make_dot
+from machin.utils.logging import default_logger
+from machin.model.nets.base import static_module_wrapper
 from machin.parallel.pool import P2PPool, ThreadPool
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .ddpg import *
@@ -71,10 +74,6 @@ class MADDPG(TorchFramework):
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
-                 reward_func: Callable = None,
-                 action_trans_func: Callable = None,
-                 action_concat_func: Callable = None,
-                 state_concat_func: Callable = None,
                  visualize: bool = False,
                  visualize_dir: str = "",
                  use_jit: bool = True,
@@ -91,8 +90,9 @@ class MADDPG(TorchFramework):
             "cuda" (Using multiple CUDA devices is supported).
 
         Note:
-            MADDPG framework assumes that all of your actors are homogeneous,
-            and critics are homogeneous as well.
+            MADDPG framework **does not require** all of your actors are
+            homogeneous. Each pair of your actors and critcs could be
+            heterogeneous.
 
         Note:
             This implementation contains:
@@ -129,13 +129,6 @@ class MADDPG(TorchFramework):
             replay_device: Device where the replay buffer locates on, Not
                 compatible with ``replay_buffer``.
             replay_buffer: Custom replay buffer. Will be replicated for actor.
-            reward_func: Reward function used in training.
-            action_trans_func: Action transform function, used to transform
-                the raw output of your actor.
-            action_concat_func: Action concatenation function, used to
-                concatenate a list of action dicts into one dict.
-            state_concat_func: State concatenation function, used to
-                concatenate a list of state dicts into one dict.
             visualize: Whether visualize the network flow in the first pass.
             visualize_dir: Visualized graph save directory.
             use_jit: Whether use torch jit to perform the forward pass
@@ -238,19 +231,6 @@ class MADDPG(TorchFramework):
                                    for cr_opt in self.critic_optims]
 
         self.criterion = criterion
-
-        self.reward_func = (MADDPG.bellman_function
-                            if reward_func is None
-                            else reward_func)
-        self.action_trans_func = (MADDPG.action_transform_function
-                                  if action_trans_func is None
-                                  else action_trans_func)
-        self.action_concat_func = (MADDPG.action_concat_function
-                                   if action_concat_func is None
-                                   else action_concat_func)
-        self.state_concat_func = (MADDPG.state_concat_function
-                                  if state_concat_func is None
-                                  else state_concat_func)
 
         # make preparations if use jit
         # jit modules will share the same parameter memory with original
@@ -443,12 +423,12 @@ class MADDPG(TorchFramework):
         """
         if use_target:
             return safe_call(self.critic_targets[index],
-                             self.state_concat_func(states),
-                             self.action_concat_func(actions))
+                             self.state_concat_function(states),
+                             self.action_concat_function(actions))
         else:
             return safe_call(self.critics[index],
-                             self.state_concat_func(states),
-                             self.action_concat_func(actions))
+                             self.state_concat_function(states),
+                             self.action_concat_function(actions))
 
     def store_transitions(self, transitions: List[Union[Transition, Dict]]):
         """
@@ -536,7 +516,7 @@ class MADDPG(TorchFramework):
 
             batches.append(ensemble_batch)
             next_actions_t.append(
-                [self.action_trans_func(act)
+                [self.action_transform_function(act)
                  for act in
                  self.act([batch[3] for batch in ensemble_batch],
                           target=True)]
@@ -557,8 +537,10 @@ class MADDPG(TorchFramework):
                     self.critic_visible_actors,
                     self.actor_optims, self.critic_optims,
                     update_value, update_policy, update_target,
-                    self.action_trans_func, self.action_concat_func,
-                    self.state_concat_func, self.reward_func,
+                    self.action_transform_function,
+                    self.action_concat_function,
+                    self.state_concat_function,
+                    self.reward_function,
                     self.criterion, self.discount, self.update_rate,
                     self.grad_max,
                     self.visualize and not self.has_visualized,
@@ -602,14 +584,37 @@ class MADDPG(TorchFramework):
     def _jit_safe_call(model, *named_args, required_argument=()):
         if (not hasattr(model, "input_device") or
                 not hasattr(model, "output_device")):
-            raise RuntimeError(
-                "Wrap your model of type nn.Module with one of: \n"
-                "1. static_module_wrapper "
-                "from machin.model.nets.base \n"
-                "1. dynamic_module_wrapper "
-                "from machin.model.nets.base \n"
-                "Or construct your own module & model with: \n"
-                "NeuralNetworkModule from machin.model.nets.base")
+            # try to automatically determine the input & output
+            # device of the model
+            model_type = type(model)
+            device = determine_device(model)
+            if len(device) > 1:
+                raise RuntimeError(
+                    "Failed to automatically determine i/o device "
+                    "of your model: {}\n"
+                    "Detected multiple devices: {}\n"
+                    "You need to manually specify i/o device of "
+                    "your model.\n"
+                    "Wrap your model of type nn.Module with one "
+                    "of: \n"
+                    "1. static_module_wrapper "
+                    "from machin.model.nets.base \n"
+                    "1. dynamic_module_wrapper "
+                    "from machin.model.nets.base \n"
+                    "Or construct your own module & model with: \n"
+                    "NeuralNetworkModule from machin.model.nets.base"
+                    .format(model_type, device))
+            else:
+                # assume that i/o devices are the same as parameter device
+                # print a warning
+                default_logger.warning(
+                    "You have not specified the i/o device of"
+                    "your model {}, automatically determined and"
+                    " set to: {}\n"
+                    "The framework is not responsible for any "
+                    "un-matching device issues caused by this"
+                    "operation.".format(model_type, device[0]))
+                model = static_module_wrapper(model, device[0], device[0])
         input_device = model.input_device
         # set in __init__
         args = model.args
@@ -862,7 +867,7 @@ class MADDPG(TorchFramework):
         return all_states
 
     @staticmethod
-    def bellman_function(reward, discount, next_value, terminal, *_):
+    def reward_function(reward, discount, next_value, terminal, *_):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value

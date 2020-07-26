@@ -30,8 +30,6 @@ class DQNApex(DQNPer):
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
                  replay_size: int = 500000,
-                 reward_func: Callable = None,
-                 visualize: bool = False,
                  **__):
         """
         See Also:
@@ -64,8 +62,6 @@ class DQNApex(DQNPer):
                 ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
             replay_size: Local replay buffer size of a single worker.
-            reward_func: Reward function used in training.
-            visualize: Whether visualize the network flow in the first pass.
         """
         super(DQNApex, self).__init__(qnet, qnet_target, optimizer, criterion,
                                       lr_scheduler=lr_scheduler,
@@ -74,9 +70,7 @@ class DQNApex(DQNPer):
                                       batch_size=batch_size,
                                       update_rate=update_rate,
                                       learning_rate=learning_rate,
-                                      discount=discount,
-                                      reward_func=reward_func,
-                                      visualize=visualize)
+                                      discount=discount)
 
         # will not support sharing rpc group,
         # use static buffer_name is ok here.
@@ -162,9 +156,6 @@ class DDPGApex(DDPGPer):
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
                  replay_size: int = 500000,
-                 reward_func: Callable = None,
-                 action_trans_func: Callable = None,
-                 visualize: bool = False,
                  **__):
         """
         See Also:
@@ -203,8 +194,6 @@ class DDPGApex(DDPGPer):
                 ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
             replay_size: Local replay buffer size of a single worker.
-            reward_func: Reward function used in training.
-            visualize: Whether visualize the network flow in the first pass.
         """
         super(DDPGApex, self).__init__(actor, actor_target,
                                        critic, critic_target,
@@ -215,10 +204,7 @@ class DDPGApex(DDPGPer):
                                        batch_size=batch_size,
                                        update_rate=update_rate,
                                        learning_rate=learning_rate,
-                                       discount=discount,
-                                       reward_func=reward_func,
-                                       action_trans_func=action_trans_func,
-                                       visualize=visualize)
+                                       discount=discount)
 
         # will not support sharing rpc group,
         # use static buffer_name is ok here.

@@ -27,7 +27,6 @@ class RAINBOW(DQN):
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
-                 reward_func: Callable = None,
                  visualize: bool = False,
                  visualize_dir: str = "",
                  **__):
@@ -71,7 +70,6 @@ class RAINBOW(DQN):
             replay_device: Device where the replay buffer locates on, Not
                 compatible with ``replay_buffer``.
             replay_buffer: Custom replay buffer.
-            reward_func: Reward function used in training.
             mode: one of ``"vanilla", "fixed_target", "double"``.
             visualize: Whether visualize the network flow in the first pass.
         """
@@ -90,7 +88,6 @@ class RAINBOW(DQN):
             replay_buffer=(PrioritizedBuffer(replay_size, replay_device)
                            if replay_buffer is None
                            else replay_buffer),
-            reward_func=reward_func,
             visualize=visualize,
             visualize_dir=visualize_dir
         )
@@ -232,11 +229,13 @@ class RAINBOW(DQN):
 
             # T_z is the bellman update for atom z_j
             # shape: [batch_size, atom_num]
-            T_z = self.reward_func(value,
-                                   self.discount ** self.reward_future_steps,
-                                   q_dist_support,
-                                   terminal,
-                                   others)
+            T_z = self.reward_function(
+                value,
+                self.discount ** self.reward_future_steps,
+                q_dist_support,
+                terminal,
+                others
+            )
 
             # 1e-6 is used to make sure that l != u when T_z == v_min or v_max
             T_z = T_z.clamp(self.v_min + 1e-6, self.v_max - 1e-6)

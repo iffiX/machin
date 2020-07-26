@@ -24,8 +24,11 @@ TODO
 
 Tutorials and examples
 ++++++++++++++++++++++
+.. toctree::
+   :maxdepth: 1
 
-TODO
+   tutorials/index.rst
+
 
 API
 ++++++++++++++++++

@@ -41,8 +41,6 @@ class SAC(TorchFramework):
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
-                 reward_func: Callable = None,
-                 action_trans_func: Callable = None,
                  visualize: bool = False,
                  visualize_dir: str = "",
                  **__):
@@ -105,10 +103,6 @@ class SAC(TorchFramework):
             replay_device: Device where the replay buffer locates on, Not
                 compatible with ``replay_buffer``.
             replay_buffer: Custom replay buffer.
-            reward_func: Reward function used in training.
-            action_trans_func: Action transform function, used to transform
-                the raw output of your actor, by default it is:
-                ``lambda act: {"action": act}``
             visualize: Whether visualize the network flow in the first pass.
             visualize_dir: Visualized graph save directory.
         """
@@ -171,14 +165,6 @@ class SAC(TorchFramework):
             )
 
         self.criterion = criterion
-
-        self.reward_func = (SAC.bellman_function
-                            if reward_func is None
-                            else reward_func)
-        self.action_trans_func = (SAC.action_transform_function
-                                  if action_trans_func is None
-                                  else action_trans_func)
-
         super(SAC, self).__init__()
 
     def act(self, state: Dict[str, Any], **__):
@@ -277,16 +263,18 @@ class SAC(TorchFramework):
         # Update critic network first
         with t.no_grad():
             next_action, next_action_log_prob, *_ = self.act(next_state)
-            next_action = self.action_trans_func(next_action, next_state,
-                                                 others)
+            next_action = self.action_transform_function(
+                next_action, next_state, others
+            )
             next_value = self.criticize(next_state, next_action, True)
             next_value2 = self.criticize2(next_state, next_action, True)
             next_value = t.min(next_value, next_value2)
             next_value = (next_value.view(batch_size, -1) -
                           self.entropy_alpha
                           * next_action_log_prob.view(batch_size, -1))
-            y_i = self.reward_func(reward, self.discount, next_value,
-                                   terminal, others)
+            y_i = self.reward_function(
+                reward, self.discount, next_value, terminal, others
+            )
 
         cur_value = self.criticize(state, action)
         cur_value2 = self.criticize2(state, action)
@@ -313,7 +301,9 @@ class SAC(TorchFramework):
 
         # Update actor network
         cur_action, cur_action_log_prob, *_ = self.act(next_state)
-        cur_action = self.action_trans_func(cur_action, state, others)
+        cur_action = self.action_transform_function(
+            cur_action, state, others
+        )
         act_value = self.criticize(state, cur_action)
         act_value2 = self.criticize2(state, cur_action)
         act_value = t.min(act_value, act_value2)
@@ -373,7 +363,7 @@ class SAC(TorchFramework):
         return {"action": raw_output_action}
 
     @staticmethod
-    def bellman_function(reward, discount, next_value, terminal, _):
+    def reward_function(reward, discount, next_value, terminal, _):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value

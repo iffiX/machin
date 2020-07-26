@@ -36,7 +36,6 @@ class DQN(TorchFramework):
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
-                 reward_func: Callable = None,
                  mode: str = "double",
                  visualize: bool = False,
                  visualize_dir: str = "",
@@ -58,6 +57,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
             If ``mode = "double"``, implements Double DQN described in
             `this <https://arxiv.org/pdf/1509.06461.pdf>`__ essay.
+
         Note:
             Vanilla DQN only needs one network, so internally, ``qnet``
             is assigned to ``qnet_target``.
@@ -123,7 +123,6 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             replay_device: Device where the replay buffer locates on, Not
                 compatible with ``replay_buffer``.
             replay_buffer: Custom replay buffer.
-            reward_func: Reward function used in training.
             mode: one of ``"vanilla", "fixed_target", "double"``.
             visualize: Whether visualize the network flow in the first pass.
         """
@@ -165,10 +164,6 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             )
 
         self.criterion = criterion
-
-        self.reward_func = (DQN.bellman_function
-                            if reward_func is None
-                            else reward_func)
 
         super(DQN, self).__init__()
 
@@ -295,8 +290,9 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
             target_next_q_value = t.max(self.criticize(next_state), dim=1)[0]\
                                    .unsqueeze(1).detach()
-            y_i = self.reward_func(reward, self.discount, target_next_q_value,
-                                   terminal, others)
+            y_i = self.reward_function(
+                reward, self.discount, target_next_q_value, terminal, others
+            )
             value_loss = self.criterion(action_value,
                                         y_i.to(action_value.device))
 
@@ -325,8 +321,9 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             target_next_q_value = t.max(self.criticize(next_state, True),
                                         dim=1)[0].unsqueeze(1).detach()
 
-            y_i = self.reward_func(reward, self.discount, target_next_q_value,
-                                   terminal, others)
+            y_i = self.reward_function(
+                reward, self.discount, target_next_q_value, terminal, others
+            )
             value_loss = self.criterion(action_value,
                                         y_i.to(action_value.device))
 
@@ -365,8 +362,9 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                 target_next_q_value = target_next_q_value.gather(
                     dim=1, index=next_action)
 
-            y_i = self.reward_func(reward, self.discount, target_next_q_value,
-                                   terminal, others)
+            y_i = self.reward_function(
+                reward, self.discount, target_next_q_value, terminal, others
+            )
             value_loss = self.criterion(action_value,
                                         y_i.to(action_value.device))
 
@@ -413,7 +411,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         return sampled_actions["action"]
 
     @staticmethod
-    def bellman_function(reward, discount, next_value, terminal, _):
+    def reward_function(reward, discount, next_value, terminal, _):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value

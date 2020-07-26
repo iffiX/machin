@@ -35,9 +35,6 @@ class TD3(DDPG):
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
-                 policy_noise_func: Callable = None,
-                 reward_func: Callable = None,
-                 action_trans_func: Callable = None,
                  visualize: bool = False,
                  visualize_dir: str = "",
                  **__):
@@ -73,10 +70,6 @@ class TD3(DDPG):
             replay_device: Device where the replay buffer locates on, Not
                 compatible with ``replay_buffer``.
             replay_buffer: Custom replay buffer.
-            reward_func: Reward function used in training.
-            action_trans_func: Action transform function, used to transform
-                the raw output of your actor, by default it is:
-                ``lambda act: {"action": act}``
             visualize: Whether visualize the network flow in the first pass.
             visualize_dir: Visualized graph save directory.
         """
@@ -103,8 +96,6 @@ class TD3(DDPG):
             replay_size=replay_size,
             replay_device=replay_device,
             replay_buffer=replay_buffer,
-            reward_func=reward_func,
-            action_trans_func=action_trans_func,
             visualize=visualize,
             visualize_dir=visualize_dir
         )
@@ -123,14 +114,6 @@ class TD3(DDPG):
                 *lr_scheduler_args[2],
                 **lr_scheduler_kwargs[2]
             )
-
-        if policy_noise_func is None:
-            default_logger.warning("Policy noise function is None, "
-                                   "no policy noise will be applied "
-                                   "during update!")
-        self.policy_noise_func = (TD3._policy_noise_function
-                                  if policy_noise_func is None
-                                  else policy_noise_func)
 
     def criticize2(self,
                    state: Dict[str, Any],
@@ -174,8 +157,8 @@ class TD3(DDPG):
         # Generate value reference :math: `y_i` using target actor and
         # target critic.
         with t.no_grad():
-            next_action = self.action_transform_func(
-                self.policy_noise_func(
+            next_action = self.action_transform_function(
+                self.policy_noise_function(
                     self.act(next_state, True)
                 ),
                 next_state, others
@@ -184,8 +167,9 @@ class TD3(DDPG):
             next_value2 = self.criticize2(next_state, next_action, True)
             next_value = t.min(next_value, next_value2)
             next_value = next_value.view(batch_size, -1)
-            y_i = self.reward_func(reward, self.discount, next_value, terminal,
-                                   others)
+            y_i = self.reward_function(
+                reward, self.discount, next_value, terminal, others
+            )
 
         cur_value = self.criticize(state, action)
         cur_value2 = self.criticize2(state, action)
@@ -210,7 +194,9 @@ class TD3(DDPG):
             self.critic2_optim.step()
 
         # Update actor network
-        cur_action = self.action_transform_func(self.act(state), state, others)
+        cur_action = self.action_transform_function(
+            self.act(state), state, others
+        )
         act_value = self.criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),
@@ -239,7 +225,9 @@ class TD3(DDPG):
                 (value_loss.item() + value_loss2.item()) / 2)
 
     @staticmethod
-    def _policy_noise_function(actions, *_):
+    def policy_noise_function(actions, *_):
+        # Function used to add noise to actions, mentioned in TD3
+        # training tricks
         return actions
 
     def update_lr_scheduler(self):
