@@ -2,7 +2,7 @@ Your first program
 =======================
 **Author**: `Muhan Li <https://github.com/iffiX>`_
 
-**Full code**: `Github <https://github.com/iffiX/machin/examples/tutorials/your_first_program/main.py>`_
+**Full code**: `Github <https://github.com/iffiX/machin/blob/master/examples/tutorials/your_first_program/main.py>`_
 
 This tutorial will guide you to create your first Deep Q Learning (DQN)
 agent on the CartPole-v0 task. from the
@@ -22,7 +22,7 @@ right - so that the pole attached to it stays upright. You can find an
 official leaderboard with various algorithms and visualizations at the
 `Gym website <https://gym.openai.com/envs/CartPole-v0>`__.
 
-.. figure:: /static/tutorials/your_first_program/cartpole.gif
+.. figure:: ../static/tutorials/your_first_program/cartpole.gif
    :alt: cartpole
 
    cartpole
