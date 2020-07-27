@@ -3,9 +3,22 @@ Architecture overview
 In this section, we will take a brief look at the internal implementations of
 the Machin library, to better understand the functionality of every module.
 
+Env
+--------------------------------
+Currently :mod:`machin.env` has two sub modules: :mod:`machin.env.utils` and
+:mod:`machin.env.wrappers`.
+
+The submodule :mod:`machin.env.utils` of the environment module provides
+some convenient utility functions you might will need in your own application,
+such as disabling the rendering window while keeping the rendered result in OpenAI gym.
+
+The submodule :mod:`machin.env.wrappers` provides process-level parallel environment
+wrappers for different environments.
+
 Framework
 --------------------------------
-Framework is one of the core parts of the Machin library, framework is a collection of:
+:mod:`machin.frame` is one of the most important core parts of the Machin library,
+the framework module is a collection of:
 
 1. RL algorithm implementations (:mod:`machin.frame.algorithms`)
 2. Replay buffer implementations (:mod:`machin.frame.buffers`)
@@ -47,7 +60,7 @@ This function is designed for ``reward``, ``next_value``, ``terminal`` of shape
 ``[batch_size, 1]``, and a ``float`` discount. Users might want to implement a
 vectorized reward function, which returns a reward of shape ``[batch_size, reward_dims]``,
 then they will have to overload :meth:`.DDPG.reward_func` and make sure that other
-statements in ``.DDPG.update`` will cooperate with their new reward function,
+statements in :meth:`.DDPG.update` will cooperate with their new reward function,
 defined in their sub classes inherited from :class:`.DDPG`.
 
 For a detailed list of these restrictions, please refer to
@@ -140,7 +153,8 @@ Below is a list of supported storing APIs of different frameworks:
 +-----------------+--------------------------------+---------------------------------+
 | | DQN           | store_transition/store_episode |                                 |
 | | DQNPer        |                                |                                 |
-| | DQNApex| DDPG |                                |                                 |
+| | DQNApex       |                                |                                 |
+| | DDPG          |                                |                                 |
 | | DDPGPer       |                                |                                 |
 | | DDPGApex      |                                |                                 |
 | | HDDPG         |                                |                                 |
@@ -190,9 +204,9 @@ and their ``update`` will also clear the internal replay buffer
 every time. So you are recommended to **read the implementation** of your
 selected algorithm before using it somewhere.
 
-Replay memory
+Buffers
 ++++++++++++++++++++++++++++++++
-Replay memory is the second core part of the whole DQN framework, Machin provides
+Buffers (replay memory) is the second core part of the whole DQN framework, Machin provides
 a sophisticated but clear implementation of replay memory, to accommodate the needs
 of different frameworks.
 
@@ -263,8 +277,74 @@ custom attributes can also be concatenated into a tensor. We may use a graph to 
 
    Buffer sampling & concatenation process
 
+Apart from the simplest :class:`Buffer`, there is also :class:`PrioritizedBuffer` (for
+prioritized experience replay), :class:`DistributedBuffer` used in :class:`.IMPALA`,
+and :class:`.DistributedPrioritizedBuffer` used in :class:`.DQNApex` and :class:`DDPGApex`.
+
+We will revisit the internal implementations of distributed buffers in the
+:ref:`distributed <distributed:buffer>` section
+
+Helpers
+++++++++++++++++++++++++++++++++
+This part provides some basic utilities to help users initialize the complex
+distributed services, mainly used in training algorithms such as :class:`.A3C`,
+:class:`.DQNApex`, :class:`DDPGApex` and :class:`.IMPALA`.
+
 Noise
 ++++++++++++++++++++++++++++++++
+This part provides implementations of different noises, such as "normal noise",
+"uniform noise" and "Ornstein-Uhlenbeck noise" used in DDPG. There is also a
+implementation of `param space noise <https://arxiv.org/pdf/1706.01905.pdf>`_ in
+this module.
 
-Framework
+Model
 --------------------------------
+:mod:`machin.model` is a collection of popular network models you might will use in your own
+program, for example, `ResNet <https://arxiv.org/abs/1512.03385>`_.
+
+Model module also contains the basis of all network modules: :class:`NeuralNetworkModule`,
+this wrapper is built upon regular `torch.nn.Module`, and allows users to specify input/output
+sub module, so that input/output devices can be automatically determined.
+
+Parallel
+--------------------------------
+:mod:`machin.parallel` is the second critical core parts of the Machin library, parallel module is
+a collection of refined implementations including:
+
+1. :mod:`machin.parallel.thread` : Thread (With exception catching).
+2. :mod:`machin.parallel.process` : Process (With remote exception catching).
+3. :mod:`machin.parallel.queues` : Queues. (Used in pools).
+4. | :mod:`machin.parallel.pool` : Process pools (allow local functions,
+   | customize serialization policy), thread pools, pools with contexts, etc.
+5. :mod:`machin.parallel.assigner` : Heuristic based model-device assignment.
+6. | :mod:`machin.parallel.server` : Implementations of different servers used in distributed
+   | algorithms such as :class:`.A3C`, :class:`.DQNApex`, :class:`DDPGApex` and :class:`.IMPALA`.
+7. | :mod:`machin.parallel.distributed` : A naive implementation of a part of
+   | `RFC #41546 <https://github.com/pytorch/pytorch/issues/41546>`_
+
+We will revisit the details of parallel tools used in Machin in thr :ref:`distributed <distributed>` section
+
+Utils
+--------------------------------
+:mod:`machin.utils` is a **messy hotchpotch** of various tools, it is very hard to categorize them,
+but they could be helpful sometimes, so we left them here:
+
+1. | :mod:`machin.utils.checker` : A checker implementation, using forward & backward hooks
+   | provided by pytorch to check the input/ouput, input gradient of models. Supports user
+   | defined checkers and tensorboard.
+2. | :mod:`machin.utils.conf` : Functions designed to load/save a json configuration file, as
+   | well as loading parametrs from commandline.
+3. | :mod:`machin.utils.helper_classes` : Various helper classes, such as :class:`.Timer`, :class:`.Counter`, etc.
+4. | :mod:`machin.utils.learning_rate` : Functions used in learning rate schedulers. Useful
+   | if you would like to have finer control over the learning rate.
+5. :mod:`machin.utils.loading` : Logging utility module.
+6. | :mod:`machin.utils.media` : Media writing utility, mainly images and videos, useful if you would
+   | like to log rendered environments.
+7. | :mod:`machin.utils.prepare` : Functions used to create directories, loading models (take care of
+   | devices automatically), for preparing a training session.
+8. | :mod:`machin.utils.save_env` : A standard reinforcement training environment creator, will create
+   | unique directories by time for you.
+9. | :mod:`machin.utils.visualize` : Visualize your model, currently only contains some simple functions
+   | for gradient flow checking.
+10. :mod:`machin.utils.tensorboard`: A simple tensorboard wrapper.
+
