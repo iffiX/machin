@@ -28,6 +28,7 @@ Tutorials and examples
    :maxdepth: 1
 
    tutorials/index.rst
+   advance/index.rst
 
 
 API

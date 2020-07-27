@@ -132,6 +132,17 @@ a:visited {
 }
 /* END colors of buttons */
 
+/* BEGIN colors of tables */
+.wy-table-responsive tr {
+    background-color: #3e3e3e !important;
+    border: 0 !important;
+}
+.wy-table-responsive tr td{
+    background-color: #3e3e3e !important;
+    border: 2px solid #2f2f2f !important;
+}
+/* END colors of tables */
+
 /* BEGIN colors of code and various note boxes*/
 .rst-content dl:not(.docutils) tt.descname,
 .rst-content dl:not(.docutils) tt.descclassname,
