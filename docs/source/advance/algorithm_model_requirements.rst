@@ -1,4 +1,4 @@
-Model requirements
+Algorithm model requirements
 ================================================================
 Machin relies on the correct model implementation to function correctly,
 different RL algorithms may need drastically dissimilar models. Therefore,
@@ -97,4 +97,5 @@ Deterministic policy gradient methods
 DDPG, DDPGPer, HDDPG, TD3
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 For :class:`.DDPG`, :class:`.DDPGPer`, :class:`.HDDPG`, :class:`.TD3`, Machin
-expects multiple actor and critic networks,
+expects multiple actor and critic networks. The actor network should accept one
+or more state tensors of shape ``[batch_size, ...]``

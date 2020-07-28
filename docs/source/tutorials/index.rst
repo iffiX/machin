@@ -4,3 +4,4 @@ Tutorials
     :maxdepth: 1
 
     Your first program <your_first_program.rst>
+    Data flow in Machin <data_flow_in_machin.rst>
