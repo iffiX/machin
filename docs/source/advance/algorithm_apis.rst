@@ -299,9 +299,9 @@ an action, etc. Below is a list of these APIs supported by different frameworks:
 |                 |                                |                                                     | | in every act/criticize/... etc.  |
 +-----------------+--------------------------------+-----------------------------------------------------+------------------------------------+
 | | DQNApex       | manual_sync                    | bool -> None                                        | | Manually update local models     |
-| | DDPGApex      |                                |                                                     |                                    |
-| | A3C           |                                |                                                     | | by pulling the newest paramters  |
-| | IMPALA        |                                |                                                     | | from remote server(s).           |
+| | DDPGApex      |                                |                                                     | | by pulling the newest parameters |
+| | A3C           |                                |                                                     | | from remote server(s).           |
+| | IMPALA        |                                |                                                     |                                    |
 +-----------------+--------------------------------+-----------------------------------------------------+------------------------------------+
 
 
