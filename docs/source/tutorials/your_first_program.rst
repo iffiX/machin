@@ -222,8 +222,8 @@ Please take note that the sub key of attribute "state" and "next_state"
 must match the name of the state argument **"some_state"** in your Q network
 mentioned above. And the sub key of attribute "action" must be **"action"**.
 
-We will come back to this seemingly strange name requirement in the replay buffer
-section of :ref:`Architecture Overview <architecture_overview:replay_buffer>`. For
+We will come back to this seemingly strange name requirement in the :ref:`data_flow_in_machin:buffer`
+section of :doc:`/tutorials/data_flow_in_machin`. For
 now, please make sure that shapes and dictionary keys of your tensors are **exactly the same**
 as the example.
 

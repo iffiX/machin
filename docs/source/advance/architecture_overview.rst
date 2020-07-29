@@ -50,8 +50,6 @@ the parallel module is a collection of refined implementations including:
 7. | :mod:`machin.parallel.distributed` : A naive implementation of a part of
    | `RFC #41546 <https://github.com/pytorch/pytorch/issues/41546>`_
 
-We will revisit the details of parallel tools used in Machin in thr :ref:`distributed <distributed>` section
-
 Utils
 --------------------------------
 :mod:`machin.utils` is a **messy hotchpotch** of various tools, it is very hard to categorize them,

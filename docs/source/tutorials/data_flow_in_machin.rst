@@ -95,8 +95,8 @@ the default transition implementation is :class:`.Transition`, which have 5 attr
 must mean batch size (Scalar sub attributes are safe). A single transition step usually
 have a batch size of 1. Most frameworks supports storing a single transition step with
 larger than 1 batch size, so that you may use batched environment executors such as
-:class:`.openai_gym.ParallelWrapperSubProc`, Please refer to :ref:`model requirements
-<model_requirements:batch_size>` for detailed descriptions.
+:class:`.openai_gym.ParallelWrapperSubProc`, Please refer to :ref:`algorithm_transition_requirements`
+for detailed descriptions.
 
 Now that we have a very general transition data structure, which supports storing:
 
@@ -126,11 +126,14 @@ will **be cloned then detached**, custom attributes will be **deep copied**.
 :class:`.Transition` also supports :meth:`.Transition.to` method to move
 internal tensors to the target pytorch device.
 
+.. _data_flow_in_machin:buffer:
+
 Buffer
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Buffers (replay memory) is of the core parts of the Machin library. Machin provides
+
+Buffers (replay memory) is one of the core parts of the Machin library. Machin provides
 a sophisticated but clear implementation of replay memory, to accommodate the needs
-of different frameworks. In :ref:`The big picture` section, we have showed that the
+of different frameworks. In `The big picture`_ section, we have showed that the
 buffer instance encapsulated in the DQN framework has two major APIs: "append" and "sample",
 
 Append
@@ -182,8 +185,7 @@ Apart from the simplest :class:`.Buffer`, there is also :class:`.PrioritizedBuff
 prioritized experience replay), :class:`.DistributedBuffer` used in :class:`.IMPALA`,
 and :class:`.DistributedPrioritizedBuffer` used in :class:`.DQNApex` and :class:`.DDPGApex`.
 
-We will revisit the internal implementations of distributed buffers in the
-:ref:`distributed <distributed:buffer>` section.
+We will not discuss about the internal implementations of distributed buffers here.
 
 Algorithm
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -192,7 +194,7 @@ start training their models. The three types of model free RL algorithms
 supported by Machin have three respective internal data path.
 
 For more detailed descriptions of data paths and model requirements of all RL algorithms,
-please refer to :ref:`algorithm model requirements <algorithm_model_requirements>`.
+please refer to :doc:`/advance/algorithm_model_requirements`.
 
 In order to bridge the gap between models and algorithms, Machin uses a function named :func:`.safe_call`
 to pass data from algorithms to your models, and uses different class methods defined in
