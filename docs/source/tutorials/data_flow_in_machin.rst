@@ -1,6 +1,8 @@
 Data flow in machin
 ================================================================
-Dataflow is the major thing you should be very careful with while using the
+**Author**: `Muhan Li <https://github.com/iffiX>`_
+
+Data flow is the major thing you should be very careful with while using the
 Machin library. Especially:
 
 1. Data types
@@ -28,7 +30,7 @@ we will take the DQN framework as an example and use a diagram to illustrate eve
 
    Data flow in DQN
 
-There are many three types of arrows in the diagram:
+There are mainly three types of arrows in the diagram:
 
 1. | The normal grey arrow: Represents data passed to functions by arguments, keyword
    | arguments, etc. And data returned by functions.
@@ -94,7 +96,7 @@ must mean batch size (Scalar sub attributes are safe). A single transition step 
 have a batch size of 1. Most frameworks supports storing a single transition step with
 larger than 1 batch size, so that you may use batched environment executors such as
 :class:`.openai_gym.ParallelWrapperSubProc`, Please refer to :ref:`model requirements
-<model_requirements:batch_size>` for detailed requirements.
+<model_requirements:batch_size>` for detailed descriptions.
 
 Now that we have a very general transition data structure, which supports storing:
 
@@ -185,8 +187,8 @@ We will revisit the internal implementations of distributed buffers in the
 
 Algorithm
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Now that the algorithms have got the samples provided by buffers, they can
-start training the models. The three types of model free RL algorithms
+Now that algorithms have got samples from buffers, they can
+start training their models. The three types of model free RL algorithms
 supported by Machin have three respective internal data path.
 
 For more detailed descriptions of data paths and model requirements of all RL algorithms,

@@ -32,11 +32,11 @@ program, for example, `ResNet <https://arxiv.org/abs/1512.03385>`_.
 
 Model module also contains the basis of all network modules: :class:`NeuralNetworkModule`,
 this wrapper is built upon regular `torch.nn.Module`, and allows users to specify input/output
-sub module, so that input/output devices can be automatically determined.
+sub module.
 
 Parallel
 --------------------------------
-:mod:`machin.parallel` is the second critical core parts of the Machin library,
+:mod:`machin.parallel` is the second core part of the Machin library,
 the parallel module is a collection of refined implementations including:
 
 1. :mod:`machin.parallel.thread` : Thread (With exception catching).

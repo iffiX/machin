@@ -1,11 +1,13 @@
 Algorithm model requirements
 ================================================================
+**Author**: `Muhan Li <https://github.com/iffiX>`_
+
 Machin relies on the correct model implementation to function correctly,
 different RL algorithms may need drastically dissimilar models. Therefore,
 in this section, we are going to outline the detailed requirements on models
 of different frameworks.
 
-We should define some basic symbols to simplify the description:
+We will use some basic symbols to simplify the description:
 
 1. ``...`` means one or more dimensions, with non-zero sizes.
 
