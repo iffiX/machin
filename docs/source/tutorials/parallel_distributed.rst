@@ -132,13 +132,15 @@ read some detailed use cases, this part **requires proficiency with but not a de
 3. ``torch.distributed`` module
 4. ``torch.distributed.rpc`` module
 
+If below examples are not enough for you, please refer to `tests <https://github.com/iffiX/machin/tree/master/test>`_
+
 Multi-threading examples
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `Waiting on multiple events <https://github.com/iffiX/machin/blob/master/examples/tutorials/parallel_distributed/mth_event.py>`_
 
 `Detect exception thrown in a sub-thread <https://github.com/iffiX/machin/blob/master/examples/tutorials/parallel_distributed/mth_exception.py>`_
 
-`Using thread pools and context thread pools <https://github.com/iffiX/machin/blob/master/examples/tutorials/parallel_distributed/mth_pool.py>`_
+`Using thread pools and context thread pools <https://github.com/iffiX/machin/blob/master/test/parallel/test_pool.py>`_
 
 Multi-processing examples
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -146,7 +148,7 @@ Multi-processing examples
 
 `Detect exception thrown in a sub-process <https://github.com/iffiX/machin/blob/master/examples/tutorials/parallel_distributed/mpr_exception.py>`_
 
-`Using pools and context pools <https://github.com/iffiX/machin/blob/master/examples/tutorials/parallel_distributed/mpr_pool.py>`_
+`Using pools and context pools <https://github.com/iffiX/machin/blob/master/test/parallel/test_pool.py>`_
 
 Distributed examples
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
