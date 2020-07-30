@@ -37,6 +37,10 @@
 
 <br/>
 
+### Supported Models
+---
+**Anything**, including recurrent networks.
+
 ### Supported algorithms
 ---
 Currently Machin has implemented the following algorithms, the list is still growing:

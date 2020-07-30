@@ -91,4 +91,94 @@ to aid inexperienced users initialize the distributed environment easily::
     )
 
 **Note** all helpers from :mod:`machin.frame.helpers.servers` requires all
-processes in the distributed
+processes in the distributed world to enter.
+
+Then we can initialize the distributed world as::
+
+    actor = Actor(observe_dim, action_num)
+    critic = Critic(observe_dim)
+
+    # in all test scenarios, all processes will be used as reducers
+    servers = grad_server_helper(
+        lambda: Actor(observe_dim, action_num),
+        lambda: Critic(observe_dim),
+        learning_rate=5e-3
+    )
+    a3c = A3C(actor, critic,
+              nn.MSELoss(reduction='sum'),
+              servers)
+
+And start training, just as the A2C algorithm::
+
+    # manually control syncing to improve performance
+    a3c.set_sync(False)
+
+    # begin training
+    episode, step, reward_fulfilled = 0, 0, 0
+    smoothed_total_reward = 0
+    terminal = False
+
+    while episode < max_episodes:
+        episode += 1
+        total_reward = 0
+        terminal = False
+        step = 0
+
+        state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
+
+        # manually pull the newest parameters
+        a3c.manual_sync()
+        tmp_observations = []
+        while not terminal and step <= max_steps:
+            step += 1
+            with t.no_grad():
+                old_state = state
+                # agent model inference
+                action = a3c.act({"state": old_state})[0]
+                state, reward, terminal, _ = env.step(action.item())
+                state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
+                total_reward += reward
+
+                tmp_observations.append({
+                    "state": {"state": old_state},
+                    "action": {"action": action},
+                    "next_state": {"state": state},
+                    "reward": reward,
+                    "terminal": terminal or step == max_steps
+                })
+
+        # update
+        a3c.store_episode(tmp_observations)
+        a3c.update()
+
+        # show reward
+        smoothed_total_reward = (smoothed_total_reward * 0.9 +
+                                 total_reward * 0.1)
+        logger.info("Process {} Episode {} total reward={:.2f}"
+                    .format(rank, episode, smoothed_total_reward))
+
+        if smoothed_total_reward > solved_reward:
+            reward_fulfilled += 1
+            if reward_fulfilled >= solved_repeat:
+                logger.info("Environment solved!")
+                # will cause torch RPC to complain
+                # since other processes may have not finished yet.
+                # just for demonstration.
+                exit(0)
+        else:
+            reward_fulfilled = 0
+
+A3C agents should will be successfully trained within about 1500 episodes,
+they converge must slower than A2C agents::
+
+    [2020-07-31 00:21:37,690] <INFO>:default_logger:Process 1 Episode 1346 total reward=184.91
+    [2020-07-31 00:21:37,723] <INFO>:default_logger:Process 0 Episode 1366 total reward=171.22
+    [2020-07-31 00:21:37,813] <INFO>:default_logger:Process 2 Episode 1345 total reward=190.73
+    [2020-07-31 00:21:37,903] <INFO>:default_logger:Process 1 Episode 1347 total reward=186.41
+    [2020-07-31 00:21:37,928] <INFO>:default_logger:Process 0 Episode 1367 total reward=174.10
+    [2020-07-31 00:21:38,000] <INFO>:default_logger:Process 2 Episode 1346 total reward=191.66
+    [2020-07-31 00:21:38,000] <INFO>:default_logger:Environment solved!
+
+
+DQNApex and DDPGApex
+----------------------------------------------------------------
