@@ -238,6 +238,10 @@ class SimpleP2PQueue(object):  # pragma: no cover
 
 
 class MultiP2PQueue(object):
+    """
+    P2P queue which connects pool result manager and worker processes directly,
+    with no lock.
+    """
     def __init__(self, queue_num, *, copy_tensor=False):
         self.counter = 0
         self.queues = [SimpleP2PQueue(copy_tensor=copy_tensor)

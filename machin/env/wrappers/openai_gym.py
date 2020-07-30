@@ -60,7 +60,7 @@ class ParallelWrapperDummy(ParallelWrapperBase):
     def step(self,
              action: Union[np.ndarray, List[Any]],
              idx: Union[int, List[int]] = None) \
-            -> Tuple[List[object], np.ndarray, np.ndarray, List[dict]]:
+            -> Tuple[List[object], List[float], List[bool], List[dict]]:
         """
         Let specified environment(s) run one time step. Specified environments
         must be active and have not reached terminal states before.
@@ -88,8 +88,8 @@ class ParallelWrapperDummy(ParallelWrapperBase):
         obsrv, reward, terminal, info = zip(*result)
 
         obsrv = list(obsrv)
-        reward = np.stack(reward)
-        terminal = np.stack(terminal)
+        reward = list(reward)
+        terminal = list(terminal)
         info = list(info)
 
         self._terminal[idx] |= terminal
@@ -238,7 +238,7 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
     def step(self,
              action: Union[np.ndarray, List[Any]],
              idx: Union[int, List[int]] = None) \
-            -> Tuple[List[object], np.ndarray, np.ndarray, List[dict]]:
+            -> Tuple[List[object], List[float], List[bool], List[dict]]:
         """
         Let specified environment(s) run one time step. Specified environments
         must be active and have not reached terminal states before.
@@ -260,8 +260,8 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
                                                [(act,) for act in action])
 
         obsrv = [r[0] for r in result]
-        reward = np.stack([r[1] for r in result])
-        terminal = np.stack([r[2] for r in result])
+        reward = [r[1] for r in result]
+        terminal = [r[2] for r in result]
         info = [r[3] for r in result]
 
         self._terminal[env_idxs] |= terminal

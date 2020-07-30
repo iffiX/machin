@@ -92,11 +92,10 @@ the default transition implementation is :class:`.Transition`, which have 5 attr
 5. terminal (sub attribute)
 
 **Note:**: The first dimension of **tensors** stored in major attributes and sub attributes
-must mean batch size (Scalar sub attributes are safe). A single transition step usually
-have a batch size of 1. Most frameworks supports storing a single transition step with
-larger than 1 batch size, so that you may use batched environment executors such as
-:class:`.openai_gym.ParallelWrapperSubProc`, Please refer to :ref:`algorithm_transition_requirements`
-for detailed descriptions.
+must mean batch size (Scalar sub attributes are safe). Currently, the constructor of the default
+transition implementation :class:`.Transition` **requires batch size to be 1**, all algorithms
+are only tested and validated with batch size equals to 1. Scalar type custom attributes, like
+reward and terminal, will be considered as a tensor with shape ``[1, 1]``.
 
 Now that we have a very general transition data structure, which supports storing:
 

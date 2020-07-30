@@ -5,6 +5,7 @@ from time import sleep
 from torch.distributed import rpc
 from machin.parallel.exception import ExceptionWithTraceback
 
+import os
 import enum
 import torch as t
 import torch.distributed as dist
@@ -232,18 +233,19 @@ class World:
     """
 
     def __init__(self,
+                 name: str,
+                 rank: int = -1,
                  world_size: int = None,
-                 rank: int = None,
-                 name: str = None,
                  init_method: str = "tcp://localhost:9100",
                  rpc_timeout: float = 60,
                  rpc_threads: int = 8):
         """
         Args:
-            world_size:   Size of the distributed world,
-                total number of processes in the beginning.
-            rank: A unique rank of the current process.
             name: A unique name to identify current process.
+            rank: A unique rank of the current process. You do not need to specify
+                it if you are using `torch.distributed.launch` or `torchelastic`
+            world_size:   Size of the distributed world. You do not need to specify
+                it if you are using `torch.distributed.launch` or `torchelastic`
             init_method:  Backend initialization method.
             rpc_timeout:  Global rpc call timeout in seconds.
             rpc_threads:  Rpc recv/send thread num.
@@ -365,6 +367,9 @@ class World:
         Get group with name ``group_name``, supports group not created
         on this process. You should only use it if you really needs to
         access a value/service only exposed in the target group.
+
+        Warning:
+            This API is obsolete.
 
         Args:
             group_name: Group name.

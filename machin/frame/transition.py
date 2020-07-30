@@ -48,6 +48,7 @@ class TransitionBase(object):
         self._custom_attr = list(custom_attr)
         self._keys = self._major_attr + self._sub_attr + self._custom_attr
         self._length = len(self._keys)
+        self._batch_size = None
 
         for attr, data in zip(chain(major_attr, sub_attr, custom_attr),
                               chain(major_data, sub_data, custom_data)):
@@ -204,6 +205,7 @@ class TransitionBase(object):
                 raise ValueError("Transition sub attribute {} has invalid "
                                  "value {}, requires scalar or tensor."
                                  .format(sa, sa_data))
+        object.__setattr__(self, "_batch_size", batch_size)
 
 
 class Transition(TransitionBase):
@@ -254,3 +256,11 @@ class Transition(TransitionBase):
             sub_data=[reward, terminal],
             custom_data=[kwargs[k] for k in custom_keys]
         )
+
+    def _check_validity(self):
+        # fix batch size to 1
+        super(Transition, self)._check_validity()
+        if self._batch_size != 1:
+            raise ValueError("Batch size of the default transition "
+                             "implementation must be 1, is {}"
+                             .format(self._batch_size))

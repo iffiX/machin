@@ -226,5 +226,9 @@ class TestTransition(object):
 
     @pytest.mark.parametrize("trans", param_test_init)
     def test_init(self, trans, pytestconfig):
-        tb = Transition(**trans)
-        tb.to(pytestconfig.getoption("gpu_device"))
+        if t.is_tensor(trans["reward"]) and trans["reward"].shape[0] > 1:
+            with pytest.raises(ValueError, match="must be 1"):
+                _ = Transition(**trans)
+        else:
+            tb = Transition(**trans)
+            tb.to(pytestconfig.getoption("gpu_device"))

@@ -138,8 +138,8 @@ class TestParallelWrapperDummy(object):
             dummy_wrapper.close()
 
             assert len(obsrvs) == act_num
-            assert len(reward) == act_num and isinstance(reward, np.ndarray)
-            assert len(terminal) == act_num and isinstance(terminal, np.ndarray)
+            assert len(reward) == act_num
+            assert len(terminal) == act_num
             assert len(info) == act_num and isinstance(info[0], dict)
             for obsrv in obsrvs:
                 assert dummy_wrapper.observation_space.contains(obsrv), \
@@ -258,8 +258,8 @@ class TestParallelWrapperSubProc(object):
             subproc_wrapper.close()
 
             assert len(obsrvs) == act_num
-            assert len(reward) == act_num and isinstance(reward, np.ndarray)
-            assert len(terminal) == act_num and isinstance(terminal, np.ndarray)
+            assert len(reward) == act_num
+            assert len(terminal) == act_num
             assert len(info) == act_num and isinstance(info[0], dict)
             for obsrv in obsrvs:
                 assert subproc_wrapper.observation_space.contains(obsrv), \
