@@ -45,7 +45,7 @@ def prep_load_state_dict(model: nn.Module,
     Note:
         This function handles tensor device remapping.
     """
-    for name, param in model.named_parameters():
+    for name, param in model.state_dict().items():
         state_dict[name].to(param.device)
     model.load_state_dict(state_dict)
 

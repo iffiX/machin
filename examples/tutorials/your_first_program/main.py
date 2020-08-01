@@ -38,7 +38,6 @@ if __name__ == "__main__":
 
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
-    terminal = False
 
     while episode < max_episodes:
         episode += 1

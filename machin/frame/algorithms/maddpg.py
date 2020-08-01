@@ -98,7 +98,7 @@ class MADDPG(TorchFramework):
             This implementation contains:
                 - Ensemble Training
 
-            This implementation doe not contain:
+            This implementation does not contain:
                 - Inferring other agents' policies
                 - Mixed continuous/discrete action spaces
 

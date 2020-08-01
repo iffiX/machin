@@ -293,8 +293,8 @@ class World:
                                 backend: Any = None):
         """
         Create a sub process group for collective communications. This function
-        is blocking and requires that all processes in the world to enter this
-        function.
+        is blocking and requires that all processes in ``ranks`` to
+        enter this function.
 
         Warning:
             Do not make collective communications call in sub-processes,
@@ -810,6 +810,21 @@ class RpcGroup:
         if kwargs is None:
             kwargs = {}
         return self._rpc_service_call(rpc.remote, key, args, kwargs)
+
+    def barrier(self):
+        """
+        Synchronize all members in the group, until all members have entered
+        a ``barrier()`` function.
+        """
+        self.pair("__enter_barrier_{}".format(get_cur_name()),
+                  True)
+        while True:
+            paired = [self.is_paired("__enter_barrier_{}".format(m))
+                      for m in self.group_members]
+            if all(paired):
+                break
+            else:
+                sleep(0.2)
 
     @_check_executor
     def destroy(self):

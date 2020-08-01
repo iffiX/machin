@@ -5,10 +5,10 @@ parallel & distributed programs, with Machin.
 
 What are they?
 ----------------------------------------------------------------
-Parallel means a set of computation processes executed simultaneously,
+**Parallel** means a set of computation processes executed simultaneously,
 whether synchronous or asynchronous.
 
-Distributed means a system whose components are located on different
+**Distributed** means a system whose components are located on different
 entities, which are usually computers connected by networks.
 
 Overview
@@ -95,7 +95,7 @@ homogeneous agents, then batching is preferred due its efficientcy.
 Distributed
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Distributed is awesome, as well as extremely painful to deal with, hard to design,
-and even harder to design, because applications are often required to have some
+and even harder to debug, because applications are often required to have some
 crucial features like consistency, availability, partition-tolerance, and good performance.
 
 Currently, since Machin relies on the PyTorch RPC framework, it does not provide

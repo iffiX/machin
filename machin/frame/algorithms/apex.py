@@ -123,7 +123,13 @@ class DQNApex(DQNPer):
         # DOC INHERITED
         result = super(DQNApex, self).update(update_value, update_target,
                                              concatenate_samples)
-        self.qnet_model_server.push(self.qnet)
+        if isinstance(self.qnet,
+                      (nn.parallel.DataParallel,
+                       nn.parallel.DistributedDataParallel)):
+            self.qnet_model_server.push(self.qnet.module,
+                                        pull_on_fail=False)
+        else:
+            self.qnet_model_server.push(self.qnet)
         return result
 
 
@@ -287,7 +293,20 @@ class DDPGApex(DDPGPer):
         result = super(DDPGApex, self).update(update_value, update_policy,
                                               update_target,
                                               concatenate_samples)
+        if isinstance(self.actor,
+                      (nn.parallel.DataParallel,
+                       nn.parallel.DistributedDataParallel)):
+            self.actor_model_server.push(self.actor.module,
+                                         pull_on_fail=False)
+        else:
+            self.actor_model_server.push(self.actor)
 
-        self.actor_model_server.push(self.actor)
-        self.critic_model_server.push(self.critic)
+        if isinstance(self.critic,
+                      (nn.parallel.DataParallel,
+                       nn.parallel.DistributedDataParallel)):
+            self.critic_model_server.push(self.critic.module,
+                                          pull_on_fail=False)
+        else:
+            self.critic_model_server.push(self.critic)
+
         return result

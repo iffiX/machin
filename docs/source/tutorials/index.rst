@@ -7,3 +7,4 @@ Tutorials
     Data flow in Machin <data_flow_in_machin.rst>
     Parallel, distributed <parallel_distributed.rst>
     Unleash distributed power <unleash_distributed_power.rst>
+    Recurrent networks <recurrent_networks.rst>

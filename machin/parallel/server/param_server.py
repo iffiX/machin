@@ -27,6 +27,7 @@ class PushPullModelServer:
         """
         Create an accessor to the services provided by
         :class:`PushPullModelServerImpl`
+
         Args:
             server_name: Name of this server, used to registered
                 the server as a paired class of ``group``.
@@ -42,7 +43,7 @@ class PushPullModelServer:
         self.model_name = model_name
         self.o_server = o_server
 
-    def push(self, model: nn.Module):
+    def push(self, model: nn.Module, pull_on_fail=True):
         """
         Try to push a model to the ordered server, if failed, the newest
         model will be automatically pulled and its parameters will be
@@ -54,17 +55,20 @@ class PushPullModelServer:
         if not hasattr(model, "pp_version"):
             model.pp_version = 0
 
-        copied_model = deepcopy(model)
+        copied_model_params = deepcopy(model.state_dict())
+        for k, v in copied_model_params.items():
+            copied_model_params[k] = v.to("cpu")
         if not self.o_server.push(
-                self.model_name, copied_model.to("cpu").state_dict(),
+                self.model_name, copied_model_params,
                 version=model.pp_version + 1, prev_version=model.pp_version
         ):
-            result = self.o_server.pull(self.model_name)
-            if result is None:  # pragma: no cover
-                raise RuntimeError("Pull failed, this should not happen.")
-            st_dict, version = result
-            prep_load_state_dict(model, st_dict)
-            model.pp_version = version
+            if pull_on_fail:
+                result = self.o_server.pull(self.model_name)
+                if result is None:  # pragma: no cover
+                    raise RuntimeError("Pull failed, this should not happen.")
+                st_dict, version = result
+                prep_load_state_dict(model, st_dict)
+                model.pp_version = version
             return False
         else:
             model.pp_version += 1
@@ -93,9 +97,6 @@ class PushPullModelServerImpl:
     A simple parameter server, which synchronize model parameters
     by pushing and pulling all parameters and maintaining a strict
     ordered version chain.
-
-    Warning:
-        ``DistributedDataParallel`` is not supported.
 
     Warning:
         Only one model is supported.

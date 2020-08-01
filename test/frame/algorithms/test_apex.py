@@ -104,14 +104,14 @@ class TestDQNApex(object):
         world = get_world()
         # process 0 and 1 will be workers, and 2 will be trainer
         apex_group = world.create_rpc_group("apex", ["0", "1", "2"])
-        dqn_per = DQNApex(q_net, q_net_t,
-                          t.optim.Adam,
-                          nn.MSELoss(reduction='sum'),
-                          apex_group,
-                          (servers[0],),
-                          replay_device=c.device,
-                          replay_size=c.replay_size)
-        return dqn_per
+        dqn_apex = DQNApex(q_net, q_net_t,
+                           t.optim.Adam,
+                           nn.MSELoss(reduction='sum'),
+                           apex_group,
+                           (servers[0],),
+                           replay_device=c.device,
+                           replay_size=c.replay_size)
+        return dqn_apex
 
     ########################################################################
     # Test for DQNApex acting

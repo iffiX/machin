@@ -53,7 +53,7 @@ def determine_device(model):
     return list(devices)
 
 
-def safe_call(model, *named_args, required_argument=()):
+def safe_call(model, *named_args):
     """
     Call a model and discard unnecessary arguments. safe_call will automatically
     move tensors in named_args to the input device of the model
@@ -67,11 +67,16 @@ def safe_call(model, *named_args, required_argument=()):
                NeuralNetworkModule.
         named_args: A dictionary of argument, key is argument's name, value is
                     argument's value.
-        required_argument: A list/tuple of required arguments' name.
 
     Returns:
         Whatever returned by your module.
     """
+    org_model = None
+    if isinstance(model,
+                  (nn.parallel.DistributedDataParallel,
+                   nn.parallel.DataParallel)):
+        org_model = model
+        model = model.module
     if (not hasattr(model, "input_device") or
             not hasattr(model, "output_device")):
         # try to automatically determine the input & output device of the model
@@ -99,21 +104,21 @@ def safe_call(model, *named_args, required_argument=()):
                                    "your model {}, automatically determined and"
                                    " set to: {}\n"
                                    "The framework is not responsible for any "
-                                   "un-matching device issues caused by this"
+                                   "un-matching device issues caused by this "
                                    "operation.".format(model_type, device[0]))
             model = static_module_wrapper(model, device[0], device[0])
 
     input_device = model.input_device
-    args = inspect.getfullargspec(model.forward).args
+    arg_spec = inspect.getfullargspec(model.forward)
+    # exclude self in arg_spec.args
+    args = arg_spec.args[1:] + arg_spec.kwonlyargs
+    required_args = (set(args) -
+                     set(arg_spec.kwonlydefaults.keys()
+                         if arg_spec.kwonlydefaults is not None
+                         else []))
     args_dict = {}
-    if any(arg not in args for arg in required_argument):
-        missing = []
-        for arg in required_argument:
-            if arg not in args:
-                missing.append(arg)
-        raise RuntimeError("Model missing required argument field(s): {}, "
-                           "check your storage functions."
-                           .format(missing))
+
+    # fill in args
     for na in named_args:
         for k, v in na.items():
             if k in args:
@@ -121,7 +126,21 @@ def safe_call(model, *named_args, required_argument=()):
                     args_dict[k] = v.to(input_device)
                 else:
                     args_dict[k] = v
-    return model(**args_dict)
+
+    # check for necessary args
+    missing = required_args - set(args_dict.keys())
+    if len(missing) > 0:
+        raise RuntimeError("\n"
+                           "The signature of the forward function of Model {} "
+                           "is {}\n"
+                           "Missing required arguments: {}, "
+                           "check your storage functions."
+                           .format(type(model), required_args, missing))
+
+    if org_model is not None:
+        return org_model(**args_dict)
+    else:
+        return model(**args_dict)
 
 
 asserted_output_is_probs = False

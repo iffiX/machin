@@ -101,3 +101,4 @@ html_static_path = ['static']
 # automatic section reference label
 autosectionlabel_prefix_document = True
 autosectionlabel_maxdepth = 3
+numfig = True
