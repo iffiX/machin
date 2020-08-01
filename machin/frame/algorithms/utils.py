@@ -112,7 +112,10 @@ def safe_call(model, *named_args):
     arg_spec = inspect.getfullargspec(model.forward)
     # exclude self in arg_spec.args
     args = arg_spec.args[1:] + arg_spec.kwonlyargs
-    required_args = (set(args) -
+    args_with_defaults = args[-len(arg_spec.defaults
+                                   if arg_spec.defaults is not None
+                                   else []):]
+    required_args = (set(args) - set(args_with_defaults) -
                      set(arg_spec.kwonlydefaults.keys()
                          if arg_spec.kwonlydefaults is not None
                          else []))

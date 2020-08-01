@@ -40,6 +40,32 @@ def _make_tensor_from_batch(batch: List[Any], device, concatenate):
         return batch
 
 
+class EpisodeTransition(Transition):
+    """
+    A transition class which allows storing the whole episode as a
+    single transition object, the batch dimension will be used to
+    stack all transition steps.
+    """
+    def _check_validity(self):
+        """
+        Disable checking for batch size in the base :class:`.Transition`
+        """
+        super(Transition, self)._check_validity()
+
+
+class EpisodeDistributedBuffer(DistributedBuffer):
+    """
+    A distributed buffer which stores each episode as a transition
+    object inside the buffer.
+    """
+    def append(self, transition: Dict,
+               required_attrs=("state", "action", "next_state",
+                               "reward", "terminal", "action_log_prob")):
+        transition = EpisodeTransition(**transition)
+        super(EpisodeDistributedBuffer, self)\
+            .append(transition, required_attrs=required_attrs)
+
+
 class IMPALA(TorchFramework):
     """
     Massively parallel IMPALA framework.
@@ -118,7 +144,7 @@ class IMPALA(TorchFramework):
                                      lr=learning_rate)
         self.critic_optim = optimizer(self.critic.parameters(),
                                       lr=learning_rate)
-        self.replay_buffer = DistributedBuffer(
+        self.replay_buffer = EpisodeDistributedBuffer(
             buffer_name="buffer", group=impala_group,
             buffer_size=replay_size
         )
@@ -377,8 +403,7 @@ class IMPALA(TorchFramework):
             )
             self.critic_optim.step()
 
-        self.actor_model_server.push(self.actor)
-        self.critic_model_server.push(self.critic)
+        self._push()
         return -act_policy_loss.item(), value_loss.item()
 
     def update_lr_scheduler(self):
@@ -389,3 +414,20 @@ class IMPALA(TorchFramework):
             self.actor_lr_sch.step()
         if hasattr(self, "critic_lr_sch"):
             self.critic_lr_sch.step()
+
+    def _push(self):
+        if isinstance(self.actor,
+                      (nn.parallel.DataParallel,
+                       nn.parallel.DistributedDataParallel)):
+            self.actor_model_server.push(self.actor.module,
+                                         pull_on_fail=False)
+        else:
+            self.actor_model_server.push(self.actor)
+
+        if isinstance(self.critic,
+                      (nn.parallel.DataParallel,
+                       nn.parallel.DistributedDataParallel)):
+            self.critic_model_server.push(self.critic.module,
+                                          pull_on_fail=False)
+        else:
+            self.critic_model_server.push(self.critic)

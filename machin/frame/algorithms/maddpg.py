@@ -246,14 +246,14 @@ class MADDPG(TorchFramework):
                 jit_actor_targets = []
                 for acc in ac:
                     # exclude "self" by truncating element 0
-                    actor_args = inspect.getfullargspec(acc.forward).args[1:]
+                    actor_arg_spec = inspect.getfullargspec(acc.forward)
                     jit_actor = t.jit.script(acc)
-                    jit_actor.args = actor_args
+                    jit_actor.args_spec = actor_arg_spec
                     jit_actor.model_type = type(acc)
                     jit_actors.append(jit_actor)
 
                     jit_actor_target = t.jit.script(acc)
-                    jit_actor_target.args = actor_args
+                    jit_actor_target.arg_spec = actor_arg_spec
                     jit_actor_target.model_type = type(acc)
                     jit_actor_targets.append(jit_actor_target)
                 self.jit_actors.append(jit_actors)
@@ -574,14 +574,13 @@ class MADDPG(TorchFramework):
                               zip(self.critics, self.critic_targets))
 
     @staticmethod
-    def _no_grad_safe_call(model, *named_args, required_argument=()):
+    def _no_grad_safe_call(model, *named_args):
         with t.no_grad():
-            result = safe_call(model, *named_args,
-                               required_argument=required_argument)
+            result = safe_call(model, *named_args)
             return result
 
     @staticmethod
-    def _jit_safe_call(model, *named_args, required_argument=()):
+    def _jit_safe_call(model, *named_args):
         if (not hasattr(model, "input_device") or
                 not hasattr(model, "output_device")):
             # try to automatically determine the input & output
@@ -617,20 +616,20 @@ class MADDPG(TorchFramework):
                 model = static_module_wrapper(model, device[0], device[0])
         input_device = model.input_device
         # set in __init__
-        args = model.args
+        args = model.arg_spec.args[1:] + model.arg_spec.kwonlyargs
+        args_with_defaults = args[-len(model.arg_spec.defaults
+                                       if model.arg_spec.defaults is not None
+                                       else []):]
+        required_args = (set(args) - set(args_with_defaults) -
+                         set(model.arg_spec.kwonlydefaults.keys()
+                             if model.arg_spec.kwonlydefaults is not None
+                             else []))
         model_type = model.model_type
         # t.jit._fork does not support keyword args
         # fill arguments in by their positions.
         args_list = [None for _ in args]
         args_filled = [False for _ in args]
-        if any(arg not in args for arg in required_argument):
-            missing = []
-            for arg in required_argument:
-                if arg not in args:
-                    missing.append(arg)
-            raise RuntimeError("Model missing required argument field(s): {}, "
-                               "check your storage functions."
-                               .format(missing))
+
         for na in named_args:
             for k, v in na.items():
                 if k in args:
@@ -646,8 +645,15 @@ class MADDPG(TorchFramework):
             not_filled = [arg
                           for filled, arg in zip(args_filled, args)
                           if not filled]
-            raise RuntimeError("These arguments of model {} are not filled: {}"
-                               .format(model_type, not_filled))
+            required_not_filled = set(not_filled).intersection(required_args)
+            if len(required_not_filled) > 0:
+                raise RuntimeError("\n"
+                                   "The signature of the forward function "
+                                   "of Model {} is {}\n"
+                                   "Missing required arguments: {}, "
+                                   "check your storage functions."
+                                   .format(model_type, required_args,
+                                           required_not_filled))
 
         return t.jit._fork(model, *args_list)
 

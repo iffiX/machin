@@ -14,7 +14,7 @@ Now let's begin!
 A3C
 ----------------------------------------------------------------
 
-**Full code**: `A3C <https://github.com/iffiX/machin/blob/master/examples/tutorials/unleash_distributed_power/a3c.py>`_
+**Full code**: `A3C code <https://github.com/iffiX/machin/blob/master/examples/tutorials/unleash_distributed_power/a3c.py>`_
 
 A3C is the simplest distributed RL algorithm, among them all. We can describe its
 implementation with the following graph:
@@ -193,7 +193,7 @@ they converge much slower than A2C agents::
 DQNApex and DDPGApex
 ----------------------------------------------------------------
 
-**Full code**: `DQNApex <https://github.com/iffiX/machin/blob/master/examples/tutorials/unleash_distributed_power/dqn_apex.py>`_
+**Full code**: `DQNApex code <https://github.com/iffiX/machin/blob/master/examples/tutorials/unleash_distributed_power/dqn_apex.py>`_
 
 :class:`DQNApex` and :class:`DDPGApex` are actually based on the same architecture, therefore
 in this section, we are going to take :class:`DQNApex` as an example, its distributed architecture
@@ -408,6 +408,148 @@ Result::
 IMPALA
 ----------------------------------------------------------------
 
-**Full code**: `IMPALA <https://github.com/iffiX/machin/blob/master/examples/tutorials/unleash_distributed_power/impala.py>`_
+**Full code**: `IMPALA code <https://github.com/iffiX/machin/blob/master/examples/tutorials/unleash_distributed_power/impala.py>`_
 
+The :class:`.IMPALA` algorithm has the same parallel architecture as :class:`.DQNApex` and :class:`.DDPGApex` do,
+the only difference is that the internal distributed buffer it is using is a simple distributed buffer, with no
+distributed prioritized tree:
 
+    .. _impala:
+    .. figure:: ../static/tutorials/unleash_distributed_power/impala.svg
+       :alt: impala
+
+       Impala architecture
+
+The pseudo code of the :class:`.IMPALA` algorithm is as follows:
+
+.. figure:: ../static/tutorials/unleash_distributed_power/impala_pcode.png
+   :alt: impala_pcode
+
+   Impala pesudo code
+
+where the :math:`VTrace` function is defined as:
+
+.. math::
+    & v_s = V(X_s) + \sum_{t=s}^{s+n-1} \gamma^{t-s} (\prod_{i=s}^{t-1} c_i) \delta_t V
+
+    & \delta_t V = \rho_t(r_t + \gamma V(x_{t+1}) - V(x_t))
+
+    & \rho_t = min(\rho_{max}, \frac{\pi(a_t | x_t)}{\mu (a_t | x_t)})
+
+    & c_i = min(c_{max}, \frac{\pi(a_i | x_i)}{\mu (a_i | x_i)})
+
+In order to initialize the :class:`.IMPALA` framework, we need to pass two accessors to two individual
+:class:`PushPullModelServer` to the framework, and take note that :class:`.IMPALA` **does not support**
+storing a single step**, since v-trace calculation requires sampling complete episodes, all transition
+objects in the :class:`.IMPALA` buffer **are episodes rather than steps**, therefore the used ``batch_size``
+is set to ``2``, which is much smaller then ``50`` used in :class:`.DQNApex`::
+
+    if rank in (2, 3):
+        # learner_group.group is the wrapped torch.distributed.ProcessGroup
+        learner_group = world.create_collective_group(ranks=[2, 3])
+
+        # wrap the model with DistributedDataParallel
+        # if current process is learner process 2 or 3
+        actor = DistributedDataParallel(module=Actor(observe_dim, action_num),
+                                        process_group=learner_group.group)
+        critic = DistributedDataParallel(module=Critic(observe_dim),
+                                         process_group=learner_group.group)
+    else:
+        actor = Actor(observe_dim, action_num)
+        critic = Critic(observe_dim)
+
+    # we may use a smaller batch size to train if we are using
+    # DistributedDataParallel
+
+    # note: since the impala framework is storing a whole
+    # episode as a single sample, we should wait for a smaller number
+    impala = IMPALA(actor, critic,
+                    t.optim.Adam,
+                    nn.MSELoss(reduction='sum'),
+                    impala_group,
+                    servers,
+                    batch_size=2)
+
+The main part of the training process is almost the same as that of :class:`.DQNApex`::
+
+    # synchronize all processes in the group, make sure
+    # distributed buffer has been created on all processes in apex_group
+    impala_group.barrier()
+
+    # manually control syncing to improve performance
+    impala.set_sync(False)
+    if rank in (0, 1):
+        # Process 0 and 1 are workers(samplers)
+        # begin training
+        episode, step, reward_fulfilled = 0, 0, 0
+        smoothed_total_reward = 0
+
+        while episode < max_episodes:
+            # sleep to wait for learners keep up
+            sleep(0.1)
+            episode += 1
+            total_reward = 0
+            terminal = False
+            step = 0
+
+            state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
+
+            # manually pull the newest parameters
+            impala.manual_sync()
+            tmp_observations = []
+            while not terminal and step <= max_steps:
+                step += 1
+                with t.no_grad():
+                    old_state = state
+                    # agent model inference
+                    action, action_log_prob, *_ = \
+                        impala.act({"state": old_state})
+                    state, reward, terminal, _ = env.step(action.item())
+                    state = t.tensor(state, dtype=t.float32) \
+                        .view(1, observe_dim)
+                    total_reward += reward
+
+                    tmp_observations.append({
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": reward,
+                        "action_log_prob": action_log_prob.item(),
+                        "terminal": terminal or step == max_steps
+                    })
+
+            impala.store_episode(tmp_observations)
+            smoothed_total_reward = (smoothed_total_reward * 0.9 +
+                                     total_reward * 0.1)
+            logger.info("Process {} Episode {} total reward={:.2f}"
+                        .format(rank, episode, smoothed_total_reward))
+
+            if smoothed_total_reward > solved_reward:
+                reward_fulfilled += 1
+                if reward_fulfilled >= solved_repeat:
+                    logger.info("Environment solved!")
+
+                    # will cause torch RPC to complain
+                    # since other processes may have not finished yet.
+                    # just for demonstration.
+                    exit(0)
+            else:
+                reward_fulfilled = 0
+
+    elif rank in (2, 3):
+        # wait for enough samples
+        # note: since the impala framework is storing a whole
+        # episode as a single sample, we should wait for a smaller number
+        while impala.replay_buffer.all_size() < 5:
+            sleep(0.1)
+        while True:
+            impala.update()
+
+:class:`.IMPALA` converges very fast, usually within 150 episodes::
+
+    [2020-08-01 23:25:34,861] <INFO>:default_logger:Process 1 Episode 72 total reward=185.32
+    [2020-08-01 23:25:35,057] <INFO>:default_logger:Process 1 Episode 73 total reward=186.79
+    [2020-08-01 23:25:35,060] <INFO>:default_logger:Process 0 Episode 70 total reward=193.28
+    [2020-08-01 23:25:35,257] <INFO>:default_logger:Process 1 Episode 74 total reward=188.11
+    [2020-08-01 23:25:35,261] <INFO>:default_logger:Process 0 Episode 71 total reward=193.95
+    [2020-08-01 23:25:35,261] <INFO>:default_logger:Environment solved!
