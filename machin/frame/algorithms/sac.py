@@ -6,7 +6,7 @@ import numpy as np
 from machin.frame.buffers.buffer import Transition, Buffer
 from machin.model.nets.base import NeuralNetworkModule
 from .base import TorchFramework
-from .utils import hard_update, soft_update, safe_call
+from .utils import hard_update, soft_update, safe_call, safe_return
 
 
 class SAC(TorchFramework):
@@ -174,13 +174,13 @@ class SAC(TorchFramework):
         Returns:
             Anything produced by actor.
         """
-        return safe_call(self.actor, state)
+        return safe_return(safe_call(self.actor, state))
 
-    def criticize(self,
-                  state: Dict[str, Any],
-                  action: Dict[str, Any],
-                  use_target: bool = False,
-                  **__):
+    def _criticize(self,
+                   state: Dict[str, Any],
+                   action: Dict[str, Any],
+                   use_target: bool = False,
+                   **__):
         """
         Use critic network to evaluate current value.
 
@@ -190,28 +190,33 @@ class SAC(TorchFramework):
             use_target: Whether to use the target network.
 
         Returns:
-            Value evaluated by critic.
+            Q Value of shape ``[batch_size, 1]``.
         """
         if use_target:
-            return safe_call(self.critic_target, state, action)
+            return safe_call(self.critic_target, state, action)[0]
         else:
-            return safe_call(self.critic, state, action)
+            return safe_call(self.critic, state, action)[0]
 
-    def criticize2(self,
-                   state: Dict[str, Any],
-                   action: Dict[str, Any],
-                   use_target: bool = False,
-                   **__):
+    def _criticize2(self,
+                    state: Dict[str, Any],
+                    action: Dict[str, Any],
+                    use_target=False,
+                    **__):
         """
         Use the second critic network to evaluate current value.
 
+        Args:
+            state: Current state.
+            action: Current action.
+            use_target: Whether to use the target network.
+
         Returns:
-            Value evaluated by critic.
+            Q Value of shape ``[batch_size, 1]``.
         """
         if use_target:
-            return safe_call(self.critic2_target, state, action)
+            return safe_call(self.critic2_target, state, action)[0]
         else:
-            return safe_call(self.critic2, state, action)
+            return safe_call(self.critic2, state, action)[0]
 
     def store_transition(self, transition: Union[Transition, Dict]):
         """
@@ -266,8 +271,8 @@ class SAC(TorchFramework):
             next_action = self.action_transform_function(
                 next_action, next_state, others
             )
-            next_value = self.criticize(next_state, next_action, True)
-            next_value2 = self.criticize2(next_state, next_action, True)
+            next_value = self._criticize(next_state, next_action, True)
+            next_value2 = self._criticize2(next_state, next_action, True)
             next_value = t.min(next_value, next_value2)
             next_value = (next_value.view(batch_size, -1) -
                           self.entropy_alpha
@@ -276,8 +281,8 @@ class SAC(TorchFramework):
                 reward, self.discount, next_value, terminal, others
             )
 
-        cur_value = self.criticize(state, action)
-        cur_value2 = self.criticize2(state, action)
+        cur_value = self._criticize(state, action)
+        cur_value2 = self._criticize2(state, action)
         value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
         value_loss2 = self.criterion(cur_value2, y_i.to(cur_value.device))
 
@@ -304,8 +309,8 @@ class SAC(TorchFramework):
         cur_action = self.action_transform_function(
             cur_action, state, others
         )
-        act_value = self.criticize(state, cur_action)
-        act_value2 = self.criticize2(state, cur_action)
+        act_value = self._criticize(state, cur_action)
+        act_value2 = self._criticize2(state, cur_action)
         act_value = t.min(act_value, act_value2)
 
         act_policy_loss = (self.entropy_alpha * cur_action_log_prob -

@@ -106,15 +106,6 @@ class DQNApex(DQNPer):
             self.qnet_model_server.pull(self.qnet)
         return super(DQNApex, self).act_discrete_with_noise(state, use_target)
 
-    def criticize(self,
-                  state: Dict[str, Any],
-                  use_target: bool = False,
-                  **__):
-        # DOC INHERITED
-        if self.is_syncing and not use_target:
-            self.qnet_model_server.pull(self.qnet)
-        return super(DQNApex, self).criticize(state, use_target)
-
     def update(self,
                update_value=True,
                update_target=True,
@@ -151,8 +142,7 @@ class DDPGApex(DDPGPer):
                  optimizer: Callable,
                  criterion: Callable,
                  apex_group: RpcGroup,
-                 model_server: Tuple[PushPullModelServer,
-                                     PushPullModelServer],
+                 model_server: Tuple[PushPullModelServer],
                  *_,
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
@@ -166,6 +156,10 @@ class DDPGApex(DDPGPer):
         """
         See Also:
             :class:`.DDPGPer`
+
+        TODO:
+            implement truncated n-step returns, just like the one used in
+            :class:`.RAINBOW`.
 
         Hint:
             Your push and pull function will be called like::
@@ -184,9 +178,7 @@ class DDPGApex(DDPGPer):
             criterion: Criterion used to evaluate the value loss.
             apex_group: Group of all processes using the apex-DDPG framework,
                 including all samplers and trainers.
-            model_server: Custom model sync server accessors, the first
-                server accessor is for ``actor``, and the second one is for
-                ``critic``.
+            model_server: Custom model sync server accessor for ``actor``.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
@@ -219,8 +211,7 @@ class DDPGApex(DDPGPer):
             buffer_size=replay_size
         )
         self.apex_group = apex_group
-        self.actor_model_server, self.critic_model_server = \
-            model_server[0], model_server[1]
+        self.actor_model_server = model_server[0]
         self.is_syncing = True
 
     def set_sync(self, is_syncing):
@@ -228,7 +219,6 @@ class DDPGApex(DDPGPer):
 
     def manual_sync(self):
         self.actor_model_server.pull(self.actor)
-        self.critic_model_server.pull(self.critic)
 
     def act(self,
             state: Dict[str, Any],
@@ -273,16 +263,6 @@ class DDPGApex(DDPGPer):
             self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act_discrete_with_noise(state, use_target)
 
-    def criticize(self,
-                  state: Dict[str, Any],
-                  action: Dict[str, Any],
-                  use_target: bool = False,
-                  **__):
-        # DOC INHERITED
-        if self.is_syncing and not use_target:
-            self.critic_model_server.pull(self.critic)
-        return super(DDPGApex, self).criticize(state, action, use_target)
-
     def update(self,
                update_value=True,
                update_policy=True,
@@ -300,13 +280,4 @@ class DDPGApex(DDPGPer):
                                          pull_on_fail=False)
         else:
             self.actor_model_server.push(self.actor)
-
-        if isinstance(self.critic,
-                      (nn.parallel.DataParallel,
-                       nn.parallel.DistributedDataParallel)):
-            self.critic_model_server.push(self.critic.module,
-                                          pull_on_fail=False)
-        else:
-            self.critic_model_server.push(self.critic)
-
         return result

@@ -167,8 +167,8 @@ class TestDQN(object):
     def test_criticize(self, train_config, dqn):
         c = train_config
         state = t.zeros([1, c.observe_dim])
-        dqn.criticize({"state": state})
-        dqn.criticize({"state": state}, True)
+        dqn._criticize({"state": state})
+        dqn._criticize({"state": state}, True)
 
     ########################################################################
     # Test for DQN storage

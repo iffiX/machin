@@ -1,5 +1,7 @@
 Parallel, distributed
 ================================================================
+**Author**: `Muhan Li <https://github.com/iffiX>`_
+
 This tutorial is going to give you a brief overview of how to write
 parallel & distributed programs, with Machin.
 

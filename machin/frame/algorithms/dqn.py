@@ -181,14 +181,18 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
         Returns:
             Action of shape ``[batch_size, 1]``.
+            Any other things returned by your Q network. if they exist.
         """
         if use_target:
-            result = safe_call(self.qnet_target, state)
+            result, *others = safe_call(self.qnet_target, state)
         else:
-            result = safe_call(self.qnet, state)
+            result, *others = safe_call(self.qnet, state)
 
         result = t.argmax(result, dim=1).view(-1, 1)
-        return result
+        if len(others) == 0:
+            return result
+        else:
+            return (result, *others)
 
     def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
@@ -204,35 +208,38 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
         Returns:
             Noisy action of shape ``[batch_size, 1]``.
+            Any other things returned by your Q network. if they exist.
         """
         if use_target:
-            result = safe_call(self.qnet_target, state)
+            result, *others = safe_call(self.qnet_target, state)
         else:
-            result = safe_call(self.qnet, state)
+            result, *others = safe_call(self.qnet, state)
 
         result = t.softmax(result, dim=1)
         dist = Categorical(result)
         batch_size = result.shape[0]
-        return dist.sample([batch_size])
+        sample = dist.sample([batch_size])
 
-    def criticize(self,
-                  state: Dict[str, Any],
-                  use_target: bool = False,
-                  **__):
+        if len(others) == 0:
+            return sample
+        else:
+            return (sample, *others)
+
+    def _criticize(self,
+                   state: Dict[str, Any],
+                   use_target: bool = False,
+                   **__):
         """
         Use Q network to evaluate current value.
 
         Args:
             state: Current state.
             use_target: Whether to use the target network.
-
-        Returns:
-            Q value of shape ``[batch_size, action_dim]``.
         """
         if use_target:
-            return safe_call(self.qnet_target, state)
+            return safe_call(self.qnet_target, state)[0]
         else:
-            return safe_call(self.qnet, state)
+            return safe_call(self.qnet, state)[0]
 
     def store_transition(self, transition: Union[Transition, Dict]):
         """
@@ -280,7 +287,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         if self.mode == "vanilla":
             # Vanilla DQN, directly optimize q network.
             # target network is the same as the main network
-            q_value = self.criticize(state)
+            q_value = self._criticize(state)
 
             # gather requires long tensor, int32 is not accepted
             action_value = q_value.gather(dim=1,
@@ -288,7 +295,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                                           .to(device=q_value.device,
                                               dtype=t.long))
 
-            target_next_q_value = t.max(self.criticize(next_state), dim=1)[0]\
+            target_next_q_value = t.max(self._criticize(next_state), dim=1)[0]\
                                    .unsqueeze(1).detach()
             y_i = self.reward_function(
                 reward, self.discount, target_next_q_value, terminal, others
@@ -310,7 +317,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         elif self.mode == "fixed_target":
             # Fixed target DQN, which estimate next value by using the
             # target Q network. Similar to the idea of DDPG.
-            q_value = self.criticize(state)
+            q_value = self._criticize(state)
 
             # gather requires long tensor, int32 is not accepted
             action_value = q_value.gather(dim=1,
@@ -318,7 +325,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                                           .to(device=q_value.device,
                                               dtype=t.long))
 
-            target_next_q_value = t.max(self.criticize(next_state, True),
+            target_next_q_value = t.max(self._criticize(next_state, True),
                                         dim=1)[0].unsqueeze(1).detach()
 
             y_i = self.reward_function(
@@ -347,7 +354,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             # value, but instead of selecting the maximum Q(s,a), it uses
             # the online DQN network to select an action and return Q(s,a'), to
             # reduce the over estimation.
-            q_value = self.criticize(state)
+            q_value = self._criticize(state)
 
             # gather requires long tensor, int32 is not accepted
             action_value = q_value.gather(dim=1,
@@ -356,7 +363,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                                               dtype=t.long))
 
             with t.no_grad():
-                target_next_q_value = self.criticize(next_state, True)
+                target_next_q_value = self._criticize(next_state, True)
                 next_action = (self.act_discrete(next_state)
                                .to(device=q_value.device, dtype=t.long))
                 target_next_q_value = target_next_q_value.gather(

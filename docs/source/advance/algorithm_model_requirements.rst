@@ -9,15 +9,21 @@ of different frameworks.
 
 We will use some basic symbols to simplify the model signature:
 
-1. | ``abc_0[*]`` means a tensor with meaning "abc", and has index 0
-   | in all argument tensors with the same meaning, "*" is a wildcard
-   | which accepts one or more non-zero dimensions, valid examples are:
+1. | ``abc_0[*]`` means a tensor with meaning "abc", and has index 0 in all argument tensors with the same meaning, "*" is a wildcard which accepts one or more non-zero dimensions, valid examples are:
    |
    | state_0[batch_size, 1]
    | state_1[1, 2, 3, 4, 5]
    | state_2[...]
-2. | ``...`` means one or more arguments (tensors/not tensors), or one
-   | or more dimensions, with non-zero sizes.
+2. ``...`` means one or more arguments (tensors/not tensors), or one or more dimensions, with non-zero sizes.
+3. ``<>`` means optional results / arguments. ``<...>`` means any number of optional results / arguments.
+
+**Note**: When an algorithm API returns one result, the result will not be wrapped in a tuple, when it returns multiple results, results will be wrapped in a tuple. This design is made to support::
+
+    # your Q network model only returns a Q value tensor
+    act = dqn.act({"state": some_state})
+
+    # your Q network model returns Q value tensor with some additional hidden states
+    act, h = dqn.act({"state": some_state})
 
 **Note**: the ``forward`` method signature
 **must conform to the following definitions exactly**,
@@ -36,7 +42,7 @@ Machin expects a Q network::
     QNet(state_0[batch_size, ...],
          ...,
          state_n[batch_size, ...])
-    -> q_value[batch_size, action_num]
+    -> q_value[batch_size, action_num], <...>
 
 where ``action_num`` is the number of available discreet actions.
 
@@ -85,7 +91,7 @@ For :class:`.RAINBOW`, Machin expects a distributional Q network::
     DistQNet(state_0[batch_size, ...],
              ...,
              state_n[batch_size, ...])
-    -> q_value_dist[batch_size, action_num, atom_num]
+    -> q_value_dist[batch_size, action_num, atom_num], <...>
 
 where:
 
@@ -123,14 +129,14 @@ For :class:`.DDPG`, :class:`.DDPGPer`, :class:`.DDPGApex`, :class:`.HDDPG`,
     Actor(state_0[batch_size, ...],
           ...,
           state_n[batch_size, ...])
-    -> action[batch_size, ...]          # if contiguous
-    -> action[batch_size, action_num]   # if discreet
+    -> action[batch_size, ...], <...>          # if contiguous
+    -> action[batch_size, action_num], <...>   # if discreet
 
     Critic(state_0[batch_size, ...],
            ...,
            state_n[batch_size, ...],
            action[batch_size, .../action_num])
-    -> q_value[batch_size, 1]
+    -> q_value[batch_size, 1], <...>
 
 where:
 
@@ -195,14 +201,14 @@ Machin expects multiple actor and critic networks like::
           ...,
           state_n[batch_size, ...],
           action[batch_size, ...]=None)
-    -> action[batch_size, ...]
+    -> action[batch_size, ...], <...>
        action_log_prob[batch_size, 1]
        distribution_entropy[batch_size, 1]
 
     Critic(state_0[batch_size, ...],
            ...,
            state_n[batch_size, ...])
-    -> value[batch_size, 1]
+    -> value[batch_size, 1], <...>
 
 where:
 
@@ -312,13 +318,14 @@ used in :class:`.DDPG`::
           action[batch_size, ...]=None)
     -> action[batch_size, ...]
        action_log_prob[batch_size, 1]
-       distribution_entropy[batch_size, 1]
+       distribution_entropy[batch_size, 1],
+       <...>
 
     Critic(state_0[batch_size, ...],
            ...,
            state_n[batch_size, ...],
            action[batch_size, .../action_num])
-    -> q_value[batch_size, 1]
+    -> q_value[batch_size, 1], <...>
 
 where:
 

@@ -265,8 +265,8 @@ class TestMADDPG(object):
                   * c.test_agent_num)
         actions = ([{"action": t.zeros([1, c.test_action_dim])}]
                    * c.test_agent_num)
-        maddpg_cont.criticize(states, actions, 0)
-        maddpg_cont.criticize(states, actions, 1, use_target=True)
+        maddpg_cont._criticize(states, actions, 0)
+        maddpg_cont._criticize(states, actions, 1, use_target=True)
 
     ########################################################################
     # Test for MADDPG storage

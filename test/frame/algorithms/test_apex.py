@@ -139,8 +139,8 @@ class TestDQNApex(object):
         c = TestDQNApex.c
         dqn_apex = TestDQNApex.dqn_apex()
         state = t.zeros([1, c.observe_dim])
-        dqn_apex.criticize({"state": state})
-        dqn_apex.criticize({"state": state}, True)
+        dqn_apex._criticize({"state": state})
+        dqn_apex._criticize({"state": state}, True)
         return True
 
     ########################################################################
@@ -371,9 +371,9 @@ class TestDDPGApex(object):
         ddpg_apex = TestDDPGApex.ddpg_apex()
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
-        ddpg_apex.criticize({"state": state}, {"action": action})
-        ddpg_apex.criticize({"state": state}, {"action": action},
-                            use_target=True)
+        ddpg_apex._criticize({"state": state}, {"action": action})
+        ddpg_apex._criticize({"state": state}, {"action": action},
+                             use_target=True)
         return True
 
     ########################################################################

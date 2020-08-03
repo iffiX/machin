@@ -112,16 +112,16 @@ class PPO(A2C):
                      (advantage.std() + 1e-6))
 
         # Infer original action log probability
-        __, action_log_prob, *_ = self.eval_act(state, action)
+        __, action_log_prob, *_ = self._eval_act(state, action)
         action_log_prob = action_log_prob.view(batch_size, 1).detach()
 
         for _ in range(self.update_times):
             if self.entropy_weight is not None:
                 __, new_action_log_prob, new_action_entropy, *_ = \
-                    self.eval_act(state, action)
+                    self._eval_act(state, action)
             else:
                 __, new_action_log_prob, *_ = \
-                    self.eval_act(state, action)
+                    self._eval_act(state, action)
                 new_action_entropy = None
 
             new_action_log_prob = new_action_log_prob.view(batch_size, 1)
@@ -162,7 +162,7 @@ class PPO(A2C):
             sum_act_policy_loss += act_policy_loss.item()
 
             # calculate value loss
-            value = self.criticize(state)
+            value = self._criticize(state)
             value_loss = (self.criterion(target_value.to(value.device),
                                          value) *
                           self.value_weight)

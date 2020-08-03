@@ -69,7 +69,8 @@ def safe_call(model, *named_args):
                     argument's value.
 
     Returns:
-        Whatever returned by your module.
+        Whatever returned by your module. If result is not a tuple, always
+        wrap results inside a tuple
     """
     org_model = None
     if isinstance(model,
@@ -112,9 +113,10 @@ def safe_call(model, *named_args):
     arg_spec = inspect.getfullargspec(model.forward)
     # exclude self in arg_spec.args
     args = arg_spec.args[1:] + arg_spec.kwonlyargs
-    args_with_defaults = args[-len(arg_spec.defaults
-                                   if arg_spec.defaults is not None
-                                   else []):]
+    if arg_spec.defaults is not None:
+        args_with_defaults = args[-len(arg_spec.defaults):]
+    else:
+        args_with_defaults = []
     required_args = (set(args) - set(args_with_defaults) -
                      set(arg_spec.kwonlydefaults.keys()
                          if arg_spec.kwonlydefaults is not None
@@ -141,9 +143,21 @@ def safe_call(model, *named_args):
                            .format(type(model), required_args, missing))
 
     if org_model is not None:
-        return org_model(**args_dict)
+        result = org_model(**args_dict)
     else:
-        return model(**args_dict)
+        result = model(**args_dict)
+
+    if isinstance(result, tuple):
+        return result
+    else:
+        return (result,)
+
+
+def safe_return(result):
+    if len(result) == 0:
+        return result[0]
+    else:
+        return result
 
 
 asserted_output_is_probs = False

@@ -204,10 +204,10 @@ class A2C(TorchFramework):
         """
         return safe_call(self.actor, state)
 
-    def eval_act(self,
-                 state: Dict[str, Any],
-                 action: Dict[str, Any],
-                 *_, **__):
+    def _eval_act(self,
+                  state: Dict[str, Any],
+                  action: Dict[str, Any],
+                  *_, **__):
         """
         Use actor network to evaluate the log-likelihood of a given
         action in the current state.
@@ -217,14 +217,14 @@ class A2C(TorchFramework):
         """
         return safe_call(self.actor, state, action)
 
-    def criticize(self, state: Dict[str, Any], *_, **__):
+    def _criticize(self, state: Dict[str, Any], *_, **__):
         """
         Use critic network to evaluate current value.
 
         Returns:
-            Value evaluated by critic.
+            Value of shape ``[batch_size, 1]``
         """
-        return safe_call(self.critic, state)
+        return safe_call(self.critic, state)[0]
 
     def store_transition(self, transition: Union[Transition, Dict]):
         """
@@ -255,18 +255,18 @@ class A2C(TorchFramework):
         if self.gae_lambda == 1.0:
             for trans in episode:
                 trans["gae"] = (trans["value"] -
-                                self.criticize(trans["state"]).item())
+                                self._criticize(trans["state"]).item())
         elif self.gae_lambda == 0.0:
             for trans in episode:
                 trans["gae"] = (trans["reward"] +
                                 self.discount * (1 - float(trans["terminal"]))
-                                * self.criticize(trans["next_state"]).item() -
-                                self.criticize(trans["state"]).item())
+                                * self._criticize(trans["next_state"]).item() -
+                                self._criticize(trans["state"]).item())
         else:
             last_critic_value = 0
             last_gae = 0
             for trans in reversed(episode):
-                critic_value = self.criticize(trans["state"]).item()
+                critic_value = self._criticize(trans["state"]).item()
                 gae_delta = (trans["reward"] +
                              self.discount * last_critic_value
                              * (1 - float(trans["terminal"])) -
@@ -320,10 +320,10 @@ class A2C(TorchFramework):
 
         if self.entropy_weight is not None:
             __, action_log_prob, new_action_entropy, *_ = \
-                self.eval_act(state, action)
+                self._eval_act(state, action)
         else:
             __, action_log_prob, *_ = \
-                self.eval_act(state, action)
+                self._eval_act(state, action)
             new_action_entropy = None
 
         action_log_prob = action_log_prob.view(batch_size, 1)
@@ -354,7 +354,7 @@ class A2C(TorchFramework):
         sum_value_loss = 0
         for _ in range(self.critic_upd_t):
             # calculate value loss
-            value = self.criticize(state)
+            value = self._criticize(state)
             value_loss = (self.criterion(target_value.to(value.device),
                                          value) *
                           self.value_weight)

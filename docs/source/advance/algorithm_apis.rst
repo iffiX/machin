@@ -18,6 +18,16 @@ Algorithms could be grouped into respective categories with the following graph:
 We will use some basic symbols to simplify the description:
 
 1. ``...`` means one or more dimensions, with non-zero sizes.
+2. ``<>`` means optional results / arguments. ``<...>`` means any number of optional results / arguments.
+
+**Note**: When an algorithm API returns one result, the result will not be wrapped in a tuple, when it returns multiple results, results will be wrapped in a tuple. This design is made to support::
+
+    # your Q network model only returns a Q value tensor
+    act = dqn.act({"state": some_state})
+
+    # your Q network model returns Q value tensor with some additional hidden states
+    act, h = dqn.act({"state": some_state})
+
 
 Core APIs
 ----------------------------------------------------------------
@@ -40,41 +50,53 @@ Below is a list of supported acting APIs of different frameworks:
 | Algorithm class | Acting API              | Input & output                              | Discreet/Contiguous | Note                  |
 +-----------------+-------------------------+---------------------------------------------+---------------------+-----------------------+
 | | DQN           | act_discreet            | | Dict[str, State[batch_size, ...]]         | D                   |                       |
-| | DQNPer        |                         | | -> Action[batch_size, 1]                  |                     |                       |
+| | DQNPer        |                         | | -> Action[batch_size, 1], <...>           |                     |                       |
 | | DQNApex       +-------------------------+---------------------------------------------+---------------------+-----------------------+
 | | RAINBOW       | act_discreet_with_noise | | Dict[str, State[batch_size, ...]]         | D                   |                       |
-|                 |                         | | -> Action[batch_size, 1]                  |                     |                       |
+|                 |                         | | -> Action[batch_size, 1], <...>           |                     |                       |
 +-----------------+-------------------------+---------------------------------------------+---------------------+-----------------------+
 | | DDPG          | act                     | | Dict[str, State[batch_size, ...]]         | C                   |                       |
-| | DDPGPer       |                         | | -> Action[batch_size, action_dim]         |                     |                       |
+| | DDPGPer       |                         | | -> Action[batch_size, action_dim], <...>  |                     |                       |
 | | HDDPG         +-------------------------+---------------------------------------------+---------------------+-----------------------+
 | | TD3           | act_with_noise          | | Dict[str, State[batch_size, ...]]         | C                   |                       |
-|                 |                         | | -> Action[batch_size, action_dim]         |                     |                       |
+|                 |                         | | -> Action[batch_size, action_dim], <...>  |                     |                       |
 |                 +-------------------------+---------------------------------------------+---------------------+-----------------------+
-|                 | act_discreet            | | Dict[str, State[batch_size, ...]]         | D                   |                       |
-|                 |                         | | -> Action[batch_size, 1]                  |                     |                       |
+|                 | act_discreet            | | Dict[str, State[batch_size, ...]] ->      | D                   |                       |
+|                 |                         |                                             |                     |                       |
+|                 |                         | | Action[batch_size, 1],                    |                     |                       |
+|                 |                         | | Prob[batch_size, action_num],             |                     |                       |
+|                 |                         | | <...>                                     |                     |                       |
 |                 +-------------------------+---------------------------------------------+---------------------+-----------------------+
-|                 | act_discreet_with_noise | | Dict[str, State[batch_size, ...]]         | D                   |                       |
-|                 |                         | | -> Action[batch_size, 1]                  |                     |                       |
+|                 | act_discreet_with_noise | | Dict[str, State[batch_size, ...]] ->      | D                   |                       |
+|                 |                         |                                             |                     |                       |
+|                 |                         | | Action[batch_size, 1],                    |                     |                       |
+|                 |                         | | Prob[batch_size, action_num],             |                     |                       |
+|                 |                         | | <...>                                     |                     |                       |
 +-----------------+-------------------------+---------------------------------------------+---------------------+-----------------------+
 | | A2C           | act                     | | Dict[str, State[batch_size, ...]] ->      | C/D                 | | Contiguous/Discreet |
 | | A3C           |                         |                                             |                     | | depends on the      |
 | | PPO           |                         | | Action[batch_size, ...],                  |                     | | distribution you    |
 | | IMPALA        |                         | | Log_Prob[batch_size, 1],                  |                     | | are using to        |
-| | SAC           |                         | | Entropy[batch_size, 1]                    |                     | | reparameterize      |
-|                 |                         |                                             |                     | | your network        |
+| | SAC           |                         | | Entropy[batch_size, 1],                   |                     | | reparameterize      |
+|                 |                         | | <...>                                     |                     | | your network        |
 +-----------------+-------------------------+---------------------------------------------+---------------------+-----------------------+
 | MADDPG          | act                     | | List[Dict[str, State[batch_size, ...]]]   | C                   |                       |
-|                 |                         | | -> List[Action[batch_size, action_dim]]   |                     |                       |
+|                 |                         | | -> List[Action[batch_size, action_dim],   |                     |                       |
+|                 |                         | |         <...>]                            |                     |                       |
 |                 +-------------------------+---------------------------------------------+---------------------+-----------------------+
 |                 | act_with_noise          | | List[Dict[str, State[batch_size, ...]]]   | C                   |                       |
-|                 |                         | | -> List[Action[batch_size, action_dim]]   |                     |                       |
+|                 |                         | | -> List[Action[batch_size, action_dim],   |                     |                       |
+|                 |                         | |         <...>]                            |                     |                       |
 |                 +-------------------------+---------------------------------------------+---------------------+-----------------------+
 |                 | act_discreet            | | List[Dict[str, State[batch_size, ...]]]   | D                   |                       |
-|                 |                         | | -> List[Action[batch_size, 1]]            |                     |                       |
+|                 |                         | | -> List[Action[batch_size, 1],            |                     |                       |
+|                 |                         | |         Prob[batch_size, action_num],     |                     |                       |
+|                 |                         | |         <...>]                            |                     |                       |
 |                 +-------------------------+---------------------------------------------+---------------------+-----------------------+
 |                 | act_discreet_with_noise | | List[Dict[str, State[batch_size, ...]]]   | D                   |                       |
-|                 |                         | | -> List[Action[batch_size, 1]]            |                     |                       |
+|                 |                         | | -> List[Action[batch_size, 1],            |                     |                       |
+|                 |                         | |         Prob[batch_size, action_num],     |                     |                       |
+|                 |                         | |         <...>]                            |                     |                       |
 +-----------------+-------------------------+---------------------------------------------+---------------------+-----------------------+
 
 Storing API
@@ -265,32 +287,6 @@ an action, etc. Below is a list of these APIs supported by different frameworks:
 
 +-----------------+--------------------------------+-----------------------------------------------------+------------------------------------+
 | Algorithm class | Algorithm specific APIs        | Input & output                                      | Note                               |
-+-----------------+--------------------------------+-----------------------------------------------------+------------------------------------+
-| | DQN           | criticize                      | | Dict[str, State[batch_size, ...]]                 | | Get Q value of each              |
-| | DQNPer        |                                | | -> Q_Value[batch_size, action_num]                | | action in current state.         |
-| | DQNApex       |                                |                                                     |                                    |
-+-----------------+--------------------------------+-----------------------------------------------------+------------------------------------+
-| | DDPG          | criticize/criticize2(TD3, SAC) | | Dict[str, State[batch_size, ...]],                | | Get Q value of the given         |
-| | DDPGPer       |                                | | Dict[str, action[batch_size, ...]]                | | action in current state.         |
-| | DDPGApex      |                                | | -> Q_Value[batch_size, 1]                         | | ``criticize2`` means using       |
-| | HDDPG         |                                |                                                     | | the second pair of critics       |
-| | TD3           |                                |                                                     | | in TD3/SAC.                      |
-| | SAC           |                                |                                                     |                                    |
-+-----------------+--------------------------------+-----------------------------------------------------+------------------------------------+
-| | RAINBOW       | criticize                      | | Dict[str, State[batch_size, ...]]                 | | Get Q value distribution of      |
-|                 |                                | | -> Q_Value_dist[batch_size, action_num, atom_num] | | each action in current state.    |
-+-----------------+--------------------------------+-----------------------------------------------------+------------------------------------+
-| | A2C           | criticize                      | | Dict[str, State[batch_size, ...]]                 | | Get value of current state.      |
-| | PPO           |                                | | -> Value[batch_size, 1]                           |                                    |
-| | A3C           |                                |                                                     |                                    |
-| | IMPALA        |                                |                                                     |                                    |
-+-----------------+--------------------------------+-----------------------------------------------------+------------------------------------+
-| | A2C           | eval_act                       | | Dict[str, State[batch_size, ...]],                | | Use the actor network to         |
-| | PPO           |                                | | Dict[str, action[batch_size, ...]]                | | evaluate the log probability     |
-| | A3C           |                                | | ->                                                | | of the old action                |
-| | IMPALA        |                                | | Action[batch_size, ...],                          | |                                  |
-|                 |                                | | Log_Prob[batch_size, 1],                          | | **note**: ``Action`` will be     |
-|                 |                                | | Entropy[batch_size, 1]                            | | the same as input action.        |
 +-----------------+--------------------------------+-----------------------------------------------------+------------------------------------+
 | | DQNApex       | set_sync                       | bool -> None                                        | | disable/enable auto local model  |
 | | DDPGApex      |                                |                                                     | | syncing with remote server(s).   |

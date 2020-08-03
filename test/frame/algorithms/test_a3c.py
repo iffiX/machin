@@ -113,7 +113,7 @@ class TestA3C(object):
         c = TestA3C.c
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
-        a3c.eval_act({"state": state}, {"action": action})
+        a3c._eval_act({"state": state}, {"action": action})
         return True
 
     ########################################################################
@@ -126,7 +126,7 @@ class TestA3C(object):
         a3c = TestA3C.a3c()
         c = TestA3C.c
         state = t.zeros([1, c.observe_dim])
-        a3c.criticize({"state": state})
+        a3c._criticize({"state": state})
         return True
 
     ########################################################################

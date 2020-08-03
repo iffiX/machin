@@ -91,12 +91,12 @@ class DQNPer(DQN):
                                             ])
 
         with t.no_grad():
-            next_q_value = self.criticize(next_state)
-            target_next_q_value = self.criticize(next_state, True)
+            next_q_value = self._criticize(next_state)
+            target_next_q_value = self._criticize(next_state, True)
             target_next_q_value = target_next_q_value.gather(
                 dim=1, index=t.max(next_q_value, dim=1)[1].unsqueeze(1))
 
-        q_value = self.criticize(state)
+        q_value = self._criticize(state)
 
         # gather requires long tensor, int32 is not accepted
         action_value = q_value.gather(dim=1,

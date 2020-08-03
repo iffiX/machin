@@ -12,7 +12,12 @@ from machin.frame.noise.action_space_noise import \
     add_ou_noise_to_action
 from machin.model.nets.base import NeuralNetworkModule
 from .base import TorchFramework
-from .utils import hard_update, soft_update, safe_call, assert_output_is_probs
+from .utils import \
+    hard_update, \
+    soft_update, \
+    safe_call, \
+    safe_return, \
+    assert_output_is_probs
 
 
 class DDPG(TorchFramework):
@@ -151,12 +156,12 @@ class DDPG(TorchFramework):
             use_target: Whether use the target network.
 
         Returns:
-            Action of shape ``[batch_size, action_dim]``.
+            Any thing returned by your actor network.
         """
         if use_target:
-            return safe_call(self.actor_target, state)
+            return safe_return(safe_call(self.actor_target, state))
         else:
-            return safe_call(self.actor, state)
+            return safe_return(safe_call(self.actor, state))
 
     def act_with_noise(self,
                        state: Dict[str, Any],
@@ -181,24 +186,35 @@ class DDPG(TorchFramework):
 
         Returns:
             Noisy action of shape ``[batch_size, action_dim]``.
+            Any other things returned by your actor network. if they exist.
         """
+        if use_target:
+            action, *others = safe_call(self.actor_target, state)
+        else:
+            action, *others = safe_call(self.actor, state)
         if mode == "uniform":
-            return add_uniform_noise_to_action(
-                self.act(state, use_target), noise_param, ratio
+            noisy_action = add_uniform_noise_to_action(
+                action, noise_param, ratio
             )
-        if mode == "normal":
-            return add_normal_noise_to_action(
-                self.act(state, use_target), noise_param, ratio
+        elif mode == "normal":
+            noisy_action = add_normal_noise_to_action(
+                action, noise_param, ratio
             )
-        if mode == "clipped_normal":
-            return add_clipped_normal_noise_to_action(
-                self.act(state, use_target), noise_param, ratio
+        elif mode == "clipped_normal":
+            noisy_action = add_clipped_normal_noise_to_action(
+                action, noise_param, ratio
             )
-        if mode == "ou":
-            return add_ou_noise_to_action(
-                self.act(state, use_target), noise_param, ratio
+        elif mode == "ou":
+            noisy_action = add_ou_noise_to_action(
+                action, noise_param, ratio
             )
-        raise ValueError("Unknown noise type: " + str(mode))
+        else:
+            raise ValueError("Unknown noise type: " + str(mode))
+
+        if len(others) == 0:
+            return noisy_action
+        else:
+            return (noisy_action, *others)
 
     def act_discrete(self,
                      state: Dict[str, Any],
@@ -218,17 +234,19 @@ class DDPG(TorchFramework):
 
         Returns:
             Action of shape ``[batch_size, 1]``.
-            Action probability tensor of shape ``[batch_size, action_num]``.
+            Action probability tensor of shape ``[batch_size, action_num]``,
+            produced by your actor.
+            Any other things returned by your Q network. if they exist.
         """
         if use_target:
-            action = safe_call(self.actor_target, state)
+            action, *others = safe_call(self.actor_target, state)
         else:
-            action = safe_call(self.actor, state)
+            action, *others = safe_call(self.actor, state)
 
         assert_output_is_probs(action)
         batch_size = action.shape[0]
         result = t.argmax(action, dim=1).view(batch_size, 1)
-        return result, action
+        return (result, action, *others)
 
     def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
@@ -250,22 +268,43 @@ class DDPG(TorchFramework):
         Returns:
             Noisy action of shape ``[batch_size, 1]``.
             Action probability tensor of shape ``[batch_size, action_num]``.
+            Any other things returned by your Q network. if they exist.
         """
         if use_target:
-            action = safe_call(self.actor_target, state)
+            action, *others = safe_call(self.actor_target, state)
         else:
-            action = safe_call(self.actor, state)
+            action, *others = safe_call(self.actor, state)
 
         assert_output_is_probs(action)
         dist = Categorical(action)
         batch_size = action.shape[0]
-        return dist.sample([batch_size, 1]).view(batch_size, 1), action
+        return (dist.sample([batch_size, 1]).view(batch_size, 1),
+                *others)
 
-    def criticize(self,
-                  state: Dict[str, Any],
-                  action: Dict[str, Any],
-                  use_target: bool = False,
-                  **__):
+    def _act(self,
+             state: Dict[str, Any],
+             use_target: bool = False,
+             **__):
+        """
+        Use actor network to produce an action for the current state.
+
+        Args:
+            state: Current state.
+            use_target: Whether use the target network.
+
+        Returns:
+            Action of shape ``[batch_size, action_dim]``.
+        """
+        if use_target:
+            return safe_call(self.actor_target, state)[0]
+        else:
+            return safe_call(self.actor, state)[0]
+
+    def _criticize(self,
+                   state: Dict[str, Any],
+                   action: Dict[str, Any],
+                   use_target: bool = False,
+                   **__):
         """
         Use critic network to evaluate current value.
 
@@ -275,12 +314,12 @@ class DDPG(TorchFramework):
             use_target: Whether to use the target network.
 
         Returns:
-            Value of shape ``[batch_size, 1]``.
+            Q Value of shape ``[batch_size, 1]``.
         """
         if use_target:
-            return safe_call(self.critic_target, state, action)
+            return safe_call(self.critic_target, state, action)[0]
         else:
-            return safe_call(self.critic, state, action)
+            return safe_call(self.critic, state, action)[0]
 
     def store_transition(self, transition: Union[Transition, Dict]):
         """
@@ -332,15 +371,15 @@ class DDPG(TorchFramework):
         # target critic.
         with t.no_grad():
             next_action = self.action_transform_function(
-                self.act(next_state, True), next_state, others
+                self._act(next_state, True), next_state, others
             )
-            next_value = self.criticize(next_state, next_action, True)
+            next_value = self._criticize(next_state, next_action, True)
             next_value = next_value.view(batch_size, -1)
             y_i = self.reward_function(
                 reward, self.discount, next_value, terminal, others
             )
 
-        cur_value = self.criticize(state, action)
+        cur_value = self._criticize(state, action)
         value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
 
         if self.visualize:
@@ -356,9 +395,9 @@ class DDPG(TorchFramework):
 
         # Update actor network
         cur_action = self.action_transform_function(
-            self.act(state), state, others
+            self._act(state), state, others
         )
-        act_value = self.criticize(state, cur_action)
+        act_value, *_ = self._criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),
         # but optimizer workers by minimizing the target

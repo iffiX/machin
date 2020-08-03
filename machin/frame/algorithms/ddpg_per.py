@@ -97,16 +97,16 @@ class DDPGPer(DDPG):
         # target critic.
         with t.no_grad():
             next_action = self.action_transform_function(
-                self.act(next_state, True), next_state, others
+                self._act(next_state, True), next_state, others
             )
-            next_value = self.criticize(next_state, next_action, True)
+            next_value = self._criticize(next_state, next_action, True)
             next_value = next_value.view(batch_size, -1)
             y_i = self.reward_function(
                 reward, self.discount, next_value, terminal, others
             )
 
         # critic loss
-        cur_value = self.criticize(state, action)
+        cur_value = self._criticize(state, action)
         value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
         value_loss = (value_loss *
                       t.from_numpy(is_weight).view([batch_size, 1])
@@ -126,9 +126,9 @@ class DDPGPer(DDPG):
 
         # actor loss
         cur_action = self.action_transform_function(
-            self.act(state), state, others
+            self._act(state), state, others
         )
-        act_value = self.criticize(state, cur_action)
+        act_value = self._criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),
         # but optimizer workers by minimizing the target

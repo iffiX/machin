@@ -125,7 +125,7 @@ class TestIMPALA(object):
         c = TestIMPALA.c
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
-        impala.eval_act({"state": state}, {"action": action})
+        impala._eval_act({"state": state}, {"action": action})
         return True
 
     ########################################################################
@@ -138,7 +138,7 @@ class TestIMPALA(object):
         impala = TestIMPALA.impala()
         c = TestIMPALA.c
         state = t.zeros([1, c.observe_dim])
-        impala.criticize({"state": state})
+        impala._criticize({"state": state})
         return True
 
     ########################################################################

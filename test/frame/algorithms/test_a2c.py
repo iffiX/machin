@@ -146,7 +146,7 @@ class TestA2C(object):
         c = train_config
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
-        a2c.eval_act({"state": state}, {"action": action})
+        a2c._eval_act({"state": state}, {"action": action})
 
     ########################################################################
     # Test for A2C criticizing
@@ -154,7 +154,7 @@ class TestA2C(object):
     def test_criticize(self, train_config, a2c):
         c = train_config
         state = t.zeros([1, c.observe_dim])
-        a2c.criticize({"state": state})
+        a2c._criticize({"state": state})
 
     ########################################################################
     # Test for A2C storage

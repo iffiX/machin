@@ -31,7 +31,7 @@ def main(rank):
     action_num = 2
     max_episodes = 2000
     max_steps = 200
-    solved_reward = 50
+    solved_reward = 190
     solved_repeat = 5
 
     # initlize distributed world first

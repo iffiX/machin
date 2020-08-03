@@ -105,22 +105,22 @@ class A3C(A2C):
         # DOC INHERITED
         if self.is_syncing:
             self.actor_grad_server.pull(self.actor)
-        return safe_call(self.actor, state)
+        return super(A3C, self).act(state)
 
-    def eval_act(self,
-                 state: Dict[str, Any],
-                 action: Dict[str, Any],
-                 **__):
+    def _eval_act(self,
+                  state: Dict[str, Any],
+                  action: Dict[str, Any],
+                  **__):
         # DOC INHERITED
         if self.is_syncing:
             self.actor_grad_server.pull(self.actor)
-        return safe_call(self.actor, state, action)
+        return super(A3C, self)._eval_act(state, action)
 
-    def criticize(self, state: Dict[str, Any], *_, **__):
+    def _criticize(self, state: Dict[str, Any], *_, **__):
         # DOC INHERITED
         if self.is_syncing:
             self.critic_grad_server.pull(self.critic)
-        return safe_call(self.critic, state)
+        return super(A3C, self)._criticize(state)
 
     def update(self,
                update_value=True,

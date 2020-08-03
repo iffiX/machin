@@ -212,8 +212,8 @@ class TestDDPG(object):
         c = train_config
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
-        ddpg.criticize({"state": state}, {"action": action})
-        ddpg.criticize({"state": state}, {"action": action}, use_target=True)
+        ddpg._criticize({"state": state}, {"action": action})
+        ddpg._criticize({"state": state}, {"action": action}, use_target=True)
 
     ########################################################################
     # Test for DDPG storage

@@ -277,26 +277,8 @@ class MADDPG(TorchFramework):
         Returns:
             A list of actions of shape ``[batch_size, action_dim]``.
         """
-        if self.use_jit:
-            if use_target:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.jit_actor_targets]
-            else:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.jit_actors]
-            future = [self._jit_safe_call(ac, st) for ac, st in
-                      zip(actors, states)]
-            result = [t.jit._wait(fut) for fut in future]
-        else:
-            if use_target:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.actor_targets]
-            else:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.actors]
-            result = self.pool.starmap(self._no_grad_safe_call,
-                                       zip(actors, states))
-        return result
+        return [safe_return(act) for act in
+                self._act_api_general(states, use_target)]
 
     def act_with_noise(self,
                        states: List[Dict[str, Any]],
@@ -324,20 +306,22 @@ class MADDPG(TorchFramework):
         Returns:
             A list of noisy actions of shape ``[batch_size, action_dim]``.
         """
-        actions = self.act(states, use_target)
-
-        if mode == "uniform":
-            return [add_uniform_noise_to_action(act, noise_param, ratio)
-                    for act in actions]
-        if mode == "normal":
-            return [add_normal_noise_to_action(act, noise_param, ratio)
-                    for act in actions]
-        if mode == "clipped_normal":
-            return [add_clipped_normal_noise_to_action(act, noise_param, ratio)
-                    for act in actions]
-        if mode == "ou":
-            return [add_ou_noise_to_action(act, noise_param, ratio)
-                    for act in actions]
+        actions = self._act_api_general(states, use_target)
+        result = []
+        for action, *others in actions:
+            if mode == "uniform":
+                action = add_uniform_noise_to_action(action, noise_param, ratio)
+            elif mode == "normal":
+                action = add_normal_noise_to_action(action, noise_param, ratio)
+            elif mode == "clipped_normal":
+                action = add_clipped_normal_noise_to_action(
+                    action, noise_param, ratio)
+            elif mode == "ou":
+                action = add_ou_noise_to_action(action, noise_param, ratio)
+            if len(others) == 0:
+                result.append(action)
+            else:
+                result.append((action, *others))
         raise ValueError("Unknown noise type: " + str(mode))
 
     def act_discrete(self,
@@ -364,13 +348,14 @@ class MADDPG(TorchFramework):
             A list of action probability tensors of shape
             ``[batch_size, action_num]``.
         """
-        actions = self.act(states, use_target)
+        actions = self._act_api_general(states, use_target)
         result = []
-        for action in actions:
+        for action, *others in actions:
             assert_output_is_probs(action)
             batch_size = action.shape[0]
-            result.append(t.argmax(action, dim=1).view(batch_size, 1))
-        return result, actions
+            action_disc = t.argmax(action, dim=1).view(batch_size, 1)
+            result.append((action_disc, action, *others))
+        return result
 
     def act_discrete_with_noise(self,
                                 states: List[Dict[str, Any]],
@@ -395,20 +380,44 @@ class MADDPG(TorchFramework):
             A list of action probability tensors of shape
             ``[batch_size, action_num]``.
         """
-        actions = self.act(states, use_target)
+        actions = self._act_api_general(states, use_target)
         result = []
-        for action in actions:
+        for action, *others in actions:
             assert_output_is_probs(action)
             batch_size = action.shape[0]
             dist = Categorical(action)
-            result.append(dist.sample([batch_size, 1]).view(batch_size, 1))
-        return result, actions
+            action_disc = dist.sample([batch_size, 1]).view(batch_size, 1)
+            result.append((action_disc, action, *others))
+        return result
 
-    def criticize(self,
-                  states: List[Dict[str, Any]],
-                  actions: List[Dict[str, Any]],
-                  index: int,
-                  use_target=False):
+    def _act_api_general(self, states, use_target):
+        if self.use_jit:
+            if use_target:
+                actors = [choice(sub_actors) for sub_actors in
+                          self.jit_actor_targets]
+            else:
+                actors = [choice(sub_actors) for sub_actors in
+                          self.jit_actors]
+            future = [self._jit_safe_call(ac, st) for ac, st in
+                      zip(actors, states)]
+            result = [t.jit._wait(fut) for fut in future]
+        else:
+            if use_target:
+                actors = [choice(sub_actors) for sub_actors in
+                          self.actor_targets]
+            else:
+                actors = [choice(sub_actors) for sub_actors in
+                          self.actors]
+            result = self.pool.starmap(self._no_grad_safe_call,
+                                       zip(actors, states))
+            result = [res for res in result]
+        return result
+
+    def _criticize(self,
+                   states: List[Dict[str, Any]],
+                   actions: List[Dict[str, Any]],
+                   index: int,
+                   use_target=False):
         """
         Use critic network to evaluate current value.
 
@@ -419,7 +428,7 @@ class MADDPG(TorchFramework):
             index: Index of the used critic.
 
         Returns:
-            Value of shape ``[batch_size, 1]``.
+            Q Value of shape ``[batch_size, 1]``.
         """
         if use_target:
             return safe_call(self.critic_targets[index],
@@ -617,9 +626,10 @@ class MADDPG(TorchFramework):
         input_device = model.input_device
         # set in __init__
         args = model.arg_spec.args[1:] + model.arg_spec.kwonlyargs
-        args_with_defaults = args[-len(model.arg_spec.defaults
-                                       if model.arg_spec.defaults is not None
-                                       else []):]
+        if model.arg_spec.defaults is not None:
+            args_with_defaults = args[-len(model.arg_spec.defaults):]
+        else:
+            args_with_defaults = []
         required_args = (set(args) - set(args_with_defaults) -
                          set(model.arg_spec.kwonlydefaults.keys()
                              if model.arg_spec.kwonlydefaults is not None
@@ -655,7 +665,11 @@ class MADDPG(TorchFramework):
                                    .format(model_type, required_args,
                                            required_not_filled))
 
-        return t.jit._fork(model, *args_list)
+        result = t.jit._fork(model, *args_list)
+        if isinstance(result, tuple):
+            return result
+        else:
+            return (result,)
 
     @staticmethod
     def _update_sub_policy(batch_size, batches, next_actions_t,

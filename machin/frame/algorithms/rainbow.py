@@ -103,9 +103,9 @@ class RAINBOW(DQN):
         # q value distribution of each action
         # shape: [batch_size, action_num, atom_num]
         if use_target:
-            q_dist = safe_call(self.qnet_target, state)
+            q_dist, *others = safe_call(self.qnet_target, state)
         else:
-            q_dist = safe_call(self.qnet, state)
+            q_dist, *others = safe_call(self.qnet, state)
 
         atom_num = q_dist.shape[-1]
 
@@ -117,7 +117,10 @@ class RAINBOW(DQN):
         q_value = t.sum(q_dist_support * q_dist, dim=-1)
 
         result = t.argmax(q_value, dim=1).view(-1, 1)
-        return result
+        if len(others) == 0:
+            return result
+        else:
+            return (result, *others)
 
     def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
@@ -127,9 +130,9 @@ class RAINBOW(DQN):
         # q value distribution of each action
         # shape: [batch_size, action_num, atom_num]
         if use_target:
-            q_dist = safe_call(self.qnet_target, state)
+            q_dist, *others = safe_call(self.qnet_target, state)
         else:
-            q_dist = safe_call(self.qnet, state)
+            q_dist, *others = safe_call(self.qnet, state)
 
         atom_num = q_dist.shape[-1]
 
@@ -143,7 +146,11 @@ class RAINBOW(DQN):
         result = t.softmax(q_value, dim=1)
         dist = Categorical(result)
         batch_size = result.shape[0]
-        return dist.sample([batch_size])
+        sample = dist.sample([batch_size])
+        if len(others) == 0:
+            return sample
+        else:
+            return (sample, *others)
 
     def store_transition(self, transition: Union[Transition, Dict]):
         """
@@ -204,7 +211,7 @@ class RAINBOW(DQN):
                                             ])
 
         # q_dist is the distribution of q values
-        q_dist = self.criticize(state)
+        q_dist = self._criticize(state)
         atom_num = q_dist.shape[-1]
 
         action = self.action_get_function(action).to(device=q_dist.device,
@@ -216,7 +223,7 @@ class RAINBOW(DQN):
         q_dist_support = t.linspace(self.v_min, self.v_max, atom_num)
 
         with t.no_grad():
-            target_next_q_dist = self.criticize(next_state, True)
+            target_next_q_dist = self._criticize(next_state, True)
             next_action = (self.act_discrete(next_state).flatten()
                            .to(device=target_next_q_dist.device, dtype=t.long))
 

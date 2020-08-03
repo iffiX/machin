@@ -183,10 +183,10 @@ class TestTD3(object):
         c = train_config
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
-        td3.criticize({"state": state}, {"action": action})
-        td3.criticize({"state": state}, {"action": action}, use_target=True)
-        td3.criticize2({"state": state}, {"action": action})
-        td3.criticize2({"state": state}, {"action": action}, use_target=True)
+        td3._criticize({"state": state}, {"action": action})
+        td3._criticize({"state": state}, {"action": action}, use_target=True)
+        td3._criticize2({"state": state}, {"action": action})
+        td3._criticize2({"state": state}, {"action": action}, use_target=True)
 
     ########################################################################
     # Test for TD3 storage

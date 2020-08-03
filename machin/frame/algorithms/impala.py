@@ -80,8 +80,7 @@ class IMPALA(TorchFramework):
                  optimizer: Callable,
                  criterion: Callable,
                  impala_group: RpcGroup,
-                 model_server: Tuple[PushPullModelServer,
-                                     PushPullModelServer],
+                 model_server: Tuple[PushPullModelServer],
                  *_,
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
@@ -105,14 +104,14 @@ class IMPALA(TorchFramework):
             critic: Critic network module.
             optimizer: Optimizer used to optimize ``actor`` and ``critic``.
             criterion: Criterion used to evaluate the value loss.
-            worker_group: Rpc group of roll out workers.
-            trainer_group: Rpc group of model trainers.
-            pull_function: User defined function used to pull the newest model.
-            push_function: User defined function used to push the newest model.
+            impala_group: Group of all processes using the IMPALA framework,
+                including all samplers and trainers.
+            model_server: Custom model sync server accessor for ``actor``.
             lr_scheduler: Learning rate scheduler of ``optimizer``.
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
                 rate scheduler.
+            batch_size: Batch size used during training.
             learning_rate: Learning rate of the optimizer, not compatible with
                 ``lr_scheduler``.
             isw_clip_c: :math:`c` used in importance weight clipping.
@@ -123,7 +122,6 @@ class IMPALA(TorchFramework):
             value_weight: Weight of critic value loss.
             gradient_max: Maximum gradient.
             discount: :math:`\\gamma` used in the bellman function.
-            batch_size: Batch size used during training.
             replay_size: Size of the local replay buffer.
             visualize: Whether visualize the network flow in the first pass.
         """
@@ -149,8 +147,7 @@ class IMPALA(TorchFramework):
             buffer_size=replay_size
         )
         self.is_syncing = True
-        self.actor_model_server, self.critic_model_server = \
-            model_server[0], model_server[1]
+        self.actor_model_server = model_server[0]
 
         if lr_scheduler is not None:
             self.actor_lr_sch = lr_scheduler(
@@ -173,7 +170,6 @@ class IMPALA(TorchFramework):
 
     def manual_sync(self):
         self.actor_model_server.pull(self.actor)
-        self.critic_model_server.pull(self.critic)
 
     def act(self, state: Dict[str, Any], *_, **__):
         """
@@ -186,10 +182,10 @@ class IMPALA(TorchFramework):
             self.actor_model_server.pull(self.actor)
         return safe_call(self.actor, state)
 
-    def eval_act(self,
-                 state: Dict[str, Any],
-                 action: Dict[str, Any],
-                 *_, **__):
+    def _eval_act(self,
+                  state: Dict[str, Any],
+                  action: Dict[str, Any],
+                  *_, **__):
         """
         Use actor network to evaluate the log-likelihood of a given
         action in the current state.
@@ -197,20 +193,16 @@ class IMPALA(TorchFramework):
         Returns:
             Anything produced by actor.
         """
-        if self.is_syncing:
-            self.actor_model_server.pull(self.actor)
         return safe_call(self.actor, state, action)
 
-    def criticize(self, state: Dict[str, Any], *_, **__):
+    def _criticize(self, state: Dict[str, Any], *_, **__):
         """
         Use critic network to evaluate current value.
 
         Returns:
-            Value evaluated by critic.
+            Value of shape ``[batch_size, 1]``
         """
-        if self.is_syncing:
-            self.critic_model_server.pull(self.critic)
-        return safe_call(self.critic, state)
+        return safe_call(self.critic, state)[0]
 
     def store_transition(self, transition: Union[Transition, Dict]):
         """
@@ -328,7 +320,7 @@ class IMPALA(TorchFramework):
 
         # Calculate c and rho first, because there is no dependency
         # between vector elements.
-        _, cur_action_log_prob, entropy, *__ = self.eval_act(state, action)
+        _, cur_action_log_prob, entropy, *__ = self._eval_act(state, action)
         cur_action_log_prob = cur_action_log_prob.view(sum_length, 1)
         entropy = entropy.view(sum_length, 1)
 
@@ -341,8 +333,8 @@ class IMPALA(TorchFramework):
         # calculate delta V
         # delta_t V = rho_t(r_t + gamma * V(x_{t+1}) - V(x_t))
         # boundary elements (i.e, ep1_stepN) will have V(x_{t+1}) = 0
-        value = self.criticize(state).view(sum_length, 1)
-        next_value = self.criticize(next_state).view(sum_length, 1)
+        value = self._criticize(state).view(sum_length, 1)
+        next_value = self._criticize(next_state).view(sum_length, 1)
         next_value[terminal] = 0
         delta_v = rho * (reward +
                          self.discount * next_value.to("cpu")
@@ -403,7 +395,14 @@ class IMPALA(TorchFramework):
             )
             self.critic_optim.step()
 
-        self._push()
+        # push actor model for samplers
+        if isinstance(self.actor,
+                      (nn.parallel.DataParallel,
+                       nn.parallel.DistributedDataParallel)):
+            self.actor_model_server.push(self.actor.module,
+                                         pull_on_fail=False)
+        else:
+            self.actor_model_server.push(self.actor)
         return -act_policy_loss.item(), value_loss.item()
 
     def update_lr_scheduler(self):
@@ -414,20 +413,3 @@ class IMPALA(TorchFramework):
             self.actor_lr_sch.step()
         if hasattr(self, "critic_lr_sch"):
             self.critic_lr_sch.step()
-
-    def _push(self):
-        if isinstance(self.actor,
-                      (nn.parallel.DataParallel,
-                       nn.parallel.DistributedDataParallel)):
-            self.actor_model_server.push(self.actor.module,
-                                         pull_on_fail=False)
-        else:
-            self.actor_model_server.push(self.actor)
-
-        if isinstance(self.critic,
-                      (nn.parallel.DataParallel,
-                       nn.parallel.DistributedDataParallel)):
-            self.critic_model_server.push(self.critic.module,
-                                          pull_on_fail=False)
-        else:
-            self.critic_model_server.push(self.critic)

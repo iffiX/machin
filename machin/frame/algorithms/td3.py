@@ -1,4 +1,3 @@
-from machin.utils.logging import default_logger
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .ddpg import *
 
@@ -115,11 +114,11 @@ class TD3(DDPG):
                 **lr_scheduler_kwargs[2]
             )
 
-    def criticize2(self,
-                   state: Dict[str, Any],
-                   action: Dict[str, Any],
-                   use_target=False,
-                   **__):
+    def _criticize2(self,
+                    state: Dict[str, Any],
+                    action: Dict[str, Any],
+                    use_target=False,
+                    **__):
         """
         Use the second critic network to evaluate current value.
 
@@ -129,12 +128,12 @@ class TD3(DDPG):
             use_target: Whether to use the target network.
 
         Returns:
-            Value of shape ``[batch_size, 1]``.
+            Q Value of shape ``[batch_size, 1]``.
         """
         if use_target:
-            return safe_call(self.critic2_target, state, action)
+            return safe_call(self.critic2_target, state, action)[0]
         else:
-            return safe_call(self.critic2, state, action)
+            return safe_call(self.critic2, state, action)[0]
 
     def update(self,
                update_value=True,
@@ -158,21 +157,19 @@ class TD3(DDPG):
         # target critic.
         with t.no_grad():
             next_action = self.action_transform_function(
-                self.policy_noise_function(
-                    self.act(next_state, True)
-                ),
+                self.policy_noise_function(self._act(next_state, True)),
                 next_state, others
             )
-            next_value = self.criticize(next_state, next_action, True)
-            next_value2 = self.criticize2(next_state, next_action, True)
+            next_value = self._criticize(next_state, next_action, True)
+            next_value2 = self._criticize2(next_state, next_action, True)
             next_value = t.min(next_value, next_value2)
             next_value = next_value.view(batch_size, -1)
             y_i = self.reward_function(
                 reward, self.discount, next_value, terminal, others
             )
 
-        cur_value = self.criticize(state, action)
-        cur_value2 = self.criticize2(state, action)
+        cur_value = self._criticize(state, action)
+        cur_value2 = self._criticize2(state, action)
         value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
         value_loss2 = self.criterion(cur_value2, y_i.to(cur_value.device))
 
@@ -195,9 +192,9 @@ class TD3(DDPG):
 
         # Update actor network
         cur_action = self.action_transform_function(
-            self.act(state), state, others
+            self._act(state), state, others
         )
-        act_value = self.criticize(state, cur_action)
+        act_value = self._criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),
         # but optimizer workers by minimizing the target
