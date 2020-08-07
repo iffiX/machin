@@ -8,10 +8,21 @@ import pytest
 import itertools
 import logging
 import multiprocessing as mp
+import socket
+from contextlib import closing
 
 # use queue handler
 default_logger = logging.getLogger("multi_default_logger")
 default_logger.setLevel(logging.INFO)
+
+
+def find_free_port():
+    # this function is used to find a free port
+    # since we are using the host network in docker
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('localhost', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 
 def process_main(pipe, log_queue):
@@ -74,8 +85,11 @@ def exec_with_process(processes, func, args_list, kwargs_list,
     kwargs_list = (kwargs_list
                    if kwargs_list is not None
                    else itertools.repeat({}))
+
+    port = find_free_port()
     for pi, rank, args, kwargs in zip(proc_pipes, [0, 1, 2],
                                       args_list, kwargs_list):
+        kwargs["_world_port"] = port
         pi.send(dill.dumps((func, [rank] + list(args) + list(pass_through),
                             kwargs)))
 
@@ -131,11 +145,13 @@ def run_multi(args_list=None, kwargs_list=None, expected_results=None,
 class WorldTestBase(object):
     @staticmethod
     def setup_world(func):
-        def wrapped(rank, *args, **kwargs):
+        def wrapped(rank, *args, _world_port=9100, **kwargs):
             # election function for all tests
             world = World(world_size=3, rank=rank,
-                          name=str(rank), rpc_timeout=20)
-
+                          name=str(rank), rpc_timeout=20,
+                          init_method="tcp://localhost:{}"
+                          .format(_world_port))
+            default_logger.info("World using port {}".format(_world_port))
             # set a temporary success attribute on world
             default_logger.info("World created on {}".format(rank))
             result = func(rank, *args, **kwargs)

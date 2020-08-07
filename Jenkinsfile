@@ -2,6 +2,7 @@ pipeline {
     agent {
         docker {
             image 'pytorch/pytorch:latest'
+            // host network is needed because mirrors are on the lan and resolved with /etc/hosts
             args '-u root:sudo --gpus all --network=host'
         }
     }
