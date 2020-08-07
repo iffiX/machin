@@ -86,6 +86,7 @@ def exec_with_process(processes, func, args_list, kwargs_list,
                    if kwargs_list is not None
                    else itertools.repeat({}))
 
+    # possibility of port collision using this method still exists
     port = find_free_port()
     for pi, rank, args, kwargs in zip(proc_pipes, [0, 1, 2],
                                       args_list, kwargs_list):
