@@ -225,6 +225,27 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         else:
             return (sample, *others)
 
+    def _act_discrete(self,
+                      state: Dict[str, Any],
+                      use_target: bool = False,
+                      **__):
+        """
+        Use Q network to produce a discrete action for
+        the current state.
+
+        Args:
+            state: Current state.
+            use_target: Whether to use the target network.
+
+        Returns:
+            Action of shape ``[batch_size, 1]``
+        """
+        if use_target:
+            result, *others = safe_call(self.qnet_target, state)
+        else:
+            result, *others = safe_call(self.qnet, state)
+        return t.argmax(result, dim=1).view(-1, 1)
+
     def _criticize(self,
                    state: Dict[str, Any],
                    use_target: bool = False,
@@ -364,7 +385,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
             with t.no_grad():
                 target_next_q_value = self._criticize(next_state, True)
-                next_action = (self.act_discrete(next_state)
+                next_action = (self._act_discrete(next_state)
                                .to(device=q_value.device, dtype=t.long))
                 target_next_q_value = target_next_q_value.gather(
                     dim=1, index=next_action)

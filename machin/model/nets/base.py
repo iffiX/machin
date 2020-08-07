@@ -92,7 +92,6 @@ class NeuralNetworkModule(nn.Module, ABC):
         else:
             return seq
 
-    @abstractmethod
     def forward(self, *_):
         pass
 

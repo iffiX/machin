@@ -1,6 +1,7 @@
 from machin.env.utils.openai_gym import disable_view_window
-from machin.frame.algorithms import DQNPer
+from machin.frame.algorithms import PPO
 from machin.utils.logging import default_logger as logger
+from torch.distributions import Categorical
 
 import gym
 import torch as t
@@ -19,31 +20,50 @@ history_depth = 4
 disable_view_window()
 
 
-# Q network model definition
-# for atari games
-class QNet(nn.Module):
+class Actor(nn.Module):
     def __init__(self, history_depth, action_num):
-        super(QNet, self).__init__()
+        super(Actor, self).__init__()
         self.fc1 = nn.Linear(128 * history_depth, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, action_num)
 
+    def forward(self, mem, action=None):
+        a = t.relu(self.fc1(mem.flatten(start_dim=1)))
+        a = t.relu(self.fc2(a))
+        probs = t.softmax(self.fc3(a), dim=1)
+        dist = Categorical(probs=probs)
+        act = (action
+               if action is not None
+               else dist.sample())
+        act_entropy = dist.entropy()
+        act_log_prob = dist.log_prob(act.flatten())
+        return act, act_log_prob, act_entropy
+
+
+class Critic(nn.Module):
+    def __init__(self, history_depth):
+        super(Critic, self).__init__()
+
+        self.fc1 = nn.Linear(128 * history_depth, 256)
+        self.fc2 = nn.Linear(256, 256)
+        self.fc3 = nn.Linear(256, 1)
+
     def forward(self, mem):
-        return self.fc3(t.relu(
-            self.fc2(t.relu(
-                self.fc1(mem.flatten(start_dim=1))
-            ))
-        ))
+        v = t.relu(self.fc1(mem.flatten(start_dim=1)))
+        v = t.relu(self.fc2(v))
+        v = self.fc3(v)
+        return v
 
 
 if __name__ == "__main__":
-    q_net = QNet(history_depth, action_num).to("cuda:0")
-    q_net_t = QNet(history_depth, action_num).to("cuda:0")
+    actor = Actor(history_depth, action_num).to("cuda:0")
+    critic = Critic(history_depth).to("cuda:0")
 
-    dqn = DQNPer(q_net, q_net_t,
-                 t.optim.Adam,
-                 nn.MSELoss(reduction='sum'),
-                 learning_rate=5e-4)
+    ppo = PPO(actor, critic,
+              t.optim.Adam,
+              nn.MSELoss(reduction='sum'),
+              actor_learning_rate=1e-5,
+              critic_learning_rate=1e-4)
 
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
@@ -56,22 +76,20 @@ if __name__ == "__main__":
         state = convert(env.reset())
         history = History(history_depth, (1, 128))
 
+        tmp_observations = []
         while not terminal:
             step += 1
             with t.no_grad():
                 history.append(state)
                 # agent model inference
-                action = dqn.act_discrete_with_noise(
-                    {"mem": history.get()}
-                )
-
-                # info is {"ale.lives": self.ale.lives()}, not used here
+                action = ppo.act({"mem": history.get()})[0]
                 state, reward, terminal, _ = env.step(action.item())
                 state = convert(state)
                 total_reward += reward
+
                 old_history = history.get()
                 new_history = history.append(state).get()
-                dqn.store_transition({
+                tmp_observations.append({
                     "state": {"mem": old_history},
                     "action": {"action": action},
                     "next_state": {"mem": new_history},
@@ -79,10 +97,9 @@ if __name__ == "__main__":
                     "terminal": terminal
                 })
 
-        # update, update more if episode is longer, else less
-        if episode > 20:
-            for _ in range(step // 10):
-                dqn.update()
+        # update
+        ppo.store_episode(tmp_observations)
+        ppo.update()
 
         # show reward
         smoothed_total_reward = (smoothed_total_reward * 0.9 +

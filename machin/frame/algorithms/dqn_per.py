@@ -114,7 +114,8 @@ class DQNPer(DQN):
                       .to(value_loss.device))
         value_loss = value_loss.mean()
 
-        abs_error = (t.sum(t.abs(action_value - y_i), dim=1)
+        abs_error = (t.sum(t.abs(action_value - y_i.to(action_value.device)),
+                           dim=1)
                      .flatten().detach().cpu().numpy())
         self.replay_buffer.update_priority(abs_error, index)
 

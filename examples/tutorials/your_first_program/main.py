@@ -1,5 +1,6 @@
 from machin.frame.algorithms import DQN
 from machin.utils.logging import default_logger as logger
+from machin.model.nets import static_module_wrapper, dynamic_module_wrapper
 import torch as t
 import torch.nn as nn
 import gym
@@ -30,8 +31,24 @@ class QNet(nn.Module):
 
 
 if __name__ == "__main__":
+    # let framework determine input/output device based on parameter location
+    # a warning will be thrown.
     q_net = QNet(observe_dim, action_num)
     q_net_t = QNet(observe_dim, action_num)
+
+    # to mark the input/output device Manually
+    # will not work if you move your model to other devices
+    # after wrapping
+
+    # q_net = static_module_wrapper(q_net, "cpu", "cpu")
+    # q_net_t = static_module_wrapper(q_net_t, "cpu", "cpu")
+
+    # to mark the input/output device Automatically
+    # will not work if you model locates on multiple devices
+
+    # q_net = dynamic_module_wrapper(q_net)
+    # q_net_t = dynamic_module_wrapper(q_net_t)
+
     dqn = DQN(q_net, q_net_t,
               t.optim.Adam,
               nn.MSELoss(reduction='sum'))

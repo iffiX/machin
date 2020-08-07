@@ -173,7 +173,26 @@ framework, lets mix these parts together::
               nn.MSELoss(reduction='sum'))
 
 The framework might will print two warnings for not setting the input/output
-device of Q networks, but lets ignore that for now.
+device of Q networks, but lets ignore that for now. You may quite Machin down
+either by::
+
+    # to mark the input/output device Manually
+    # will not work if you move your model to other devices
+    # after wrapping
+
+    q_net = static_module_wrapper(q_net, "cpu", "cpu")
+    q_net_t = static_module_wrapper(q_net_t, "cpu", "cpu")
+
+Or by::
+
+    # to mark the input/output device Automatically
+    # will not work if you model locates on multiple devices
+
+    q_net = dynamic_module_wrapper(q_net)
+    q_net_t = dynamic_module_wrapper(q_net_t)
+
+`static_module_wrapper` and `dynamic_module_wrapper` can be imported from
+`machin.model.nets`
 
 Store a step
 ++++++++++++++++++++++++++++++++
