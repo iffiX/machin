@@ -59,10 +59,7 @@ def grad_server_helper(actor_model_creator: Callable,
                                              lr=learning_rate))
         actor_server.start()
         critic_server.start()
-    else:
-        while (not server_group.is_paired(DEFAULT_SERVER_NAMES[0]) or
-                not server_group.is_paired(DEFAULT_SERVER_NAMES[1])):
-            sleep(0.1)
+    server_group.barrier()
     actor_server = server_group.get_paired(DEFAULT_SERVER_NAMES[0]).to_here()
     critic_server = server_group.get_paired(DEFAULT_SERVER_NAMES[1]).to_here()
 
@@ -100,10 +97,7 @@ def model_server_helper():
                                                 server_group)
         _critic_server = PushPullModelServerImpl(DEFAULT_SERVER_NAMES[1],
                                                  server_group)
-    else:
-        while (not server_group.is_paired(DEFAULT_SERVER_NAMES[0]) or
-                not server_group.is_paired(DEFAULT_SERVER_NAMES[1])):
-            sleep(0.1)
+    server_group.barrier()
 
     actor_server = server_group.get_paired(DEFAULT_SERVER_NAMES[0]).to_here()
     critic_server = server_group.get_paired(DEFAULT_SERVER_NAMES[1]).to_here()

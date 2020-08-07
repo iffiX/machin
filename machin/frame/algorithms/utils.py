@@ -154,7 +154,7 @@ def safe_call(model, *named_args):
 
 
 def safe_return(result):
-    if len(result) == 0:
+    if len(result) == 1:
         return result[0]
     else:
         return result

@@ -259,7 +259,7 @@ class TestMADDPG(object):
     ########################################################################
     # Test for MADDPG criticizing
     ########################################################################
-    def test_criticize(self, train_config, maddpg_cont):
+    def test__criticize(self, train_config, maddpg_cont):
         c = train_config
         states = ([{"state": t.zeros([1, c.test_observe_dim])}]
                   * c.test_agent_num)
@@ -276,16 +276,16 @@ class TestMADDPG(object):
         old_state = state = t.zeros([1, c.test_observe_dim])
         action = t.zeros([1, c.test_action_dim])
         maddpg_cont.store_transitions([{
-            "state": {"state": old_state.clone()},
-            "action": {"action": action.clone()},
-            "next_state": {"state": state.clone()},
+            "state": {"state": old_state},
+            "action": {"action": action},
+            "next_state": {"state": state},
             "reward": 0,
             "terminal": False
         }] * c.test_agent_num)
         maddpg_cont.store_episodes([[{
-            "state": {"state": old_state.clone()},
-            "action": {"action": action.clone()},
-            "next_state": {"state": state.clone()},
+            "state": {"state": old_state},
+            "action": {"action": action},
+            "next_state": {"state": state},
             "reward": 0,
             "terminal": False
         }]] * c.test_agent_num)
@@ -298,9 +298,9 @@ class TestMADDPG(object):
         old_state = state = t.zeros([1, c.test_observe_dim])
         action = t.zeros([1, c.test_action_dim])
         maddpg_cont.store_episodes([[{
-            "state": {"state": old_state.clone()},
-            "action": {"action": action.clone()},
-            "next_state": {"state": state.clone()},
+            "state": {"state": old_state},
+            "action": {"action": action},
+            "next_state": {"state": state},
             "reward": 0,
             "terminal": False
         }]] * c.test_agent_num)
@@ -312,9 +312,9 @@ class TestMADDPG(object):
         old_state = state = t.zeros([1, c.test_observe_dim])
         action = t.zeros([1, c.test_action_dim])
         maddpg_vis.store_episodes([[{
-            "state": {"state": old_state.clone()},
-            "action": {"action": action.clone()},
-            "next_state": {"state": state.clone()},
+            "state": {"state": old_state},
+            "action": {"action": action},
+            "next_state": {"state": state},
             "reward": 0,
             "terminal": False
         }]] * c.test_agent_num)
@@ -374,10 +374,12 @@ class TestMADDPG(object):
                     old_states = states
 
                     # agent model inference
-                    actions, action_probs = maddpg.act_discrete_with_noise(
+                    results = maddpg.act_discrete_with_noise(
                         [{"state": st.unsqueeze(0)} for st in states]
                     )
-                    actions = [int(act) for act in actions]
+                    actions = [int(r[0]) for r in results]
+                    action_probs = [r[1] for r in results]
+
                     states, rewards, terminals, _ = env.step(actions)
                     states = [t.tensor(st, dtype=t.float32, device=c.device)
                               for st in states]
@@ -385,9 +387,9 @@ class TestMADDPG(object):
                     total_reward += float(sum(rewards)) / c.agent_num
 
                     maddpg.store_transitions([{
-                        "state": {"state": ost.unsqueeze(0).clone()},
-                        "action": {"action": act.clone()},
-                        "next_state": {"state": st.unsqueeze(0).clone()},
+                        "state": {"state": ost.unsqueeze(0)},
+                        "action": {"action": act},
+                        "next_state": {"state": st.unsqueeze(0)},
                         "reward": float(rew),
                         "terminal": term or step == c.max_steps
                     } for ost, act, st, rew, term in zip(

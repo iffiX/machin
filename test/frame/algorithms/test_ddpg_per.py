@@ -160,9 +160,9 @@ class TestDDPGPer(object):
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
         ddpg_per_vis.store_transition({
-            "state": {"state": old_state.clone()},
-            "action": {"action": action.clone()},
-            "next_state": {"state": state.clone()},
+            "state": {"state": old_state},
+            "action": {"action": action},
+            "next_state": {"state": state},
             "reward": 0,
             "terminal": False
         })
@@ -224,9 +224,9 @@ class TestDDPGPer(object):
                     total_reward += float(reward)
 
                     ddpg_per.store_transition({
-                        "state": {"state": old_state.unsqueeze(0).clone()},
-                        "action": {"action": action.clone()},
-                        "next_state": {"state": state.unsqueeze(0).clone()},
+                        "state": {"state": old_state.unsqueeze(0)},
+                        "action": {"action": action},
+                        "next_state": {"state": state.unsqueeze(0)},
                         "reward": float(reward),
                         "terminal": terminal or step == c.max_steps
                     })

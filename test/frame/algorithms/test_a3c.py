@@ -122,7 +122,7 @@ class TestA3C(object):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_criticize(_):
+    def test__criticize(_):
         a3c = TestA3C.a3c()
         c = TestA3C.c
         state = t.zeros([1, c.observe_dim])
@@ -150,9 +150,9 @@ class TestA3C(object):
             begin = time()
             while time() - begin < 5:
                 a3c.store_episode([
-                    {"state": {"state": old_state.clone()},
-                     "action": {"action": action.clone()},
-                     "next_state": {"state": state.clone()},
+                    {"state": {"state": old_state},
+                     "action": {"action": action},
+                     "next_state": {"state": state},
                      "reward": 0,
                      "terminal": False}
                     for _ in range(3)
@@ -219,9 +219,9 @@ class TestA3C(object):
                     total_reward += float(reward)
 
                     tmp_observations.append({
-                        "state": {"state": old_state.unsqueeze(0).clone()},
-                        "action": {"action": action.clone()},
-                        "next_state": {"state": state.unsqueeze(0).clone()},
+                        "state": {"state": old_state.unsqueeze(0)},
+                        "action": {"action": action},
+                        "next_state": {"state": state.unsqueeze(0)},
                         "reward": float(reward),
                         "terminal": terminal or step == c.max_steps
                     })

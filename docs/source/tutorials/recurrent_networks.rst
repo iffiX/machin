@@ -261,7 +261,7 @@ trajectories to the network and get Q value tensor for **last state** in each tr
 
 PPO
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-PPO is the same as `DQN <recurrent_networks/dqn>`_, the actor network and critic network will accept a trajectory and return an action/value::
+PPO is the same as :ref:`DQN <recurrent_networks/dqn>`, the actor network and critic network will accept a trajectory and return an action/value::
 
     class Actor(nn.Module):
         def __init__(self, history_depth, action_num):

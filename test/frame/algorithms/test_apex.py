@@ -161,9 +161,9 @@ class TestDQNApex(object):
         action = t.zeros([1, 1], dtype=t.int)
         if rank in (0, 1):
             dqn_apex.store_episode([
-                {"state": {"state": old_state.clone()},
-                 "action": {"action": action.clone()},
-                 "next_state": {"state": state.clone()},
+                {"state": {"state": old_state},
+                 "action": {"action": action},
+                 "next_state": {"state": state},
                  "reward": 0,
                  "terminal": False}
                 for _ in range(3)
@@ -235,9 +235,9 @@ class TestDQNApex(object):
                         total_reward += float(reward)
 
                         dqn_apex.store_transition({
-                            "state": {"state": old_state.unsqueeze(0).clone()},
-                            "action": {"action": action.clone()},
-                            "next_state": {"state": state.unsqueeze(0).clone()},
+                            "state": {"state": old_state.unsqueeze(0)},
+                            "action": {"action": action},
+                            "next_state": {"state": state.unsqueeze(0)},
                             "reward": float(reward),
                             "terminal": terminal or step == c.max_steps
                         })
@@ -366,7 +366,7 @@ class TestDDPGApex(object):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
-    def test_criticize(_):
+    def test__criticize(_):
         c = TestDDPGApex.c
         ddpg_apex = TestDDPGApex.ddpg_apex()
         state = t.zeros([1, c.observe_dim])
@@ -394,9 +394,9 @@ class TestDDPGApex(object):
         action = t.zeros([1, c.action_dim])
         if rank in (0, 1):
             ddpg_apex.store_transition({
-                "state": {"state": old_state.clone()},
-                "action": {"action": action.clone()},
-                "next_state": {"state": state.clone()},
+                "state": {"state": old_state},
+                "action": {"action": action},
+                "next_state": {"state": state},
                 "reward": 0,
                 "terminal": False
             })
@@ -475,9 +475,9 @@ class TestDDPGApex(object):
                         total_reward += float(reward)
 
                         ddpg_apex.store_transition({
-                            "state": {"state": old_state.unsqueeze(0).clone()},
-                            "action": {"action": action.clone()},
-                            "next_state": {"state": state.unsqueeze(0).clone()},
+                            "state": {"state": old_state.unsqueeze(0)},
+                            "action": {"action": action},
+                            "next_state": {"state": state.unsqueeze(0)},
                             "reward": float(reward),
                             "terminal": terminal or step == c.max_steps
                         })

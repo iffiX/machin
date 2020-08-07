@@ -136,8 +136,8 @@ def perturb_model(model: nn.Module,
                   debug_backward=False):
     """
     Give model's parameters a little perturbation. Implements
-    `<<Parameter Space Noise for Exploration>> <https://arxiv.org/abs/1706.
-01905>`_
+    `<<Parameter space noise for exploration>> \
+<https://arxiv.org/pdf/1706.01905.pdf>`_.
 
     Note:
         Only parameters of type ``t.Tensor`` and gettable from

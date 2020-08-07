@@ -151,7 +151,7 @@ class TestA2C(object):
     ########################################################################
     # Test for A2C criticizing
     ########################################################################
-    def test_criticize(self, train_config, a2c):
+    def test__criticize(self, train_config, a2c):
         c = train_config
         state = t.zeros([1, c.observe_dim])
         a2c._criticize({"state": state})
@@ -164,9 +164,9 @@ class TestA2C(object):
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
         a2c.store_transition({
-            "state": {"state": old_state.clone()},
-            "action": {"action": action.clone()},
-            "next_state": {"state": state.clone()},
+            "state": {"state": old_state},
+            "action": {"action": action},
+            "next_state": {"state": state},
             "reward": 0,
             "value": 0,
             "gae": 0,
@@ -179,9 +179,9 @@ class TestA2C(object):
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
         episode = [
-            {"state": {"state": old_state.clone()},
-             "action": {"action": action.clone()},
-             "next_state": {"state": state.clone()},
+            {"state": {"state": old_state},
+             "action": {"action": action},
+             "next_state": {"state": state},
              "reward": 0,
              "terminal": False}
             for _ in range(3)
@@ -197,9 +197,9 @@ class TestA2C(object):
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
         a2c_vis.store_episode([
-            {"state": {"state": old_state.clone()},
-             "action": {"action": action.clone()},
-             "next_state": {"state": state.clone()},
+            {"state": {"state": old_state},
+             "action": {"action": action},
+             "next_state": {"state": state},
              "reward": 0,
              "terminal": False}
             for _ in range(3)
@@ -208,9 +208,9 @@ class TestA2C(object):
                        update_target=True, concatenate_samples=True)
         a2c_vis.entropy_weight = 1e-3
         a2c_vis.store_episode([
-            {"state": {"state": old_state.clone()},
-             "action": {"action": action.clone()},
-             "next_state": {"state": state.clone()},
+            {"state": {"state": old_state},
+             "action": {"action": action},
+             "next_state": {"state": state},
              "reward": 0,
              "terminal": False}
             for _ in range(3)
@@ -264,9 +264,9 @@ class TestA2C(object):
                     total_reward += float(reward)
 
                     tmp_observations.append({
-                        "state": {"state": old_state.unsqueeze(0).clone()},
-                        "action": {"action": action.clone()},
-                        "next_state": {"state": state.unsqueeze(0).clone()},
+                        "state": {"state": old_state.unsqueeze(0)},
+                        "action": {"action": action},
+                        "next_state": {"state": state.unsqueeze(0)},
                         "reward": float(reward),
                         "terminal": terminal or step == c.max_steps
                     })

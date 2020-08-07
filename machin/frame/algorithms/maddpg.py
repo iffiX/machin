@@ -248,7 +248,7 @@ class MADDPG(TorchFramework):
                     # exclude "self" by truncating element 0
                     actor_arg_spec = inspect.getfullargspec(acc.forward)
                     jit_actor = t.jit.script(acc)
-                    jit_actor.args_spec = actor_arg_spec
+                    jit_actor.arg_spec = actor_arg_spec
                     jit_actor.model_type = type(acc)
                     jit_actors.append(jit_actor)
 
@@ -275,7 +275,8 @@ class MADDPG(TorchFramework):
             use_target: Whether use the target network.
 
         Returns:
-            A list of actions of shape ``[batch_size, action_dim]``.
+            A list of anything returned by your actor. If your actor
+            returns multiple values, they will be wrapped in a tuple.
         """
         return [safe_return(act) for act in
                 self._act_api_general(states, use_target)]
@@ -318,11 +319,13 @@ class MADDPG(TorchFramework):
                     action, noise_param, ratio)
             elif mode == "ou":
                 action = add_ou_noise_to_action(action, noise_param, ratio)
+            else:
+                raise ValueError("Unknown noise type: " + str(mode))
             if len(others) == 0:
                 result.append(action)
             else:
                 result.append((action, *others))
-        raise ValueError("Unknown noise type: " + str(mode))
+        return result
 
     def act_discrete(self,
                      states: List[Dict[str, Any]],
@@ -343,10 +346,10 @@ class MADDPG(TorchFramework):
             use_target: Whether use the target network.
 
         Returns:
-            A list of integer discrete actions of shape
-            ``[batch_size, 1]``.
-            A list of action probability tensors of shape
-            ``[batch_size, action_num]``.
+            A list of tuples containing:
+            1. Integer discrete actions of shape ``[batch_size, 1]``.
+            2. Action probability tensors of shape ``[batch_size, action_num]``.
+            3. Any other things returned by your actor.
         """
         actions = self._act_api_general(states, use_target)
         result = []
@@ -376,9 +379,10 @@ class MADDPG(TorchFramework):
             use_target: Whether use the target network.
 
         Returns:
-            A list of integer noisy discrete actions.
-            A list of action probability tensors of shape
-            ``[batch_size, action_num]``.
+            A list of tuples containing:
+            1. Integer noisy discrete actions.
+            2. Action probability tensors of shape ``[batch_size, action_num]``.
+            3. Any other things returned by your actor.
         """
         actions = self._act_api_general(states, use_target)
         result = []
@@ -401,6 +405,8 @@ class MADDPG(TorchFramework):
             future = [self._jit_safe_call(ac, st) for ac, st in
                       zip(actors, states)]
             result = [t.jit._wait(fut) for fut in future]
+            result = [res if isinstance(res, tuple) else (res,)
+                      for res in result]
         else:
             if use_target:
                 actors = [choice(sub_actors) for sub_actors in
@@ -665,11 +671,7 @@ class MADDPG(TorchFramework):
                                    .format(model_type, required_args,
                                            required_not_filled))
 
-        result = t.jit._fork(model, *args_list)
-        if isinstance(result, tuple):
-            return result
-        else:
-            return (result,)
+        return t.jit._fork(model, *args_list)
 
     @staticmethod
     def _update_sub_policy(batch_size, batches, next_actions_t,
@@ -709,7 +711,8 @@ class MADDPG(TorchFramework):
                 ensemble_n_act_t[a_idx]
                 if a_idx != actor_index
                 else atf(safe_call(actor_targets[actor_index][policy_index],
-                                   ensemble_batch[a_idx][3]))
+                                   ensemble_batch[a_idx][3])[0],
+                         ensemble_batch[a_idx][5])
                 for a_idx in visible_actors
             ]
             all_next_actions_t = acf(all_next_actions_t)
@@ -736,14 +739,14 @@ class MADDPG(TorchFramework):
             terminal = ensemble_batch[actor_index][4]
             next_value = safe_call(critic_targets[actor_index],
                                    all_next_states,
-                                   all_next_actions_t)
+                                   all_next_actions_t)[0]
             next_value = next_value.view(batch_size, -1)
             y_i = rf(reward, discount, next_value, terminal,
                      ensemble_batch[actor_index][5])
 
         cur_value = safe_call(critics[actor_index],
                               all_states,
-                              all_actions)
+                              all_actions)[0]
         value_loss = criterion(cur_value, y_i.to(cur_value.device))
 
         if visualize:
@@ -772,15 +775,17 @@ class MADDPG(TorchFramework):
         #     visible_actors.index(a_2) = 1
         # visible_actors.index returns the (critic-)local position of actor
         # in the view range of its corresponding critic.
-        all_actions[visible_actors.index(actor_index)] = atf(safe_call(
-            actors[actor_index][policy_index],
-            ensemble_batch[actor_index][3]
-        ), ensemble_batch[actor_index][5])
+        all_actions[visible_actors.index(actor_index)] = atf(
+            safe_call(
+                actors[actor_index][policy_index],
+                ensemble_batch[actor_index][3]
+            )[0],
+            ensemble_batch[actor_index][5])
         all_actions = acf(all_actions)
 
         act_value = safe_call(critics[actor_index],
                               all_states,
-                              all_actions)
+                              all_actions)[0]
 
         # "-" is applied because we want to maximize J_b(u),
         # but optimizer workers by minimizing the target

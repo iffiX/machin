@@ -9,6 +9,8 @@ pipeline {
         PYPI_CREDS = credentials('pypi_username_password')
         TWINE_USERNAME = "${env.PYPI_CREDS_USR}"
         TWINE_PASSWORD = "${env.PYPI_CREDS_PSW}"
+        // See https://github.com/pytorch/pytorch/issues/37377
+        MKL_SERVICE_FORCE_INTEL = "1"
     }
     stages {
         stage('Install') {
