@@ -49,7 +49,7 @@ setuptools.setup(
         "Programming Language :: Python :: 3.8",
     ],
     install_requires=[
-        "gym[atari, box2d, classic_control]",
+        "gym",
         "psutil",
         "numpy",
         "torch>=1.5.0",

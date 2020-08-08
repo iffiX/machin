@@ -127,7 +127,8 @@ class TestA3C(object):
         c = TestA3C.c
         state = t.zeros([1, c.observe_dim])
         a3c._criticize({"state": state})
-        return True
+        return False
+        #return True
 
     ########################################################################
     # Test for A3C storage

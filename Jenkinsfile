@@ -35,6 +35,7 @@ pipeline {
                     sh 'apt -o APT::Acquire::Retries="3" --fix-missing install -y wget freeglut3-dev xvfb fonts-dejavu graphviz'
                     sh 'pip install -e .'
                     sh 'pip install -e ./test_lib/multiagent-particle-envs/'
+                    sh 'pip install "gym[atari, box2d, classic_control]"'
                     sh 'pip install mock pytest==5.4.3 pytest-cov==2.10.0 allure-pytest==2.8.16 pytest-xvfb==2.0.0 pytest-html==1.22.1 pytest-repeat==0.8.0'
                     // This line must be included, otherwise matplotlib will
                     // segfault when it tries to build the font cache.
@@ -47,20 +48,20 @@ pipeline {
                 // run basic test
                 sh 'mkdir -p test_results'
                 sh 'mkdir -p test_allure_data/api'
-
-                // -eq 1  is used to tell jenkins to not mark
-                // the test as failure when sub tests failed.
-                sh 'pytest -s --assert=plain --cov-report term-missing --cov=machin ' +
-                   '-k \'not full_train\' ' +
-                   '-o junit_family=xunit1 ' +
-                   '--junitxml test_results/test_api.xml ./test ' +
-                   '--cov-report xml:test_results/cov_report.xml ' +
-                   '--html=test_results/test_api.html ' +
-                   '--self-contained-html ' +
-                   '--alluredir="test_allure_data/api"' +
-                   '|| export test_result="failed"'
                 script {
-                    test_api = sh(returnStdout: true, script: 'echo $test_result').trim()
+                    test_api = sh(
+                        returnStdout: true,
+                        script:
+                            'pytest -s --assert=plain --cov-report term-missing --cov=machin ' +
+                            '-k \'not full_train and A3C\' ' +
+                            '-o junit_family=xunit1 ' +
+                            '--junitxml test_results/test_api.xml ./test ' +
+                            '--cov-report xml:test_results/cov_report.xml ' +
+                            '--html=test_results/test_api.html ' +
+                            '--self-contained-html ' +
+                            '--alluredir="test_allure_data/api"' +
+                            '|| echo "failed"'
+                    ).trim()
                 }
                 echo "$test_api"
                 junit 'test_results/test_api.xml'
@@ -94,16 +95,19 @@ pipeline {
                 // run full training test
                 sh 'mkdir -p test_results'
                 sh 'mkdir -p test_allure_data/full_train'
-                sh 'pytest ' +
-                   '-s --assert=plain -k \'full_train\' ' +
-                   '-o junit_family=xunit1 ' +
-                   '--junitxml test_results/test_full_train.xml ./test ' +
-                   '--html=test_results/test_full_train.html ' +
-                   '--self-contained-html ' +
-                   '--alluredir="test_allure_data/full_train"' +
-                   '|| export test_result="failed"'
                 script {
-                    test_full_train = sh(returnStdout: true, script: 'echo $test_result').trim()
+                    test_full_train = sh(
+                        returnStdout: true,
+                        script:
+                            'pytest ' +
+                            '-s --assert=plain -k \'full_train\' ' +
+                            '-o junit_family=xunit1 ' +
+                            '--junitxml test_results/test_full_train.xml ./test ' +
+                            '--html=test_results/test_full_train.html ' +
+                            '--self-contained-html ' +
+                            '--alluredir="test_allure_data/full_train"' +
+                            '|| echo "failed"'
+                    ).trim()
                 }
                 echo "$test_full_train"
                 junit 'test_results/test_full_train.xml'
@@ -176,6 +180,23 @@ pipeline {
                                       artifacts: 'dist/*whl',
                                       fingerprint: true)
                 }
+            }
+        }
+        stage('Deploy conda package') {
+            when {
+                allOf {
+                    // only version tags without postfix will be deployed
+                    tag pattern: 'v\\d+\\.\\d+\\.\\d+', comparator: "REGEXP"
+                    expression { test_api != "failed" && test_full_train != "failed" }
+                }
+            }
+            steps {
+                // install and update conda
+                sh 'wget http://file.node2/Miniconda3-latest-Linux-x86_64.sh'
+                sh 'chmod +x Miniconda3-latest-Linux-x86_64.sh'
+                sh './Miniconda3-latest-Linux-x86_64.sh -b'
+                sh 'export PATH=/root/miniconda3/bin:$PATH'
+                sh 'conda update --yes conda'
             }
         }
     }
