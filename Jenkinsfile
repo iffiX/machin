@@ -100,7 +100,7 @@ pipeline {
                         returnStdout: true,
                         script:
                             'pytest ' +
-                            '-s --assert=plain -k \'full_train\' ' +
+                            '-s --assert=plain -k \'full_train and A3C\' ' +
                             '-o junit_family=xunit1 ' +
                             '--junitxml test_results/test_full_train.xml ./test ' +
                             '--html=test_results/test_full_train.html ' +
