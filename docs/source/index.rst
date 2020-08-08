@@ -19,8 +19,23 @@ About
 
 Installation
 ++++++++++++++++++
+Machin is hosted on `PyPI <https://pypi.org/project/tianshou/>`_, currently it
+requires:
 
-TODO
+1. python >= 3.5
+2. torch >= 1.5.0
+
+If you are using PIP to manage your python packages, you may directly type::
+
+   pip install machin
+
+If you are using conda to manage your python packages, you are suggested to create a
+virtual environment first, to prevent PIP changes your packages without letting
+conda know::
+
+   conda create -n some_env pip
+   conda activate some_env
+   pip install machin
 
 Tutorials and examples
 ++++++++++++++++++++++

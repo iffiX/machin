@@ -109,7 +109,14 @@ See [here](https://machin.readthedocs.io/). Examples are located in [examples](h
 ---
 Machin is hosted on [PyPI](https://pypi.org/project/machin/). Python >= 3.5 and PyTorch >= 1.5.0 is required. You may install the Machin library by simply typing:
 ```
-pip3 install machin
+pip install machin
+```
+You are suggested to create a virtual environment first if you are using conda to manage your environments, to prevent PIP changes your packages without letting
+conda know.
+```
+conda create -n some_env pip
+conda activate some_env
+pip install machin
 ```
 
 ### Contributing

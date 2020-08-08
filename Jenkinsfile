@@ -190,30 +190,6 @@ pipeline {
                 }
             }
         }
-        stage('Deploy conda package') {
-            when {
-                allOf {
-                    // only version tags without postfix will be deployed
-                    tag pattern: 'v\\d+\\.\\d+\\.\\d+', comparator: "REGEXP"
-                    expression { test_passed }
-                    expression { false }
-                }
-            }
-            steps {
-                // install and update conda
-                sh 'wget -O Miniconda3-latest-Linux-x86_64.sh http://file.node2/Miniconda3-latest-Linux-x86_64.sh'
-                sh 'chmod +x Miniconda3-latest-Linux-x86_64.sh'
-                sh './Miniconda3-latest-Linux-x86_64.sh -b'
-                sh 'export PATH=/root/miniconda3/bin:$PATH'
-                sh 'conda update --yes conda'
-                sh 'conda install --yes anaconda-client conda-build'
-
-                // build package from pypi source
-                sh 'conda skeleton pypi machin'
-
-                // TODO
-            }
-        }
     }
     post {
         always {
