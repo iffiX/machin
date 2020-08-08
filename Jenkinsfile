@@ -1,3 +1,7 @@
+import hudson.model.*
+import jenkins.model.*
+import hudson.tasks.test.AbstractTestResultAction
+
 pipeline {
     agent {
         docker {
@@ -48,22 +52,17 @@ pipeline {
                 // run basic test
                 sh 'mkdir -p test_results'
                 sh 'mkdir -p test_allure_data/api'
-                script {
-                    test_api = sh(
-                        returnStdout: true,
-                        script:
-                            'pytest -s --assert=plain --cov-report term-missing --cov=machin ' +
-                            '-k \'not full_train and A3C\' ' +
-                            '-o junit_family=xunit1 ' +
-                            '--junitxml test_results/test_api.xml ./test ' +
-                            '--cov-report xml:test_results/cov_report.xml ' +
-                            '--html=test_results/test_api.html ' +
-                            '--self-contained-html ' +
-                            '--alluredir="test_allure_data/api"' +
-                            '|| echo "failed"'
-                    ).trim()
-                }
-                echo "$test_api"
+                // -eq 1  is used to tell jenkins to not mark
+                // the test as failure when sub tests failed.
+                sh 'pytest -s --assert=plain --cov-report term-missing --cov=machin ' +
+                   '-k \'not full_train\' ' +
+                   '-o junit_family=xunit1 ' +
+                   '--junitxml test_results/test_api.xml ./test ' +
+                   '--cov-report xml:test_results/cov_report.xml ' +
+                   '--html=test_results/test_api.html ' +
+                   '--self-contained-html ' +
+                   '--alluredir="test_allure_data/api"' +
+                   '|| [ $? -eq 1 ]'
                 junit 'test_results/test_api.xml'
                 archiveArtifacts 'test_results/test_api.html'
                 archiveArtifacts 'test_results/cov_report.xml'
@@ -95,23 +94,34 @@ pipeline {
                 // run full training test
                 sh 'mkdir -p test_results'
                 sh 'mkdir -p test_allure_data/full_train'
-                script {
-                    test_full_train = sh(
-                        returnStdout: true,
-                        script:
-                            'pytest ' +
-                            '-s --assert=plain -k \'full_train and A3C\' ' +
-                            '-o junit_family=xunit1 ' +
-                            '--junitxml test_results/test_full_train.xml ./test ' +
-                            '--html=test_results/test_full_train.html ' +
-                            '--self-contained-html ' +
-                            '--alluredir="test_allure_data/full_train"' +
-                            '|| echo "failed"'
-                    ).trim()
-                }
-                echo "$test_full_train"
+                sh 'pytest ' +
+                   '-s --assert=plain -k \'full_train\' ' +
+                   '-o junit_family=xunit1 ' +
+                   '--junitxml test_results/test_full_train.xml ./test ' +
+                   '--html=test_results/test_full_train.html ' +
+                   '--self-contained-html ' +
+                   '--alluredir="test_allure_data/full_train"' +
+                   '|| [ $? -eq 1 ]'
                 junit 'test_results/test_full_train.xml'
+                archiveArtifacts 'test_results/test_full_train.xml'
                 archiveArtifacts 'test_results/test_full_train.html'
+            }
+        }
+        stage('Check test result') {
+            steps {
+                script {
+                    def test_result_action = currentBuild.rawBuild.getAction(AbstractTestResultAction.class)
+                    test_passed = true
+                    if (test_result_action != null) {
+                        test_passed = test_result_action.getFailCount() == 0
+                    }
+                    if (test_passed) {
+                        println "Test passed"
+                    }
+                    else {
+                        println "Test failed"
+                    }
+                }
             }
         }
         stage('Deploy allure report') {
@@ -126,9 +136,7 @@ pipeline {
                 sh 'mkdir -p test_allure_report'
                 sh 'apt install -y default-jre'
                 sh 'wget -O allure-commandline-2.8.1.tgz ' +
-                   '\'https://bintray.com/qameta/maven/download_file?fil' +
-                   'e_path=io%2Fqameta%2Fallure%2Fallure-commandline%2F2.8.1%' +
-                   '2Fallure-commandline-2.8.1.tgz\''
+                   '\'http://file.node2/allure-commandline-2.8.1.tgz\''
                 sh 'tar -xvzf allure-commandline-2.8.1.tgz'
                 sh 'chmod a+x allure-2.8.1/bin/allure'
                 sh 'allure-2.8.1/bin/allure generate test_allure_data/api ' +
@@ -163,7 +171,7 @@ pipeline {
                 allOf {
                     // only version tags without postfix will be deployed
                     tag pattern: 'v\\d+\\.\\d+\\.\\d+', comparator: "REGEXP"
-                    expression { test_api != "failed" && test_full_train != "failed" }
+                    expression { test_passed }
                 }
             }
             steps {
@@ -187,16 +195,23 @@ pipeline {
                 allOf {
                     // only version tags without postfix will be deployed
                     tag pattern: 'v\\d+\\.\\d+\\.\\d+', comparator: "REGEXP"
-                    expression { test_api != "failed" && test_full_train != "failed" }
+                    expression { test_passed }
+                    expression { false }
                 }
             }
             steps {
                 // install and update conda
-                sh 'wget http://file.node2/Miniconda3-latest-Linux-x86_64.sh'
+                sh 'wget -O Miniconda3-latest-Linux-x86_64.sh http://file.node2/Miniconda3-latest-Linux-x86_64.sh'
                 sh 'chmod +x Miniconda3-latest-Linux-x86_64.sh'
                 sh './Miniconda3-latest-Linux-x86_64.sh -b'
                 sh 'export PATH=/root/miniconda3/bin:$PATH'
                 sh 'conda update --yes conda'
+                sh 'conda install --yes anaconda-client conda-build'
+
+                // build package from pypi source
+                sh 'conda skeleton pypi machin'
+
+                // TODO
             }
         }
     }

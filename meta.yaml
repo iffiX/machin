@@ -1,0 +1,44 @@
+{% set name = "machin" %}
+{% set data = load_setup_py_data() %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ data.get('version') }}
+
+source:
+  path: ../
+
+build:
+  noarch: python
+  number: 0
+  script: "{{ PYTHON }} -m pip install . -vv"
+
+requirements:
+  host:
+    - python >=3.5
+    - pytorch >=1.5.0
+    - numpy
+    - pip
+  run:
+    - python >=3.5
+    - pytorch >=1.5.0
+    - numpy
+
+test:
+  imports:
+    - machin
+
+about:
+  home: https://github.com/iffiX/machin
+  license: MIT
+  license_family: MIT
+  license_file: LICENSE
+  summary: 'Reinforcement learning library.'
+  description: |
+    Reinforcement learning library designed for PyTorch.
+  doc_url: https://machin.readthedocs.io/en/latest/
+  dev_url: https://github.com/iffiX/machin
+
+extra:
+  recipe-maintainers:
+    - iffiX

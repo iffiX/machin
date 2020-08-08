@@ -62,7 +62,7 @@ class TestA3C(object):
     c.env = unwrap_time_limit(gym.make(c.env_name))
     c.observe_dim = 4
     c.action_num = 2
-    c.max_episodes = 2000
+    c.max_episodes = 3000
     c.max_steps = 200
     c.replay_size = 10000
     c.solved_reward = 190
@@ -127,8 +127,7 @@ class TestA3C(object):
         c = TestA3C.c
         state = t.zeros([1, c.observe_dim])
         a3c._criticize({"state": state})
-        return False
-        #return True
+        return True
 
     ########################################################################
     # Test for A3C storage
