@@ -202,6 +202,8 @@ class A2C(TorchFramework):
         Returns:
             Anything produced by actor.
         """
+        # No need to safe_return because the number of
+        # returned values is always more than one
         return safe_call(self.actor, state)
 
     def _eval_act(self,

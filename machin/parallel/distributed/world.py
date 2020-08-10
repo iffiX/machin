@@ -1,11 +1,10 @@
-from threading import Lock
+from threading import Lock, Event
 from datetime import timedelta
 from typing import Union, List, Any, Callable
 from time import sleep
 from torch.distributed import rpc
 from machin.parallel.exception import ExceptionWithTraceback
 
-import os
 import enum
 import torch as t
 import torch.distributed as dist
@@ -570,6 +569,12 @@ class RpcGroup:
         self.group_value_lut = {}
         self.group_service_lut = {}
         self.destroyed = False
+        self._barrier_event = Event()
+        self._barrier_status = False
+        self.register("_rpc_entered_barrier_{}".format(get_cur_name()),
+                      self._rpc_entered_barrier)
+        self.register("_rpc_exit_barrier_{}".format(get_cur_name()),
+                      self._rpc_exit_barrier)
 
     @_copy_doc(rpc.rpc_sync)
     def rpc_sync(self, to: str, func: Callable,
@@ -816,15 +821,20 @@ class RpcGroup:
         Synchronize all members in the group, until all members have entered
         a ``barrier()`` function.
         """
-        self.pair("__enter_barrier_{}".format(get_cur_name()),
-                  True)
-        while True:
-            paired = [self.is_paired("__enter_barrier_{}".format(m))
-                      for m in self.group_members]
-            if all(paired):
-                break
-            else:
+
+        self._barrier_status = True
+        if get_cur_name() == self.group_members[0]:
+            all_entered = all(
+                self.registered_sync("_rpc_entered_barrier_{}".format(m))
+                for m in self.group_members
+            )
+            if not all_entered:
                 sleep(0.2)
+            for m in self.group_members:
+                self.registered_sync("_rpc_exit_barrier_{}".format(m))
+        else:
+            self._barrier_event.wait()
+        self._barrier_status = False
 
     @_check_executor
     def destroy(self):
@@ -892,6 +902,13 @@ class RpcGroup:
                                .format(key, self.group_name))
         return rpc_method(holder, _rpc_call_service,
                           args=(self.group_name, key, args, kwargs))
+
+    def _rpc_entered_barrier(self):
+        return self._barrier_status
+
+    def _rpc_exit_barrier(self):
+        self._barrier_event.set()
+        self._barrier_event.clear()
 
     def __reduce__(self):  # pragma: no cover
         # returns a complete description of group

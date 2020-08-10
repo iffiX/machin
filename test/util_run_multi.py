@@ -1,4 +1,4 @@
-from machin.parallel.distributed import World, get_world
+from machin.parallel.distributed import World
 from machin.parallel.process import Process
 from time import sleep, time
 from decorator import FunctionMaker
