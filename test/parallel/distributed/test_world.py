@@ -357,3 +357,14 @@ class TestWorld(WorldTestBase):
         assert group.get_group_members() == ["0", "1", "2"]
         assert group.get_cur_name() == str(rank)
         return True
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True])
+    @WorldTestBase.setup_world
+    def test_rpc_barrier(_):
+        world = get_world()
+        group = world.create_rpc_group("group", ["0", "1", "2"])
+        assert group.size() == 3
+        group.barrier()
+        group.destroy()
+        return True

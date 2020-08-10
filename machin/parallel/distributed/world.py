@@ -331,6 +331,9 @@ class World:
             raise RuntimeError("Group {} already exists!".format(group_name))
         group = RpcGroup(group_name, members)
 
+        # set the group
+        self.groups[group_name] = group
+
         # temporarily set a signal
         self.group_create_signals[group_name] = False
         # wait for other members to enter
@@ -356,9 +359,6 @@ class World:
         else:
             while self.group_create_signals[group_name] is not True:
                 sleep(0.1)
-
-        # set the group
-        self.groups[group_name] = group
         return group
 
     def get_rpc_group(self, group_name: str, target: str = None):
@@ -571,10 +571,11 @@ class RpcGroup:
         self.destroyed = False
         self._barrier_event = Event()
         self._barrier_status = False
-        self.register("_rpc_entered_barrier_{}".format(get_cur_name()),
-                      self._rpc_entered_barrier)
-        self.register("_rpc_exit_barrier_{}".format(get_cur_name()),
-                      self._rpc_exit_barrier)
+        if self.is_member(get_cur_name()):
+            self.register("_rpc_entered_barrier_{}".format(get_cur_name()),
+                          self._rpc_entered_barrier)
+            self.register("_rpc_exit_barrier_{}".format(get_cur_name()),
+                          self._rpc_exit_barrier)
 
     @_copy_doc(rpc.rpc_sync)
     def rpc_sync(self, to: str, func: Callable,
@@ -816,6 +817,7 @@ class RpcGroup:
             kwargs = {}
         return self._rpc_service_call(rpc.remote, key, args, kwargs)
 
+    @_check_executor
     def barrier(self):
         """
         Synchronize all members in the group, until all members have entered

@@ -1,4 +1,4 @@
-from machin.parallel.distributed import World
+from machin.parallel.distributed import World, get_world as gw
 from machin.parallel.process import Process
 from time import sleep, time
 from decorator import FunctionMaker
@@ -11,6 +11,7 @@ import multiprocessing as mp
 import socket
 from contextlib import closing
 
+get_world = gw
 # use queue handler
 default_logger = logging.getLogger("multi_default_logger")
 default_logger.setLevel(logging.INFO)
