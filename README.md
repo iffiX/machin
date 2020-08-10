@@ -64,6 +64,7 @@ Currently Machin has implemented the following algorithms, the list is still gro
 * [Asynchronous A2C (A3C)](https://arxiv.org/abs/1602.01783)
 * [APEX-DQN, APEX-DDPG](https://arxiv.org/pdf/1803.00933)
 * [IMPALA](https://arxiv.org/pdf/1802.01561)
+* [Augmented random search (ARS, non-gradient)](https://arxiv.org/pdf/1803.07055.pdf)
 
 #### Enhancements:
 * [Prioritized Experience Replay (PER)](https://arxiv.org/pdf/1511.05952.pdf)

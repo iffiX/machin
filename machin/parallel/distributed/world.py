@@ -188,10 +188,6 @@ def get_world():  # pragma: no cover
     return WORLD
 
 
-def _get_rpc_group(group_name):  # pragma: no cover
-    return WORLD.groups.get(group_name, None)
-
-
 def _is_group_ready(group_name):  # pragma: no cover
     return WORLD.group_create_signals.get(group_name, None) is False
 
@@ -360,32 +356,6 @@ class World:
             while self.group_create_signals[group_name] is not True:
                 sleep(0.1)
         return group
-
-    def get_rpc_group(self, group_name: str, target: str = None):
-        """
-        Get group with name ``group_name``, supports group not created
-        on this process. You should only use it if you really needs to
-        access a value/service only exposed in the target group.
-
-        Warning:
-            This API is obsolete.
-
-        Args:
-            group_name: Group name.
-            target: Target process used to query for the group info
-                if it is not created locally, by default it is set
-                to the local process.
-
-        Returns:
-            Target group, ``None`` if not found
-        """
-
-        if target is None:
-            return self.groups.get(group_name, None)
-        else:
-            return rpc.rpc_sync(target,
-                                _get_rpc_group,
-                                args=(group_name,))
 
     def get_members(self):
         """
@@ -563,7 +533,7 @@ class CollectiveGroup:
 # add the heartbeat mechanism to the lut_manager, to increase robustness
 
 class RpcGroup:
-    def __init__(self, group_name, group_members):
+    def __init__(self, group_name, group_members, first_create=True):
         self.group_name = group_name
         self.group_members = group_members
         self.group_value_lut = {}
@@ -571,7 +541,7 @@ class RpcGroup:
         self.destroyed = False
         self._barrier_event = Event()
         self._barrier_status = False
-        if self.is_member(get_cur_name()):
+        if first_create and self.is_member(get_cur_name()):
             self.register("_rpc_entered_barrier_{}".format(get_cur_name()),
                           self._rpc_entered_barrier)
             self.register("_rpc_exit_barrier_{}".format(get_cur_name()),
@@ -826,12 +796,15 @@ class RpcGroup:
 
         self._barrier_status = True
         if get_cur_name() == self.group_members[0]:
-            all_entered = all(
-                self.registered_sync("_rpc_entered_barrier_{}".format(m))
-                for m in self.group_members
-            )
-            if not all_entered:
-                sleep(0.2)
+            while True:
+                all_entered = all(
+                    self.registered_sync("_rpc_entered_barrier_{}".format(m))
+                    for m in self.group_members
+                )
+                if not all_entered:
+                    sleep(0.2)
+                else:
+                    break
             for m in self.group_members:
                 self.registered_sync("_rpc_exit_barrier_{}".format(m))
         else:
@@ -914,4 +887,4 @@ class RpcGroup:
 
     def __reduce__(self):  # pragma: no cover
         # returns a complete description of group
-        return RpcGroup, (self.group_name, self.group_members)
+        return RpcGroup, (self.group_name, self.group_members, False)

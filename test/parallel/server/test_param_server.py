@@ -59,12 +59,13 @@ class TestPushPullModelServer(WorldTestBase):
     def test_push_pull(rank):
         world = get_world()
         if rank == 0:
-            group = world.create_rpc_group("group", ["0"])
+            group = world.create_rpc_group("group", ["0", "1"])
             _server = PushPullModelServerImpl("server", group)
-            sleep(4)
-        else:
-            sleep(2)
-            group = world.get_rpc_group("group", "0")
+            group.barrier()
+            group.barrier()
+        elif rank == 1:
+            group = world.create_rpc_group("group", ["0", "1"])
+            group.barrier()
             server = group.get_paired("server").to_here()
             model = Model()
             pull_model = Model()
@@ -88,6 +89,7 @@ class TestPushPullModelServer(WorldTestBase):
             assert pull_model.fc1.weight.item() == 11
             assert pull_model.fc2.weight.item() == 12
             assert pull_model.fc3.weight.item() == 13
+            group.barrier()
         return True
 
 
@@ -103,10 +105,13 @@ class TestPushPullGradServer(WorldTestBase):
         world = get_world()
         if rank == 0:
             # only one reduce slave, so result is controllable
-            group = world.create_rpc_group("group", ["0"])
+            group = world.create_rpc_group("group", ["0", "1", "2"])
             server = PushPullGradServerImpl("server", group,
+                                            primary_reducer="0",
+                                            secondary_reducers=["0"],
                                             reduce_method=reduce_method,
                                             reduce_batch_size=2)
+            group.barrier()
             model = Model()
             server.manage_model(model, Optimizer(model.parameters()))
             begin = time()
@@ -114,9 +119,10 @@ class TestPushPullGradServer(WorldTestBase):
             while time() - begin < 5:
                 server.watch()
             server.stop()
+            group.barrier()
         else:
-            sleep(2)
-            group = world.get_rpc_group("group", "0")
+            group = world.create_rpc_group("group", ["0", "1", "2"])
+            group.barrier()
             server = group.get_paired("server").to_here()
             model = Model()
 
@@ -143,4 +149,5 @@ class TestPushPullGradServer(WorldTestBase):
             assert model.fc1.weight.item() == new_weight[0]
             assert model.fc2.weight.item() == new_weight[1]
             assert model.fc3.weight.item() == new_weight[2]
+            group.barrier()
         return True

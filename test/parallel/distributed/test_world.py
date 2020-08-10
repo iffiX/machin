@@ -31,25 +31,6 @@ class TestWorld(WorldTestBase):
         assert get_cur_name() == str(rank)
         return True
 
-    @staticmethod
-    @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
-    def test_get_group(rank):
-        world = get_world()
-        if rank in (0, 1):
-            group = world.create_rpc_group("group", ["0", "1"])
-            assert (world.get_rpc_group("group")
-                    .get_group_members() == ["0", "1"])
-            sleep(3)
-            group.destroy()
-        else:
-            sleep(1)
-            group = world.get_rpc_group("group", "0")
-            assert group.get_group_name() == "group"
-            with pytest.raises(RuntimeError, match="should not execute"):
-                group.pair("key", 0)
-        return True
-
     ########################################################################
     # Test for collective communications
     ########################################################################

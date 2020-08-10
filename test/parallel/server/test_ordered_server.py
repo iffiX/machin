@@ -1,4 +1,3 @@
-from machin.parallel.distributed import RpcGroup
 from machin.parallel.server import OrderedServerSimpleImpl
 from test.util_run_multi import *
 
@@ -7,9 +6,13 @@ def _log(rank, msg):
     default_logger.info("Client {}: {}".format(rank, msg))
 
 
+class Object(object):
+    pass
+
+
 class TestOrderedServerSimple(WorldTestBase):
     def test__push_pull_service(self):
-        fake_group = RpcGroup("fake_group", ("proc1", "proc2"))
+        fake_group = Object()
         fake_group.pair = lambda *_: None
         fake_group.register = lambda *_: None
         fake_group.destroy = lambda: None
@@ -31,12 +34,13 @@ class TestOrderedServerSimple(WorldTestBase):
     def test_push_pull(rank):
         world = get_world()
         if rank == 0:
-            group = world.create_rpc_group("group", ["0"])
+            group = world.create_rpc_group("group", ["0", "1"])
             _server = OrderedServerSimpleImpl("server", group)
-            sleep(5)
-        else:
-            sleep(2)
-            group = world.get_rpc_group("group", "0")
+            group.barrier()
+            group.barrier()
+        elif rank == 1:
+            group = world.create_rpc_group("group", ["0", "1"])
+            group.barrier()
             server = group.get_paired("server").to_here()
 
             if server.push("a", "value", 1, None):
@@ -56,4 +60,5 @@ class TestOrderedServerSimple(WorldTestBase):
             assert server.pull("a", 2) == ("value2", 2)
             assert server.pull("a", 1) is None
             assert server.pull("b", None) is None
+            group.barrier()
         return True

@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Any, Union, List
 from random import choice
 from copy import deepcopy
 from queue import Queue
@@ -20,8 +20,6 @@ from .ordered_server import (
 
 class PushPullModelServer:
     def __init__(self,
-                 server_name: str,
-                 group: RpcGroup,
                  model_name: str,
                  o_server: OrderedServerBase = None):
         """
@@ -29,17 +27,11 @@ class PushPullModelServer:
         :class:`PushPullModelServerImpl`
 
         Args:
-            server_name: Name of this server, used to registered
-                the server as a paired class of ``group``.
-            group: RpcGroup of the default server :class:`.OrderedServerSimple`
-                mutually exclusive with ``server``
             model_name: Name of the managed model in the ordered server,
                 only needed if ``server`` needs such a identifier. The default
                 ordered server does not require this.
-            o_server: Custom ordered server accessor.
+            o_server: Ordered server accessor.
         """
-        self.server_name = server_name
-        self.group = group
         self.model_name = model_name
         self.o_server = o_server
 
@@ -51,6 +43,7 @@ class PushPullModelServer:
 
         Args:
             model: Model to push.
+            pull_on_fail: Pull the newest parameters if push failed.
         """
         if not hasattr(model, "pp_version"):
             model.pp_version = 0
@@ -115,7 +108,7 @@ class PushPullModelServerImpl:
             server_name: Name of this server, used to registered
                 the server as a paired class of ``group``.
             group: RpcGroup of the default server :class:`.OrderedServerSimple`
-                mutually exclusive with ``server``
+                mutually exclusive with ``o_server``
             model_name: Name of the managed model in the ordered server,
                 only needed if ``server`` needs such a identifier. The default
                 ordered server does not require this.
@@ -136,8 +129,7 @@ class PushPullModelServerImpl:
             self.o_server = o_server
         # pair an accessor to group
         self.group.pair(server_name,
-                        PushPullModelServer(self.server_name, self.group,
-                                            self.model_name, self.o_server))
+                        PushPullModelServer(self.model_name, self.o_server))
 
 
 class ReduceType(enum.Enum):
@@ -150,13 +142,14 @@ class PushPullGradServer:
                  server_name: str,
                  group: RpcGroup,
                  model_name: str,
+                 secondary_reducers: List[str],
                  o_server: OrderedServerBase):
         self.group = group
         self.model_name = model_name
         self.o_server = o_server
         self.secondary_services = [server_name +
                                    "/" + m + "/_push_service"
-                                   for m in group.get_group_members()]
+                                   for m in secondary_reducers]
 
     def push(self, model: nn.Module):
         """
@@ -213,6 +206,7 @@ class PushPullGradServerImpl:
                  group: RpcGroup,
                  model_name: str = "model",
                  primary_reducer: str = None,
+                 secondary_reducers: List[str] = None,
                  o_server: OrderedServerBase = None,
                  reduce_method: str = "sum",
                  reduce_device: Union[t.device, str] = "cpu",
@@ -220,9 +214,9 @@ class PushPullGradServerImpl:
                  max_queue_size: int = 64):
         """
         Note:
-            You should initialize ``PushPullGradServer`` on all members of the
-            rpc ``group``, and ``primary_reducer`` must be one member of
-            the rpc group.
+            You should initialize ``PushPullGradServer`` on all members of
+            ``secondary_reducers``, and ``primary_reducer``. Both of them
+            should be members of the ``group``.
 
         Note:
             Internally the primary reducer will push updated versions
@@ -254,6 +248,8 @@ class PushPullGradServerImpl:
             primary_reducer: Name of the process serving as the primary reducer,
                 which collects reduced gradients from secondary reducers and
                 perform the final reduction.
+            secondary_reducers: Name of the process serving as secondary
+                reducers.
             o_server: Custom ordered server accessor. By default, the ordered
                 server is a :class:`.OrderedServerSimple` hosted on the primary
                 reducer.
@@ -286,16 +282,30 @@ class PushPullGradServerImpl:
         else:  # pragma: no cover
             self.o_server = o_server
 
+        if secondary_reducers is None:
+            secondary_reducers = group.get_group_members()
+
         self.primary_reducer = primary_reducer
         self.primary_service = (server_name +
                                 "/" + primary_reducer +
                                 "/_push_service")
+        self.secondary_reducers = secondary_reducers
         self.secondary_services = [server_name +
                                    "/" + m + "/_push_service"
-                                   for m in group.get_group_members()]
+                                   for m in secondary_reducers]
         # register secondary reducer service
         self.group.register(server_name + "/" + group.get_cur_name() +
                             "/_push_service", self._push_service)
+
+        # pair an accessor to group
+        if self.group.get_cur_name() == self.primary_reducer:
+            self.group.pair(
+                self.server_name,
+                PushPullGradServer(self.server_name, self.group,
+                                   self.model_name,
+                                   self.secondary_reducers,
+                                   self.o_server)
+            )
 
         # prepare to start the reduction sub-thread
         assert reduce_method in ("mean", "sum")
@@ -319,13 +329,6 @@ class PushPullGradServerImpl:
 
     def start(self):
         if not self.started:
-            # pair an accessor to group
-            if self.group.get_cur_name() == self.primary_reducer:
-                self.group.pair(
-                    self.server_name,
-                    PushPullGradServer(self.server_name, self.group,
-                                       self.model_name, self.o_server)
-                )
             self.reduce_task.start()
             self.started = True
 
