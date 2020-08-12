@@ -792,6 +792,8 @@ class RpcGroup:
         """
         Synchronize all members in the group, until all members have entered
         a ``barrier()`` function.
+
+        Not thread-safe.
         """
 
         self._barrier_status = True
@@ -809,7 +811,6 @@ class RpcGroup:
                 self.registered_sync("_rpc_exit_barrier_{}".format(m))
         else:
             self._barrier_event.wait()
-        self._barrier_status = False
 
     @_check_executor
     def destroy(self):
@@ -882,6 +883,7 @@ class RpcGroup:
         return self._barrier_status
 
     def _rpc_exit_barrier(self):
+        self._barrier_status = False
         self._barrier_event.set()
         self._barrier_event.clear()
 

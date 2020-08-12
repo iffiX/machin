@@ -38,7 +38,7 @@ def main(rank):
     world = World(world_size=4, rank=rank,
                   name=str(rank), rpc_timeout=20)
 
-    servers = model_server_helper()
+    servers = model_server_helper(model_num=1)
     apex_group = world.create_rpc_group("apex", ["0", "1", "2", "3"])
 
     if rank in (2, 3):

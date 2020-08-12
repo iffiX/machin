@@ -91,8 +91,8 @@ to aid inexperienced users initialize the distributed environment easily::
 
     from machin.frame.helpers.servers import grad_server_helper
     servers = grad_server_helper(
-        lambda: Actor(observe_dim, action_num),
-        lambda: Critic(observe_dim),
+        [lambda: Actor(observe_dim, action_num),
+         lambda: Critic(observe_dim)],
         learning_rate=5e-3
     )
 
@@ -110,8 +110,8 @@ Finally we can compose the complete setup of :class:`.A3C`::
 
     # in all test scenarios, all processes will be used as reducers
     servers = grad_server_helper(
-        lambda: Actor(observe_dim, action_num),
-        lambda: Critic(observe_dim),
+        [lambda: Actor(observe_dim, action_num),
+         lambda: Critic(observe_dim)],
         learning_rate=5e-3
     )
     a3c = A3C(actor, critic,
@@ -280,7 +280,7 @@ Currently, each :class:`PushPullModelServer` **only manages one model** per serv
 and since there is only one model needs to be shared in DQN (the online Q network), we only need one
 model server instance::
 
-    servers = model_server_helper()
+    servers = model_server_helper(model_num=1)
     dqn_apex = DQNApex(q_net, q_net_t,
                        t.optim.Adam,
                        nn.MSELoss(reduction='sum'),

@@ -78,8 +78,8 @@ class TestA3C(object):
                      .to(c.device), c.device, c.device)
         # in all test scenarios, all processes will be used as reducers
         servers = grad_server_helper(
-            lambda: Actor(c.observe_dim, c.action_num),
-            lambda: Critic(c.observe_dim),
+            [lambda: Actor(c.observe_dim, c.action_num),
+             lambda: Critic(c.observe_dim)],
             learning_rate=5e-3
         )
         a3c = A3C(actor, critic,
@@ -146,20 +146,20 @@ class TestA3C(object):
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
 
-        if rank in (1, 2):
-            begin = time()
-            while time() - begin < 5:
-                a3c.store_episode([
-                    {"state": {"state": old_state},
-                     "action": {"action": action},
-                     "next_state": {"state": state},
-                     "reward": 0,
-                     "terminal": False}
-                    for _ in range(3)
-                ])
-                a3c.update(update_value=True, update_policy=True,
-                           update_target=True, concatenate_samples=True)
-                sleep(0.01)
+        begin = time()
+        while time() - begin < 5:
+            a3c.store_episode([
+                {"state": {"state": old_state},
+                 "action": {"action": action},
+                 "next_state": {"state": state},
+                 "reward": 0,
+                 "terminal": False}
+                for _ in range(3)
+            ])
+            a3c.update(update_value=True, update_policy=True,
+                       update_target=True, concatenate_samples=True)
+            sleep(0.01)
+
         if rank == 1:
             # pull the newest model
             a3c.manual_sync()

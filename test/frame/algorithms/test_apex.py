@@ -100,7 +100,7 @@ class TestDQNApex(object):
                     .to(c.device), c.device, c.device)
         q_net_t = smw(QNet(c.observe_dim, c.action_num)
                       .to(c.device), c.device, c.device)
-        servers = model_server_helper()
+        servers = model_server_helper(model_num=1)
         world = get_world()
         # process 0 and 1 will be workers, and 2 will be trainer
         apex_group = world.create_rpc_group("apex", ["0", "1", "2"])
@@ -108,7 +108,7 @@ class TestDQNApex(object):
                            t.optim.Adam,
                            nn.MSELoss(reduction='sum'),
                            apex_group,
-                           (servers[0],),
+                           servers,
                            replay_device=c.device,
                            replay_size=c.replay_size)
         return dqn_apex
@@ -313,7 +313,7 @@ class TestDDPGApex(object):
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
                        .to(c.device), c.device, c.device)
 
-        servers = model_server_helper()
+        servers = model_server_helper(model_num=2)
         world = get_world()
         # process 0 and 1 will be workers, and 2 will be trainer
         apex_group = world.create_rpc_group("worker", ["0", "1", "2"])

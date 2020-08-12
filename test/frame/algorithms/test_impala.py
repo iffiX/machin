@@ -78,7 +78,7 @@ class TestIMPALA(object):
                     .to(c.device), c.device, c.device)
         critic = smw(Critic(c.observe_dim)
                      .to(c.device), c.device, c.device)
-        servers = model_server_helper()
+        servers = model_server_helper(model_num=1)
         world = get_world()
         # process 0 and 1 will be workers, and 2 will be trainer
         impala_group = world.create_rpc_group("impala", ["0", "1", "2"])

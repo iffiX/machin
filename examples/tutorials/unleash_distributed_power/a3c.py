@@ -63,8 +63,8 @@ def main(rank):
 
     # in all test scenarios, all processes will be used as reducers
     servers = grad_server_helper(
-        lambda: Actor(observe_dim, action_num),
-        lambda: Critic(observe_dim),
+        [lambda: Actor(observe_dim, action_num),
+         lambda: Critic(observe_dim)],
         learning_rate=5e-3
     )
     a3c = A3C(actor, critic,

@@ -54,11 +54,13 @@ class RunningStat(object):
         Args:
             x: New sample.
         """
+        assert x.dtype == t.float64, "Input are required to be float64!"
         assert x.shape == self._M.shape, "Shape mismatch!"
+        assert x.device == self._M.device, "Device mismatch!"
         n_old = self._n
         self._n += 1
         if self._n == 1:
-            self._M = x
+            self._M.copy_(x)
         else:
             delta = x - self._M
             self._M += delta / self._n
@@ -218,17 +220,10 @@ class MeanStdFilter(object):
             Normalized state.
         """
         if update:
-            if len(x.shape) == len(self.rs.shape) + 1:
-                # The vectorized case.
-                for i in range(x.shape[0]):
-                    self.rs.push(x[i])
-                    self.rs_local.push(x[i])
-            else:
-                # The unvectorized case.
-                self.rs.push(x)
-                self.rs_local.push(x)
-            x = x - self.mean
-            x = x / (self.std + 1e-8)
+            self.rs.push(x)
+            self.rs_local.push(x)
+        x = x - self.mean
+        x = x / (self.std + 1e-8)
         return x
 
     def __repr__(self):
@@ -246,7 +241,7 @@ class SharedNoiseSampler(object):
         """
         self.rg = np.random.RandomState(seed)
         self.noise = noise
-        assert self.noise.dtype == np.float64
+        assert self.noise.dtype == t.float64
 
     def get(self, idx, size):
         return self.noise[idx:idx + size]
@@ -280,7 +275,7 @@ class ARS(TorchFramework):
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple] = None,
                  lr_scheduler_kwargs: Tuple[Dict] = None,
-                 actor_learning_rate: float = 0.001,
+                 actor_learning_rate: float = 0.01,
                  gradient_max: float = np.inf,
                  noise_std_dev: float = 0.02,
                  noise_size: int = 250000000,
@@ -322,21 +317,43 @@ class ARS(TorchFramework):
         self.normalize_state = normalize_state
         self.ars_group = ars_group
 
+        # determine the number of rollouts(pair of actors with neg/pos delta)
+        # assigned to current worker process
+        w_num = len(ars_group.get_group_members())
+        w_index = ars_group.get_group_members().index(ars_group.get_cur_name())
+        segment_length = int(np.ceil(rollout_num / w_num))
+        self.local_rollout_min = w_index * segment_length
+        self.local_rollout_num = min(segment_length,
+                                     rollout_num - self.local_rollout_min)
+
         self.actor = actor
-        self.actor_positive = copy.deepcopy(actor)
-        self.actor_negative = copy.deepcopy(actor)
+        # `actor_with_delta` use rollout index and delta sign as key.
+        # where rollout index is the absolute global index of rollout
+        # and delta sign is true for positive, false for negative
+        self.actor_with_delta = {}  # type: Dict[Tuple[int, bool], t.nn.Module]
         self.actor_optim = optimizer(self.actor.parameters(),
                                      lr=actor_learning_rate)
         self.actor_model_server = model_server[0]
+
+        # `filter` use state name as key
+        # eg: "state_1"
         self.filter = {}   # type: Dict[str, MeanStdFilter]
-        self.delta_idx = {}    # type: Dict[str, int]
-        self.reward = [[], []]
+
+        # `delta_idx` use rollout index as key
+        # The inner dict use model parameter name as key, and starting
+        # noise index in the noise array as value.
+        self.delta_idx = {}    # type: Dict[int, Dict[str, int]]
+
+        # `reward` use rollout index as key, the first list stores
+        # rewards of model with negative noise delta, the second list
+        # stores rewards of model with positive noise delta.
+        self.reward = {}    # type: Dict[int, Tuple[List, List]]
 
         if lr_scheduler is not None:
             if lr_scheduler_args is None:
-                lr_scheduler_args = (())
+                lr_scheduler_args = ((),)
             if lr_scheduler_kwargs is None:
-                lr_scheduler_kwargs = ({})
+                lr_scheduler_kwargs = ({},)
             self.actor_lr_sch = lr_scheduler(
                 self.actor_optim,
                 *lr_scheduler_args[0],
@@ -364,23 +381,34 @@ class ARS(TorchFramework):
                                * noise_std_dev)
 
         # create a sampler for each parameter in model
-        self.noise_sampler = {}
+        # key is model parameter name
+        self.noise_sampler = {}    # type: Dict[str, SharedNoiseSampler]
         process_index = (ars_group.get_group_members()
                                   .index(ars_group.get_cur_name()))
         param_num = len(list(actor.parameters()))
         for idx, (name, param) in enumerate(actor.named_parameters()):
+            # each model and its inner parameters use a different
+            # sampling stream of noise.
             self.noise_sampler[name] = SharedNoiseSampler(
                 noise_array, sample_seed + process_index * param_num + idx
             )
 
         # synchronize base actor parameters
-        self._sync_parameter()
+        self._sync_actor()
         self._generate_parameter()
+        self._reset_reward_dict()
         super(ARS, self).__init__()
+
+    def get_actor_types(self) -> List[str]:
+        names = ["positive_" + str(k[0])
+                 if k[1]
+                 else "negative_" + str(k[0])
+                 for k in self.actor_with_delta.keys()]
+        return names
 
     def act(self,
             state: Dict[str, Any],
-            param_type: str,
+            actor_type: str,
             *_, **__):
         # normalize states
         # filter shapes will be initialized on first call
@@ -388,48 +416,56 @@ class ARS(TorchFramework):
             for k, v in state.items():
                 if k not in self.filter:
                     self.filter[k] = MeanStdFilter(v.shape)
-                state[k] = self.filter[k].filter(v.to("cpu")).to(v.device)
-        if param_type == "original":
+                state[k] = (self.filter[k]
+                            .filter(v.to(dtype=t.float64, device="cpu"))
+                            .to(dtype=v.dtype, device=v.device))
+        if actor_type == "original":
             return safe_return(safe_call(self.actor, state))
-        elif param_type == "positive":
-            return safe_return(safe_call(self.actor_positive, state))
-        elif param_type == "negative":
-            return safe_return(safe_call(self.actor_negative, state))
+        elif actor_type.startswith("positive_") \
+                or actor_type.startswith("negative_"):
+            rollout_idx = int(actor_type.split("_")[1])
+            is_positive = actor_type[0] == 'p'
+            return safe_return(safe_call(
+                self.actor_with_delta[(rollout_idx, is_positive)],
+                state
+            ))
         else:
             raise ValueError('Invalid parameter type: {}, '
                              'available options are: '
-                             '"original", "positive", "negative"'
-                             .format(param_type))
+                             '"original", "{}"'
+                             .format(actor_type,
+                                     '", "'.join(self.get_actor_types())))
 
     def store_reward(self,
                      reward: float,
-                     param_type: str,
+                     actor_type: str,
                      *_, **__):
-        if param_type == "positive":
-            self.reward[0].append(reward)
-        elif param_type == "negative":
-            self.reward[1].append(reward)
+        if actor_type.startswith("positive_") \
+                or actor_type.startswith("negative_"):
+            rollout_idx = int(actor_type.split("_")[1])
+            is_positive = actor_type[0] == 'p'
+            self.reward[rollout_idx][is_positive].append(reward)
         else:
             raise ValueError('Invalid parameter type: {}, '
                              'available options are: '
-                             '"positive", "negative"'
-                             .format(param_type))
+                             '"{}"'
+                             .format(actor_type,
+                                     '", "'.join(self.get_actor_types())))
 
     def update(self):
-        is_manager = self.ars_group.get_group_members()[0] == \
-                     self.ars_group.get_cur_name()
+        is_manager = (self.ars_group.get_group_members()[0] ==
+                      self.ars_group.get_cur_name())
         # calculate average reward of collected episodes
-        pos_reward = np.mean(self.reward[0])
-        neg_reward = np.mean(self.reward[1])
+        pos_reward, neg_reward, delta_idx = self._get_reward_and_delta()
 
         # collect result in manager process
         self.ars_group.pair("ars/rollout_result/{}"
                             .format(self.ars_group.get_cur_name()),
-                            [self.delta_idx, pos_reward, neg_reward])
-        self.ars_group.pair("ars/filter/{}"
-                            .format(self.ars_group.get_cur_name()),
-                            self.filter)
-
+                            [pos_reward, neg_reward, delta_idx])
+        if self.normalize_state:
+            self.ars_group.pair("ars/filter/{}"
+                                .format(self.ars_group.get_cur_name()),
+                                self.filter)
         self.ars_group.barrier()
 
         if is_manager:
@@ -437,88 +473,135 @@ class ARS(TorchFramework):
             pos_rewards = []   # type: List[int]
             neg_rewards = []   # type: List[int]
             for m in self.ars_group.get_group_members():
-                delta_idx, pos_reward, neg_reward = \
+                pos_reward, neg_reward,  delta_idx = \
                     self.ars_group.get_paired("ars/rollout_result/" + m)\
                         .to_here()
-                delta_idxs.append(delta_idx)
-                pos_rewards.append(pos_reward)
-                neg_rewards.append(neg_reward)
 
-            # shape: [rollout_num, 2]
+                delta_idxs += delta_idx
+                pos_rewards += pos_reward
+                neg_rewards += neg_reward
+
+            # shape: [2, rollout_num]
             rollout_rewards = np.array([pos_rewards, neg_rewards])
-            max_rewards = np.max(rollout_rewards, axis=1)
+            max_rewards = np.max(rollout_rewards, axis=0)
 
             # select top performing directions if
             # used_rollout_num < rollout_num
             idx = np.arange(max_rewards.size)[
                 max_rewards >= np.percentile(
-                    (max_rewards,
-                     100 * (1 - (self.used_rollout_num / self.rollout_num)))
+                    max_rewards,
+                    100 * (1 - (self.used_rollout_num / self.rollout_num))
                 )
             ]
             delta_idxs = [delta_idxs[i] for i in idx]
-            rollout_rewards = rollout_rewards[idx, :]
+            rollout_rewards = rollout_rewards[:, idx]
 
             # normalize rewards by their standard deviation
-            rollout_rewards /= np.std(rollout_rewards)
+            # rollout_rewards = (rollout_rewards - np.mean(rollout_rewards)) / \
+            #                   (np.std(rollout_rewards) + 1e-8)
 
             self.actor.zero_grad()
-            # aggregate rollouts to form g, the gradient
-            self._cal_gradient(rollout_rewards[:, 0] - rollout_rewards[:, 1],
+            # aggregate rollouts to form gradient
+            # use neg_rollout_rewards - pos_rollout_rewards
+            # because -alpha * gradient is added to
+            # parameters in SGD
+            default_logger.critical(rollout_rewards[1] - rollout_rewards[0])
+            self._cal_gradient(rollout_rewards[1] - rollout_rewards[0],
                                delta_idxs)
             # apply gradients
-            nn.utils.clip_grad_norm_(
-                self.actor.parameters(), self.grad_max
-            )
+            # nn.utils.clip_grad_norm_(
+            #     self.actor.parameters(), self.grad_max
+            # )
             self.actor_optim.step()
 
             # collect state statistics
-            filters = []  # type: List[Dict[str, MeanStdFilter]]
-            for m in self.ars_group.get_group_members():
-                filters.append(self.ars_group.get_paired("ars/filter/" + m)
-                               .to_here())
-            for k, f in self.filter:
-                for ff in filters:
-                    self.filter[k].collect(ff[k])
-                self.filter[k].apply_stats()
-                self.filter[k].clear_local()
+            if self.normalize_state:
+                filters = []  # type: List[Dict[str, MeanStdFilter]]
+                for m in self.ars_group.get_group_members():
+                    filters.append(self.ars_group.get_paired("ars/filter/" + m)
+                                   .to_here())
+                for k, f in self.filter.items():
+                    for ff in filters:
+                        self.filter[k].collect(ff[k])
+                    self.filter[k].apply_stats()
+                    self.filter[k].clear_local()
 
-        # synchronize filter states across all workers (and the manager)
-        self._sync_filter()
-
-        # synchronize parameters across all workers (and the manager)
-        self._sync_parameter()
+        self.ars_group.barrier()
         self.ars_group.unpair("ars/rollout_result/{}"
                               .format(self.ars_group.get_cur_name()))
-        self.ars_group.unpair("ars/filter/{}"
-                              .format(self.ars_group.get_cur_name()))
+        if self.normalize_state:
+            self.ars_group.unpair("ars/filter/{}"
+                                  .format(self.ars_group.get_cur_name()))
         self.ars_group.barrier()
+
+        # synchronize filter states across all workers (and the manager)
+        if self.normalize_state:
+            self._sync_filter()
+
+        # synchronize parameters across all workers (and the manager)
+        self._sync_actor()
+
+        # generate new actor parameters with positive and negative delta
+        self._generate_parameter()
+
+        # reset reward dict
+        self._reset_reward_dict()
+
+    def update_lr_scheduler(self):
+        """
+        Update learning rate schedulers.
+        """
+        if hasattr(self, "actor_lr_sch"):
+            self.actor_lr_sch.step()
+
+    def _get_reward_and_delta(self):
+        r_range = [i + self.local_rollout_min
+                   for i in range(self.local_rollout_num)]
+        pos_reward = []
+        neg_reward = []
+        for i in r_range:
+            assert self.reward[i][0] and self.reward[i][1], \
+                "You must store rewards for parameters with positive " \
+                "noise delta and negative noise delta!"
+            pos_reward.append(np.mean(self.reward[i][1]))
+            neg_reward.append(np.mean(self.reward[i][0]))
+        delta_idx = [self.delta_idx[i] for i in r_range]
+        return pos_reward, neg_reward, delta_idx
 
     def _cal_gradient(self,
                       reward_diff: np.array,
                       delta_idxs: List[Dict[str, int]]):
-        for name, param in self.actor.parameters():
-            deltas = [self.noise_sampler[name].get(delta_idx[name],
-                                                   param.nelement()) * r_diff
+        for name, param in self.actor.named_parameters():
+            deltas = [self.noise_sampler[name]
+                      .get(delta_idx[name], param.nelement())
+                      .reshape(param.shape) * r_diff
                       for r_diff, delta_idx in zip(reward_diff, delta_idxs)]
-            delta = t.mean(t.stack(deltas).to(param.device), dim=0)\
-                .reshape(param.shape)
+
+            delta = t.mean(t.stack(deltas)
+                           .to(dtype=param.dtype, device=param.device),
+                           dim=0)
             with t.no_grad():
                 param.grad = delta
 
     def _sync_filter(self):
-        manager = self.ars_group.get_group_members()[0]
-        is_manager = manager == self.ars_group.get_cur_name()
-
+        is_manager = (self.ars_group.get_group_members()[0] ==
+                      self.ars_group.get_cur_name())
+        if is_manager:
+            self.ars_group.pair("ars/filter_m", self.filter)
+        self.ars_group.barrier()
         if not is_manager:
-            manager_filter = self.ars_group.get_paired("ars/filter/"
-                                                       + manager).to_here()
-            for k, v in self.filter:
-                v.sync(manager_filter[k])
-                v.apply_stats()
+            manager_filter = (self.ars_group
+                                  .get_paired("ars/filter_m")
+                                  .to_here())
+            for k, f in self.filter.items():
+                f.sync(manager_filter[k])
+                f.apply_stats()
+        self.ars_group.barrier()
+        if is_manager:
+            self.ars_group.unpair("ars/filter_m")
         self.ars_group.barrier()
 
-    def _sync_parameter(self):
+    def _sync_actor(self):
         is_manager = self.ars_group.get_group_members()[0] == \
                      self.ars_group.get_cur_name()
         if is_manager:
@@ -528,19 +611,38 @@ class ARS(TorchFramework):
             self.actor_model_server.pull(self.actor)
         self.ars_group.barrier()
 
+    def _reset_reward_dict(self):
+        self.reward = {}
+        for lrn in range(self.local_rollout_num):
+            r_idx = lrn + self.local_rollout_min
+            self.reward[r_idx] = ([], [])
+
     def _generate_parameter(self):
         """
         Generate new actor parameters with positive and negative noise deltas.
         """
-        for (name, param), (_, param_p), (__, param_n) in \
-            zip(self.actor.named_parameters(),
-                self.actor_positive.named_parameters(),
-                self.actor_negative.named_parameters()):
-            param_size = np.prod(np.array(param.shape))
-            sampler = self.noise_sampler[name]
-            idx, delta = sampler.sample(param_size)
-            delta = delta.reshape(param.shape)
-            self.delta_idx[name] = idx
-            with t.no_grad():
-                param_p.set_(param.data + delta.to(param.device))
-                param_n.set_(param.data - delta.to(param.device))
+        self.actor_with_delta = {}
+        for lrn in range(self.local_rollout_num):
+            r_idx = lrn + self.local_rollout_min
+            actor_positive = copy.deepcopy(self.actor)
+            actor_negative = copy.deepcopy(self.actor)
+            self.delta_idx[r_idx] = {}  # type: Dict[str, int]
+
+            for (name, param), (_, param_p), (__, param_n) in \
+                zip(self.actor.named_parameters(),
+                    actor_positive.named_parameters(),
+                    actor_negative.named_parameters()):
+                param_size = param.nelement()
+                sampler = self.noise_sampler[name]
+                idx, delta = sampler.sample(param_size)
+                delta = delta.reshape(param.shape)
+                self.delta_idx[r_idx][name] = idx
+                with t.no_grad():
+                    param_p.data.copy_(param.data +
+                                       delta.to(dtype=param.dtype,
+                                                device=param.device))
+                    param_n.data.copy_(param.data -
+                                       delta.to(dtype=param.dtype,
+                                                device=param.device))
+            self.actor_with_delta[(r_idx, False)] = actor_negative
+            self.actor_with_delta[(r_idx, True)] = actor_positive
