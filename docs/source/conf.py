@@ -76,7 +76,7 @@ autodoc_mock_imports = [""]
 # a list of builtin themes.
 #
 html_theme = 'theme'
-html_logo = 'static/icon_title.svg'
+html_logo = 'static/icon_title.png'
 html_favicon = 'static/favicon.png'
 html_theme_path = ['../']
 

@@ -1,6 +1,6 @@
 <div align="center">
 	<a href="https://github.com/iffiX/machin">
-		<img width="auto" height="200px" src="https://machin.readthedocs.io/en/latest/_static/icon.svg">
+		<img width="auto" height="200px" src="https://machin.readthedocs.io/en/latest/_static/icon.png">
 	</a>
 </div>
 
