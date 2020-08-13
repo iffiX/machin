@@ -376,22 +376,26 @@ class ARS(TorchFramework):
                              .format(noise_size, param_max_num))
 
         # create shared noise array
-        noise_array = t.tensor(np.random.RandomState(noise_seed)
-                               .randn(noise_size).astype(np.float64)
-                               * noise_std_dev)
+        self.noise_array = t.tensor(np.random.RandomState(noise_seed)
+                                    .randn(noise_size).astype(np.float64)
+                                    * noise_std_dev)
 
-        # create a sampler for each parameter in model
+        # create a sampler for each parameter in each rollout model
         # key is model parameter name
-        self.noise_sampler = {}    # type: Dict[str, SharedNoiseSampler]
-        process_index = (ars_group.get_group_members()
-                                  .index(ars_group.get_cur_name()))
+        self.noise_sampler \
+            = {}  # type: Dict[int, Dict[str, SharedNoiseSampler]]
         param_num = len(list(actor.parameters()))
-        for idx, (name, param) in enumerate(actor.named_parameters()):
-            # each model and its inner parameters use a different
-            # sampling stream of noise.
-            self.noise_sampler[name] = SharedNoiseSampler(
-                noise_array, sample_seed + process_index * param_num + idx
-            )
+        for lrn in range(self.local_rollout_num):
+            r_idx = lrn + self.local_rollout_min
+            sampler = {}
+            for p_idx, (name, param) in enumerate(actor.named_parameters()):
+                # each model and its inner parameters use a different
+                # sampling stream of the same noise array.
+                sampler[name] = SharedNoiseSampler(
+                    self.noise_array,
+                    sample_seed + r_idx * param_num + p_idx
+                )
+            self.noise_sampler[r_idx] = sampler
 
         # synchronize base actor parameters
         self._sync_actor()
@@ -497,21 +501,20 @@ class ARS(TorchFramework):
             rollout_rewards = rollout_rewards[:, idx]
 
             # normalize rewards by their standard deviation
-            # rollout_rewards = (rollout_rewards - np.mean(rollout_rewards)) / \
-            #                   (np.std(rollout_rewards) + 1e-8)
-
+            var = np.std(rollout_rewards)
+            if not np.isclose(var, 0.0):
+                rollout_rewards /= var
             self.actor.zero_grad()
             # aggregate rollouts to form gradient
             # use neg_rollout_rewards - pos_rollout_rewards
             # because -alpha * gradient is added to
             # parameters in SGD
-            default_logger.critical(rollout_rewards[1] - rollout_rewards[0])
             self._cal_gradient(rollout_rewards[1] - rollout_rewards[0],
                                delta_idxs)
-            # apply gradients
             # nn.utils.clip_grad_norm_(
             #     self.actor.parameters(), self.grad_max
             # )
+            # apply gradients
             self.actor_optim.step()
 
             # collect state statistics
@@ -540,7 +543,6 @@ class ARS(TorchFramework):
 
         # synchronize parameters across all workers (and the manager)
         self._sync_actor()
-
         # generate new actor parameters with positive and negative delta
         self._generate_parameter()
 
@@ -559,27 +561,28 @@ class ARS(TorchFramework):
                    for i in range(self.local_rollout_num)]
         pos_reward = []
         neg_reward = []
+        delta_idx = []
         for i in r_range:
             assert self.reward[i][0] and self.reward[i][1], \
                 "You must store rewards for parameters with positive " \
                 "noise delta and negative noise delta!"
             pos_reward.append(np.mean(self.reward[i][1]))
             neg_reward.append(np.mean(self.reward[i][0]))
-        delta_idx = [self.delta_idx[i] for i in r_range]
+            delta_idx.append(self.delta_idx[i])
         return pos_reward, neg_reward, delta_idx
 
     def _cal_gradient(self,
                       reward_diff: np.array,
                       delta_idxs: List[Dict[str, int]]):
+        sampler = SharedNoiseSampler(self.noise_array, 0)
         for name, param in self.actor.named_parameters():
-            deltas = [self.noise_sampler[name]
+            deltas = [sampler
                       .get(delta_idx[name], param.nelement())
                       .reshape(param.shape) * r_diff
                       for r_diff, delta_idx in zip(reward_diff, delta_idxs)]
-
             delta = t.mean(t.stack(deltas)
-                           .to(dtype=param.dtype, device=param.device),
-                           dim=0)
+                           .to(dtype=param.dtype, device=param.device), dim=0)
+
             with t.no_grad():
                 param.grad = delta
 
@@ -605,10 +608,10 @@ class ARS(TorchFramework):
         is_manager = self.ars_group.get_group_members()[0] == \
                      self.ars_group.get_cur_name()
         if is_manager:
-            self.actor_model_server.push(self.actor)
+            assert self.actor_model_server.push(self.actor), "Push failed"
         self.ars_group.barrier()
         if not is_manager:
-            self.actor_model_server.pull(self.actor)
+            assert self.actor_model_server.pull(self.actor), "Pull failed"
         self.ars_group.barrier()
 
     def _reset_reward_dict(self):
@@ -627,22 +630,18 @@ class ARS(TorchFramework):
             actor_positive = copy.deepcopy(self.actor)
             actor_negative = copy.deepcopy(self.actor)
             self.delta_idx[r_idx] = {}  # type: Dict[str, int]
-
-            for (name, param), (_, param_p), (__, param_n) in \
+            for (name, param), param_p, param_n in \
                 zip(self.actor.named_parameters(),
-                    actor_positive.named_parameters(),
-                    actor_negative.named_parameters()):
+                    actor_positive.parameters(),
+                    actor_negative.parameters()):
                 param_size = param.nelement()
-                sampler = self.noise_sampler[name]
-                idx, delta = sampler.sample(param_size)
-                delta = delta.reshape(param.shape)
+                param_sampler = self.noise_sampler[r_idx][name]
+                idx, delta = param_sampler.sample(param_size)
+                delta = (delta.reshape(param.shape)
+                         .to(dtype=param.dtype, device=param.device))
                 self.delta_idx[r_idx][name] = idx
                 with t.no_grad():
-                    param_p.data.copy_(param.data +
-                                       delta.to(dtype=param.dtype,
-                                                device=param.device))
-                    param_n.data.copy_(param.data -
-                                       delta.to(dtype=param.dtype,
-                                                device=param.device))
+                    param_p.data.copy_(param.data + delta)
+                    param_n.data.copy_(param.data - delta)
             self.actor_with_delta[(r_idx, False)] = actor_negative
             self.actor_with_delta[(r_idx, True)] = actor_positive

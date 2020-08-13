@@ -10,11 +10,15 @@ def unwrap_time_limit(env):
 
 
 class Smooth(object):
-    def __init__(self, init_value=0):
-        self._value = init_value
+    def __init__(self):
+        self._value = None
 
     def update(self, new_value, update_rate=0.2):
-        self._value = self._value * (1 - update_rate) + new_value * update_rate
+        if self._value is None:
+            self._value = new_value
+        else:
+            self._value = (self._value * (1 - update_rate)
+                           + new_value * update_rate)
         return self._value
 
     @property

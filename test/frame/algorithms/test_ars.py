@@ -6,7 +6,6 @@ from machin.utils.conf import Config
 from machin.utils.learning_rate import gen_learning_rate_func
 from machin.env.utils.openai_gym import disable_view_window
 from torch.optim.lr_scheduler import LambdaLR
-from torch.distributions import Categorical
 
 import os
 import numpy as np
@@ -52,24 +51,6 @@ class TestRunningStat(object):
         assert t.allclose(rs.std, rs1.std)
 
 
-class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, action_range):
-        super(Actor, self).__init__()
-        self.fc1 = nn.Linear(state_dim, 16)
-        self.fc2 = nn.Linear(16, 16)
-        self.fc3 = nn.Linear(16, action_dim)
-        self.action_range = action_range
-
-    def forward(self, state):
-        a = t.tanh(
-            self.fc3(
-                self.fc2(
-                    self.fc1(state)
-                )
-            )) * self.action_range
-        return a
-
-
 # class ActorDiscrete(nn.Module):
 #     def __init__(self, state_dim, action_dim):
 #         super(ActorDiscrete, self).__init__()
@@ -79,74 +60,36 @@ class Actor(nn.Module):
 #
 #     def forward(self, state):
 #         a = self.fc1(state)
-#         a = Categorical(t.softmax(self.fc2(a), dim=1)).sample([1]).item()
+#         a = t.argmax(self.fc2(a), dim=1).item()
 #         return a
 
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(ActorDiscrete, self).__init__()
-
-        self.fc1 = nn.Linear(state_dim, 16)
-        self.fc2 = nn.Linear(16, action_dim)
+        self.fc = nn.Linear(state_dim, action_dim, bias=False)
 
     def forward(self, state):
-        a = self.fc1(state)
-        a = t.argmax(self.fc2(a), dim=1).item()
+        a = t.argmax(self.fc(state), dim=1).item()
         return a
-
-# class ActorDiscrete(nn.Module):
-#     def __init__(self, state_dim, action_dim):
-#         super(ActorDiscrete, self).__init__()
-#         self.fc = nn.Linear(state_dim, action_dim, bias=False)
-#
-#     def forward(self, state):
-#         a = t.argmax(self.fc(state), dim=1).item()
-#         return a
 
 
 class TestARS(object):
     # configs and definitions
-    # disable_view_window()
-    # c = Config()
-    # c.env_name = "Pendulum-v0"
-    # c.env = unwrap_time_limit(gym.make(c.env_name))
-    # c.observe_dim = 3
-    # c.action_dim = 1
-    # c.action_range = 2
-    # c.max_episodes = 100000
-    # c.max_steps = 200
-    # c.solved_reward = -150
-    # c.solved_repeat = 5
-    # c.device = "cpu"
+    # Cartpole-v0 can be solved:
+    # within 200 episodes, using single layer Actor
+    # within 400 episodes, using double layer Actor
 
     disable_view_window()
     c = Config()
-    # Note: online policy algorithms such as PPO and A3C does not
-    # work well in Pendulum (reason unknown)
-    # and MountainCarContinuous (sparse returns)
     c.env_name = "CartPole-v0"
     c.env = unwrap_time_limit(gym.make(c.env_name))
     c.observe_dim = 4
     c.action_num = 2
     c.max_episodes = 100000
-    c.max_steps = 40
-    c.solved_reward = 30
+    c.max_steps = 200
+    c.solved_reward = 190
     c.solved_repeat = 5
     c.device = "cpu"
-
-    # @staticmethod
-    # def ars():
-    #     c = TestARS.c
-    #     actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-    #                 .to(c.device), c.device, c.device)
-    #     servers = model_server_helper(model_num=1)
-    #     world = get_world()
-    #     ars_group = world.create_rpc_group("ars", ["0", "1", "2"])
-    #     ars = ARS(actor, t.optim.SGD, ars_group, servers,
-    #               actor_learning_rate=0.1,
-    #               noise_size=1000000,
-    #               normalize_state=False)
-    #     return ars
 
     @staticmethod
     def ars():
@@ -157,16 +100,18 @@ class TestARS(object):
         world = get_world()
         ars_group = world.create_rpc_group("ars", ["0", "1", "2"])
         ars = ARS(actor, t.optim.SGD, ars_group, servers,
-                  actor_learning_rate=0.01,
+                  noise_std_dev=0.1,
+                  actor_learning_rate=0.1,
                   noise_size=1000000,
-                  rollout_num=32,
-                  normalize_state=False)
+                  rollout_num=6,
+                  used_rollout_num=6,
+                  normalize_state=True)
         return ars
 
     @staticmethod
     def ars_lr():
         c = TestARS.c
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
+        actor = smw(ActorDiscrete(c.observe_dim, c.action_num)
                     .to(c.device), c.device, c.device)
         lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
                                          logger=default_logger)
@@ -275,10 +220,11 @@ class TestARS(object):
                 while not terminal and step <= c.max_steps:
                     step.count()
                     with t.no_grad():
-                        old_state = state
                         # agent model inference
-                        action = ars.act({"state": old_state.unsqueeze(0)}, at)
-                        _, reward, __, ___ = env.step(action)
+                        action = ars.act({"state": state.unsqueeze(0)}, at)
+                        state, reward, terminal, __ = env.step(action)
+                        state = t.tensor(state, dtype=t.float32,
+                                         device=c.device)
                         total_reward += float(reward)
                 step.reset()
                 terminal = False
@@ -286,9 +232,6 @@ class TestARS(object):
                 all_reward += total_reward
 
             # update
-            # default_logger.critical("Process {} rs:{}".format(
-            #     rank, ars.filter
-            # ))
             ars.update()
             smoother.update(all_reward / len(ars.get_actor_types()))
             default_logger.info("Process {} Episode {} total reward={:.2f}"
@@ -298,7 +241,7 @@ class TestARS(object):
                 reward_fulfilled.count()
                 if reward_fulfilled >= c.solved_repeat:
                     default_logger.info("Environment solved!")
-                    return True
+                    raise SafeExit
             else:
                 reward_fulfilled.reset()
 

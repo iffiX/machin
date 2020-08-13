@@ -1,5 +1,5 @@
 from machin.parallel.distributed import World, get_world as gw
-from machin.parallel.process import Process
+from machin.parallel.process import Process, ProcessException
 from time import sleep, time
 from decorator import FunctionMaker
 from logging.handlers import QueueHandler, QueueListener
@@ -15,6 +15,10 @@ get_world = gw
 # use queue handler
 default_logger = logging.getLogger("multi_default_logger")
 default_logger.setLevel(logging.INFO)
+
+
+class SafeExit(Exception):
+    pass
 
 
 def find_free_port():
@@ -103,7 +107,13 @@ def exec_with_process(processes, func, args_list, kwargs_list,
         if time() - begin >= timeout:
             raise TimeoutError("Run-multi timeout!")
         for p, pi, i in zip(procs, proc_pipes, [0, 1, 2]):
-            p.watch()
+            try:
+                p.watch()
+            except ProcessException as e:
+                if "SafeExit" in e.args[0]:
+                    return
+                else:
+                    raise e
             if pi.poll(timeout=1e-1):
                 results[i] = pi.recv()
                 finished[i] = True
