@@ -275,7 +275,7 @@ class ARS(TorchFramework):
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple] = None,
                  lr_scheduler_kwargs: Tuple[Dict] = None,
-                 actor_learning_rate: float = 0.01,
+                 learning_rate: float = 0.01,
                  gradient_max: float = np.inf,
                  noise_std_dev: float = 0.02,
                  noise_size: int = 250000000,
@@ -291,24 +291,24 @@ class ARS(TorchFramework):
             The first process in `ars_group` will be the manager process.
 
         Args:
-            actor:
-            optimizer:
-            ars_group:
-            model_server:
-            *_:
-            lr_scheduler:
-            lr_scheduler_args:
-            lr_scheduler_kwargs:
-            actor_learning_rate:
-            gradient_max:
-            noise_std_dev:
-            noise_size:
-            rollout_num:
-            used_rollout_num:
-            normalize_state:
-            noise_seed:
-            sample_seed:
-            **__:
+            actor: Actor network module.
+            optimizer: Optimizer used to optimize ``actor`` and ``critic``.
+            ars_group: Group of all processes using the ARS framework.
+            model_server: Custom model sync server accessor for ``actor``.
+            lr_scheduler: Learning rate scheduler of ``optimizer``.
+            lr_scheduler_args: Arguments of the learning rate scheduler.
+            lr_scheduler_kwargs: Keyword arguments of the learning
+                rate scheduler.
+            learning_rate: Learning rate of the optimizer, not compatible with
+                ``lr_scheduler``.
+            gradient_max: Maximum gradient.
+            noise_std_dev: Standard deviation of the shared noise array.
+            noise_size: Size of the shared noise array.
+            rollout_num: Number of rollouts executed by workers in group.
+            used_rollout_num: Number of used rollouts.
+            normalize_state:  Whether to normalize the state seen by actor.
+            noise_seed: Random seed used to generate noise.
+            sample_seed: Based random seed used to sample noise.
         """
         assert rollout_num >= used_rollout_num
         self.grad_max = gradient_max
@@ -332,7 +332,7 @@ class ARS(TorchFramework):
         # and delta sign is true for positive, false for negative
         self.actor_with_delta = {}  # type: Dict[Tuple[int, bool], t.nn.Module]
         self.actor_optim = optimizer(self.actor.parameters(),
-                                     lr=actor_learning_rate)
+                                     lr=learning_rate)
         self.actor_model_server = model_server[0]
 
         # `filter` use state name as key
@@ -404,6 +404,11 @@ class ARS(TorchFramework):
         super(ARS, self).__init__()
 
     def get_actor_types(self) -> List[str]:
+        """
+        Returns:
+            A list of actor types needed to be evaluated by current worker
+            process.
+        """
         names = ["positive_" + str(k[0])
                  if k[1]
                  else "negative_" + str(k[0])
@@ -414,6 +419,16 @@ class ARS(TorchFramework):
             state: Dict[str, Any],
             actor_type: str,
             *_, **__):
+        """
+        Use actor network to give a policy to the current state.
+
+        Args:
+            state: State dict seen by actor.
+            actor_type: Type of the used actor.
+
+        Returns:
+            Anything produced by actor.
+        """
         # normalize states
         # filter shapes will be initialized on first call
         if self.normalize_state:
@@ -444,6 +459,14 @@ class ARS(TorchFramework):
                      reward: float,
                      actor_type: str,
                      *_, **__):
+        """
+        Store rollout reward (usually value of the whole rollout episode) for
+        each actor type.
+
+        Args:
+            reward: Rollout reward.
+            actor_type: Actor type.
+        """
         if actor_type.startswith("positive_") \
                 or actor_type.startswith("negative_"):
             rollout_idx = int(actor_type.split("_")[1])
@@ -457,6 +480,12 @@ class ARS(TorchFramework):
                                      '", "'.join(self.get_actor_types())))
 
     def update(self):
+        """
+        Update actor network using rollouts.
+
+        Note:
+            All processes in the ARS group must enter this function.
+        """
         is_manager = (self.ars_group.get_group_members()[0] ==
                       self.ars_group.get_cur_name())
         # calculate average reward of collected episodes

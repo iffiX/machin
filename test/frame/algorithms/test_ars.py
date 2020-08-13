@@ -8,7 +8,6 @@ from machin.env.utils.openai_gym import disable_view_window
 from torch.optim.lr_scheduler import LambdaLR
 
 import os
-import numpy as np
 import torch as t
 import torch.nn as nn
 import gym
@@ -79,13 +78,19 @@ class TestARS(object):
     # within 200 episodes, using single layer Actor
     # within 400 episodes, using double layer Actor
 
+    # However, ARS fail to deal with pendulum v0:
+    # Actor((st, 16)->(16, a)), noise_std=0.01, lr=0.05, rollout=9, optim=Adam)
+    # reaches mean score = -700 at 10000 episodes
+    # Actor((st, a)), noise_std=0.01, lr=0.05, rollout=9, optim=Adam)
+    # reaches mean score = -1100 at 15000 episodes
+    # and Adam optimizer is better than SGD
     disable_view_window()
     c = Config()
     c.env_name = "CartPole-v0"
     c.env = unwrap_time_limit(gym.make(c.env_name))
     c.observe_dim = 4
     c.action_num = 2
-    c.max_episodes = 100000
+    c.max_episodes = 1000
     c.max_steps = 200
     c.solved_reward = 190
     c.solved_repeat = 5
@@ -101,7 +106,7 @@ class TestARS(object):
         ars_group = world.create_rpc_group("ars", ["0", "1", "2"])
         ars = ARS(actor, t.optim.SGD, ars_group, servers,
                   noise_std_dev=0.1,
-                  actor_learning_rate=0.1,
+                  learning_rate=0.1,
                   noise_size=1000000,
                   rollout_num=6,
                   used_rollout_num=6,
@@ -193,7 +198,7 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               timeout=18000)
+               timeout=1800)
     @WorldTestBase.setup_world
     def test_full_train(rank):
         c = TestARS.c
