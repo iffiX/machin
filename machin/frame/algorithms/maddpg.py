@@ -95,6 +95,14 @@ class MADDPG(TorchFramework):
             heterogeneous.
 
         Note:
+            Suppose you have three pair of actors and critics, with index 0, 1,
+            2. If critic 0 can observe the action of actor 0 and 1, critic 1 can
+            observe the action of actor 1 and 2, critic 2 can observe the action
+            of actor 2 and 0, the ``critic_visible_actors`` should be::
+
+                [[0, 1], [1, 2], [2, 0]]
+
+        Note:
             This implementation contains:
                 - Ensemble Training
 
@@ -107,6 +115,7 @@ class MADDPG(TorchFramework):
             actor_targets: Target actor network modules.
             critics: Critic network modules.
             critic_targets: Target critic network modules.
+            critic_visible_actors: Indexes of visible actors for each critic.
             optimizer: Optimizer used to optimize ``actors`` and ``critics``.
             criterion: Criterion used to evaluate the value loss.
             sub_policy_num: Times to replicate each actor. Equals to

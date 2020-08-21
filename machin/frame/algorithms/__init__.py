@@ -16,7 +16,7 @@ from .sac import SAC
 
 from .apex import DQNApex, DDPGApex
 from .impala import IMPALA
-
+from .ars import ARS
 from .maddpg import MADDPG
 
 __all__ = [
@@ -24,6 +24,6 @@ __all__ = [
     "DQN", "DQNPer", "RAINBOW",
     "DDPG", "HDDPG", "TD3", "DDPGPer",
     "A2C", "A3C", "PPO", "SAC",
-    "DQNApex", "DDPGApex", "IMPALA",
+    "DQNApex", "DDPGApex", "IMPALA", "ARS",
     "MADDPG",
 ]

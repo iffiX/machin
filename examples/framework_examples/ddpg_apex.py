@@ -1,8 +1,7 @@
 from machin.frame.helpers.servers import model_server_helper
-from machin.frame.algorithms import DQNApex
+from machin.frame.algorithms import DDPGApex
 from machin.parallel.distributed import World
 from machin.utils.logging import default_logger as logger
-from torch.nn.parallel import DistributedDataParallel
 from torch.multiprocessing import spawn
 from time import sleep
 
@@ -11,65 +10,74 @@ import torch as t
 import torch.nn as nn
 
 
-class QNet(nn.Module):
-    def __init__(self, state_dim, action_num):
-        super(QNet, self).__init__()
+class Actor(nn.Module):
+    def __init__(self, state_dim, action_dim, action_range):
+        super(Actor, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
-        self.fc3 = nn.Linear(16, action_num)
+        self.fc3 = nn.Linear(16, action_dim)
+        self.action_range = action_range
 
     def forward(self, state):
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
-        return self.fc3(a)
+        a = t.tanh(self.fc3(a)) * self.action_range
+        return a
+
+
+class Critic(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super(Critic, self).__init__()
+
+        self.fc1 = nn.Linear(state_dim + action_dim, 16)
+        self.fc2 = nn.Linear(16, 16)
+        self.fc3 = nn.Linear(16, 1)
+
+    def forward(self, state, action):
+        state_action = t.cat([state, action], 1)
+        q = t.relu(self.fc1(state_action))
+        q = t.relu(self.fc2(q))
+        q = self.fc3(q)
+        return q
 
 
 def main(rank):
-    env = gym.make("CartPole-v0")
-    observe_dim = 4
-    action_num = 2
+    env = gym.make("Pendulum-v0")
+    observe_dim = 3
+    action_dim = 1
+    action_range = 2
     max_episodes = 2000
     max_steps = 200
-    solved_reward = 190
+    noise_param = (0, 0.2)
+    noise_mode = "normal"
+    solved_reward = -150
     solved_repeat = 5
 
     # initlize distributed world first
     world = World(world_size=4, rank=rank,
                   name=str(rank), rpc_timeout=20)
 
-    servers = model_server_helper(model_num=1)
+    servers = model_server_helper(model_num=2)
     apex_group = world.create_rpc_group("apex", ["0", "1", "2", "3"])
 
-    if rank in (2, 3):
-        # learner_group.group is the wrapped torch.distributed.ProcessGroup
-        learner_group = world.create_collective_group(ranks=[2, 3])
+    actor = Actor(observe_dim, action_dim, action_range)
+    actor_t = Actor(observe_dim, action_dim, action_range)
+    critic = Critic(observe_dim, action_dim)
+    critic_t = Critic(observe_dim, action_dim)
 
-        # wrap the model with DistributedDataParallel
-        # if current process is learner process 2 or 3
-        q_net = DistributedDataParallel(module=QNet(observe_dim, action_num),
-                                        process_group=learner_group.group)
-        q_net_t = DistributedDataParallel(module=QNet(observe_dim, action_num),
-                                          process_group=learner_group.group)
-    else:
-        q_net = QNet(observe_dim, action_num)
-        q_net_t = QNet(observe_dim, action_num)
-
-    # we may use a smaller batch size to train if we are using
-    # DistributedDataParallel
-    dqn_apex = DQNApex(q_net, q_net_t,
-                       t.optim.Adam,
-                       nn.MSELoss(reduction='sum'),
-                       apex_group,
-                       servers,
-                       batch_size=50)
+    ddpg_apex = DDPGApex(actor, actor_t, critic, critic_t,
+                         t.optim.Adam,
+                         nn.MSELoss(reduction='sum'),
+                         apex_group,
+                         servers)
 
     # synchronize all processes in the group, make sure
     # distributed buffer has been created on all processes in apex_group
     apex_group.barrier()
 
     # manually control syncing to improve performance
-    dqn_apex.set_sync(False)
+    ddpg_apex.set_sync(False)
     if rank in (0, 1):
         # Process 0 and 1 are workers(samplers)
         # begin training
@@ -87,25 +95,27 @@ def main(rank):
             state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
 
             # manually pull the newest parameters
-            dqn_apex.manual_sync()
+            ddpg_apex.manual_sync()
             while not terminal and step <= max_steps:
                 step += 1
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action = dqn_apex.act_discrete_with_noise(
-                        {"state": old_state}
-                    )
-                    state, reward, terminal, _ = env.step(action.item())
+                    action = ddpg_apex.act_with_noise(
+                            {"state": old_state},
+                            noise_param=noise_param,
+                            mode=noise_mode
+                        )
+                    state, reward, terminal, _ = env.step(action.numpy())
                     state = t.tensor(state, dtype=t.float32)\
                         .view(1, observe_dim)
-                    total_reward += reward
+                    total_reward += reward[0]
 
-                    dqn_apex.store_transition({
+                    ddpg_apex.store_transition({
                         "state": {"state": old_state},
                         "action": {"action": action},
                         "next_state": {"state": state},
-                        "reward": reward,
+                        "reward": reward[0],
                         "terminal": terminal or step == max_steps
                     })
 
@@ -128,10 +138,10 @@ def main(rank):
 
     elif rank in (2, 3):
         # wait for enough samples
-        while dqn_apex.replay_buffer.all_size() < 500:
+        while ddpg_apex.replay_buffer.all_size() < 500:
             sleep(0.1)
         while True:
-            dqn_apex.update()
+            ddpg_apex.update()
 
 
 if __name__ == "__main__":

@@ -2,7 +2,6 @@ from machin.frame.helpers.servers import model_server_helper
 from machin.frame.algorithms import DQNApex
 from machin.parallel.distributed import World
 from machin.utils.logging import default_logger as logger
-from torch.nn.parallel import DistributedDataParallel
 from torch.multiprocessing import spawn
 from time import sleep
 
@@ -41,28 +40,14 @@ def main(rank):
     servers = model_server_helper(model_num=1)
     apex_group = world.create_rpc_group("apex", ["0", "1", "2", "3"])
 
-    if rank in (2, 3):
-        # learner_group.group is the wrapped torch.distributed.ProcessGroup
-        learner_group = world.create_collective_group(ranks=[2, 3])
+    q_net = QNet(observe_dim, action_num)
+    q_net_t = QNet(observe_dim, action_num)
 
-        # wrap the model with DistributedDataParallel
-        # if current process is learner process 2 or 3
-        q_net = DistributedDataParallel(module=QNet(observe_dim, action_num),
-                                        process_group=learner_group.group)
-        q_net_t = DistributedDataParallel(module=QNet(observe_dim, action_num),
-                                          process_group=learner_group.group)
-    else:
-        q_net = QNet(observe_dim, action_num)
-        q_net_t = QNet(observe_dim, action_num)
-
-    # we may use a smaller batch size to train if we are using
-    # DistributedDataParallel
     dqn_apex = DQNApex(q_net, q_net_t,
                        t.optim.Adam,
                        nn.MSELoss(reduction='sum'),
                        apex_group,
-                       servers,
-                       batch_size=50)
+                       servers)
 
     # synchronize all processes in the group, make sure
     # distributed buffer has been created on all processes in apex_group
@@ -137,5 +122,5 @@ def main(rank):
 if __name__ == "__main__":
     # spawn 4 sub processes
     # Process 0 and 1 will be workers(samplers)
-    # Process 2 and 3 will be learners, using DistributedDataParallel
+    # Process 2 and 3 will be learners
     spawn(main, nprocs=4)
