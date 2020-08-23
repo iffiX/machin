@@ -55,7 +55,7 @@ class TransitionBase(object):
             object.__setattr__(self, attr, data)
         # will trigger _check_validity in __setattr__
         self._inited = True
-        self._copy_and_detach()
+        self._detach()
 
     def __len__(self):
         return self._length
@@ -141,10 +141,10 @@ class TransitionBase(object):
                 object.__setattr__(self, sa, sa_data.to(device))
         return self
 
-    def _copy_and_detach(self):
+    def _detach(self):
         """
-        Copy and detach all tensors in major attributes and sub attributes,
-        as well as deep-copying various custom attributes.
+        Detach all tensors in major attributes and sub attributes, put
+        data of all attributes in place, but do not copy them.
 
         Returns:
             Self.
@@ -152,14 +152,14 @@ class TransitionBase(object):
         for ma in self._major_attr:
             ma_data = getattr(self, ma)
             for k, v in ma_data.items():
-                ma_data[k] = v.clone().detach()
+                ma_data[k] = v.detach()
         for sa in self._sub_attr:
             sa_data = getattr(self, sa)
             if t.is_tensor(sa_data):
-                object.__setattr__(self, sa, sa_data.clone().detach())
+                object.__setattr__(self, sa, sa_data.detach())
         for ca in self._custom_attr:
             ca_data = getattr(self, ca)
-            object.__setattr__(self, ca, deepcopy(ca_data))
+            object.__setattr__(self, ca, ca_data)
         return self
 
     def _check_validity(self):
@@ -175,14 +175,15 @@ class TransitionBase(object):
             ma_data = getattr(self, ma)
             for k, v in ma_data.items():
                 if not t.is_tensor(v) or v.dim() < 1:
-                    raise ValueError("Key {} of transition major attribute "
-                                     "{} is a invalid tensor".format(k, ma))
+                    raise ValueError('Key "{}" of transition major attribute '
+                                     '"{}" is a invalid tensor'.format(k, ma))
                 if batch_size is None:
                     batch_size = v.shape[0]
                 else:
                     if batch_size != v.shape[0]:
-                        raise ValueError("Key {} of transition major attribute "
-                                         "{} has invalid batch size {}."
+                        raise ValueError('Key "{}" of transition major '
+                                         'attribute "{}" has invalid '
+                                         'batch size {}.'
                                          .format(k, ma, v.shape[0]))
         for sa in self._sub_attr:
             sa_data = getattr(self, sa)
@@ -190,20 +191,20 @@ class TransitionBase(object):
                 # will return true for inbuilt scalar types
                 # like int, bool, float
                 if batch_size != 1:
-                    raise ValueError("Transition sub attribute "
-                                     "{} is a scalar, but batch size is {}."
+                    raise ValueError('Transition sub attribute '
+                                     '"{}" is a scalar, but batch size is {}.'
                                      .format(sa, batch_size))
             elif t.is_tensor(sa_data):
                 if sa_data.dim() < 1:
-                    raise ValueError("Transition sub attribute "
-                                     "{} is a invalid tensor.")
+                    raise ValueError('Transition sub attribute '
+                                     '"{}" is a invalid tensor.')
                 elif sa_data.shape[0] != batch_size:
-                    raise ValueError("Transition sub attribute "
-                                     "{} has invalid batch size {}."
+                    raise ValueError('Transition sub attribute '
+                                     '"{}" has invalid batch size {}.'
                                      .format(sa, sa_data.shape[0]))
             else:
-                raise ValueError("Transition sub attribute {} has invalid "
-                                 "value {}, requires scalar or tensor."
+                raise ValueError('Transition sub attribute "{}" has invalid '
+                                 'value {}, requires scalar or tensor.'
                                  .format(sa, sa_data))
         object.__setattr__(self, "_batch_size", batch_size)
 
@@ -264,3 +265,107 @@ class Transition(TransitionBase):
             raise ValueError("Batch size of the default transition "
                              "implementation must be 1, is {}"
                              .format(self._batch_size))
+
+
+class TransitionStorageBasic(list):
+    """
+    TransitionStorageBasic is a linear, size-capped chunk of memory for 
+    transitions, it makes sure that every stored transition is copied,
+    and isolated from the passed in transition object.
+    """
+    def __init__(self, max_size):
+        """
+        Args:
+            max_size: Maximum size of the transition storage.
+        """
+        self.max_size = max_size
+        self.index = 0
+        super(TransitionStorageBasic, self).__init__()
+
+    def store(self, transition: TransitionBase) -> int:
+        """
+        Args:
+            transition: Transition object to be stored
+
+        Returns:
+            The position where transition is inserted.
+        """
+        transition = deepcopy(transition)
+        if len(self) == self.max_size:
+            # ring buffer storage
+            position = self.index
+            self[self.index] = transition
+        elif len(self) < self.max_size:
+            # append if not full
+            self.append(transition)
+            position = len(self) - 1
+        else:  # pragma: no cover
+            raise RuntimeError()
+        self.index = (position + 1) % self.max_size
+        return position
+
+    def clear(self):
+        super(TransitionStorageBasic, self).clear()
+
+
+class TransitionStorageSmart(TransitionStorageBasic):
+    """
+    TransitionStorageSmart is a smarter, but (potentially) slower storage
+    class for transitions, but in many cases it is as fast as the basic
+    storage and halves memory usage because it only deep copies half of the
+    states.
+
+    TransitionStorageSmart will compare the major attributes of the
+    current stored transition object with that of the last stored transition
+    object. And set them to refer to the same tensor.
+
+    Sub attributes and custom attributes will be direcly copied.
+    """
+    def __init__(self, max_size):
+        # DOC INHERITED
+        super(TransitionStorageSmart, self).__init__(max_size)
+
+    def store(self, transition: TransitionBase) -> int:
+        # DOC INHERITED
+        last_index = (self.index + self.max_size - 1) % self.max_size
+        if last_index < len(self):
+            last_transition = self[last_index]
+            for ma in transition.major_attr:
+                if ma == "state":
+                    last_state = getattr(last_transition, "next_state", None)
+                    state = transition[ma]
+                    if last_state is not None:
+                        for k, v in state.items():
+                            if (v.shape != last_state[k].shape or
+                                    v.dtype != last_state[k].dtype or
+                                    not v.equal(last_state[k])):
+                                transition[ma] = deepcopy(transition[ma])
+                                break
+                        else:
+                            transition[ma] = last_state
+                else:
+                    transition[ma] = deepcopy(transition[ma])
+        else:
+            for ma in transition.major_attr:
+                transition[ma] = deepcopy(transition[ma])
+        for sa in transition.sub_attr:
+            transition[sa] = deepcopy(transition[sa])
+        for ca in transition.custom_attr:
+            transition[ca] = deepcopy(transition[ca])
+
+        # store transition
+        if len(self) == self.max_size:
+            # ring buffer storage
+            position = self.index
+            self[self.index] = transition
+        elif len(self) < self.max_size:
+            # append if not full
+            self.append(transition)
+            position = len(self) - 1
+        else:  # pragma: no cover
+            raise RuntimeError()
+        self.index = (position + 1) % self.max_size
+        return position
+
+    def clear(self):
+        super(TransitionStorageSmart, self).clear()

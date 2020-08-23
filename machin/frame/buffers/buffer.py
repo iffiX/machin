@@ -1,5 +1,5 @@
 from typing import Union, Dict, List, Tuple, Any, Callable
-from ..transition import Transition, Scalar
+from ..transition import Transition, Scalar, TransitionStorageSmart, TransitionStorageBasic
 import torch as t
 import random
 
@@ -27,7 +27,7 @@ class Buffer(object):
         """
         self.buffer_size = buffer_size
         self.buffer_device = buffer_device
-        self.buffer = []
+        self.buffer = TransitionStorageSmart(buffer_size)
         self.index = 0
 
     def append(self, transition: Union[Transition, Dict],
@@ -62,22 +62,7 @@ class Buffer(object):
         if self.size() != 0 and self.buffer[0].keys() != transition.keys():
             raise ValueError("Transition object has different attributes!")
 
-        # if self.size() > self.buffer_size:
-        #   This should not happen!
-
-        if self.size() == self.buffer_size:
-            # ring buffer storage
-            position = self.index
-            self.buffer[self.index] = transition
-            self.index += 1
-            self.index %= self.buffer_size
-            return position
-
-        elif self.size() < self.buffer_size:
-            # append if not full
-            self.buffer.append(transition)
-            position = len(self.buffer) - 1
-            return position
+        return self.buffer.store(transition)
 
     def size(self):
         """
