@@ -135,12 +135,13 @@ class A2C(TorchFramework):
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
                 rate scheduler.
+            batch_size: Batch size used during training.
+            update_times: Number of update iterations per sample period. Buffer
+                will be cleared after ``update()``
             actor_learning_rate: Learning rate of the actor optimizer,
                 not compatible with ``lr_scheduler``.
             critic_learning_rate: Learning rate of the critic optimizer,
                 not compatible with ``lr_scheduler``.
-            critic_update_times: Times to update your critic model in each
-                ``update()`` call.
             entropy_weight: Weight of entropy in your loss function, a positive
                 entropy weight will minimize entropy, while a negative one will
                 maximize entropy.

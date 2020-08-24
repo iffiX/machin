@@ -43,6 +43,9 @@ class PPO(A2C):
             lr_scheduler_args: Arguments of the learning rate scheduler.
             lr_scheduler_kwargs: Keyword arguments of the learning
                 rate scheduler.
+            batch_size: Batch size used during training.
+            update_times: Number of update iterations per sample period. Buffer
+                will be cleared after ``update()``
             actor_learning_rate: Learning rate of the actor optimizer,
                 not compatible with ``lr_scheduler``.
             critic_learning_rate: Learning rate of the critic optimizer,
@@ -56,8 +59,6 @@ class PPO(A2C):
             gae_lambda: :math:`\\lambda` used in generalized advantage
                 estimation.
             discount: :math:`\\gamma` used in the bellman function.
-            update_times: Number of update iterations per sample period. Buffer
-                will be cleared after ``update()``
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
             replay_device: Device where the replay buffer locates on, Not
