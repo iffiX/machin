@@ -14,6 +14,8 @@ class PPO(A2C):
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
+                 batch_size: int = 100,
+                 update_times: int = 50,
                  actor_learning_rate: float = 0.001,
                  critic_learning_rate: float = 0.001,
                  entropy_weight: float = None,
@@ -22,7 +24,6 @@ class PPO(A2C):
                  gradient_max: float = np.inf,
                  gae_lambda: float = 1.0,
                  discount: float = 0.99,
-                 update_times: int = 50,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
@@ -69,6 +70,8 @@ class PPO(A2C):
                                   lr_scheduler=lr_scheduler,
                                   lr_scheduler_args=lr_scheduler_args,
                                   lr_scheduler_kwargs=lr_scheduler_kwargs,
+                                  batch_size=batch_size,
+                                  update_times=update_times,
                                   actor_learning_rate=actor_learning_rate,
                                   critic_learning_rate=critic_learning_rate,
                                   entropy_weight=entropy_weight,
@@ -92,30 +95,29 @@ class PPO(A2C):
         # DOC INHERITED
         sum_act_policy_loss = 0
         sum_value_loss = 0
-
-        # sample a batch
-        batch_size, (state, action, reward, next_state,
-                     terminal, target_value, advantage) = \
-            self.replay_buffer.sample_batch(-1,
-                                            sample_method="all",
-                                            concatenate=concatenate_samples,
-                                            sample_attrs=[
-                                                "state", "action", "reward",
-                                                "next_state", "terminal",
-                                                "value", "gae"],
-                                            additional_concat_attrs=[
-                                                "value", "gae"
-                                            ])
-
-        # normalize advantage
-        advantage = ((advantage - advantage.mean()) /
-                     (advantage.std() + 1e-6))
-
-        # Infer original action log probability
-        __, action_log_prob, *_ = self._eval_act(state, action)
-        action_log_prob = action_log_prob.view(batch_size, 1).detach()
-
         for _ in range(self.update_times):
+            # sample a batch
+            batch_size, (state, action, reward, next_state,
+                         terminal, target_value, advantage) = \
+                self.replay_buffer.sample_batch(self.batch_size,
+                                                sample_method="random_unique",
+                                                concatenate=concatenate_samples,
+                                                sample_attrs=[
+                                                    "state", "action", "reward",
+                                                    "next_state", "terminal",
+                                                    "value", "gae"],
+                                                additional_concat_attrs=[
+                                                    "value", "gae"
+                                                ])
+
+            # normalize advantage
+            advantage = ((advantage - advantage.mean()) /
+                         (advantage.std() + 1e-6))
+
+            # Infer original action log probability
+            __, action_log_prob, *_ = self._eval_act(state, action)
+            action_log_prob = action_log_prob.view(batch_size, 1).detach()
+
             if self.entropy_weight is not None:
                 __, new_action_log_prob, new_action_entropy, *_ = \
                     self._eval_act(state, action)

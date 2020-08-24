@@ -26,9 +26,10 @@ class A2C(TorchFramework):
                  lr_scheduler: Callable = None,
                  lr_scheduler_args: Tuple[Tuple, Tuple] = None,
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
+                 batch_size: int = 100,
+                 update_times: int = 50,
                  actor_learning_rate: float = 0.001,
                  critic_learning_rate: float = 0.001,
-                 critic_update_times: int = 50,
                  entropy_weight: float = None,
                  value_weight: float = 0.5,
                  gradient_max: float = np.inf,
@@ -156,12 +157,13 @@ class A2C(TorchFramework):
             visualize: Whether visualize the network flow in the first pass.
             visualize_dir: Visualized graph save directory.
         """
+        self.batch_size = batch_size
+        self.update_times = update_times
         self.discount = discount
         self.value_weight = value_weight
         self.entropy_weight = entropy_weight
         self.grad_max = gradient_max
         self.gae_lambda = gae_lambda
-        self.critic_upd_t = critic_update_times
         self.visualize = visualize
         self.visualize_dir = visualize_dir
 
@@ -302,59 +304,61 @@ class A2C(TorchFramework):
         Returns:
             mean value of estimated policy value, value loss
         """
-        # sample a batch
-        batch_size, (state, action, reward, next_state,
-                     terminal, target_value, advantage) = \
-            self.replay_buffer.sample_batch(-1,
-                                            sample_method="all",
-                                            concatenate=concatenate_samples,
-                                            sample_attrs=[
-                                                "state", "action", "reward",
-                                                "next_state", "terminal",
-                                                "value", "gae"],
-                                            additional_concat_attrs=[
-                                                "value", "gae"
-                                            ])
-
-        # normalize advantage
-        advantage = ((advantage - advantage.mean()) /
-                     (advantage.std() + 1e-6))
-
-        if self.entropy_weight is not None:
-            __, action_log_prob, new_action_entropy, *_ = \
-                self._eval_act(state, action)
-        else:
-            __, action_log_prob, *_ = \
-                self._eval_act(state, action)
-            new_action_entropy = None
-
-        action_log_prob = action_log_prob.view(batch_size, 1)
-
-        # calculate policy loss
-        act_policy_loss = -(action_log_prob *
-                            advantage.to(action_log_prob.device))
-
-        if new_action_entropy is not None:
-            act_policy_loss += (self.entropy_weight *
-                                new_action_entropy.mean())
-
-        act_policy_loss = act_policy_loss.mean()
-
-        if self.visualize:
-            self.visualize_model(act_policy_loss, "actor",
-                                 self.visualize_dir)
-
-        # Update actor network
-        if update_policy:
-            self.actor.zero_grad()
-            act_policy_loss.backward()
-            nn.utils.clip_grad_norm_(
-                self.actor.parameters(), self.grad_max
-            )
-            self.actor_optim.step()
-
+        sum_act_loss = 0
         sum_value_loss = 0
-        for _ in range(self.critic_upd_t):
+        for _ in range(self.update_times):
+            # sample a batch
+            batch_size, (state, action, reward, next_state,
+                         terminal, target_value, advantage) = \
+                self.replay_buffer.sample_batch(self.batch_size,
+                                                sample_method="random_unique",
+                                                concatenate=concatenate_samples,
+                                                sample_attrs=[
+                                                    "state", "action", "reward",
+                                                    "next_state", "terminal",
+                                                    "value", "gae"],
+                                                additional_concat_attrs=[
+                                                    "value", "gae"
+                                                ])
+
+            # normalize advantage
+            advantage = ((advantage - advantage.mean()) /
+                         (advantage.std() + 1e-6))
+
+            if self.entropy_weight is not None:
+                __, action_log_prob, new_action_entropy, *_ = \
+                    self._eval_act(state, action)
+            else:
+                __, action_log_prob, *_ = \
+                    self._eval_act(state, action)
+                new_action_entropy = None
+
+            action_log_prob = action_log_prob.view(batch_size, 1)
+
+            # calculate policy loss
+            act_policy_loss = -(action_log_prob *
+                                advantage.to(action_log_prob.device))
+
+            if new_action_entropy is not None:
+                act_policy_loss += (self.entropy_weight *
+                                    new_action_entropy.mean())
+
+            act_policy_loss = act_policy_loss.mean()
+            sum_act_loss += act_policy_loss.item()
+
+            if self.visualize:
+                self.visualize_model(act_policy_loss, "actor",
+                                     self.visualize_dir)
+
+            # Update actor network
+            if update_policy:
+                self.actor.zero_grad()
+                act_policy_loss.backward()
+                nn.utils.clip_grad_norm_(
+                    self.actor.parameters(), self.grad_max
+                )
+                self.actor_optim.step()
+
             # calculate value loss
             value = self._criticize(state)
             value_loss = (self.criterion(target_value.to(value.device),
@@ -376,7 +380,8 @@ class A2C(TorchFramework):
                 self.critic_optim.step()
 
         self.replay_buffer.clear()
-        return -act_policy_loss.item(), sum_value_loss / self.critic_upd_t
+        return (-sum_act_loss / self.update_times,
+                sum_value_loss / self.update_times)
 
     def update_lr_scheduler(self):
         """

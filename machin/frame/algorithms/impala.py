@@ -86,7 +86,7 @@ class IMPALA(TorchFramework):
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
                  batch_size: int = 5,
-                 learning_rate=0.001,
+                 learning_rate: float = 0.001,
                  isw_clip_c: float = 1.0,
                  isw_clip_rho: float = 1.0,
                  entropy_weight: float = None,
