@@ -28,6 +28,8 @@ class TestSaveEnv:
                 os.path.isdir(join(t_root, "some_custom_dir")))
 
         save_env.get_trial_time()
+        assert (save_env.get_trial_config_dir() ==
+                join(t_root, "config"))
         assert (save_env.get_trial_model_dir() ==
                 join(t_root, "model"))
         assert (save_env.get_trial_image_dir() ==

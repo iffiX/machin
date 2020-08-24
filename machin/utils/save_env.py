@@ -60,6 +60,12 @@ class SaveEnv:
         return join(self.env_root,
                     self.env_create_time.strftime(self.time_format))
 
+    def get_trial_config_dir(self):
+        # pylint: disable=missing-docstring
+        return join(self.env_root,
+                    self.env_create_time.strftime(self.time_format),
+                    "config")
+
     def get_trial_model_dir(self):
         # pylint: disable=missing-docstring
         return join(self.env_root,
