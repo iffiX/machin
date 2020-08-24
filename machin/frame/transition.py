@@ -336,7 +336,8 @@ class TransitionStorageSmart(TransitionStorageBasic):
                     state = transition[ma]
                     if last_state is not None:
                         for k, v in state.items():
-                            if (v.shape != last_state[k].shape or
+                            if (k not in last_state or
+                                    v.shape != last_state[k].shape or
                                     v.dtype != last_state[k].dtype or
                                     not v.equal(last_state[k])):
                                 transition[ma] = deepcopy(transition[ma])
