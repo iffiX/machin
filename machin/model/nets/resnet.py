@@ -99,7 +99,7 @@ class BasicBlock(NeuralNetworkModule):
         # BatchNorm2d produces NaN gradient?
         if stride != 1 or in_planes != self.expansion * out_planes:
             self.shortcut = nn.Sequential(
-                conv1x1(in_planes, self.expansion * out_planes),
+                conv1x1(in_planes, self.expansion * out_planes, stride),
                 norm_layer(self.expansion * out_planes)
             )
 
@@ -140,7 +140,7 @@ class Bottleneck(NeuralNetworkModule):
 
         if stride != 1 or in_planes != self.expansion * out_planes:
             self.shortcut = nn.Sequential(
-                conv1x1(in_planes, self.expansion * out_planes),
+                conv1x1(in_planes, self.expansion * out_planes, stride),
                 norm_layer(self.expansion * out_planes)
             )
 
@@ -183,8 +183,7 @@ class BasicBlockWN(NeuralNetworkModule):
         if stride != 1 or in_planes != self.expansion * out_planes:
             self.shortcut = nn.Sequential(
                 weight_norm(
-                    nn.Conv2d(in_planes, self.expansion * out_planes,
-                              kernel_size=1, stride=stride, bias=False)),
+                    conv1x1(in_planes, self.expansion * out_planes, stride)),
             )
 
     def forward(self, x):
@@ -228,8 +227,7 @@ class BottleneckWN(NeuralNetworkModule):
         if stride != 1 or in_planes != self.expansion * out_planes:
             self.shortcut = nn.Sequential(
                 weight_norm(
-                    nn.Conv2d(in_planes, self.expansion * out_planes,
-                              kernel_size=1, stride=stride, bias=False)),
+                    conv1x1(in_planes, self.expansion * out_planes, stride)),
             )
 
     def forward(self, x):
