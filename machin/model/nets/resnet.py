@@ -57,11 +57,11 @@ def cfg(depth, norm="none"):
         }
     elif norm == "none":
         cfg_dict = {
-            '18': (BasicBlockWN, [2, 2, 2, 2], {"norm_layer": none_norm}),
-            '34': (BasicBlockWN, [3, 4, 6, 3], {"norm_layer": none_norm}),
-            '50': (BottleneckWN, [3, 4, 6, 3], {"norm_layer": none_norm}),
-            '101': (BottleneckWN, [3, 4, 23, 3], {"norm_layer": none_norm}),
-            '152': (BottleneckWN, [3, 8, 36, 3], {"norm_layer": none_norm}),
+            '18': (BasicBlock, [2, 2, 2, 2], {"norm_layer": none_norm}),
+            '34': (BasicBlock, [3, 4, 6, 3], {"norm_layer": none_norm}),
+            '50': (Bottleneck, [3, 4, 6, 3], {"norm_layer": none_norm}),
+            '101': (Bottleneck, [3, 4, 23, 3], {"norm_layer": none_norm}),
+            '152': (Bottleneck, [3, 8, 36, 3], {"norm_layer": none_norm}),
         }
     else:
         raise ValueError('Invalid normalization method: "{}"'.format(norm))
