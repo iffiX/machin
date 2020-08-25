@@ -19,6 +19,10 @@ solved_reward = -150
 solved_repeat = 5
 
 
+def atanh(x):
+    return 0.5 * t.log((1 + x) / (1 - x))
+
+
 # model definition
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
@@ -36,7 +40,7 @@ class Actor(nn.Module):
         mu = self.mu_head(a)
         sigma = softplus(self.sigma_head(a))
         dist = Normal(mu, sigma)
-        act = (action
+        act = (atanh(action / self.action_range)
                if action is not None
                else dist.rsample())
         act_entropy = dist.entropy()

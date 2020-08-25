@@ -94,29 +94,6 @@ def _add_output_check_hook(sub_module, counter, interval, writer, hooks,
     return sub_module.register_forward_hook(check_hook)
 
 
-# def _add_param_check_hook(sub_module, interval, writer, hooks,
-#                           model, module_name):
-#     # Generate a param check hook which calls all sub hooks
-#     # when invoked by pytorch.
-#     handles = []
-#     for param_name, param_value in sub_module.named_parameters():
-#         counter = Counter()
-#
-#         def count(_):  # pragma: no cover
-#             counter.count()
-#
-#         def check_hook(_grad):  # pragma: no cover
-#             with t.no_grad():
-#                 if counter.get() % interval == 0:
-#                     for hook in hooks:
-#                         hook(counter, writer, model, sub_module,
-#                              module_name + ".param." + param_name,
-#                              param_value)
-#
-#         handles.append(param_value.register_hook(count))
-#         handles.append(param_value.register_hook(check_hook))
-#     return handles
-
 def _add_param_check_hook(sub_module, counter, interval, writer, hooks,
                           model, module_name):
     # Generate a param check hook which calls all sub hooks
@@ -230,9 +207,8 @@ def check_model(writer: SummaryWriter,
                 param_check_interval=100,
                 name=""):
     """
-    Check model input, output and parameters using hooks. Input and output
-    check hooks are executed in the forward pass, and parameters are checked
-    in the backward pass.
+    Check model input, output and parameters using hooks. All hooks (Input,
+    output and parameter) check hooks are executed in the forward pass.
 
     An example::
 
@@ -246,10 +222,6 @@ def check_model(writer: SummaryWriter,
         Only leaf modules will be checked (such as ``nn.Linear`` and not some
         complex neural network modules made of several sub-modules). But you
         can manually control granularity.
-
-    Note:
-        Param checkers might will be called multiple times if pytorch has to
-        compute gradient on your model multiple times.
 
     Warning:
         Do not output ``tuple`` in your ``forward()`` function if you have

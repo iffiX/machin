@@ -17,6 +17,10 @@ import gym
 from .utils import unwrap_time_limit, Smooth
 
 
+def atanh(x):
+    return 0.5 * t.log((1 + x) / (1 - x))
+
+
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
         super(Actor, self).__init__()
@@ -33,7 +37,7 @@ class Actor(nn.Module):
         mu = self.mu_head(a)
         sigma = softplus(self.sigma_head(a))
         dist = Normal(mu, sigma)
-        act = (action
+        act = (atanh(action / self.action_range)
                if action is not None
                else dist.rsample())
         act_entropy = dist.entropy()
@@ -301,8 +305,7 @@ class TestSAC(object):
                     action = sac.act({"state": old_state.unsqueeze(0)})[0]
 
                     state, reward, terminal, _ = env.step(
-                        action.clamp(-c.action_range, c.action_range)
-                              .cpu().numpy()
+                        action.cpu().numpy()
                     )
                     state = t.tensor(state, dtype=t.float32, device=c.device) \
                         .flatten()
