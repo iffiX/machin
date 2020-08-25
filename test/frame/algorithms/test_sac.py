@@ -99,7 +99,7 @@ class TestSAC(object):
         c.max_episodes = 1000
         c.max_steps = 200
         c.replay_size = 100000
-        c.solved_reward = -150
+        c.solved_reward = -300
         c.solved_repeat = 5
         c.device = "cpu"
         return c

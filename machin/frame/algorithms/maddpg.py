@@ -714,6 +714,9 @@ class MADDPG(TorchFramework):
         ensemble_n_act_t = next_actions_t[policy_index]
         visible_actors = critic_visible_actors[actor_index]
 
+        actors[actor_index][policy_index].train()
+        critics[actor_index].train()
+
         with t.no_grad():
             # only select visible actors
             all_next_actions_t = [
@@ -823,6 +826,8 @@ class MADDPG(TorchFramework):
                         critics[actor_index],
                         update_rate)
 
+        actors[actor_index][policy_index].eval()
+        critics[actor_index].eval()
         return -act_policy_loss.item(), value_loss.item()
 
     @staticmethod

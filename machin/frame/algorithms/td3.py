@@ -142,6 +142,9 @@ class TD3(DDPG):
                concatenate_samples=True,
                **__):
         # DOC INHERITED
+        self.actor.train()
+        self.critic.train()
+        self.critic2.train()
         batch_size, (state, action, reward, next_state, terminal, others) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
@@ -217,6 +220,9 @@ class TD3(DDPG):
             soft_update(self.critic_target, self.critic, self.update_rate)
             soft_update(self.critic2_target, self.critic2, self.update_rate)
 
+        self.actor.eval()
+        self.critic.eval()
+        self.critic2.eval()
         # use .item() to prevent memory leakage
         return (-act_policy_loss.item(),
                 (value_loss.item() + value_loss2.item()) / 2)

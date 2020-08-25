@@ -78,6 +78,7 @@ class DQNPer(DQN):
                concatenate_samples=True,
                **__):
         # DOC INHERITED
+        self.qnet.train()
         (batch_size,
          (state, action, reward, next_state, terminal, others),
          index, is_weight) = \
@@ -134,5 +135,6 @@ class DQNPer(DQN):
         if update_target:
             soft_update(self.qnet_target, self.qnet, self.update_rate)
 
+        self.qnet.eval()
         # use .item() to prevent memory leakage
         return value_loss.item()

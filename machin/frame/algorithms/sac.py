@@ -255,6 +255,9 @@ class SAC(TorchFramework):
         Returns:
             mean value of estimated policy value, value loss
         """
+        self.actor.train()
+        self.critic.train()
+        self.critic2.train()
         batch_size, (state, action, reward, next_state, terminal, others) = \
             self.replay_buffer.sample_batch(self.batch_size,
                                             concatenate_samples,
@@ -343,6 +346,9 @@ class SAC(TorchFramework):
             with t.no_grad():
                 self.entropy_alpha.clamp_(1e-6, 1e6)
 
+        self.actor.eval()
+        self.critic.eval()
+        self.critic2.eval()
         # use .item() to prevent memory leakage
         return (-act_policy_loss.item(),
                 (value_loss.item() + value_loss2.item()) / 2)

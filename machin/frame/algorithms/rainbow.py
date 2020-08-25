@@ -196,6 +196,7 @@ class RAINBOW(DQN):
                **__):
         # DOC INHERITED
         # pylint: disable=invalid-name
+        self.qnet.train()
         (batch_size,
          (state, action, value, next_state, terminal, others),
          index, is_weight) = \
@@ -314,5 +315,6 @@ class RAINBOW(DQN):
         if update_target:
             soft_update(self.qnet_target, self.qnet, self.update_rate)
 
+        self.qnet.eval()
         # use .item() to prevent memory leakage
         return value_loss.item()

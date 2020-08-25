@@ -81,6 +81,8 @@ class DDPGPer(DDPG):
                concatenate_samples=True,
                **__):
         # DOC INHERITED
+        self.actor.train()
+        self.critic.train()
         (batch_size,
          (state, action, reward, next_state, terminal, others),
          index, is_weight) = \
@@ -155,5 +157,7 @@ class DDPGPer(DDPG):
             soft_update(self.actor_target, self.actor, self.update_rate)
             soft_update(self.critic_target, self.critic, self.update_rate)
 
+        self.actor.eval()
+        self.critic.eval()
         # use .item() to prevent memory leakage
         return -act_policy_loss.item(), value_loss.item()

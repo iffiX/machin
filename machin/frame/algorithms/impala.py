@@ -279,7 +279,8 @@ class IMPALA(TorchFramework):
 
         # `concatenate` is False, because the length of each episode
         # might be different.
-
+        self.actor.train()
+        self.critic.train()
         batch_size, (state, action, reward, next_state,
                      terminal, action_log_prob) = \
             self.replay_buffer.sample_batch(self.batch_size,
@@ -403,6 +404,9 @@ class IMPALA(TorchFramework):
                                          pull_on_fail=False)
         else:
             self.actor_model_server.push(self.actor)
+
+        self.actor.eval()
+        self.critic.eval()
         return -act_policy_loss.item(), value_loss.item()
 
     def update_lr_scheduler(self):

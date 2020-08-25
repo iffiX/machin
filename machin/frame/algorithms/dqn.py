@@ -304,7 +304,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                                                 "reward", "next_state",
                                                 "terminal", "*"
                                             ])
-
+        self.qnet.train()
         if self.mode == "vanilla":
             # Vanilla DQN, directly optimize q network.
             # target network is the same as the main network
@@ -414,6 +414,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         else:
             raise ValueError("Unknown DQN mode: {}".format(self.mode))
 
+        self.qnet.eval()
         # use .item() to prevent memory leakage
         return value_loss.item()
 

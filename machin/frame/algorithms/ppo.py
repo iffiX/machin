@@ -15,7 +15,8 @@ class PPO(A2C):
                  lr_scheduler_args: Tuple[Tuple, Tuple] = (),
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
                  batch_size: int = 100,
-                 update_times: int = 50,
+                 actor_update_times: int = 5,
+                 critic_update_times: int = 10,
                  actor_learning_rate: float = 0.001,
                  critic_learning_rate: float = 0.001,
                  entropy_weight: float = None,
@@ -24,6 +25,7 @@ class PPO(A2C):
                  gradient_max: float = np.inf,
                  gae_lambda: float = 1.0,
                  discount: float = 0.99,
+                 normalize_advantage: bool = True,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
@@ -44,8 +46,8 @@ class PPO(A2C):
             lr_scheduler_kwargs: Keyword arguments of the learning
                 rate scheduler.
             batch_size: Batch size used during training.
-            update_times: Number of update iterations per sample period. Buffer
-                will be cleared after ``update()``
+            actor_update_times: Times to update actor in ``update()``.
+            critic_update_times: Times to update critic in ``update()``.
             actor_learning_rate: Learning rate of the actor optimizer,
                 not compatible with ``lr_scheduler``.
             critic_learning_rate: Learning rate of the critic optimizer,
@@ -72,7 +74,8 @@ class PPO(A2C):
                                   lr_scheduler_args=lr_scheduler_args,
                                   lr_scheduler_kwargs=lr_scheduler_kwargs,
                                   batch_size=batch_size,
-                                  update_times=update_times,
+                                  actor_update_times=actor_update_times,
+                                  critic_update_times=critic_update_times,
                                   actor_learning_rate=actor_learning_rate,
                                   critic_learning_rate=critic_learning_rate,
                                   entropy_weight=entropy_weight,
@@ -80,12 +83,12 @@ class PPO(A2C):
                                   gradient_max=gradient_max,
                                   gae_lambda=gae_lambda,
                                   discount=discount,
+                                  normalize_advantage=normalize_advantage,
                                   replay_size=replay_size,
                                   replay_device=replay_device,
                                   replay_buffer=replay_buffer,
                                   visualize=visualize,
                                   visualize_dir=visualize_dir)
-        self.update_times = update_times
         self.surr_clip = surrogate_loss_clip
 
     def update(self,
@@ -96,24 +99,24 @@ class PPO(A2C):
         # DOC INHERITED
         sum_act_policy_loss = 0
         sum_value_loss = 0
-        for _ in range(self.update_times):
+        self.actor.train()
+        self.critic.train()
+        for _ in range(self.actor_update_times):
             # sample a batch
-            batch_size, (state, action, reward, next_state,
-                         terminal, target_value, advantage) = \
+            batch_size, (state, action, advantage) = \
                 self.replay_buffer.sample_batch(self.batch_size,
                                                 sample_method="random_unique",
                                                 concatenate=concatenate_samples,
                                                 sample_attrs=[
-                                                    "state", "action", "reward",
-                                                    "next_state", "terminal",
-                                                    "value", "gae"],
+                                                    "state", "action", "gae"],
                                                 additional_concat_attrs=[
-                                                    "value", "gae"
+                                                    "gae"
                                                 ])
 
             # normalize advantage
-            advantage = ((advantage - advantage.mean()) /
-                         (advantage.std() + 1e-6))
+            if self.normalize_advantage:
+                advantage = ((advantage - advantage.mean()) /
+                             (advantage.std() + 1e-6))
 
             # Infer original action log probability
             __, action_log_prob, *_ = self._eval_act(state, action)
@@ -164,6 +167,17 @@ class PPO(A2C):
                 self.actor_optim.step()
             sum_act_policy_loss += act_policy_loss.item()
 
+        for _ in range(self.critic_update_times):
+            # sample a batch
+            batch_size, (state, target_value) = \
+                self.replay_buffer.sample_batch(self.batch_size,
+                                                sample_method="random_unique",
+                                                concatenate=concatenate_samples,
+                                                sample_attrs=[
+                                                    "state", "value"],
+                                                additional_concat_attrs=[
+                                                    "value"
+                                                ])
             # calculate value loss
             value = self._criticize(state)
             value_loss = (self.criterion(target_value.to(value.device),
@@ -185,5 +199,7 @@ class PPO(A2C):
             sum_value_loss += value_loss.item()
 
         self.replay_buffer.clear()
-        return (-sum_act_policy_loss / self.update_times,
-                sum_value_loss / self.update_times)
+        self.actor.eval()
+        self.critic.eval()
+        return (-sum_act_policy_loss / self.actor_update_times,
+                sum_value_loss / self.critic_update_times)
