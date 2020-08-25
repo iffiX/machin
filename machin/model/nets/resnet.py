@@ -6,6 +6,14 @@ from torch.nn.utils.weight_norm import weight_norm
 from .base import NeuralNetworkModule
 
 
+def conv1x1(in_planes, out_planes, stride=1):
+    """
+    Create a 1x1 2d convolution block
+    """
+    return nn.Conv2d(in_planes, out_planes,
+                     kernel_size=1, stride=stride, bias=False)
+
+
 def conv3x3(in_planes, out_planes, stride=1):
     """
     Create a 3x3 2d convolution block
@@ -91,8 +99,7 @@ class BasicBlock(NeuralNetworkModule):
         # BatchNorm2d produces NaN gradient?
         if stride != 1 or in_planes != self.expansion * out_planes:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion * out_planes,
-                          kernel_size=1, stride=stride, bias=False),
+                conv1x1(in_planes, self.expansion * out_planes),
                 norm_layer(self.expansion * out_planes)
             )
 
@@ -120,13 +127,9 @@ class Bottleneck(NeuralNetworkModule):
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         super(Bottleneck, self).__init__()
-        self.conv1 = nn.Conv2d(in_planes, out_planes,
-                               kernel_size=1, bias=False)
-        self.conv2 = nn.Conv2d(out_planes, out_planes,
-                               kernel_size=3, stride=stride,
-                               padding=1, bias=False)
-        self.conv3 = nn.Conv2d(out_planes, self.expansion * out_planes,
-                               kernel_size=1, bias=False)
+        self.conv1 = conv1x1(in_planes, out_planes)
+        self.conv2 = conv3x3(out_planes, out_planes, stride=stride)
+        self.conv3 = conv1x1(out_planes, self.expansion)
         self.bn1 = norm_layer(out_planes)
         self.bn2 = norm_layer(out_planes)
         self.bn3 = norm_layer(self.expansion * out_planes)
@@ -137,8 +140,8 @@ class Bottleneck(NeuralNetworkModule):
 
         if stride != 1 or in_planes != self.expansion * out_planes:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion * out_planes,
-                          kernel_size=1, stride=stride, bias=False),
+                conv1x1(in_planes, self.expansion * out_planes),
+                norm_layer(self.expansion * out_planes)
             )
 
     def forward(self, x):
