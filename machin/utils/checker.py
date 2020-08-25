@@ -94,27 +94,44 @@ def _add_output_check_hook(sub_module, counter, interval, writer, hooks,
     return sub_module.register_forward_hook(check_hook)
 
 
-def _add_param_check_hook(sub_module, interval, writer, hooks,
+# def _add_param_check_hook(sub_module, interval, writer, hooks,
+#                           model, module_name):
+#     # Generate a param check hook which calls all sub hooks
+#     # when invoked by pytorch.
+#     handles = []
+#     for param_name, param_value in sub_module.named_parameters():
+#         counter = Counter()
+#
+#         def count(_):  # pragma: no cover
+#             counter.count()
+#
+#         def check_hook(_grad):  # pragma: no cover
+#             with t.no_grad():
+#                 if counter.get() % interval == 0:
+#                     for hook in hooks:
+#                         hook(counter, writer, model, sub_module,
+#                              module_name + ".param." + param_name,
+#                              param_value)
+#
+#         handles.append(param_value.register_hook(count))
+#         handles.append(param_value.register_hook(check_hook))
+#     return handles
+
+def _add_param_check_hook(sub_module, counter, interval, writer, hooks,
                           model, module_name):
     # Generate a param check hook which calls all sub hooks
     # when invoked by pytorch.
     handles = []
     for param_name, param_value in sub_module.named_parameters():
-        counter = Counter()
-
-        def count(_):  # pragma: no cover
-            counter.count()
-
-        def check_hook(_grad):  # pragma: no cover
+        def check_hook(module, _input, _output):  # pragma: no cover
             with t.no_grad():
                 if counter.get() % interval == 0:
                     for hook in hooks:
-                        hook(counter, writer, model, sub_module,
+                        hook(counter, writer, model, module,
                              module_name + ".param." + param_name,
                              param_value)
 
-        handles.append(param_value.register_hook(count))
-        handles.append(param_value.register_hook(check_hook))
+        handles.append(sub_module.register_forward_hook(check_hook))
     return handles
 
 
@@ -327,6 +344,7 @@ def check_model(writer: SummaryWriter,
         )
         handles += (
             _add_param_check_hook(sub_module,
+                                  forward_counter,
                                   param_check_interval,
                                   writer,
                                   param_check_hooks,

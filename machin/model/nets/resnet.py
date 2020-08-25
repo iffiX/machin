@@ -302,6 +302,7 @@ class ResNet(NeuralNetworkModule):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        assert x.shape[2] == 224 and x.shape[3] == 224
         x = self.base(x)
         kernel_size = (np.int(np.floor(x.size(2) / self.out_pool_size[0])),
                        np.int(np.floor(x.size(3) / self.out_pool_size[1])))
