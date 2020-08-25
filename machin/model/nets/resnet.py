@@ -22,27 +22,41 @@ def conv5x5(in_planes, out_planes, stride=2):
                      kernel_size=5, stride=stride, padding=2, bias=False)
 
 
-def cfg(depth, use_batch_norm=True):
+def none_norm(*_, **__):
+    return nn.Sequential()
+
+
+def cfg(depth, norm="none"):
     depth_lst = [18, 34, 50, 101, 152]
     if depth not in depth_lst:
         raise ValueError("Error : Resnet depth should be either "
                          "18, 34, 50, 101, 152")
-    if use_batch_norm:
+    if norm == "batch":
         cfg_dict = {
-            '18': (BasicBlock, [2, 2, 2, 2]),
-            '34': (BasicBlock, [3, 4, 6, 3]),
-            '50': (Bottleneck, [3, 4, 6, 3]),
-            '101': (Bottleneck, [3, 4, 23, 3]),
-            '152': (Bottleneck, [3, 8, 36, 3]),
+            '18': (BasicBlock, [2, 2, 2, 2], {}),
+            '34': (BasicBlock, [3, 4, 6, 3], {}),
+            '50': (Bottleneck, [3, 4, 6, 3], {}),
+            '101': (Bottleneck, [3, 4, 23, 3], {}),
+            '152': (Bottleneck, [3, 8, 36, 3], {}),
+        }
+    elif norm == "weight":
+        cfg_dict = {
+            '18': (BasicBlockWN, [2, 2, 2, 2], {}),
+            '34': (BasicBlockWN, [3, 4, 6, 3], {}),
+            '50': (BottleneckWN, [3, 4, 6, 3], {}),
+            '101': (BottleneckWN, [3, 4, 23, 3], {}),
+            '152': (BottleneckWN, [3, 8, 36, 3], {}),
+        }
+    elif norm == "none":
+        cfg_dict = {
+            '18': (BasicBlockWN, [2, 2, 2, 2], {"norm_layer": none_norm}),
+            '34': (BasicBlockWN, [3, 4, 6, 3], {"norm_layer": none_norm}),
+            '50': (BottleneckWN, [3, 4, 6, 3], {"norm_layer": none_norm}),
+            '101': (BottleneckWN, [3, 4, 23, 3], {"norm_layer": none_norm}),
+            '152': (BottleneckWN, [3, 8, 36, 3], {"norm_layer": none_norm}),
         }
     else:
-        cfg_dict = {
-            '18': (BasicBlockWN, [2, 2, 2, 2]),
-            '34': (BasicBlockWN, [3, 4, 6, 3]),
-            '50': (BottleneckWN, [3, 4, 6, 3]),
-            '101': (BottleneckWN, [3, 4, 23, 3]),
-            '152': (BottleneckWN, [3, 8, 36, 3]),
-        }
+        raise ValueError('Invalid normalization method: "{}"'.format(norm))
     return cfg_dict[str(depth)]
 
 
@@ -50,7 +64,7 @@ class BasicBlock(NeuralNetworkModule):
     # Expansion parameter, output will have "expansion * in_planes" depth.
     expansion = 1
 
-    def __init__(self, in_planes, out_planes, stride=1):
+    def __init__(self, in_planes, out_planes, stride=1, norm_layer=None):
         """
         Create a basic block of resnet.
 
@@ -59,11 +73,13 @@ class BasicBlock(NeuralNetworkModule):
             out_planes: Number of output planes.
             stride:     Stride of convolution.
         """
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(in_planes, out_planes, stride)
-        self.bn1 = nn.BatchNorm2d(out_planes)
+        self.bn1 = norm_layer(out_planes)
         self.conv2 = conv3x3(out_planes, out_planes)
-        self.bn2 = nn.BatchNorm2d(out_planes)
+        self.bn2 = norm_layer(out_planes)
         # Create a shortcut from input to output.
         # An empty sequential structure means no transformation
         # is made on input X.
@@ -77,7 +93,7 @@ class BasicBlock(NeuralNetworkModule):
             self.shortcut = nn.Sequential(
                 nn.Conv2d(in_planes, self.expansion * out_planes,
                           kernel_size=1, stride=stride, bias=False),
-                # nn.BatchNorm2d(self.expansion * out_planes)
+                norm_layer(self.expansion * out_planes)
             )
 
     def forward(self, x):
@@ -92,7 +108,7 @@ class Bottleneck(NeuralNetworkModule):
     # Expansion parameter, output will have "expansion * in_planes" depth.
     expansion = 4
 
-    def __init__(self, in_planes, out_planes, stride=1):
+    def __init__(self, in_planes, out_planes, stride=1, norm_layer=None):
         """
         Create a bottleneck block of resnet.
 
@@ -101,6 +117,8 @@ class Bottleneck(NeuralNetworkModule):
             out_planes: Number of output planes.
             stride:     Stride of convolution.
         """
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(in_planes, out_planes,
                                kernel_size=1, bias=False)
@@ -109,9 +127,9 @@ class Bottleneck(NeuralNetworkModule):
                                padding=1, bias=False)
         self.conv3 = nn.Conv2d(out_planes, self.expansion * out_planes,
                                kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(out_planes)
-        self.bn2 = nn.BatchNorm2d(out_planes)
-        self.bn3 = nn.BatchNorm2d(self.expansion * out_planes)
+        self.bn1 = norm_layer(out_planes)
+        self.bn2 = norm_layer(out_planes)
+        self.bn3 = norm_layer(self.expansion * out_planes)
 
         self.shortcut = nn.Sequential()
 
@@ -227,7 +245,7 @@ class ResNet(NeuralNetworkModule):
                  depth: int,
                  out_planes: int,
                  out_pool_size=(1, 1),
-                 use_batch_norm=True):
+                 norm="none"):
         """
         Create a resnet of specified depth.
 
@@ -236,28 +254,30 @@ class ResNet(NeuralNetworkModule):
             depth: Depth of resnet. Could be one of ``18, 34, 50, 101, 152``.
             out_planes: Number of output planes.
             out_pool_size: Size of pooling output
+            norm: Normalization method, could be one of "none", "batch" or
+                "weight".
         """
         super(ResNet, self).__init__()
         self.in_planes = 64
         self.out_pool_size = out_pool_size
 
-        block, num_blocks = cfg(depth, use_batch_norm)
+        block, num_blocks, kw = cfg(depth, norm)
 
         self.conv1 = conv3x3(in_planes, 64, 2)
-        if use_batch_norm:
+        if norm == "batch":
             self.bn1 = nn.BatchNorm2d(64)
-            self.layer1 = self._make_layer(block, 64, num_blocks[0], 2)
-            self.layer2 = self._make_layer(block, 128, num_blocks[1], 2)
-            self.layer3 = self._make_layer(block, 256, num_blocks[2], 2)
-            self.layer4 = self._make_layer(block, 512, num_blocks[3], 2)
+            self.layer1 = self._make_layer(block, 64, num_blocks[0], 2, kw)
+            self.layer2 = self._make_layer(block, 128, num_blocks[1], 2, kw)
+            self.layer3 = self._make_layer(block, 256, num_blocks[2], 2, kw)
+            self.layer4 = self._make_layer(block, 512, num_blocks[3], 2, kw)
             self.base = nn.Sequential(self.conv1, self.bn1, nn.ReLU(),
                                       self.layer1, self.layer2,
                                       self.layer3, self.layer4)
         else:
-            self.layer1 = self._make_layer(block, 64, num_blocks[0], 2)
-            self.layer2 = self._make_layer(block, 128, num_blocks[1], 2)
-            self.layer3 = self._make_layer(block, 256, num_blocks[2], 2)
-            self.layer4 = self._make_layer(block, 512, num_blocks[3], 2)
+            self.layer1 = self._make_layer(block, 64, num_blocks[0], 2, kw)
+            self.layer2 = self._make_layer(block, 128, num_blocks[1], 2, kw)
+            self.layer3 = self._make_layer(block, 256, num_blocks[2], 2, kw)
+            self.layer4 = self._make_layer(block, 512, num_blocks[3], 2, kw)
             self.base = nn.Sequential(self.conv1, nn.ReLU(),
                                       self.layer1, self.layer2,
                                       self.layer3, self.layer4)
@@ -266,12 +286,12 @@ class ResNet(NeuralNetworkModule):
 
         self.set_input_module(self.conv1)
 
-    def _make_layer(self, block, planes, num_blocks, stride):
+    def _make_layer(self, block, planes, num_blocks, stride, kwargs):
         strides = [stride] + [1] * (num_blocks - 1)
         layers = []
 
         for stride in strides:
-            layers.append(block(self.in_planes, planes, stride))
+            layers.append(block(self.in_planes, planes, stride, **kwargs))
             self.in_planes = planes * block.expansion
 
         return nn.Sequential(*layers)
