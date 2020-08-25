@@ -64,7 +64,7 @@ class BasicBlock(NeuralNetworkModule):
     # Expansion parameter, output will have "expansion * in_planes" depth.
     expansion = 1
 
-    def __init__(self, in_planes, out_planes, stride=1, norm_layer=None):
+    def __init__(self, in_planes, out_planes, stride=1, norm_layer=None, **__):
         """
         Create a basic block of resnet.
 
@@ -108,7 +108,7 @@ class Bottleneck(NeuralNetworkModule):
     # Expansion parameter, output will have "expansion * in_planes" depth.
     expansion = 4
 
-    def __init__(self, in_planes, out_planes, stride=1, norm_layer=None):
+    def __init__(self, in_planes, out_planes, stride=1, norm_layer=None, **__):
         """
         Create a bottleneck block of resnet.
 
@@ -157,7 +157,7 @@ class BasicBlockWN(NeuralNetworkModule):
     # Expansion parameter, output will have "expansion * in_planes" depth.
     expansion = 1
 
-    def __init__(self, in_planes, out_planes, stride=1):
+    def __init__(self, in_planes, out_planes, stride=1, **__):
         """
         Create a basic block of resnet.
 
@@ -199,7 +199,7 @@ class BottleneckWN(NeuralNetworkModule):
     # expansion parameter, output will have "expansion * in_planes" depth
     expansion = 4
 
-    def __init__(self, in_planes, out_planes, stride=1):
+    def __init__(self, in_planes, out_planes, stride=1, **__):
         """
         Create a bottleneck block of resnet.
 
