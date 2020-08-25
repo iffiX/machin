@@ -1,3 +1,4 @@
+from copy import deepcopy
 from .a2c import *
 
 
@@ -99,8 +100,13 @@ class PPO(A2C):
         # DOC INHERITED
         sum_act_policy_loss = 0
         sum_value_loss = 0
+
+        # create a temporary copy of the not-updated actor
+        tmp_actor = deepcopy(self.actor)
+
         self.actor.train()
         self.critic.train()
+
         for _ in range(self.actor_update_times):
             # sample a batch
             batch_size, (state, action, advantage) = \
@@ -119,8 +125,14 @@ class PPO(A2C):
                              (advantage.std() + 1e-6))
 
             # Infer original action log probability
-            __, action_log_prob, *_ = self._eval_act(state, action)
-            action_log_prob = action_log_prob.view(batch_size, 1).detach()
+            # TODO:
+            #  This temporary fix is not efficient, maybe requires
+            #  PPO store API alternation.
+            with t.no_grad():
+                self.actor, tmp_actor = tmp_actor, self.actor
+                __, action_log_prob, *_ = self._eval_act(state, action)
+                self.actor, tmp_actor = tmp_actor, self.actor
+                action_log_prob = action_log_prob.view(batch_size, 1)
 
             if self.entropy_weight is not None:
                 __, new_action_log_prob, new_action_entropy, *_ = \
