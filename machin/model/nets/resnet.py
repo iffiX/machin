@@ -266,22 +266,26 @@ class ResNet(NeuralNetworkModule):
 
         block, num_blocks, kw = cfg(depth, norm)
 
-        self.conv1 = conv3x3(in_planes, 64, 2)
+        self.conv1 = nn.Conv2d(in_planes, 64, kernel_size=7, stride=2,
+                               padding=3, bias=False)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         if norm == "batch":
             self.bn1 = nn.BatchNorm2d(64)
-            self.layer1 = self._make_layer(block, 64, num_blocks[0], 2, kw)
+            self.layer1 = self._make_layer(block, 64, num_blocks[0], 1, kw)
             self.layer2 = self._make_layer(block, 128, num_blocks[1], 2, kw)
             self.layer3 = self._make_layer(block, 256, num_blocks[2], 2, kw)
             self.layer4 = self._make_layer(block, 512, num_blocks[3], 2, kw)
             self.base = nn.Sequential(self.conv1, self.bn1, nn.ReLU(),
+                                      self.maxpool,
                                       self.layer1, self.layer2,
                                       self.layer3, self.layer4)
         else:
-            self.layer1 = self._make_layer(block, 64, num_blocks[0], 2, kw)
+            self.layer1 = self._make_layer(block, 64, num_blocks[0], 1, kw)
             self.layer2 = self._make_layer(block, 128, num_blocks[1], 2, kw)
             self.layer3 = self._make_layer(block, 256, num_blocks[2], 2, kw)
             self.layer4 = self._make_layer(block, 512, num_blocks[3], 2, kw)
             self.base = nn.Sequential(self.conv1, nn.ReLU(),
+                                      self.maxpool,
                                       self.layer1, self.layer2,
                                       self.layer3, self.layer4)
         self.fc = nn.Linear(512 * out_pool_size[0] * out_pool_size[1],
