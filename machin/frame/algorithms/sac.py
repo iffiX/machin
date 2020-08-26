@@ -278,7 +278,7 @@ class SAC(TorchFramework):
             next_value2 = self._criticize2(next_state, next_action, True)
             next_value = t.min(next_value, next_value2)
             next_value = (next_value.view(batch_size, -1) -
-                          self.entropy_alpha
+                          self.entropy_alpha.item()
                           * next_action_log_prob.view(batch_size, -1))
             y_i = self.reward_function(
                 reward, self.discount, next_value, terminal, others
@@ -316,7 +316,7 @@ class SAC(TorchFramework):
         act_value2 = self._criticize2(state, cur_action)
         act_value = t.min(act_value, act_value2)
 
-        act_policy_loss = (self.entropy_alpha * cur_action_log_prob -
+        act_policy_loss = (self.entropy_alpha.item() * cur_action_log_prob -
                            act_value).mean()
 
         if self.visualize:
@@ -337,7 +337,8 @@ class SAC(TorchFramework):
 
         if update_entropy_alpha and self.target_entropy is not None:
             alpha_loss = -(t.log(self.entropy_alpha) *
-                           (cur_action_log_prob + self.target_entropy).detach()
+                           (cur_action_log_prob + self.target_entropy).cpu()
+                           .detach()
                            ).mean()
             self.alpha_optim.zero_grad()
             alpha_loss.backward()
