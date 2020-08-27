@@ -7,22 +7,7 @@ from .helper_classes import Object
 
 
 class Config(Object):
-    """
-    Attributes:
-        root_directory: (const) Root directory of your trials.
-        restart_from_trial: (const) Trial name (usually a date string)
-            to restart from.
-    """
-
-    def __init__(self,
-                 root_directory: str = "./",
-                 restart_from_trial: str = None,
-                 **configs):
-        configs["root_directory"] = root_directory
-        configs["restart_from_trial"] = restart_from_trial
-        super(Config, self).__init__(configs,
-                                     const_attrs={"root_directory",
-                                                  "restart_from_trial"})
+    pass
 
 
 def load_config_cmd(merge_conf: Config = None) -> Config:
