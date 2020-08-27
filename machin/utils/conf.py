@@ -7,7 +7,8 @@ from .helper_classes import Object
 
 
 class Config(Object):
-    pass
+    def __init__(self, **configs):
+        super(Config, self).__init__(configs)
 
 
 def load_config_cmd(merge_conf: Config = None) -> Config:
