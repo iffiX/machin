@@ -308,7 +308,7 @@ class SAC(TorchFramework):
             self.critic2_optim.step()
 
         # Update actor network
-        cur_action, cur_action_log_prob, *_ = self.act(next_state)
+        cur_action, cur_action_log_prob, *_ = self.act(state)
         cur_action = self.action_transform_function(
             cur_action, state, others
         )
