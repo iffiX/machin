@@ -12,8 +12,6 @@ from machin.parallel.pickle import dumps, loads
 from .base import *
 from ..utils.openai_gym import disable_view_window
 
-disable_view_window()
-
 
 class GymTerminationError(Exception):
     def __init__(self):
