@@ -70,7 +70,7 @@ class TestA2C(object):
         c.replay_size = 10000
         c.solved_reward = 190
         c.solved_repeat = 5
-        c.device = "cpu"
+        c.device = pytestconfig.get_option("gpu_device")
         return c
 
     @pytest.fixture(scope="function")

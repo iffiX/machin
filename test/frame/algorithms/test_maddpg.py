@@ -96,7 +96,7 @@ class TestMADDPG(object):
         # I cannot replicate their reward curve
         c.solved_reward = -15
         c.solved_repeat = 5
-        c.device = "cpu"
+        c.device = pytestconfig.get_option("gpu_device")
         return c
 
     @pytest.fixture(scope="function")
@@ -118,7 +118,7 @@ class TestMADDPG(object):
                         [[0, 1, 2], [0, 1, 2], [0, 1, 2]],
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
-                        replay_device=c.device,
+                        replay_device="cpu",
                         replay_size=c.replay_size,
                         pool_type="thread")
         return maddpg
@@ -139,7 +139,7 @@ class TestMADDPG(object):
                         [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
-                        replay_device=c.device,
+                        replay_device="cpu",
                         replay_size=c.replay_size)
         return maddpg
 
@@ -160,7 +160,7 @@ class TestMADDPG(object):
                         [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
-                        replay_device=c.device,
+                        replay_device="cpu",
                         replay_size=c.replay_size)
         return maddpg
 
@@ -182,7 +182,7 @@ class TestMADDPG(object):
                         [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
-                        replay_device=c.device,
+                        replay_device="cpu",
                         replay_size=c.replay_size,
                         visualize=True,
                         visualize_dir=str(tmp_dir))
@@ -207,7 +207,7 @@ class TestMADDPG(object):
                        [list(range(c.test_agent_num))] * c.test_agent_num,
                        t.optim.Adam,
                        nn.MSELoss(reduction='sum'),
-                       replay_device=c.device,
+                       replay_device="cpu",
                        replay_size=c.replay_size,
                        lr_scheduler=LambdaLR)
         maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
@@ -217,7 +217,7 @@ class TestMADDPG(object):
                         [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
-                        replay_device=c.device,
+                        replay_device="cpu",
                         replay_size=c.replay_size,
                         lr_scheduler=LambdaLR,
                         lr_scheduler_args=((lr_func,), (lr_func,)))

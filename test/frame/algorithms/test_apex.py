@@ -91,7 +91,6 @@ class TestDQNApex(object):
     c.replay_size = 100000
     c.solved_reward = 190
     c.solved_repeat = 5
-    c.device = "cpu"
 
     @staticmethod
     def dqn_apex():
@@ -109,7 +108,7 @@ class TestDQNApex(object):
                            nn.MSELoss(reduction='sum'),
                            apex_group,
                            servers,
-                           replay_device=c.device,
+                           replay_device="cpu",
                            replay_size=c.replay_size)
         return dqn_apex
 
@@ -117,10 +116,13 @@ class TestDQNApex(object):
     # Test for DQNApex acting
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_act(_):
+    def test_act(_, pytestconfig):
         c = TestDQNApex.c
+        c.device = pytestconfig.get_option("gpu_device")
         dqn_apex = TestDQNApex.dqn_apex()
         state = t.zeros([1, c.observe_dim])
         dqn_apex.act_discrete({"state": state})
@@ -133,10 +135,13 @@ class TestDQNApex(object):
     # Test for DQNApex criticizing
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_criticize(_):
+    def test_criticize(_, pytestconfig):
         c = TestDQNApex.c
+        c.device = pytestconfig.get_option("gpu_device")
         dqn_apex = TestDQNApex.dqn_apex()
         state = t.zeros([1, c.observe_dim])
         dqn_apex._criticize({"state": state})
@@ -152,10 +157,13 @@ class TestDQNApex(object):
     # Test for DQNApex update
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_update(rank):
+    def test_update(rank, pytestconfig):
         c = TestDQNApex.c
+        c.device = pytestconfig.get_option("gpu_device")
         dqn_apex = TestDQNApex.dqn_apex()
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -191,10 +199,12 @@ class TestDQNApex(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank):
+    def test_full_train(rank, pytestconfig):
         c = TestDQNApex.c
+        c.device = pytestconfig.get_option("gpu_device")
         dqn_apex = TestDQNApex.dqn_apex()
         # perform manual syncing to decrease the number of rpc calls
         dqn_apex.set_sync(False)
@@ -293,7 +303,6 @@ class TestDDPGApex(object):
     # decrease standard for faster validation
     c.solved_reward = -300
     c.solved_repeat = 5
-    c.device = "cpu"
 
     @staticmethod
     def ddpg_apex(discrete=False):
@@ -322,7 +331,7 @@ class TestDDPGApex(object):
                              nn.MSELoss(reduction='sum'),
                              apex_group,
                              servers,
-                             replay_device=c.device,
+                             replay_device="cpu",
                              replay_size=c.replay_size)
         return ddpg_apex
 
@@ -330,10 +339,13 @@ class TestDDPGApex(object):
     # Test for DDPGApex contiguous domain acting
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_contiguous_act(_):
+    def test_contiguous_act(_, pytestconfig):
         c = TestDDPGApex.c
+        c.device = pytestconfig.get_option("gpu_device")
         ddpg_apex = TestDDPGApex.ddpg_apex()
         state = t.zeros([1, c.observe_dim])
         ddpg_apex.act({"state": state})
@@ -348,11 +360,14 @@ class TestDDPGApex(object):
     # Test for DDPGApex discrete domain acting
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_discrete_act(_):
+    def test_discrete_act(_, pytestconfig):
         c = TestDDPGApex.c
-        ddpg_apex = TestDDPGApex.ddpg_apex(discrete=True)
+        c.device = pytestconfig.get_option("gpu_device")
+        ddpg_apex = TestDDPGApex.ddpg_apex()
         state = t.zeros([1, c.observe_dim])
         ddpg_apex.act_discrete({"state": state})
         ddpg_apex.act_discrete({"state": state}, use_target=True)
@@ -364,10 +379,13 @@ class TestDDPGApex(object):
     # Test for DDPGApex criticizing
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test__criticize(_):
+    def test__criticize(_, pytestconfig):
         c = TestDDPGApex.c
+        c.device = pytestconfig.get_option("gpu_device")
         ddpg_apex = TestDDPGApex.ddpg_apex()
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
@@ -385,10 +403,13 @@ class TestDDPGApex(object):
     # Test for DDPGApex update
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_update(rank):
+    def test_update(rank, pytestconfig):
         c = TestDDPGApex.c
+        c.device = pytestconfig.get_option("gpu_device")
         ddpg_apex = TestDDPGApex.ddpg_apex()
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
@@ -425,10 +446,12 @@ class TestDDPGApex(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank):
+    def test_full_train(rank, pytestconfig):
         c = TestDDPGApex.c
+        c.device = pytestconfig.get_option("gpu_device")
         ddpg_apex = TestDDPGApex.ddpg_apex()
         # perform manual syncing to decrease the number of rpc calls
         ddpg_apex.set_sync(False)

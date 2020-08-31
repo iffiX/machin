@@ -59,7 +59,7 @@ class TestRAINBOW(object):
         # compared to other DQNs
         c.solved_reward = 180
         c.solved_repeat = 5
-        c.device = "cpu"
+        c.device = pytestconfig.get_option("gpu_device")
         return c
 
     @pytest.fixture(scope="function")
@@ -74,7 +74,7 @@ class TestRAINBOW(object):
                           c.value_min,
                           c.value_max,
                           reward_future_steps=c.reward_future_steps,
-                          replay_device=c.device,
+                          replay_device="cpu",
                           replay_size=c.replay_size)
         return rainbow
 
@@ -91,7 +91,7 @@ class TestRAINBOW(object):
                           c.value_min,
                           c.value_max,
                           reward_future_steps=c.reward_future_steps,
-                          replay_device=c.device,
+                          replay_device="cpu",
                           replay_size=c.replay_size,
                           visualize=True,
                           visualize_dir=str(tmp_dir))

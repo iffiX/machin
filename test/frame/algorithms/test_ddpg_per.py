@@ -64,7 +64,7 @@ class TestDDPGPer(object):
         c.replay_size = 100000
         c.solved_reward = -150
         c.solved_repeat = 5
-        c.device = "cpu"
+        c.device = pytestconfig.get_option("gpu_device")
         return c
 
     @pytest.fixture(scope="function")
@@ -81,7 +81,7 @@ class TestDDPGPer(object):
         ddpg_per = DDPGPer(actor, actor_t, critic, critic_t,
                            t.optim.Adam,
                            nn.MSELoss(reduction='sum'),
-                           replay_device=c.device,
+                           replay_device="cpu",
                            replay_size=c.replay_size)
         return ddpg_per
 
@@ -101,7 +101,7 @@ class TestDDPGPer(object):
         ddpg_per = DDPGPer(actor, actor_t, critic, critic_t,
                            t.optim.Adam,
                            nn.MSELoss(reduction='sum'),
-                           replay_device=c.device,
+                           replay_device="cpu",
                            replay_size=c.replay_size,
                            visualize=True,
                            visualize_dir=str(tmp_dir))
@@ -129,7 +129,7 @@ class TestDDPGPer(object):
             _ = DDPGPer(actor, actor_t, critic, critic_t,
                         t.optim.Adam,
                         criterion,
-                        replay_device=c.device,
+                        replay_device="cpu",
                         replay_size=c.replay_size)
 
     ########################################################################

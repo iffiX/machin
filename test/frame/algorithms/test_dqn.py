@@ -47,7 +47,7 @@ class TestDQN(object):
         c.replay_size = 100000
         c.solved_reward = 190
         c.solved_repeat = 5
-        c.device = "cpu"
+        c.device = pytestconfig.get_option("gpu_device")
         return c
 
     @pytest.fixture(scope="function", params=["double"])
@@ -60,7 +60,7 @@ class TestDQN(object):
         dqn = DQN(q_net, q_net_t,
                   t.optim.Adam,
                   nn.MSELoss(reduction='sum'),
-                  replay_device=c.device,
+                  replay_device="cpu",
                   replay_size=c.replay_size,
                   mode=request.param)
         return dqn
@@ -76,7 +76,7 @@ class TestDQN(object):
         dqn = DQN(q_net, q_net_t,
                   t.optim.Adam,
                   nn.MSELoss(reduction='sum'),
-                  replay_device=c.device,
+                  replay_device="cpu",
                   replay_size=c.replay_size,
                   mode=request.param,
                   visualize=True,
@@ -97,13 +97,13 @@ class TestDQN(object):
             _ = DQN(q_net, q_net_t,
                     t.optim.Adam,
                     nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
+                    replay_device="cpu",
                     replay_size=c.replay_size,
                     lr_scheduler=LambdaLR)
         dqn = DQN(q_net, q_net_t,
                   t.optim.Adam,
                   nn.MSELoss(reduction='sum'),
-                  replay_device=c.device,
+                  replay_device="cpu",
                   replay_size=c.replay_size,
                   lr_scheduler=LambdaLR,
                   lr_scheduler_args=((lr_func,),))
@@ -123,7 +123,7 @@ class TestDQN(object):
             _ = DQN(q_net, q_net_t,
                     t.optim.Adam,
                     nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
+                    replay_device="cpu",
                     replay_size=c.replay_size,
                     mode="invalid_mode")
 
@@ -131,7 +131,7 @@ class TestDQN(object):
             dqn = DQN(q_net, q_net_t,
                       t.optim.Adam,
                       nn.MSELoss(reduction='sum'),
-                      replay_device=c.device,
+                      replay_device="cpu",
                       replay_size=c.replay_size,
                       mode="double")
 

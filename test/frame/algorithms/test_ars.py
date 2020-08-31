@@ -94,7 +94,6 @@ class TestARS(object):
     c.max_steps = 200
     c.solved_reward = 190
     c.solved_repeat = 5
-    c.device = "cpu"
 
     @staticmethod
     def ars():
@@ -133,11 +132,14 @@ class TestARS(object):
     # Test for ARS acting
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_act(_):
-        ars = TestARS.ars()
+    def test_act(_, pytestconfig):
         c = TestARS.c
+        c.device = pytestconfig.get_option("gpu_device")
+        ars = TestARS.ars()
         state = t.zeros([1, c.observe_dim])
         ars.act({"state": state}, "original")
         ars.act({"state": state}, ars.get_actor_types()[0])
@@ -149,9 +151,13 @@ class TestARS(object):
     # Test for ARS storage
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_store_reward(_):
+    def test_store_reward(_, pytestconfig):
+        c = TestARS.c
+        c.device = pytestconfig.get_option("gpu_device")
         ars = TestARS.ars()
         ars.store_reward(0.0, ars.get_actor_types()[0])
         with pytest.raises(ValueError):
@@ -162,11 +168,14 @@ class TestARS(object):
     # Test for ARS update
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_update(_):
-        ars = TestARS.ars()
+    def test_update(_, pytestconfig):
         c = TestARS.c
+        c.device = pytestconfig.get_option("gpu_device")
+        ars = TestARS.ars()
         for at in ars.get_actor_types():
             # get action will cause filters to initialize
             _action = ars.act({"state": t.zeros([1, c.observe_dim])}, at)
@@ -186,9 +195,13 @@ class TestARS(object):
     # Test for ARS lr_scheduler
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_lr_scheduler(_):
+    def test_lr_scheduler(_, pytestconfig):
+        c = TestARS.c
+        c.device = pytestconfig.get_option("gpu_device")
         ars = TestARS.ars_lr()
         ars.update_lr_scheduler()
         return True
@@ -198,10 +211,12 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank):
+    def test_full_train(rank, pytestconfig):
         c = TestARS.c
+        c.device = pytestconfig.get_option("gpu_device")
         ars = TestARS.ars()
 
         # begin training

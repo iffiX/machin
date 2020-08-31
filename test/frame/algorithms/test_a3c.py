@@ -67,7 +67,6 @@ class TestA3C(object):
     c.replay_size = 10000
     c.solved_reward = 190
     c.solved_repeat = 5
-    c.device = "cpu"
 
     @staticmethod
     def a3c():
@@ -85,7 +84,7 @@ class TestA3C(object):
         a3c = A3C(actor, critic,
                   nn.MSELoss(reduction='sum'),
                   servers,
-                  replay_device=c.device,
+                  replay_device="cpu",
                   replay_size=c.replay_size)
         return a3c
 
@@ -93,11 +92,14 @@ class TestA3C(object):
     # Test for A3C acting
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_act(_):
-        a3c = TestA3C.a3c()
+    def test_act(_, pytestconfig):
         c = TestA3C.c
+        c.device = pytestconfig.get_option("gpu_device")
+        a3c = TestA3C.a3c()
         state = t.zeros([1, c.observe_dim])
         a3c.act({"state": state})
         return True
@@ -106,11 +108,14 @@ class TestA3C(object):
     # Test for A3C action evaluation
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_eval_action(_):
-        a3c = TestA3C.a3c()
+    def test_eval_action(_, pytestconfig):
         c = TestA3C.c
+        c.device = pytestconfig.get_option("gpu_device")
+        a3c = TestA3C.a3c()
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
         a3c._eval_act({"state": state}, {"action": action})
@@ -120,11 +125,14 @@ class TestA3C(object):
     # Test for A3C criticizing
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test__criticize(_):
-        a3c = TestA3C.a3c()
+    def test__criticize(_, pytestconfig):
         c = TestA3C.c
+        c.device = pytestconfig.get_option("gpu_device")
+        a3c = TestA3C.a3c()
         state = t.zeros([1, c.observe_dim])
         a3c._criticize({"state": state})
         return True
@@ -138,11 +146,14 @@ class TestA3C(object):
     # Test for A3C update
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True])
+    @run_multi(expected_results=[True, True, True],
+               pass_through=["pytestconfig"],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_update(rank):
-        a3c = TestA3C.a3c()
+    def test_update(rank, pytestconfig):
         c = TestA3C.c
+        c.device = pytestconfig.get_option("gpu_device")
+        a3c = TestA3C.a3c()
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
 
@@ -181,11 +192,12 @@ class TestA3C(object):
     @staticmethod
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gae_lambda"],
+               pass_through=["gae_lambda", "pytestconfig"],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank, gae_lambda):
+    def test_full_train(rank, gae_lambda, pytestconfig):
         c = TestA3C.c
+        c.device = pytestconfig.get_option("gpu_device")
         a3c = TestA3C.a3c()
         a3c.set_sync(False)
 

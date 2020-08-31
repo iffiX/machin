@@ -68,7 +68,7 @@ class TestPPO(object):
         c.replay_size = 10000
         c.solved_reward = 190
         c.solved_repeat = 5
-        c.device = "cpu"
+        c.device = pytestconfig.get_option("gpu_device")
         return c
 
     @pytest.fixture(scope="function")
@@ -81,7 +81,7 @@ class TestPPO(object):
         ppo = PPO(actor, critic,
                   t.optim.Adam,
                   nn.MSELoss(reduction='sum'),
-                  replay_device=c.device,
+                  replay_device="cpu",
                   replay_size=c.replay_size)
         return ppo
 
@@ -97,7 +97,7 @@ class TestPPO(object):
         ppo = PPO(actor, critic,
                   t.optim.Adam,
                   nn.MSELoss(reduction='sum'),
-                  replay_device=c.device,
+                  replay_device="cpu",
                   replay_size=c.replay_size,
                   visualize=True,
                   visualize_dir=str(tmp_dir))

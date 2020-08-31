@@ -81,7 +81,7 @@ class TestDDPG(object):
         c.replay_size = 100000
         c.solved_reward = -150
         c.solved_repeat = 5
-        c.device = "cpu"
+        c.device = pytestconfig.get_option("gpu_device")
         return c
 
     @pytest.fixture(scope="function")
@@ -98,7 +98,7 @@ class TestDDPG(object):
         ddpg = DDPG(actor, actor_t, critic, critic_t,
                     t.optim.Adam,
                     nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
+                    replay_device="cpu",
                     replay_size=c.replay_size)
         return ddpg
 
@@ -118,7 +118,7 @@ class TestDDPG(object):
         ddpg = DDPG(actor, actor_t, critic, critic_t,
                     t.optim.Adam,
                     nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
+                    replay_device="cpu",
                     replay_size=c.replay_size,
                     visualize=True,
                     visualize_dir=str(tmp_dir))
@@ -139,7 +139,7 @@ class TestDDPG(object):
         ddpg = DDPG(actor, actor_t, critic, critic_t,
                     t.optim.Adam,
                     nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
+                    replay_device="cpu",
                     replay_size=c.replay_size)
         return ddpg
 
@@ -161,13 +161,13 @@ class TestDDPG(object):
             _ = DDPG(actor, actor_t, critic, critic_t,
                      t.optim.Adam,
                      nn.MSELoss(reduction='sum'),
-                     replay_device=c.device,
+                     replay_device="cpu",
                      replay_size=c.replay_size,
                      lr_scheduler=LambdaLR)
         ddpg = DDPG(actor, actor_t, critic, critic_t,
                     t.optim.Adam,
                     nn.MSELoss(reduction='sum'),
-                    replay_device=c.device,
+                    replay_device="cpu",
                     replay_size=c.replay_size,
                     lr_scheduler=LambdaLR,
                     lr_scheduler_args=((lr_func,), (lr_func,)))
