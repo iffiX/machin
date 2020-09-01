@@ -322,10 +322,9 @@ class IMPALA(TorchFramework):
         # Calculate c and rho first, because there is no dependency
         # between vector elements.
         _, cur_action_log_prob, entropy, *__ = self._eval_act(state, action)
-        cur_action_log_prob = cur_action_log_prob.view(sum_length, 1)
-        entropy = entropy.view(sum_length, 1)
+        cur_action_log_prob = cur_action_log_prob.view(sum_length, 1).to("cpu")
+        entropy = entropy.view(sum_length, 1).to("cpu")
 
-        cur_action_log_prob = cur_action_log_prob.to("cpu")
         # similarity = pi(a_t|x_t)/mu(a_t|x_t)
         sim = t.exp(cur_action_log_prob - action_log_prob)
         c = t.min(t.full(sim.shape, self.isw_clip_c), sim)
@@ -334,12 +333,10 @@ class IMPALA(TorchFramework):
         # calculate delta V
         # delta_t V = rho_t(r_t + gamma * V(x_{t+1}) - V(x_t))
         # boundary elements (i.e, ep1_stepN) will have V(x_{t+1}) = 0
-        value = self._criticize(state).view(sum_length, 1)
-        next_value = self._criticize(next_state).view(sum_length, 1)
+        value = self._criticize(state).view(sum_length, 1).to("cpu")
+        next_value = self._criticize(next_state).view(sum_length, 1).to("cpu")
         next_value[terminal] = 0
-        delta_v = rho * (reward +
-                         self.discount * next_value.to("cpu")
-                         - value.to("cpu"))
+        delta_v = rho * (reward + self.discount * next_value - value)
 
         # calculate v_s
 

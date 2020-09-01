@@ -174,6 +174,7 @@ def assert_output_is_probs(tensor):
             torch.all(tensor > 0):
         return
     else:
+        print(tensor)
         raise ValueError("Input tensor is not a probability tensor, it must "
                          "have 2 dimensions (0 and 1), a sum of 1.0 for each "
                          "row in dimension 1, and a positive value for each "

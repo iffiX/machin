@@ -105,12 +105,12 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_act(_, pytestconfig):
+    def test_act(_, gpu):
         c = TestIMPALA.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         impala = TestIMPALA.impala()
 
         state = t.zeros([1, c.observe_dim])
@@ -122,12 +122,12 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_eval_action(_, pytestconfig):
+    def test_eval_action(_, gpu):
         c = TestIMPALA.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         impala = TestIMPALA.impala()
 
         state = t.zeros([1, c.observe_dim])
@@ -140,12 +140,12 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test__criticize(_, pytestconfig):
+    def test__criticize(_, gpu):
         c = TestIMPALA.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         impala = TestIMPALA.impala()
 
         state = t.zeros([1, c.observe_dim])
@@ -157,12 +157,12 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_store_step(_, pytestconfig):
+    def test_store_step(_, gpu):
         c = TestIMPALA.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         impala = TestIMPALA.impala()
 
         old_state = state = t.zeros([1, c.observe_dim])
@@ -181,12 +181,12 @@ class TestIMPALA(object):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_store_episode(_, pytestconfig):
+    def test_store_episode(_, gpu):
         c = TestIMPALA.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         impala = TestIMPALA.impala()
 
         old_state = state = t.zeros([1, c.observe_dim])
@@ -208,12 +208,12 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_update(rank, pytestconfig):
+    def test_update(rank, gpu):
         c = TestIMPALA.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         impala = TestIMPALA.impala()
 
         old_state = state = t.zeros([1, c.observe_dim])
@@ -257,12 +257,12 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_lr_scheduler(_, pytestconfig):
+    def test_lr_scheduler(_, gpu):
         c = TestIMPALA.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         impala = TestIMPALA.impala()
 
         impala.update_lr_scheduler()
@@ -273,12 +273,12 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank, pytestconfig):
+    def test_full_train(rank, gpu):
         c = TestIMPALA.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         impala = TestIMPALA.impala()
 
         # perform manual syncing to decrease the number of rpc calls

@@ -15,6 +15,7 @@ import torch.nn as nn
 import gym
 
 from .utils import unwrap_time_limit, Smooth
+from test.util_run_multi import gpu
 
 
 def atanh(x):
@@ -92,7 +93,7 @@ class Critic(nn.Module):
 class TestSAC(object):
     # configs and definitions
     @pytest.fixture(scope="class")
-    def train_config(self, pytestconfig):
+    def train_config(self, gpu):
         disable_view_window()
         c = Config()
         c.env_name = "Pendulum-v0"
@@ -105,7 +106,7 @@ class TestSAC(object):
         c.replay_size = 100000
         c.solved_reward = -300
         c.solved_repeat = 5
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         return c
 
     @pytest.fixture(scope="function")

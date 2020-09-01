@@ -891,7 +891,7 @@ class MADDPG(TorchFramework):
         keys = actions[0].keys()
         all_actions = {}
         for k in keys:
-            all_actions[k] = t.cat([act[k] for act in actions], dim=1)
+            all_actions[k] = t.cat([act[k].cpu() for act in actions], dim=1)
         return all_actions
 
     @staticmethod
@@ -902,7 +902,7 @@ class MADDPG(TorchFramework):
         keys = states[0].keys()
         all_states = {}
         for k in keys:
-            all_states[k] = t.cat([st[k] for st in states], dim=1)
+            all_states[k] = t.cat([st[k].cpu() for st in states], dim=1)
         return all_states
 
     @staticmethod

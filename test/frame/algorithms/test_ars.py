@@ -133,12 +133,12 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_act(_, pytestconfig):
+    def test_act(_, gpu):
         c = TestARS.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         ars = TestARS.ars()
         state = t.zeros([1, c.observe_dim])
         ars.act({"state": state}, "original")
@@ -152,12 +152,12 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_store_reward(_, pytestconfig):
+    def test_store_reward(_, gpu):
         c = TestARS.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         ars = TestARS.ars()
         ars.store_reward(0.0, ars.get_actor_types()[0])
         with pytest.raises(ValueError):
@@ -169,12 +169,12 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_update(_, pytestconfig):
+    def test_update(_, gpu):
         c = TestARS.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         ars = TestARS.ars()
         for at in ars.get_actor_types():
             # get action will cause filters to initialize
@@ -196,12 +196,12 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_lr_scheduler(_, pytestconfig):
+    def test_lr_scheduler(_, gpu):
         c = TestARS.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         ars = TestARS.ars_lr()
         ars.update_lr_scheduler()
         return True
@@ -211,12 +211,12 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["pytestconfig"],
+               pass_through=["gpu"],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank, pytestconfig):
+    def test_full_train(rank, gpu):
         c = TestARS.c
-        c.device = pytestconfig.get_option("gpu_device")
+        c.device = gpu
         ars = TestARS.ars()
 
         # begin training

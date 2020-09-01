@@ -54,7 +54,7 @@ pipeline {
                 sh 'mkdir -p test_allure_data/api'
                 // -eq 1  is used to tell jenkins to not mark
                 // the test as failure when sub tests failed.
-                sh 'pytest -s --assert=plain --cov-report term-missing --cov=machin ' +
+                sh 'pytest -s --gpu_device="cuda:1" --assert=plain --cov-report term-missing --cov=machin ' +
                    '-k \'not full_train\' ' +
                    '-o junit_family=xunit1 ' +
                    '--junitxml test_results/test_api.xml ./test ' +
@@ -95,7 +95,7 @@ pipeline {
                 sh 'mkdir -p test_results'
                 sh 'mkdir -p test_allure_data/full_train'
                 sh 'pytest ' +
-                   '-s --assert=plain -k \'full_train\' ' +
+                   '-s --gpu_device="cuda:1" --assert=plain -k \'full_train\' ' +
                    '-o junit_family=xunit1 ' +
                    '--junitxml test_results/test_full_train.xml ./test ' +
                    '--html=test_results/test_full_train.html ' +

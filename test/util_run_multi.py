@@ -76,7 +76,7 @@ def processes():
     default_logger.info("processes stopped")
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="class", autouse=True)
 def gpu(pytestconfig):
     return pytestconfig.getoption("gpu_device")
 

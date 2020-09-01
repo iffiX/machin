@@ -114,7 +114,7 @@ class RAINBOW(DQN):
             .view(1, -1)
 
         # q value of each action, shape: [batch_size, action_num]
-        q_value = t.sum(q_dist_support * q_dist, dim=-1)
+        q_value = t.sum(q_dist_support.to(q_dist.device) * q_dist, dim=-1)
 
         result = t.argmax(q_value, dim=1).view(-1, 1)
         if len(others) == 0:
@@ -141,7 +141,7 @@ class RAINBOW(DQN):
             .view(1, -1)
 
         # q value of each action, shape: [batch_size, action_num]
-        q_value = t.sum(q_dist_support * q_dist, dim=-1)
+        q_value = t.sum(q_dist_support.to(q_dist.device) * q_dist, dim=-1)
 
         result = t.softmax(q_value, dim=1)
         dist = Categorical(result)
@@ -260,10 +260,10 @@ class RAINBOW(DQN):
             # idx shape: [batch_size * atom_num]
             # dist shape: [batch_size, atom_num]
             # weight shape: [batch_size * atom_num]
-            l_idx, l_dist = l.long().view(-1).cpu(), b - l
-            u_idx, u_dist = u.long().view(-1).cpu(), u - b
-            l_weight = (u_dist * target_next_q_dist).view(-1).cpu()
-            u_weight = (l_dist * target_next_q_dist).view(-1).cpu()
+            l_idx, l_dist = l.long().view(-1).cpu(), (b - l).cpu()
+            u_idx, u_dist = u.long().view(-1).cpu(), (u - b).cpu()
+            l_weight = (u_dist * target_next_q_dist.cpu()).view(-1)
+            u_weight = (l_dist * target_next_q_dist.cpu()).view(-1)
 
             # offset is used to perform row-wise index add, since we can only
             # perform index add on one dimension, we must flatten the whole

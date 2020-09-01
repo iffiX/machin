@@ -137,7 +137,7 @@ class DDPGPer(DDPG):
         act_policy_loss = -act_value.mean()
 
         # update priority
-        abs_error = (t.sum(t.abs(act_value - y_i), dim=1)
+        abs_error = (t.sum(t.abs(act_value - y_i.to(act_value.device)), dim=1)
                      .flatten().detach().cpu().numpy())
         self.replay_buffer.update_priority(abs_error, index)
 
