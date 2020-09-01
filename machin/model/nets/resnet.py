@@ -259,8 +259,13 @@ class ResNet(NeuralNetworkModule):
                 "weight".
         """
         super(ResNet, self).__init__()
-        self.in_planes = 64
+        self.norm = norm
+        self.depth = depth
+        self.in_planes = in_planes
+        self.out_planes = out_planes
         self.out_pool_size = out_pool_size
+
+        self._cur_in_planes = 64
 
         block, num_blocks, kw = cfg(depth, norm)
 
@@ -296,8 +301,8 @@ class ResNet(NeuralNetworkModule):
         layers = []
 
         for stride in strides:
-            layers.append(block(self.in_planes, planes, stride, **kwargs))
-            self.in_planes = planes * block.expansion
+            layers.append(block(self._cur_in_planes, planes, stride, **kwargs))
+            self._cur_in_planes = planes * block.expansion
 
         return nn.Sequential(*layers)
 
