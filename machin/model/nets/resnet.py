@@ -86,8 +86,8 @@ class BasicBlock(NeuralNetworkModule):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(in_planes, out_planes, stride)
         self.bn1 = norm_layer(out_planes)
-        self.conv2 = conv3x3(out_planes, out_planes)
-        self.bn2 = norm_layer(out_planes)
+        self.conv2 = conv3x3(out_planes, self.expansion * out_planes)
+        self.bn2 = norm_layer(self.expansion * out_planes)
         # Create a shortcut from input to output.
         # An empty sequential structure means no transformation
         # is made on input X.
@@ -129,7 +129,7 @@ class Bottleneck(NeuralNetworkModule):
         super(Bottleneck, self).__init__()
         self.conv1 = conv1x1(in_planes, out_planes)
         self.conv2 = conv3x3(out_planes, out_planes, stride=stride)
-        self.conv3 = conv1x1(out_planes, self.expansion)
+        self.conv3 = conv1x1(out_planes, self.expansion * out_planes)
         self.bn1 = norm_layer(out_planes)
         self.bn2 = norm_layer(out_planes)
         self.bn3 = norm_layer(self.expansion * out_planes)
@@ -171,7 +171,8 @@ class BasicBlockWN(NeuralNetworkModule):
         """
         super(BasicBlockWN, self).__init__()
         self.conv1 = weight_norm(conv3x3(in_planes, out_planes, stride))
-        self.conv2 = weight_norm(conv3x3(out_planes, out_planes))
+        self.conv2 = weight_norm(conv3x3(out_planes,
+                                         self.expansion * out_planes))
         # Create a shortcut from input to output.
         # An empty sequential structure means no transformation
         # is made on input X.
