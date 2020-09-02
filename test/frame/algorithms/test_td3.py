@@ -80,7 +80,7 @@ class TestTD3(object):
         c.noise_mode = "normal"
         c.noise_interval = 2
         c.replay_size = 100000
-        c.solved_reward = -150
+        c.solved_reward = -300
         c.solved_repeat = 5
         c.device = gpu
         return c

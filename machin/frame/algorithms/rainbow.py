@@ -212,10 +212,10 @@ class RAINBOW(DQN):
                                             ])
 
         # q_dist is the distribution of q values
-        q_dist = self._criticize(state)
+        q_dist = self._criticize(state).cpu()
         atom_num = q_dist.shape[-1]
 
-        action = self.action_get_function(action).to(device=q_dist.device,
+        action = self.action_get_function(action).to(device="cpu",
                                                      dtype=t.long).flatten()
         # shape: [batch_size, atom_num]
         q_dist = q_dist[range(batch_size), action]
@@ -224,9 +224,9 @@ class RAINBOW(DQN):
         q_dist_support = t.linspace(self.v_min, self.v_max, atom_num)
 
         with t.no_grad():
-            target_next_q_dist = self._criticize(next_state, True)
+            target_next_q_dist = self._criticize(next_state, True).cpu()
             next_action = (self.act_discrete(next_state).flatten()
-                           .to(device=target_next_q_dist.device, dtype=t.long))
+                           .to(device="cpu", dtype=t.long))
 
             # shape: [batch_size, atom_num]
             target_next_q_dist = target_next_q_dist[range(batch_size),
@@ -238,10 +238,10 @@ class RAINBOW(DQN):
             # T_z is the bellman update for atom z_j
             # shape: [batch_size, atom_num]
             T_z = self.reward_function(
-                value,
+                value.cpu(),
                 self.discount ** self.reward_future_steps,
                 q_dist_support,
-                terminal,
+                terminal.cpu(),
                 others
             )
 
@@ -260,10 +260,10 @@ class RAINBOW(DQN):
             # idx shape: [batch_size * atom_num]
             # dist shape: [batch_size, atom_num]
             # weight shape: [batch_size * atom_num]
-            l_idx, l_dist = l.long().view(-1).cpu(), (b - l).cpu()
-            u_idx, u_dist = u.long().view(-1).cpu(), (u - b).cpu()
-            l_weight = (u_dist * target_next_q_dist.cpu()).view(-1)
-            u_weight = (l_dist * target_next_q_dist.cpu()).view(-1)
+            l_idx, l_dist = l.long().view(-1), b - l
+            u_idx, u_dist = u.long().view(-1), u - b
+            l_weight = (u_dist * target_next_q_dist).view(-1)
+            u_weight = (l_dist * target_next_q_dist).view(-1)
 
             # offset is used to perform row-wise index add, since we can only
             # perform index add on one dimension, we must flatten the whole
@@ -290,7 +290,7 @@ class RAINBOW(DQN):
         # is a constant? But this modification do prevents the 0/0 situation.
 
         # 1e-6 is used to improve numerical stability and prevent nan
-        value_loss = -(target_dist * (q_dist + 1e-6).log().cpu())
+        value_loss = -(target_dist * (q_dist + 1e-6).log())
 
         value_loss = value_loss.sum(dim=1)
 
