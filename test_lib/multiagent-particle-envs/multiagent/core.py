@@ -3,6 +3,12 @@ import numpy as np
 # physical/external base state of all entites
 class EntityState(object):
     def __init__(self):
+        """
+        Initialize p_pos
+
+        Args:
+            self: (todo): write your description
+        """
         # physical position
         self.p_pos = None
         # physical velocity
@@ -11,6 +17,12 @@ class EntityState(object):
 # state of agents (including communication and internal/mental state)
 class AgentState(EntityState):
     def __init__(self):
+        """
+        Initialize the underlying state.
+
+        Args:
+            self: (todo): write your description
+        """
         super(AgentState, self).__init__()
         # communication utterance
         self.c = None
@@ -18,6 +30,12 @@ class AgentState(EntityState):
 # action of the agent
 class Action(object):
     def __init__(self):
+        """
+        Initialize self.
+
+        Args:
+            self: (todo): write your description
+        """
         # physical action
         self.u = None
         # communication action
@@ -26,6 +44,12 @@ class Action(object):
 # properties and state of physical world entity
 class Entity(object):
     def __init__(self):
+        """
+        Initialize the device.
+
+        Args:
+            self: (todo): write your description
+        """
         # name 
         self.name = ''
         # properties:
@@ -48,16 +72,34 @@ class Entity(object):
 
     @property
     def mass(self):
+        """
+        Returns the mass. mass.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.initial_mass
 
 # properties of landmark entities
 class Landmark(Entity):
      def __init__(self):
+         """
+         Initialize the next state.
+
+         Args:
+             self: (todo): write your description
+         """
         super(Landmark, self).__init__()
 
 # properties of agent entities
 class Agent(Entity):
     def __init__(self):
+        """
+        Initialize the state.
+
+        Args:
+            self: (todo): write your description
+        """
         super(Agent, self).__init__()
         # agents are movable by default
         self.movable = True
@@ -81,6 +123,12 @@ class Agent(Entity):
 # multi-agent world
 class World(object):
     def __init__(self):
+        """
+        Initialize the board
+
+        Args:
+            self: (todo): write your description
+        """
         # list of agents and entities (can change at execution-time!)
         self.agents = []
         self.landmarks = []
@@ -101,20 +149,44 @@ class World(object):
     # return all entities in the world
     @property
     def entities(self):
+        """
+        Return a list of the entities.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.agents + self.landmarks
 
     # return all agents controllable by external policies
     @property
     def policy_agents(self):
+        """
+        A list of the agents of the agent.
+
+        Args:
+            self: (todo): write your description
+        """
         return [agent for agent in self.agents if agent.action_callback is None]
 
     # return all agents controlled by world scripts
     @property
     def scripted_agents(self):
+        """
+        A list of agents of the agented agents.
+
+        Args:
+            self: (todo): write your description
+        """
         return [agent for agent in self.agents if agent.action_callback is not None]
 
     # update state of the world
     def step(self):
+        """
+        Perform one step.
+
+        Args:
+            self: (todo): write your description
+        """
         # set actions for scripted agents 
         for agent in self.scripted_agents:
             agent.action = agent.action_callback(agent, self)
@@ -132,6 +204,13 @@ class World(object):
 
     # gather agent action forces
     def apply_action_force(self, p_force):
+        """
+        Applies the action to the given p_force.
+
+        Args:
+            self: (todo): write your description
+            p_force: (bool): write your description
+        """
         # set applied forces
         for i,agent in enumerate(self.agents):
             if agent.movable:
@@ -141,6 +220,13 @@ class World(object):
 
     # gather physical forces acting on entities
     def apply_environment_force(self, p_force):
+        """
+        Applies force : attr : force_a.
+
+        Args:
+            self: (todo): write your description
+            p_force: (bool): write your description
+        """
         # simple (but inefficient) collision response
         for a,entity_a in enumerate(self.entities):
             for b,entity_b in enumerate(self.entities):
@@ -156,6 +242,13 @@ class World(object):
 
     # integrate physical state
     def integrate_state(self, p_force):
+        """
+        Calculate the mass.
+
+        Args:
+            self: (todo): write your description
+            p_force: (bool): write your description
+        """
         for i,entity in enumerate(self.entities):
             if not entity.movable: continue
             entity.state.p_vel = entity.state.p_vel * (1 - self.damping)
@@ -169,6 +262,13 @@ class World(object):
             entity.state.p_pos += entity.state.p_vel * self.dt
 
     def update_agent_state(self, agent):
+        """
+        Updates the state of the agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (str): write your description
+        """
         # set communication state (directly for now)
         if agent.silent:
             agent.state.c = np.zeros(self.dim_c)
@@ -178,6 +278,14 @@ class World(object):
 
     # get collision forces for any contact between two entities
     def get_collision_force(self, entity_a, entity_b):
+        """
+        Get the force force force for a given entity.
+
+        Args:
+            self: (todo): write your description
+            entity_a: (str): write your description
+            entity_b: (str): write your description
+        """
         if (not entity_a.collide) or (not entity_b.collide):
             return [None, None] # not a collider
         if (entity_a is entity_b):

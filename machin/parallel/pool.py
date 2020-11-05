@@ -117,6 +117,12 @@ class Pool(pool.Pool):
         )
 
     def _setup_queues(self):
+        """
+        Setup the queue queues.
+
+        Args:
+            self: (todo): write your description
+        """
         # queues are only used to send dumped strings
         self._inqueue = SimpleQueue(ctx=self._ctx)
         self._outqueue = SimpleQueue(ctx=self._ctx)
@@ -124,6 +130,14 @@ class Pool(pool.Pool):
         self._quick_get = self._outqueue.quick_get
 
     def apply(self, func, args=(), kwds=None):
+        """
+        Applies func to apply func.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            kwds: (array): write your description
+        """
         # DOC INHERITED
         if kwds is None:
             kwds = {}
@@ -135,6 +149,16 @@ class Pool(pool.Pool):
 
     def apply_async(self, func, args=(), kwds=None, callback=None,
                     error_callback=None):
+        """
+        Applies func to the given func.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            kwds: (todo): write your description
+            callback: (todo): write your description
+            error_callback: (callable): write your description
+        """
         # DOC INHERITED
         if kwds is None:
             kwds = {}
@@ -145,6 +169,15 @@ class Pool(pool.Pool):
                                        args, kwds)])
 
     def map(self, func, iterable, chunksize=None):
+        """
+        Applies a function to every element of a dumper.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+        """
         # DOC INHERITED
         return pool.Pool.map(self, self._caller,
                              proxy_dumper(
@@ -157,6 +190,17 @@ class Pool(pool.Pool):
 
     def map_async(self, func, iterable, chunksize=None, callback=None,
                   error_callback=None):
+        """
+        Apply a function over a remote pool.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+            callback: (todo): write your description
+            error_callback: (callable): write your description
+        """
         # DOC INHERITED
         return pool.Pool.map_async(self, self._caller,
                                    proxy_dumper(
@@ -168,6 +212,15 @@ class Pool(pool.Pool):
                                    chunksize, callback, error_callback)
 
     def imap(self, func, iterable, chunksize=1):
+        """
+        Apply a function.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+        """
         # DOC INHERITED
         return pool.Pool.imap(self, self._caller,
                               proxy_dumper(
@@ -179,6 +232,15 @@ class Pool(pool.Pool):
                               chunksize)
 
     def imap_unordered(self, func, iterable, chunksize=1):
+        """
+        Returns a copy of the tensor with the tensor.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+        """
         # DOC INHERITED
         return pool.Pool.imap_unordered(self, self._caller,
                                         proxy_dumper(
@@ -190,6 +252,15 @@ class Pool(pool.Pool):
                                         chunksize)
 
     def starmap(self, func, iterable, chunksize=None):
+        """
+        Applies a function to a sequence.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+        """
         # DOC INHERITED
         return pool.Pool.starmap(self, self._caller,
                                  proxy_dumper(
@@ -202,6 +273,17 @@ class Pool(pool.Pool):
 
     def starmap_async(self, func, iterable, chunksize=None, callback=None,
                       error_callback=None):
+        """
+        Starm a function.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+            callback: (todo): write your description
+            error_callback: (callable): write your description
+        """
         # DOC INHERITED
         return pool.Pool.starmap_async(self, self._caller,
                                        proxy_dumper(
@@ -239,11 +321,23 @@ class Pool(pool.Pool):
         return self._processes
 
     def __reduce__(self):
+        """
+        Reduce the chain.
+
+        Args:
+            self: (todo): write your description
+        """
         raise RuntimeError("Process pool is not reducible.")
 
 
 class P2PPool(Pool):
     def _setup_queues(self):
+        """
+        Setup the queue queue.
+
+        Args:
+            self: (todo): write your description
+        """
         # queues are only used to send dumped strings
         self._inqueue = MultiP2PQueue(self._processes)
         self._outqueue = MultiP2PQueue(self._processes)
@@ -271,6 +365,12 @@ class P2PPool(Pool):
             pool.util.debug('added worker')
 
     def close(self):
+        """
+        Closes the stream.
+
+        Args:
+            self: (todo): write your description
+        """
         # we cannot rely on sentinels to shutdown worker processes
         # since there is no gaurantee that each worker will get 1
         # "None" sentinel
@@ -279,6 +379,20 @@ class P2PPool(Pool):
     @classmethod
     def _terminate_pool(cls, taskqueue, inqueue, outqueue, pool,
                         worker_handler, task_handler, result_handler, cache):
+        """
+        Terminate a pool.
+
+        Args:
+            cls: (todo): write your description
+            taskqueue: (todo): write your description
+            inqueue: (todo): write your description
+            outqueue: (todo): write your description
+            pool: (todo): write your description
+            worker_handler: (todo): write your description
+            task_handler: (todo): write your description
+            result_handler: (todo): write your description
+            cache: (todo): write your description
+        """
 
         worker_handler._state = TERMINATE
         task_handler._state = TERMINATE
@@ -328,6 +442,21 @@ class CtxPool(Pool):
                  maxtasksperchild=None, worker_contexts=None,
                  is_recursive=False, is_daemon=True,
                  is_copy_tensor=True, share_method=None):
+        """
+        Initialize the worker process.
+
+        Args:
+            self: (todo): write your description
+            processes: (int): write your description
+            initializer: (todo): write your description
+            initargs: (todo): write your description
+            maxtasksperchild: (int): write your description
+            worker_contexts: (todo): write your description
+            is_recursive: (bool): write your description
+            is_daemon: (bool): write your description
+            is_copy_tensor: (bool): write your description
+            share_method: (str): write your description
+        """
 
         if worker_contexts is not None:
             if len(worker_contexts) != processes:
@@ -381,6 +510,14 @@ class CtxPool(Pool):
 
     @staticmethod
     def _init_with_context(context, init_func, *initargs):
+        """
+        Initialize the context.
+
+        Args:
+            context: (todo): write your description
+            init_func: (todo): write your description
+            initargs: (dict): write your description
+        """
         CtxPoolStorage.storage = context
         if init_func is not None:
             init_func(*initargs)
@@ -409,6 +546,12 @@ class ThreadPool(pool.ThreadPool):
         return len(self._pool)
 
     def __reduce__(self):
+        """
+        Reduce the chain.
+
+        Args:
+            self: (todo): write your description
+        """
         raise RuntimeError("Thread pool is not reducible.")
 
 
@@ -417,6 +560,16 @@ class CtxThreadPool(ThreadPool):
 
     def __init__(self, processes: int, initializer=None, initargs=(),
                  worker_contexts=None):
+        """
+        Initialize the worker.
+
+        Args:
+            self: (todo): write your description
+            processes: (int): write your description
+            initializer: (todo): write your description
+            initargs: (todo): write your description
+            worker_contexts: (todo): write your description
+        """
         if worker_contexts is not None:
             if len(worker_contexts) != processes:
                 raise ValueError("Context number is not equal to the number of "
@@ -431,6 +584,14 @@ class CtxThreadPool(ThreadPool):
         )
 
     def apply(self, func, args=(), kwds=None):
+        """
+        Applies a function to the underlying function.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            kwds: (array): write your description
+        """
         if kwds is None:
             kwds = {}
         return super(CtxThreadPool, self).apply_async(
@@ -439,6 +600,16 @@ class CtxThreadPool(ThreadPool):
 
     def apply_async(self, func, args=(), kwds=None, callback=None,
                     error_callback=None):
+        """
+        Wrap a function to the given function.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            kwds: (todo): write your description
+            callback: (todo): write your description
+            error_callback: (callable): write your description
+        """
         if kwds is None:
             kwds = {}
         return super(CtxThreadPool, self).apply_async(
@@ -446,34 +617,92 @@ class CtxThreadPool(ThreadPool):
         )
 
     def map(self, func, iterable, chunksize=None):
+        """
+        Applies an iterable to a list.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+        """
         return super(CtxThreadPool, self).map(
             self._wrap_func(func), iterable, chunksize
         )
 
     def map_async(self, func, iterable, chunksize=None, callback=None,
                   error_callback=None):
+        """
+        Applies a function to a list.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+            callback: (todo): write your description
+            error_callback: (callable): write your description
+        """
         return super(CtxThreadPool, self).map_async(
             self._wrap_func(func), iterable, chunksize,
             callback, error_callback
         )
 
     def imap(self, func, iterable, chunksize=1):
+        """
+        Wrap a function.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+        """
         return super(CtxThreadPool, self).imap(
             self._wrap_func(func), iterable, chunksize
         )
 
     def imap_unordered(self, func, iterable, chunksize=1):
+        """
+        Returns an iterator over the given iterable of chunks.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+        """
         return super(CtxThreadPool, self).imap_unordered(
             self._wrap_func(func), iterable, chunksize
         )
 
     def starmap(self, func, iterable, chunksize=None):
+        """
+        Wrap a ctx.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+        """
         return super(CtxThreadPool, self).starmap(
             self._wrap_func(func), iterable, chunksize
         )
 
     def starmap_async(self, func, iterable, chunksize=None, callback=None,
                       error_callback=None):
+        """
+        Wrapap operation.
+
+        Args:
+            self: (todo): write your description
+            func: (todo): write your description
+            iterable: (todo): write your description
+            chunksize: (int): write your description
+            callback: (todo): write your description
+            error_callback: (callable): write your description
+        """
         return super(CtxThreadPool, self).starmap_async(
             self._wrap_func(func), iterable, chunksize,
             callback, error_callback
@@ -511,7 +740,19 @@ class CtxThreadPool(ThreadPool):
 
     @classmethod
     def _wrap_func(cls, func):
+        """
+        Wrap a function with the given context.
+
+        Args:
+            cls: (todo): write your description
+            func: (callable): write your description
+        """
         def call(*args, **kwargs):
+            """
+            Calls the given callable arguments.
+
+            Args:
+            """
             ctx = cls._context.storage
             return func(ctx, *args, **kwargs)
 
@@ -519,6 +760,14 @@ class CtxThreadPool(ThreadPool):
 
     @staticmethod
     def _init_with_context(context, init_func, *initargs):
+        """
+        Initialize the context.
+
+        Args:
+            context: (todo): write your description
+            init_func: (todo): write your description
+            initargs: (dict): write your description
+        """
         CtxThreadPool._context.storage = context
         if init_func is not None:
             init_func(*initargs)

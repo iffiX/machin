@@ -23,12 +23,28 @@ disable_view_window()
 # for atari games
 class RecurrentQNet(nn.Module):
     def __init__(self, action_num):
+        """
+        Initialize the device.
+
+        Args:
+            self: (todo): write your description
+            action_num: (int): write your description
+        """
         super(RecurrentQNet, self).__init__()
         self.gru = nn.GRU(128, 256, batch_first=True)
         self.fc1 = nn.Linear(256, 256)
         self.fc2 = nn.Linear(256, action_num)
 
     def forward(self, mem=None, hidden=None, history_mem=None):
+        """
+        Perform forward forward : forward
+
+        Args:
+            self: (todo): write your description
+            mem: (todo): write your description
+            hidden: (todo): write your description
+            history_mem: (todo): write your description
+        """
         if mem is not None:
             # in sampling
             a, h = self.gru(mem.unsqueeze(1), hidden)

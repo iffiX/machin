@@ -12,6 +12,17 @@ class Thread(threading.Thread):
     """
     def __init__(self, group=None, target=None, name=None,
                  args=(), kwargs={}, cleaner=None, *, daemon=None):
+        """
+        Initialize the daemon.
+
+        Args:
+            self: (todo): write your description
+            group: (todo): write your description
+            target: (todo): write your description
+            name: (str): write your description
+            cleaner: (todo): write your description
+            daemon: (todo): write your description
+        """
         threading.Thread.__init__(self,
                                   group=group, target=target,
                                   name=name, args=args, kwargs=kwargs,
@@ -22,17 +33,35 @@ class Thread(threading.Thread):
 
     @property
     def exception(self):
+        """
+        Returns the exception object for the given exception.
+
+        Args:
+            self: (todo): write your description
+        """
         if not self._has_exception:
             return None
         exc = ThreadException(self._exception_str)
         return exc
 
     def watch(self):
+        """
+        Watch the event.
+
+        Args:
+            self: (todo): write your description
+        """
         if self._has_exception:
             raise self.exception
 
     @staticmethod
     def format_exceptions(exceptions):
+        """
+        Formats the traceback exceptions.
+
+        Args:
+            exceptions: (todo): write your description
+        """
         all_tb = ""
         for exc, i in zip(exceptions, range(len(exceptions))):
             tb = exc.__traceback__
@@ -42,6 +71,12 @@ class Thread(threading.Thread):
         return all_tb
 
     def run(self):
+        """
+        Runs the exception.
+
+        Args:
+            self: (todo): write your description
+        """
         exc = []
         try:
             super(Thread, self).run()

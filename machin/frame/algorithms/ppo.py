@@ -97,6 +97,16 @@ class PPO(A2C):
                update_policy=True,
                concatenate_samples=True,
                **__):
+        """
+        Update the value update of the environment.
+
+        Args:
+            self: (todo): write your description
+            update_value: (bool): write your description
+            update_policy: (bool): write your description
+            concatenate_samples: (str): write your description
+            __: (array): write your description
+        """
         # DOC INHERITED
         sum_act_policy_loss = 0
         sum_value_loss = 0

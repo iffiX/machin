@@ -18,6 +18,14 @@ from test.util_run_multi import gpu
 
 class QNet(nn.Module):
     def __init__(self, state_dim, action_num):
+        """
+        Initialize the internal state.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_num: (int): write your description
+        """
         super(QNet, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -25,6 +33,13 @@ class QNet(nn.Module):
         self.fc3 = nn.Linear(16, action_num)
 
     def forward(self, state):
+        """
+        R forward forward operation.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         return self.fc3(a)
@@ -34,6 +49,13 @@ class TestDQN(object):
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self, gpu):
+        """
+        Train a device configuration
+
+        Args:
+            self: (todo): write your description
+            gpu: (todo): write your description
+        """
         disable_view_window()
         c = Config()
         # Note: online policy algorithms such as PPO and A2C does not
@@ -53,6 +75,14 @@ class TestDQN(object):
 
     @pytest.fixture(scope="function", params=["double"])
     def dqn(self, train_config, request):
+        """
+        Perform a device.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            request: (todo): write your description
+        """
         c = train_config
         q_net = smw(QNet(c.observe_dim, c.action_num)
                     .to(c.device), c.device, c.device)
@@ -68,6 +98,15 @@ class TestDQN(object):
 
     @pytest.fixture(scope="function", params=["double"])
     def dqn_vis(self, train_config, tmpdir, request):
+        """
+        Perform a device.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            tmpdir: (todo): write your description
+            request: (todo): write your description
+        """
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         q_net = smw(QNet(c.observe_dim, c.action_num)
@@ -86,6 +125,13 @@ class TestDQN(object):
 
     @pytest.fixture(scope="function")
     def dqn_lr(self, train_config):
+        """
+        Perform a parallel learning rate.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         # not used for training, only used for testing apis
         c = train_config
         q_net = smw(QNet(c.observe_dim, c.action_num)
@@ -114,6 +160,13 @@ class TestDQN(object):
     # Test for DQN modes (mainly code coverage)
     ########################################################################
     def test_mode(self, train_config):
+        """
+        Test if the device.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         c = train_config
         q_net = smw(QNet(c.observe_dim, c.action_num)
                     .to(c.device), c.device, c.device)
@@ -155,6 +208,14 @@ class TestDQN(object):
     # Test for DQN acting
     ########################################################################
     def test_act(self, train_config, dqn):
+        """
+        Test if train of the train.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            dqn: (todo): write your description
+        """
         c = train_config
         state = t.zeros([1, c.observe_dim])
         dqn.act_discrete({"state": state})
@@ -166,6 +227,14 @@ class TestDQN(object):
     # Test for DQN criticizing
     ########################################################################
     def test__criticize(self, train_config, dqn):
+        """
+        Test the model criteria.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            dqn: (todo): write your description
+        """
         c = train_config
         state = t.zeros([1, c.observe_dim])
         dqn._criticize({"state": state})
@@ -175,6 +244,14 @@ class TestDQN(object):
     # Test for DQN storage
     ########################################################################
     def test_store_step(self, train_config, dqn):
+        """
+        Test the state step.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            dqn: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -187,6 +264,14 @@ class TestDQN(object):
         })
 
     def test_store_episode(self, train_config, dqn):
+        """
+        Store the episode.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            dqn: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -207,6 +292,14 @@ class TestDQN(object):
                              ["vanilla", "fixed_target", "double"],
                              indirect=True)
     def test_update(self, train_config, dqn_vis):
+        """
+        Updates the test.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            dqn_vis: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -237,6 +330,15 @@ class TestDQN(object):
     # Test for DQN save & load
     ########################################################################
     def test_save_load(self, train_config, dqn, tmpdir):
+        """
+        Test for train_config
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            dqn: (todo): write your description
+            tmpdir: (todo): write your description
+        """
         save_dir = tmpdir.make_numbered_dir()
         dqn.save(model_dir=str(save_dir),
                  network_map={
@@ -253,6 +355,14 @@ class TestDQN(object):
     # Test for DQN lr_scheduler
     ########################################################################
     def test_lr_scheduler(self, train_config, dqn_lr):
+        """
+        Test the learning rate.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            dqn_lr: (todo): write your description
+        """
         dqn_lr.update_lr_scheduler()
 
     ########################################################################
@@ -262,6 +372,14 @@ class TestDQN(object):
                              ["vanilla", "fixed_target", "double"],
                              indirect=True)
     def test_full_train(self, train_config, dqn):
+        """
+        Perform a full full training.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            dqn: (todo): write your description
+        """
         c = train_config
 
         # begin training

@@ -11,6 +11,14 @@ import torch.nn as nn
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_num):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_num: (int): write your description
+        """
         super(Actor, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -18,6 +26,14 @@ class Actor(nn.Module):
         self.fc3 = nn.Linear(16, action_num)
 
     def forward(self, state, action=None):
+        """
+        Perform forward forward computation
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            action: (str): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
@@ -32,6 +48,13 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim):
+        """
+        Initialize the network.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+        """
         super(Critic, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -39,6 +62,13 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(16, 1)
 
     def forward(self, state):
+        """
+        Calculate forward.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         v = t.relu(self.fc1(state))
         v = t.relu(self.fc2(v))
         v = self.fc3(v)
@@ -46,6 +76,12 @@ class Critic(nn.Module):
 
 
 def main(rank):
+    """
+    Main function.
+
+    Args:
+        rank: (int): write your description
+    """
     env = gym.make("CartPole-v0")
     observe_dim = 4
     action_num = 2

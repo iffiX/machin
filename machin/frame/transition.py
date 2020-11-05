@@ -58,12 +58,33 @@ class TransitionBase(object):
         self._detach()
 
     def __len__(self):
+        """
+        Returns the length of the field.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._length
 
     def __getitem__(self, item):
+        """
+        Returns the value of an item
+
+        Args:
+            self: (todo): write your description
+            item: (str): write your description
+        """
         return getattr(self, item)
 
     def __setitem__(self, key, value):
+        """
+        Sets the value of a key.
+
+        Args:
+            self: (todo): write your description
+            key: (str): write your description
+            value: (str): write your description
+        """
         if key not in self._keys:
             raise RuntimeError("You cannot dynamically set new attributes in"
                                "a Transition object!")
@@ -71,6 +92,14 @@ class TransitionBase(object):
         self._check_validity()
 
     def __setattr__(self, key, value):
+        """
+        Set an attribute on - set.
+
+        Args:
+            self: (todo): write your description
+            key: (str): write your description
+            value: (todo): write your description
+        """
         if not self._inited:
             object.__setattr__(self, key, value)
         else:
@@ -83,14 +112,32 @@ class TransitionBase(object):
 
     @property
     def major_attr(self):
+        """
+        : return : attr : attr : led.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._major_attr
 
     @property
     def sub_attr(self):
+        """
+        Returns the sub_attr.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._sub_attr
 
     @property
     def custom_attr(self):
+        """
+        Returns the custom attribute for this class.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._custom_attr
 
     def keys(self):
@@ -259,6 +306,12 @@ class Transition(TransitionBase):
         )
 
     def _check_validity(self):
+        """
+        Checks that the transformer.
+
+        Args:
+            self: (todo): write your description
+        """
         # fix batch size to 1
         super(Transition, self)._check_validity()
         if self._batch_size != 1:
@@ -305,6 +358,12 @@ class TransitionStorageBasic(list):
         return position
 
     def clear(self):
+        """
+        Clears the graph.
+
+        Args:
+            self: (todo): write your description
+        """
         super(TransitionStorageBasic, self).clear()
 
 
@@ -322,10 +381,24 @@ class TransitionStorageSmart(TransitionStorageBasic):
     Sub attributes and custom attributes will be direcly copied.
     """
     def __init__(self, max_size):
+        """
+        Initialize the underlying buffer.
+
+        Args:
+            self: (todo): write your description
+            max_size: (int): write your description
+        """
         # DOC INHERITED
         super(TransitionStorageSmart, self).__init__(max_size)
 
     def store(self, transition: TransitionBase) -> int:
+        """
+        Stores the current state.
+
+        Args:
+            self: (todo): write your description
+            transition: (todo): write your description
+        """
         # DOC INHERITED
         last_index = (self.index + self.max_size - 1) % self.max_size
         if last_index < len(self):
@@ -369,4 +442,10 @@ class TransitionStorageSmart(TransitionStorageBasic):
         return position
 
     def clear(self):
+        """
+        Clears the graph.
+
+        Args:
+            self: (todo): write your description
+        """
         super(TransitionStorageSmart, self).clear()

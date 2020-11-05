@@ -66,6 +66,12 @@ class AdaptiveParamNoise(object):
         return self.current_stddev
 
     def __repr__(self):
+        """
+        Return a representation of this statement.
+
+        Args:
+            self: (todo): write your description
+        """
         fmt = 'AdaptiveParamNoise(i_std={}, da_std={}, adpt_coeff={})'
         return fmt.format(self.initial_stddev,
                           self.desired_action_stddev,
@@ -74,10 +80,26 @@ class AdaptiveParamNoise(object):
 
 def _add_perturb_hook(module, perturb_switch, reset_switch, perturb_gen,
                       debug_backward):
+    """
+    Add a perturburburburbation.
+
+    Args:
+        module: (todo): write your description
+        perturb_switch: (dict): write your description
+        reset_switch: (dict): write your description
+        perturb_gen: (todo): write your description
+        debug_backward: (dict): write your description
+    """
     org_params = {}
     noisy_params = {}
 
     def perturb_pre_hook(*_):
+        """
+        Detach pre - pre - pre - hook.
+
+        Args:
+            _: (todo): write your description
+        """
         with t.no_grad():
             if perturb_switch.get():
                 if noisy_params and not reset_switch.get():
@@ -108,6 +130,12 @@ def _add_perturb_hook(module, perturb_switch, reset_switch, perturb_gen,
     post_hook_handles = []
     for param_name, param_value in module.named_parameters():
         def perturb_post_hook(*_):  # pragma: no cover
+            """
+            Applies the gradients of the gradients.
+
+            Args:
+                _: (todo): write your description
+            """
             # pytest will not detect execution by autograd engine
             # Called before backward update, swap noisy parameters out,
             # so gradients are applied to original parameters.
@@ -241,6 +269,13 @@ def perturb_model(model: nn.Module,
     )
 
     def param_noise_gen(shape, device):
+        """
+        Generate generator generator.
+
+        Args:
+            shape: (int): write your description
+            device: (todo): write your description
+        """
         nonlocal noise_generator_args, noise_generator_kwargs
         if noise_generator_kwargs is None:
             noise_generator_kwargs = {}
@@ -249,6 +284,13 @@ def perturb_model(model: nn.Module,
         return gen(device) * param_noise_spec.get_dev()
 
     def param_noise_custom_gen_wrapper(shape, device):
+        """
+        Generate generator for generator for generator.
+
+        Args:
+            shape: (tuple): write your description
+            device: (todo): write your description
+        """
         std_dev = param_noise_spec.get_dev()
         return noise_generate_function(shape, device, std_dev)
 
@@ -256,6 +298,14 @@ def perturb_model(model: nn.Module,
         param_noise_gen = param_noise_custom_gen_wrapper
 
     def perturb_adjust_hook(_model, _input, output):
+        """
+        Adjust the perturburbation model.
+
+        Args:
+            _model: (todo): write your description
+            _input: (todo): write your description
+            output: (todo): write your description
+        """
         if perturb_switch.get():
             tmp_action["with_noise"] = output.clone()
         else:
@@ -283,6 +333,11 @@ def perturb_model(model: nn.Module,
     hook_handles += post
 
     def cancel():
+        """
+        Cancel all hooks.
+
+        Args:
+        """
         for hh in hook_handles:
             hh.remove()
 

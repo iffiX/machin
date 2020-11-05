@@ -15,12 +15,22 @@ import torch.nn as nn
 
 
 def test_check_shape():
+    """
+    R check that the tensors.
+
+    Args:
+    """
     with pytest.raises(CheckError, match="has invalid shape"):
         tensor = t.zeros([10, 10])
         check_shape(tensor, [5, 5])
 
 
 def test_check_nan():
+    """
+    Check if tensor is nan.
+
+    Args:
+    """
     with pytest.raises(CheckError, match="contains nan"):
         tensor = t.full([10, 10], float('NaN'))
         check_nan(tensor)
@@ -28,6 +38,12 @@ def test_check_nan():
 
 class SubModule1(nn.Module):
     def __init__(self):
+        """
+        Initialize the module.
+
+        Args:
+            self: (todo): write your description
+        """
         super(SubModule1, self).__init__()
         self.fc1 = nn.Linear(5, 10)
         self.fc2 = nn.Linear(10, 20)
@@ -35,25 +51,58 @@ class SubModule1(nn.Module):
         mark_module_output(self, ["output1_sub1"])
 
     def forward(self, x):
+        """
+        Forward forward forward computation.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         return self.fc2(self.fc1(x)), None
 
 
 class SubModule2(nn.Module):
     def __init__(self):
+        """
+        Initialize the super1.
+
+        Args:
+            self: (todo): write your description
+        """
         super(SubModule2, self).__init__()
         self.fc1 = nn.Linear(20, 20)
 
     def forward(self, x):
+        """
+        Return the forward forward.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         return self.fc1(x)
 
 
 class CheckedModel(nn.Module):
     def __init__(self):
+        """
+        Initializes sub1 and sub2
+
+        Args:
+            self: (todo): write your description
+        """
         super(CheckedModel, self).__init__()
         self.sub1 = SubModule1()
         self.sub2 = SubModule2()
 
     def forward(self, x):
+        """
+        Return the sub1 of x.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         return self.sub2(self.sub1(x)[0])
 
 
@@ -61,11 +110,22 @@ param_checked = False
 
 
 def param_check_hook(*_):
+    """
+    Decorator that the global hook.
+
+    Args:
+        _: (todo): write your description
+    """
     global param_checked
     param_checked = True
 
 
 def test_check_model():
+    """
+    Check that all checks.
+
+    Args:
+    """
     global param_checked
     board = TensorBoard()
     board.init()

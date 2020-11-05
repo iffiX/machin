@@ -48,9 +48,28 @@ def check_nan(tensor: t.Tensor, name=""):
 
 def _add_input_check_hook(sub_module, counter, interval, writer, hooks,
                           model, module_name):
+    """
+    Add a forward hook.
+
+    Args:
+        sub_module: (todo): write your description
+        counter: (dict): write your description
+        interval: (int): write your description
+        writer: (bool): write your description
+        hooks: (todo): write your description
+        model: (todo): write your description
+        module_name: (str): write your description
+    """
     # Generate a input check hook which calls all sub hooks
     # when invoked by pytorch.
     def check_hook(module, input_):
+        """
+        Perform hook on the module.
+
+        Args:
+            module: (todo): write your description
+            input_: (todo): write your description
+        """
         with t.no_grad():
             if counter.get() % interval == 0:
                 # Get forward function signature.
@@ -70,9 +89,29 @@ def _add_input_check_hook(sub_module, counter, interval, writer, hooks,
 
 def _add_output_check_hook(sub_module, counter, interval, writer, hooks,
                            model, module_name):
+    """
+    Add the outputs of the module.
+
+    Args:
+        sub_module: (todo): write your description
+        counter: (dict): write your description
+        interval: (int): write your description
+        writer: (bool): write your description
+        hooks: (todo): write your description
+        model: (todo): write your description
+        module_name: (str): write your description
+    """
     # Generate a output check hook which calls all sub hooks
     # when invoked by pytorch.
     def check_hook(module, _input, output):
+        """
+        Check the hook.
+
+        Args:
+            module: (todo): write your description
+            _input: (todo): write your description
+            output: (todo): write your description
+        """
         with t.no_grad():
             if counter.get() % interval == 0:
                 # Try to resolve output name, if failed, use
@@ -96,11 +135,31 @@ def _add_output_check_hook(sub_module, counter, interval, writer, hooks,
 
 def _add_param_check_hook(sub_module, counter, interval, writer, hooks,
                           model, module_name):
+    """
+    Add hook hooks.
+
+    Args:
+        sub_module: (todo): write your description
+        counter: (dict): write your description
+        interval: (int): write your description
+        writer: (bool): write your description
+        hooks: (todo): write your description
+        model: (todo): write your description
+        module_name: (str): write your description
+    """
     # Generate a param check hook which calls all sub hooks
     # when invoked by pytorch.
     handles = []
     for param_name, param_value in sub_module.named_parameters():
         def check_hook(module, _input, _output):  # pragma: no cover
+            """
+            Check that the hook.
+
+            Args:
+                module: (todo): write your description
+                _input: (todo): write your description
+                _output: (todo): write your description
+            """
             with t.no_grad():
                 if counter.get() % interval == 0:
                     for hook in hooks:
@@ -274,6 +333,13 @@ def check_model(writer: SummaryWriter,
     forward_counter = Counter()
 
     def _forward_count(_, __):
+        """
+        Forward the number of forward.
+
+        Args:
+            _: (todo): write your description
+            __: (todo): write your description
+        """
         forward_counter.count()
 
     handles.append(model.register_forward_pre_hook(_forward_count))
@@ -325,6 +391,11 @@ def check_model(writer: SummaryWriter,
         )
 
     def cancel():
+        """
+        Cancel all handle handlers.
+
+        Args:
+        """
         for handle in handles:
             handle.remove()
 

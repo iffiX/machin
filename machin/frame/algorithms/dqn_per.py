@@ -38,6 +38,33 @@ class DQNPer(DQN):
                  visualize: bool = False,
                  visualize_dir: str = "",
                  **__):
+        """
+        Initialize the device.
+
+        Args:
+            self: (todo): write your description
+            qnet: (todo): write your description
+            qnet_target: (todo): write your description
+            optimizer: (todo): write your description
+            criterion: (todo): write your description
+            _: (int): write your description
+            lr_scheduler: (todo): write your description
+            lr_scheduler_args: (todo): write your description
+            lr_scheduler_kwargs: (dict): write your description
+            batch_size: (int): write your description
+            update_rate: (float): write your description
+            learning_rate: (float): write your description
+            discount: (float): write your description
+            gradient_max: (int): write your description
+            np: (int): write your description
+            inf: (todo): write your description
+            replay_size: (int): write your description
+            replay_device: (todo): write your description
+            replay_buffer: (todo): write your description
+            visualize: (bool): write your description
+            visualize_dir: (bool): write your description
+            __: (int): write your description
+        """
         # DOC INHERITED
         super(DQNPer, self).__init__(
             qnet, qnet_target, optimizer, criterion,
@@ -77,6 +104,16 @@ class DQNPer(DQN):
                update_target=True,
                concatenate_samples=True,
                **__):
+        """
+        Perform a singleton.
+
+        Args:
+            self: (todo): write your description
+            update_value: (bool): write your description
+            update_target: (todo): write your description
+            concatenate_samples: (str): write your description
+            __: (array): write your description
+        """
         # DOC INHERITED
         self.qnet.train()
         (batch_size,

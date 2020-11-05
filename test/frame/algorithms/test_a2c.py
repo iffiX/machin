@@ -19,6 +19,14 @@ from test.util_run_multi import gpu
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_num):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_num: (int): write your description
+        """
         super(Actor, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -26,6 +34,14 @@ class Actor(nn.Module):
         self.fc3 = nn.Linear(16, action_num)
 
     def forward(self, state, action=None):
+        """
+        Perform forward forward computation
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            action: (str): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
@@ -40,6 +56,13 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim):
+        """
+        Initialize the network.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+        """
         super(Critic, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -47,6 +70,13 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(16, 1)
 
     def forward(self, state):
+        """
+        Calculate forward.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         v = t.relu(self.fc1(state))
         v = t.relu(self.fc2(v))
         v = self.fc3(v)
@@ -57,6 +87,13 @@ class TestA2C(object):
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self, gpu):
+        """
+        Train a device configuration
+
+        Args:
+            self: (todo): write your description
+            gpu: (todo): write your description
+        """
         disable_view_window()
         c = Config()
         # Note: online policy algorithms such as PPO and A2C does not
@@ -76,6 +113,13 @@ class TestA2C(object):
 
     @pytest.fixture(scope="function")
     def a2c(self, train_config):
+        """
+        Create a device with the device.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_num)
                     .to(c.device), c.device, c.device)
@@ -90,6 +134,14 @@ class TestA2C(object):
 
     @pytest.fixture(scope="function")
     def a2c_vis(self, train_config, tmpdir):
+        """
+        Make a device.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            tmpdir: (todo): write your description
+        """
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
@@ -108,6 +160,13 @@ class TestA2C(object):
 
     @pytest.fixture(scope="function")
     def a2c_lr(self, train_config):
+        """
+        Perform a learning rate.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         # not used for training, only used for testing apis
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_num)
@@ -136,6 +195,14 @@ class TestA2C(object):
     # Test for A2C acting
     ########################################################################
     def test_act(self, train_config, a2c):
+        """
+        Test if train of the test_config.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            a2c: (todo): write your description
+        """
         c = train_config
         state = t.zeros([1, c.observe_dim])
         a2c.act({"state": state})
@@ -144,6 +211,14 @@ class TestA2C(object):
     # Test for A2C action evaluation
     ########################################################################
     def test_eval_action(self, train_config, a2c):
+        """
+        Evaluates the environment.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            a2c: (todo): write your description
+        """
         c = train_config
         state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -153,6 +228,14 @@ class TestA2C(object):
     # Test for A2C criticizing
     ########################################################################
     def test__criticize(self, train_config, a2c):
+        """
+        Test for train_config.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            a2c: (todo): write your description
+        """
         c = train_config
         state = t.zeros([1, c.observe_dim])
         a2c._criticize({"state": state})
@@ -161,6 +244,14 @@ class TestA2C(object):
     # Test for A2C storage
     ########################################################################
     def test_store_step(self, train_config, a2c):
+        """
+        Test for a single step.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            a2c: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -176,6 +267,15 @@ class TestA2C(object):
 
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
     def test_store_episode(self, train_config, a2c, gae_lambda):
+        """
+        Store the episode.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            a2c: (todo): write your description
+            gae_lambda: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -194,6 +294,14 @@ class TestA2C(object):
     # Test for A2C update
     ########################################################################
     def test_update(self, train_config, a2c_vis):
+        """
+        Perform the test test.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            a2c_vis: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -228,6 +336,14 @@ class TestA2C(object):
     # Test for A2C lr_scheduler
     ########################################################################
     def test_lr_scheduler(self, train_config, a2c_lr):
+        """
+        Sets the learning rate.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            a2c_lr: (todo): write your description
+        """
         a2c_lr.update_lr_scheduler()
 
     ########################################################################
@@ -235,6 +351,15 @@ class TestA2C(object):
     ########################################################################
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
     def test_full_train(self, train_config, a2c, gae_lambda):
+        """
+        Perform the environment.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            a2c: (todo): write your description
+            gae_lambda: (todo): write your description
+        """
         c = train_config
         a2c.gae_lambda = gae_lambda
 

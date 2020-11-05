@@ -20,6 +20,15 @@ from test.util_run_multi import gpu
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+            action_range: (str): write your description
+        """
         super(Actor, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -28,6 +37,13 @@ class Actor(nn.Module):
         self.action_range = action_range
 
     def forward(self, state):
+        """
+        Perform forward.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         a = t.tanh(self.fc3(a)) * self.action_range
@@ -36,6 +52,14 @@ class Actor(nn.Module):
 
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
+        """
+        Initialize the internal state.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+        """
         super(ActorDiscrete, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -43,6 +67,13 @@ class ActorDiscrete(nn.Module):
         self.fc3 = nn.Linear(16, action_dim)
 
     def forward(self, state):
+        """
+        R forward computation.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         a = t.softmax(self.fc3(a), dim=1)
@@ -51,6 +82,14 @@ class ActorDiscrete(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
+        """
+        Initialize the internal state.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+        """
         # This critic implementation is shared by the prey(DDPG) and
         # predators(MADDPG)
         # Note: For MADDPG
@@ -63,6 +102,14 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(16, 1)
 
     def forward(self, state, action):
+        """
+        Perform forward forward computation.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            action: (str): write your description
+        """
         state_action = t.cat([state, action], 1)
         q = t.relu(self.fc1(state_action))
         q = t.relu(self.fc2(q))
@@ -74,6 +121,13 @@ class TestMADDPG(object):
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self, gpu):
+        """
+        Train the device.
+
+        Args:
+            self: (todo): write your description
+            gpu: (todo): write your description
+        """
         disable_view_window()
         c = Config()
         # the cooperative environment environment provided in
@@ -102,6 +156,13 @@ class TestMADDPG(object):
 
     @pytest.fixture(scope="function")
     def maddpg(self, train_config):
+        """
+        Add a maddpg device.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         c = train_config
         # for simplicity, prey will be trained with predators,
         # Predator can get the observation of prey, same for prey.
@@ -126,6 +187,13 @@ class TestMADDPG(object):
 
     @pytest.fixture(scope="function")
     def maddpg_disc(self, train_config):
+        """
+        Add a discrete discrete training window.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         c = train_config
         actor = smw(ActorDiscrete(c.test_observe_dim, c.test_action_dim)
                     .to(c.device), c.device, c.device)
@@ -146,6 +214,13 @@ class TestMADDPG(object):
 
     @pytest.fixture(scope="function")
     def maddpg_cont(self, train_config):
+        """
+        Function to addpg contour.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         c = train_config
         actor = smw(Actor(c.test_observe_dim, c.test_action_dim,
                           c.test_action_range)
@@ -167,6 +242,14 @@ class TestMADDPG(object):
 
     @pytest.fixture(scope="function")
     def maddpg_vis(self, train_config, tmpdir):
+        """
+        Function to add_config.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            tmpdir: (todo): write your description
+        """
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         actor = smw(Actor(c.test_observe_dim, c.test_action_dim,
@@ -191,6 +274,13 @@ class TestMADDPG(object):
 
     @pytest.fixture(scope="function")
     def maddpg_lr(self, train_config):
+        """
+        Perform the convex training rate.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         c = train_config
         actor = smw(Actor(c.test_observe_dim, c.test_action_dim,
                           c.test_action_range)
@@ -228,6 +318,14 @@ class TestMADDPG(object):
     # Test for MADDPG contiguous domain acting
     ########################################################################
     def test_contiguous_act(self, train_config, maddpg_cont):
+        """
+        Test the contiguous contiguous.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            maddpg_cont: (todo): write your description
+        """
         c = train_config
         states = ([{"state": t.zeros([1, c.test_observe_dim])}]
                   * c.test_agent_num)
@@ -249,6 +347,14 @@ class TestMADDPG(object):
     # Test for MADDPG discrete domain acting
     ########################################################################
     def test_discrete_act(self, train_config, maddpg_disc):
+        """
+        Test the discrete states of the given train_config.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            maddpg_disc: (todo): write your description
+        """
         c = train_config
         states = ([{"state": t.zeros([1, c.test_observe_dim])}]
                   * c.test_agent_num)
@@ -261,6 +367,14 @@ class TestMADDPG(object):
     # Test for MADDPG criticizing
     ########################################################################
     def test__criticize(self, train_config, maddpg_cont):
+        """
+        Test ifpgize_config.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            maddpg_cont: (todo): write your description
+        """
         c = train_config
         states = ([{"state": t.zeros([1, c.test_observe_dim])}]
                   * c.test_agent_num)
@@ -273,6 +387,14 @@ class TestMADDPG(object):
     # Test for MADDPG storage
     ########################################################################
     def test_store(self, train_config, maddpg_cont):
+        """
+        Store the test_config.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            maddpg_cont: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.test_observe_dim])
         action = t.zeros([1, c.test_action_dim])
@@ -295,6 +417,14 @@ class TestMADDPG(object):
     # Test for MADDPG update
     ########################################################################
     def test_update(self, train_config, maddpg_cont):
+        """
+        Perform the test.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            maddpg_cont: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.test_observe_dim])
         action = t.zeros([1, c.test_action_dim])
@@ -309,6 +439,14 @@ class TestMADDPG(object):
                            update_target=True, concatenate_samples=True)
 
     def test_vis_update(self, train_config, maddpg_vis):
+        """
+        Test for the test and test.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            maddpg_vis: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.test_observe_dim])
         action = t.zeros([1, c.test_action_dim])
@@ -326,6 +464,15 @@ class TestMADDPG(object):
     # Test for MADDPG save & load
     ########################################################################
     def test_save_load(self, train_config, maddpg_cont, tmpdir):
+        """
+        Test to disk
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            maddpg_cont: (todo): write your description
+            tmpdir: (todo): write your description
+        """
         save_dir = tmpdir.make_numbered_dir()
         maddpg_cont.save(model_dir=str(save_dir),
                          network_map={
@@ -344,12 +491,28 @@ class TestMADDPG(object):
     # Test for MADDPG lr_scheduler
     ########################################################################
     def test_lr_scheduler(self, train_config, maddpg_lr):
+        """
+        Sets the test rate for the test_config
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            maddpg_lr: (todo): write your description
+        """
         maddpg_lr.update_lr_scheduler()
 
     ########################################################################
     # Test for MADDPG full training.
     ########################################################################
     def test_full_train(self, train_config, maddpg):
+        """
+        Perform a full training.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            maddpg: (todo): write your description
+        """
         c = train_config
 
         # begin training

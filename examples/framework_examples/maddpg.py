@@ -13,6 +13,12 @@ import torch.nn as nn
 
 
 def create_env(env_name):
+    """
+    Creates an instance.
+
+    Args:
+        env_name: (str): write your description
+    """
     from multiagent.environment import MultiAgentEnv
     import multiagent.scenarios as scenarios
 
@@ -43,6 +49,14 @@ solved_repeat = 5
 # model definition
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
+        """
+        Initialize the internal state.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+        """
         super(ActorDiscrete, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -50,6 +64,13 @@ class ActorDiscrete(nn.Module):
         self.fc3 = nn.Linear(16, action_dim)
 
     def forward(self, state):
+        """
+        R forward computation.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         a = t.softmax(self.fc3(a), dim=1)
@@ -58,6 +79,14 @@ class ActorDiscrete(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
+        """
+        Initialize the internal state.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+        """
         # This critic implementation is shared by the prey(DDPG) and
         # predators(MADDPG)
         # Note: For MADDPG
@@ -70,6 +99,14 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(16, 1)
 
     def forward(self, state, action):
+        """
+        Perform forward forward computation.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            action: (str): write your description
+        """
         state_action = t.cat([state, action], 1)
         q = t.relu(self.fc1(state_action))
         q = t.relu(self.fc2(q))

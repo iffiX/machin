@@ -8,13 +8,33 @@ class RemoteTraceback(Exception):  # pragma: no cover
     side.
     """
     def __init__(self, tb):
+        """
+        Initialize a tb
+
+        Args:
+            self: (todo): write your description
+            tb: (int): write your description
+        """
         self.tb = tb
 
     def __str__(self):
+        """
+        Returns the string : class
+
+        Args:
+            self: (todo): write your description
+        """
         return self.tb
 
 
 def _rebuild_exc(exc, tb):
+    """
+    Rebuilds exceptions.
+
+    Args:
+        exc: (todo): write your description
+        tb: (todo): write your description
+    """
     exc.__cause__ = RemoteTraceback(tb)
     return exc
 
@@ -39,6 +59,12 @@ class ExceptionWithTraceback:  # pragma: no cover
         self.tb = '\n"""\n%s"""' % tb
 
     def __reduce__(self):
+        """
+        Reduce a reduce.
+
+        Args:
+            self: (todo): write your description
+        """
         # Used by pickler
         return _rebuild_exc, (self.exc, self.tb)
 

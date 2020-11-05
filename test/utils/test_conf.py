@@ -13,6 +13,11 @@ import mock
 
 
 def get_config():
+    """
+    Return a configuration.
+
+    Args:
+    """
     c = Config()
     c.conf1 = 1
     c.conf2 = 2
@@ -27,6 +32,12 @@ def get_config():
                 ]
             }))
 def test_load_config_cmd(*_mock_classes):
+    """
+    Deter configuration.
+
+    Args:
+        _mock_classes: (todo): write your description
+    """
     conf = load_config_cmd()
     assert conf["conf1"] == 2
     assert conf["conf2"] is None
@@ -40,6 +51,12 @@ def test_load_config_cmd(*_mock_classes):
 
 
 def test_load_config_file(tmpdir):
+    """
+    Load config file
+
+    Args:
+        tmpdir: (todo): write your description
+    """
     tmp_dir = str(tmpdir.make_numbered_dir())
     with open(join(tmp_dir, "conf.json"), 'w') as config_file:
         json.dump({
@@ -59,6 +76,12 @@ def test_load_config_file(tmpdir):
 
 
 def test_save_config(tmpdir):
+    """
+    Save config file exists.
+
+    Args:
+        tmpdir: (todo): write your description
+    """
     conf = get_config()
     tmp_dir = str(tmpdir.make_numbered_dir())
     save_config(conf, join(tmp_dir, "conf.json"))
@@ -66,6 +89,11 @@ def test_save_config(tmpdir):
 
 
 def test_merge_config():
+    """
+    Merge the config file.
+
+    Args:
+    """
     conf = get_config()
     conf = merge_config(conf, {"conf1": 2, "conf3": 3})
     assert conf.conf1 == 2

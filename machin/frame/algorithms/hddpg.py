@@ -89,6 +89,17 @@ class HDDPG(DDPG):
                update_target=True,
                concatenate_samples=True,
                **__):
+        """
+        Update the loss.
+
+        Args:
+            self: (todo): write your description
+            update_value: (bool): write your description
+            update_policy: (bool): write your description
+            update_target: (todo): write your description
+            concatenate_samples: (str): write your description
+            __: (array): write your description
+        """
         # DOC INHERITED
         self.actor.train()
         self.critic.train()

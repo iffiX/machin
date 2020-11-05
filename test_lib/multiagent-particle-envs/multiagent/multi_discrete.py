@@ -23,6 +23,13 @@ class MultiDiscrete(gym.Space):
         MultiDiscrete([ [0,4], [0,1], [0,1] ])
     """
     def __init__(self, array_of_param_array):
+        """
+        Initialize the parameter space.
+
+        Args:
+            self: (todo): write your description
+            array_of_param_array: (array): write your description
+        """
         self.low = np.array([x[0] for x in array_of_param_array])
         self.high = np.array([x[1] for x in array_of_param_array])
         self.num_discrete_space = self.low.shape[0]
@@ -34,12 +41,38 @@ class MultiDiscrete(gym.Space):
         random_array = np_random.rand(self.num_discrete_space)
         return [int(x) for x in np.floor(np.multiply((self.high - self.low + 1.), random_array) + self.low)]
     def contains(self, x):
+        """
+        Return true if x contains all possible.
+
+        Args:
+            self: (todo): write your description
+            x: (str): write your description
+        """
         return len(x) == self.num_discrete_space and (np.array(x) >= self.low).all() and (np.array(x) <= self.high).all()
 
     @property
     def shape(self):
+        """
+        The shape of the distribution.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.num_discrete_space
     def __repr__(self):
+        """
+        Return a human - readable representation.
+
+        Args:
+            self: (todo): write your description
+        """
         return "MultiDiscrete" + str(self.num_discrete_space)
     def __eq__(self, other):
+        """
+        Determine if two arrays are equal.
+
+        Args:
+            self: (todo): write your description
+            other: (todo): write your description
+        """
         return np.array_equal(self.low, other.low) and np.array_equal(self.high, other.high)

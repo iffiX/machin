@@ -11,15 +11,36 @@ import torch.nn as nn
 
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
+        """
+        Initialize the internal state.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+        """
         super(ActorDiscrete, self).__init__()
         self.fc = nn.Linear(state_dim, action_dim, bias=False)
 
     def forward(self, state):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         a = t.argmax(self.fc(state), dim=1).item()
         return a
 
 
 def main(rank):
+    """
+    Main function.
+
+    Args:
+        rank: (int): write your description
+    """
     env = gym.make("CartPole-v0")
     observe_dim = 4
     action_num = 2

@@ -144,6 +144,17 @@ class PushPullGradServer:
                  model_name: str,
                  secondary_reducers: List[str],
                  o_server: OrderedServerBase):
+        """
+        Initializes the server group.
+
+        Args:
+            self: (todo): write your description
+            server_name: (str): write your description
+            group: (todo): write your description
+            model_name: (str): write your description
+            secondary_reducers: (todo): write your description
+            o_server: (todo): write your description
+        """
         self.group = group
         self.model_name = model_name
         self.o_server = o_server
@@ -328,17 +339,35 @@ class PushPullGradServerImpl:
         self.reduce_task.daemon = True
 
     def start(self):
+        """
+        Start the task.
+
+        Args:
+            self: (todo): write your description
+        """
         if not self.started:
             self.reduce_task.start()
             self.started = True
 
     def stop(self):
+        """
+        Stops the task.
+
+        Args:
+            self: (todo): write your description
+        """
         if self.started:
             self.stop_event.set()
             self.reduce_task.join()
             self.stop_event.clear()
 
     def watch(self):
+        """
+        Watch the watch.
+
+        Args:
+            self: (todo): write your description
+        """
         self.reduce_task.watch()
 
     def manage_model(self, model: nn.Module, optimizer: Any):
@@ -366,6 +395,14 @@ class PushPullGradServerImpl:
                                "cannot manage the model.")
 
     def _push_service(self, grad_dict, level):  # pragma: no cover
+        """
+        Push a new service to the pool.
+
+        Args:
+            self: (todo): write your description
+            grad_dict: (dict): write your description
+            level: (int): write your description
+        """
         # Append reduce requests to queue.
         if level == ReduceType.REDUCE_SECONDARY:
             self.secondary_queue.put_nowait(grad_dict)
@@ -379,6 +416,12 @@ class PushPullGradServerImpl:
             raise ValueError("Unknown push level: {}".format(level))
 
     def _task_reduce_grad(self):
+        """
+        Reduce the gradient of the objective.
+
+        Args:
+            self: (todo): write your description
+        """
         while True:
             # Wait until one queue has reached target batch size
             while (self.master_queue.qsize() < self.reduce_batch_size and

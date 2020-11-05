@@ -11,6 +11,12 @@ import torch as t
 
 
 def create_file(file_path):
+    """
+    Creates a file.
+
+    Args:
+        file_path: (str): write your description
+    """
     base_dir = os.path.dirname(file_path)
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)
@@ -18,6 +24,12 @@ def create_file(file_path):
 
 
 def test_prep_clear_dirs(tmpdir):
+    """
+    Prepare dir directories that directory.
+
+    Args:
+        tmpdir: (todo): write your description
+    """
     tmp_dir = str(tmpdir.make_numbered_dir())
     create_file(join(tmp_dir, "some_dir", "some_file"))
     create_file(join(tmp_dir, "some_file2"))
@@ -30,6 +42,12 @@ def test_prep_clear_dirs(tmpdir):
 
 
 def test_prep_create_dirs(tmpdir):
+    """
+    Prepare directories exist in a temporary directory.
+
+    Args:
+        tmpdir: (todo): write your description
+    """
     tmp_dir = str(tmpdir.make_numbered_dir())
     prep_create_dirs([
         join(tmp_dir, "some_dir")
@@ -39,6 +57,12 @@ def test_prep_create_dirs(tmpdir):
 
 
 def test_prep_load_state_dict(pytestconfig):
+    """
+    Prepare a test dictionary for testing.
+
+    Args:
+        pytestconfig: (todo): write your description
+    """
     model = t.nn.Linear(100, 100)
     model2 = t.nn.Linear(100, 100) \
         .to(pytestconfig.getoption("gpu_device"))
@@ -49,6 +73,12 @@ def test_prep_load_state_dict(pytestconfig):
 
 
 def test_prep_load_model(tmpdir):
+    """
+    Prepare a test model.
+
+    Args:
+        tmpdir: (todo): write your description
+    """
     tmp_dir = str(tmpdir.make_numbered_dir())
     tmp_dir2 = str(tmpdir.make_numbered_dir())
 

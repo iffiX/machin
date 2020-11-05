@@ -6,6 +6,13 @@ import time
 
 class TestSaveEnv:
     def test_all(self, tmpdir):
+        """
+        Test all all trial files.
+
+        Args:
+            self: (todo): write your description
+            tmpdir: (todo): write your description
+        """
         tmp_dir = str(tmpdir.make_numbered_dir())
         save_env = SaveEnv(env_root=tmp_dir)
         save_env = SaveEnv(env_root=tmp_dir,

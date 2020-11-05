@@ -53,6 +53,13 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
                args_list=[(full_trans_list,)] * 3)
     @WorldTestBase.setup_world
     def test_append_sample_random(rank, trans_list):
+        """
+        Adds a sample to a sample.
+
+        Args:
+            rank: (int): write your description
+            trans_list: (list): write your description
+        """
         world = get_world()
         count = 0
         default_logger.info("{} started".format(rank))
@@ -105,6 +112,13 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
                args_list=[(full_trans_list,)] * 3)
     @WorldTestBase.setup_world
     def test_append_sample_controlled(rank, trans_list):
+        """
+        Generate a sample of sample to test to test.
+
+        Args:
+            rank: (int): write your description
+            trans_list: (list): write your description
+        """
         world = get_world()
         default_logger.info("{} started".format(rank))
         np.random.seed(0)
@@ -138,6 +152,12 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_sample_empty_buffer(rank):
+        """
+        Determine if the next sample is empty.
+
+        Args:
+            rank: (int): write your description
+        """
         world = get_world()
         default_logger.info("{} started".format(rank))
         np.random.seed(0)
@@ -160,6 +180,13 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
                args_list=[(full_trans_list,)] * 3)
     @WorldTestBase.setup_world
     def test_append_sample_empty(rank, trans_list):
+        """
+        Adds a sample of the next sample.
+
+        Args:
+            rank: (int): write your description
+            trans_list: (list): write your description
+        """
         world = get_world()
         default_logger.info("{} started".format(rank))
         np.random.seed(0)
@@ -187,6 +214,13 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
                args_list=[(full_trans_list,)] * 3)
     @WorldTestBase.setup_world
     def test_append_size(rank, trans_list):
+        """
+        Generate a random size to a list.
+
+        Args:
+            rank: (int): write your description
+            trans_list: (list): write your description
+        """
         world = get_world()
         default_logger.info("{} started".format(rank))
         np.random.seed(0)
@@ -215,6 +249,13 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
                args_list=[(full_trans_list,)] * 3)
     @WorldTestBase.setup_world
     def test_append_clear(rank, trans_list):
+        """
+        Perform a list of accounts.
+
+        Args:
+            rank: (todo): write your description
+            trans_list: (list): write your description
+        """
         world = get_world()
         default_logger.info("{} started".format(rank))
         np.random.seed(0)

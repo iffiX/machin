@@ -13,12 +13,24 @@ import random
 
 class CryptoAgent(Agent):
     def __init__(self):
+        """
+        Initialize this class.
+
+        Args:
+            self: (todo): write your description
+        """
         super(CryptoAgent, self).__init__()
         self.key = None
 
 class Scenario(BaseScenario):
 
     def make_world(self):
+        """
+        Creates a world for the world.
+
+        Args:
+            self: (todo): write your description
+        """
         world = World()
         # set any world properties first
         num_agents = 3
@@ -45,6 +57,13 @@ class Scenario(BaseScenario):
 
 
     def reset_world(self, world):
+        """
+        Reset the world.
+
+        Args:
+            self: (todo): write your description
+            world: (todo): write your description
+        """
         # random properties for agents
         for i, agent in enumerate(world.agents):
             agent.color = np.array([0.25, 0.25, 0.25])
@@ -76,25 +95,70 @@ class Scenario(BaseScenario):
 
 
     def benchmark_data(self, agent, world):
+        """
+        Benchmark agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (str): write your description
+            world: (str): write your description
+        """
         # returns data for benchmarking purposes
         return (agent.state.c, agent.goal_a.color)
 
     # return all agents that are not adversaries
     def good_listeners(self, world):
+        """
+        Returns a list of all the agent.
+
+        Args:
+            self: (todo): write your description
+            world: (str): write your description
+        """
         return [agent for agent in world.agents if not agent.adversary and not agent.speaker]
 
     # return all agents that are not adversaries
     def good_agents(self, world):
+        """
+        Return the agents for a given world.
+
+        Args:
+            self: (todo): write your description
+            world: (todo): write your description
+        """
         return [agent for agent in world.agents if not agent.adversary]
 
     # return all adversarial agents
     def adversaries(self, world):
+        """
+        Returns a list of all matching agents.
+
+        Args:
+            self: (todo): write your description
+            world: (todo): write your description
+        """
         return [agent for agent in world.agents if agent.adversary]
 
     def reward(self, agent, world):
+        """
+        Recompute an agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (todo): write your description
+            world: (todo): write your description
+        """
         return self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
 
     def agent_reward(self, agent, world):
+        """
+        Return an agent of an agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (todo): write your description
+            world: (todo): write your description
+        """
         # Agents rewarded if Bob can reconstruct message, but adversary (Eve) cannot
         good_listeners = self.good_listeners(world)
         adversaries = self.adversaries(world)
@@ -114,6 +178,14 @@ class Scenario(BaseScenario):
         return adv_rew + good_rew
 
     def adversary_reward(self, agent, world):
+        """
+        Return the adjacversary of an agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (todo): write your description
+            world: (todo): write your description
+        """
         # Adversary (Eve) is rewarded if it can reconstruct original goal
         rew = 0
         if not (agent.state.c == np.zeros(world.dim_c)).all():
@@ -122,6 +194,14 @@ class Scenario(BaseScenario):
 
 
     def observation(self, agent, world):
+        """
+        Generate an observation.
+
+        Args:
+            self: (todo): write your description
+            agent: (str): write your description
+            world: (str): write your description
+        """
         # goal color
         goal_color = np.zeros(world.dim_color)
         if agent.goal_a is not None:

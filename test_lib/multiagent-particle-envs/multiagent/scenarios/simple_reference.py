@@ -4,6 +4,12 @@ from multiagent.scenario import BaseScenario
 
 class Scenario(BaseScenario):
     def make_world(self):
+        """
+        Creates a world object
+
+        Args:
+            self: (todo): write your description
+        """
         world = World()
         # set any world properties first
         world.dim_c = 10
@@ -24,6 +30,13 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world(self, world):
+        """
+        Sets the world of world.
+
+        Args:
+            self: (todo): write your description
+            world: (todo): write your description
+        """
         # assign goals to agents
         for agent in world.agents:
             agent.goal_a = None
@@ -53,12 +66,28 @@ class Scenario(BaseScenario):
             landmark.state.p_vel = np.zeros(world.dim_p)
 
     def reward(self, agent, world):
+        """
+        Determine the agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (todo): write your description
+            world: (todo): write your description
+        """
         if agent.goal_a is None or agent.goal_b is None:
             return 0.0
         dist2 = np.sum(np.square(agent.goal_a.state.p_pos - agent.goal_b.state.p_pos))
         return -dist2
 
     def observation(self, agent, world):
+        """
+        Generate an observation for an agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (str): write your description
+            world: (str): write your description
+        """
         # goal color
         goal_color = [np.zeros(world.dim_color), np.zeros(world.dim_color)]
         if agent.goal_b is not None:

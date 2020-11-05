@@ -99,6 +99,15 @@ class RAINBOW(DQN):
                      state: Dict[str, Any],
                      use_target: bool = False,
                      **__):
+        """
+        R calculate a discrete discrete discrete state.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            use_target: (bool): write your description
+            __: (todo): write your description
+        """
         # DOC INHERITED
         # q value distribution of each action
         # shape: [batch_size, action_num, atom_num]
@@ -126,6 +135,15 @@ class RAINBOW(DQN):
                                 state: Dict[str, Any],
                                 use_target: bool = False,
                                 **__):
+        """
+        Perform a discrete discrete discrete discrete discrete discrete state.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            use_target: (bool): write your description
+            __: (todo): write your description
+        """
         # DOC INHERITED
         # q value distribution of each action
         # shape: [batch_size, action_num, atom_num]
@@ -194,6 +212,16 @@ class RAINBOW(DQN):
                update_target=True,
                concatenate_samples=True,
                **__):
+        """
+        Updates the learning.
+
+        Args:
+            self: (todo): write your description
+            update_value: (bool): write your description
+            update_target: (todo): write your description
+            concatenate_samples: (str): write your description
+            __: (array): write your description
+        """
         # DOC INHERITED
         # pylint: disable=invalid-name
         self.qnet.train()

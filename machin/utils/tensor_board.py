@@ -14,9 +14,22 @@ class TensorBoard:
         writer: ``SummaryWriter`` of package ``tensorboardX``.
     """
     def __init__(self):
+        """
+        Initialize the writer.
+
+        Args:
+            self: (todo): write your description
+        """
         self.writer = None
 
     def init(self, *writer_args):
+        """
+        Initialize writer.
+
+        Args:
+            self: (todo): write your description
+            writer_args: (dict): write your description
+        """
         if self.writer is None:
             self.writer = SummaryWriter(*writer_args)
         else:

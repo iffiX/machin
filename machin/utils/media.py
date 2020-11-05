@@ -116,6 +116,11 @@ def create_video_subproc(frames: List[np.array],
         A wait function, once called, block until creation has finished.
     """
     def wait():
+        """
+        Waits for a command is true.
+
+        Args:
+        """
         pass
 
     if frames:
@@ -129,6 +134,11 @@ def create_video_subproc(frames: List[np.array],
         p.start()
 
         def wait():
+            """
+            Wait for the job to complete.
+
+            Args:
+            """
             p.join()
 
     return wait
@@ -196,6 +206,11 @@ def create_image_subproc(image: np.array,
     p.start()
 
     def wait():
+        """
+        Wait for the job to complete.
+
+        Args:
+        """
         p.join()
 
     return wait

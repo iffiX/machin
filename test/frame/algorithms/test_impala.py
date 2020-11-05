@@ -19,6 +19,14 @@ from test.util_run_multi import *
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_num):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_num: (int): write your description
+        """
         super(Actor, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -26,6 +34,14 @@ class Actor(nn.Module):
         self.fc3 = nn.Linear(16, action_num)
 
     def forward(self, state, action=None):
+        """
+        Perform forward forward computation
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            action: (str): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
@@ -40,6 +56,13 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim):
+        """
+        Initialize the network.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+        """
         super(Critic, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -47,6 +70,13 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(16, 1)
 
     def forward(self, state):
+        """
+        Calculate forward.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         v = t.relu(self.fc1(state))
         v = t.relu(self.fc2(v))
         v = self.fc3(v)
@@ -72,6 +102,12 @@ class TestIMPALA(object):
 
     @staticmethod
     def impala(use_lr_sch=False):
+        """
+        Perform the convex.
+
+        Args:
+            use_lr_sch: (bool): write your description
+        """
         c = TestIMPALA.c
         actor = smw(Actor(c.observe_dim, c.action_num)
                     .to(c.device), c.device, c.device)
@@ -109,6 +145,13 @@ class TestIMPALA(object):
                timeout=180)
     @WorldTestBase.setup_world
     def test_act(_, gpu):
+        """
+        Determine whether the gpu is on the specified.
+
+        Args:
+            _: (array): write your description
+            gpu: (array): write your description
+        """
         c = TestIMPALA.c
         c.device = gpu
         impala = TestIMPALA.impala()
@@ -126,6 +169,13 @@ class TestIMPALA(object):
                timeout=180)
     @WorldTestBase.setup_world
     def test_eval_action(_, gpu):
+        """
+        Evaluates the device.
+
+        Args:
+            _: (todo): write your description
+            gpu: (todo): write your description
+        """
         c = TestIMPALA.c
         c.device = gpu
         impala = TestIMPALA.impala()
@@ -144,6 +194,13 @@ class TestIMPALA(object):
                timeout=180)
     @WorldTestBase.setup_world
     def test__criticize(_, gpu):
+        """
+        Determine if the device can be displayed.
+
+        Args:
+            _: (todo): write your description
+            gpu: (todo): write your description
+        """
         c = TestIMPALA.c
         c.device = gpu
         impala = TestIMPALA.impala()
@@ -161,6 +218,13 @@ class TestIMPALA(object):
                timeout=180)
     @WorldTestBase.setup_world
     def test_store_step(_, gpu):
+        """
+        Perform a step.
+
+        Args:
+            _: (todo): write your description
+            gpu: (todo): write your description
+        """
         c = TestIMPALA.c
         c.device = gpu
         impala = TestIMPALA.impala()
@@ -185,6 +249,13 @@ class TestIMPALA(object):
                timeout=180)
     @WorldTestBase.setup_world
     def test_store_episode(_, gpu):
+        """
+        Test if a episode update.
+
+        Args:
+            _: (todo): write your description
+            gpu: (todo): write your description
+        """
         c = TestIMPALA.c
         c.device = gpu
         impala = TestIMPALA.impala()
@@ -212,6 +283,13 @@ class TestIMPALA(object):
                timeout=180)
     @WorldTestBase.setup_world
     def test_update(rank, gpu):
+        """
+        Determine state of the epoch.
+
+        Args:
+            rank: (int): write your description
+            gpu: (float): write your description
+        """
         c = TestIMPALA.c
         c.device = gpu
         impala = TestIMPALA.impala()
@@ -261,6 +339,13 @@ class TestIMPALA(object):
                timeout=180)
     @WorldTestBase.setup_world
     def test_lr_scheduler(_, gpu):
+        """
+        Test if the gpu device is running.
+
+        Args:
+            _: (todo): write your description
+            gpu: (todo): write your description
+        """
         c = TestIMPALA.c
         c.device = gpu
         impala = TestIMPALA.impala()
@@ -277,6 +362,13 @@ class TestIMPALA(object):
                timeout=1800)
     @WorldTestBase.setup_world
     def test_full_train(rank, gpu):
+        """
+        Perform a train of the objective.
+
+        Args:
+            rank: (int): write your description
+            gpu: (todo): write your description
+        """
         c = TestIMPALA.c
         c.device = gpu
         impala = TestIMPALA.impala()

@@ -24,6 +24,15 @@ solved_repeat = 5
 class QNet(nn.Module):
     # this test setup lacks the noisy linear layer and dueling structure.
     def __init__(self, state_dim, action_num, atom_num=10):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_num: (int): write your description
+            atom_num: (int): write your description
+        """
         super(QNet, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -33,6 +42,13 @@ class QNet(nn.Module):
         self.atom_num = atom_num
 
     def forward(self, state):
+        """
+        Perform forward algorithm.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         return t.softmax(self.fc3(a)

@@ -15,6 +15,12 @@ class TorchFramework:
     _is_restorable = []
 
     def __init__(self):
+        """
+        Initialize the visualizer
+
+        Args:
+            self: (todo): write your description
+        """
         self._visualized = set()
 
     @classmethod
@@ -102,6 +108,17 @@ class TorchFramework:
                         final_tensor: t.Tensor,
                         name: str,
                         directory: str):
+        """
+        Visualize the model.
+
+        Args:
+            self: (todo): write your description
+            final_tensor: (todo): write your description
+            t: (todo): write your description
+            Tensor: (todo): write your description
+            name: (str): write your description
+            directory: (str): write your description
+        """
         if name in self._visualized:
             return
         else:

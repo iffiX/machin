@@ -20,6 +20,15 @@ solved_repeat = 5
 # model definition
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+            action_range: (str): write your description
+        """
         super(Actor, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -28,6 +37,13 @@ class Actor(nn.Module):
         self.action_range = action_range
 
     def forward(self, state):
+        """
+        Perform forward.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         a = t.tanh(self.fc3(a)) * self.action_range
@@ -36,6 +52,14 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
+        """
+        Initialize the internal state.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+        """
         super(Critic, self).__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
@@ -43,6 +67,14 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(16, 1)
 
     def forward(self, state, action):
+        """
+        Perform forward forward computation.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            action: (str): write your description
+        """
         state_action = t.cat([state, action], 1)
         q = t.relu(self.fc1(state_action))
         q = t.relu(self.fc2(q))

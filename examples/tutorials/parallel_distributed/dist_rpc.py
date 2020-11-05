@@ -8,14 +8,32 @@ class WorkerService(object):
     counter = 0
 
     def count(self):
+        """
+        Return the number of times.
+
+        Args:
+            self: (todo): write your description
+        """
         self.counter += 1
         return self.counter
 
     def get_count(self):
+        """
+        Return the number of counter.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.counter
 
 
 def main(rank):
+    """
+    Main function.
+
+    Args:
+        rank: (int): write your description
+    """
     world = World(world_size=3, rank=rank,
                   name=str(rank), rpc_timeout=20)
     service = WorkerService()

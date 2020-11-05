@@ -5,10 +5,22 @@ import torch as t
 
 
 def print_tensor_sub_proc(tens):
+    """
+    Print the sub_tensorflow tensors.
+
+    Args:
+        tens: (todo): write your description
+    """
     print(loads(tens))
 
 
 def exec_sub_proc(func):
+    """
+    Execute a function in a subprocess.
+
+    Args:
+        func: (callable): write your description
+    """
     loads(func)()
 
 
@@ -65,6 +77,11 @@ if __name__ == "__main__":
     # to the subprocess, set recursive to `true`
     # then refered nonlocal&global variable will also be serialized.
     def local_func():
+        """
+        Fill local local tensor.
+
+        Args:
+        """
         global tensor
         tensor.fill_(3)
 

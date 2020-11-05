@@ -299,5 +299,11 @@ class Buffer(object):
             return batch
 
     def __reduce__(self):
+        """
+        Reduce the buffer.
+
+        Args:
+            self: (todo): write your description
+        """
         # for pickling
         return self.__class__, (self.buffer_size, self.buffer_device)

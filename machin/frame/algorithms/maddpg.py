@@ -14,6 +14,14 @@ from .ddpg import *
 class SHMBuffer(Buffer):
     @staticmethod
     def make_tensor_from_batch(batch, device, concatenate):
+        """
+        Creates a tensor from a batch.
+
+        Args:
+            batch: (todo): write your description
+            device: (todo): write your description
+            concatenate: (str): write your description
+        """
         # this function is used in post processing, and we will
         # move all cpu tensors to shared memory.
         if concatenate and len(batch) != 0:
@@ -404,6 +412,14 @@ class MADDPG(TorchFramework):
         return result
 
     def _act_api_general(self, states, use_target):
+        """
+        Actual version of actors.
+
+        Args:
+            self: (todo): write your description
+            states: (todo): write your description
+            use_target: (bool): write your description
+        """
         if self.use_jit:
             if use_target:
                 actors = [choice(sub_actors) for sub_actors in
@@ -588,6 +604,15 @@ class MADDPG(TorchFramework):
                 critic_lr_sch.step()
 
     def load(self, model_dir, network_map=None, version=-1):
+        """
+        Load the network.
+
+        Args:
+            self: (todo): write your description
+            model_dir: (str): write your description
+            network_map: (str): write your description
+            version: (str): write your description
+        """
         # DOC INHERITED
         super(MADDPG, self).load(model_dir, network_map, version)
         with t.no_grad():
@@ -599,12 +624,26 @@ class MADDPG(TorchFramework):
 
     @staticmethod
     def _no_grad_safe_call(model, *named_args):
+        """
+        Safely call a named gradients.
+
+        Args:
+            model: (todo): write your description
+            named_args: (str): write your description
+        """
         with t.no_grad():
             result = safe_call(model, *named_args)
             return result
 
     @staticmethod
     def _jit_safe_call(model, *named_args):
+        """
+        Decor for a model.
+
+        Args:
+            model: (todo): write your description
+            named_args: (str): write your description
+        """
         if (not hasattr(model, "input_device") or
                 not hasattr(model, "output_device")):
             # try to automatically determine the input & output
@@ -693,6 +732,36 @@ class MADDPG(TorchFramework):
                            atf, acf, scf, rf,
                            criterion, discount, update_rate, grad_max,
                            visualize, visualize_dir):
+        """
+        Update policy policy.
+
+        Args:
+            batch_size: (int): write your description
+            batches: (todo): write your description
+            next_actions_t: (todo): write your description
+            actor_index: (todo): write your description
+            policy_index: (todo): write your description
+            actors: (float): write your description
+            actor_targets: (todo): write your description
+            critics: (todo): write your description
+            critic_targets: (todo): write your description
+            critic_visible_actors: (todo): write your description
+            actor_optims: (todo): write your description
+            critic_optims: (todo): write your description
+            update_value: (todo): write your description
+            update_policy: (bool): write your description
+            update_target: (todo): write your description
+            atf: (todo): write your description
+            acf: (todo): write your description
+            scf: (todo): write your description
+            rf: (todo): write your description
+            criterion: (str): write your description
+            discount: (todo): write your description
+            update_rate: (todo): write your description
+            grad_max: (float): write your description
+            visualize: (bool): write your description
+            visualize_dir: (bool): write your description
+        """
         # atf: action transform function, used to transform the
         #      raw output of a single actor to a arg dict like:
         #      {"action": tensor}, where "action" is the keyword argument
@@ -832,6 +901,14 @@ class MADDPG(TorchFramework):
 
     @staticmethod
     def _visualize(final_tensor, name, directory):
+        """
+        Visualize the graph.
+
+        Args:
+            final_tensor: (todo): write your description
+            name: (str): write your description
+            directory: (str): write your description
+        """
         g = make_dot(final_tensor)
         g.render(filename=name,
                  directory=directory,
@@ -841,6 +918,12 @@ class MADDPG(TorchFramework):
 
     @staticmethod
     def _move_to_shared_mem(obj):
+        """
+        Detach memory to memory.
+
+        Args:
+            obj: (todo): write your description
+        """
         if t.is_tensor(obj):
             obj = obj.detach()
             obj.share_memory_()
@@ -861,6 +944,12 @@ class MADDPG(TorchFramework):
 
     @staticmethod
     def _check_parameters_device(models):
+        """
+        Check if a list of the given models.
+
+        Args:
+            models: (todo): write your description
+        """
         devices = set()
         for model in models:
             for k, v in model.named_parameters():
@@ -872,7 +961,20 @@ class MADDPG(TorchFramework):
 
     @staticmethod
     def _create_sample_method(indexes):
+        """
+        Create a sample method that returns the sample.
+
+        Args:
+            indexes: (todo): write your description
+        """
         def sample_method(buffer, _len):
+            """
+            Return the method that returns the given buffer
+
+            Args:
+                buffer: (todo): write your description
+                _len: (todo): write your description
+            """
             nonlocal indexes
             batch = [buffer[i] for i in indexes
                      if i < len(buffer)]
@@ -881,10 +983,24 @@ class MADDPG(TorchFramework):
 
     @staticmethod
     def action_transform_function(raw_output_action: Any, *_):
+        """
+        Convert raw function that returns the raw output.
+
+        Args:
+            raw_output_action: (todo): write your description
+            _: (todo): write your description
+        """
         return {"action": raw_output_action}
 
     @staticmethod
     def action_concat_function(actions: List[Dict], *_):
+        """
+        Concatenate multiple actions.
+
+        Args:
+            actions: (str): write your description
+            _: (todo): write your description
+        """
         # Assume an atom action is [batch_size, action_dim]
         # concatenate actions in the second dimension.
         # becomes [batch_size, actor_num * action_dim]
@@ -896,6 +1012,13 @@ class MADDPG(TorchFramework):
 
     @staticmethod
     def state_concat_function(states: List[Dict], *_):
+        """
+        Concatenate all states.
+
+        Args:
+            states: (todo): write your description
+            _: (todo): write your description
+        """
         # Assume an atom state is [batch_size, state_dim]
         # concatenate states in the second dimension.
         # becomes [batch_size, actor_num * state_dim]
@@ -907,6 +1030,16 @@ class MADDPG(TorchFramework):
 
     @staticmethod
     def reward_function(reward, discount, next_value, terminal, *_):
+        """
+        Return the reward function.
+
+        Args:
+            reward: (str): write your description
+            discount: (todo): write your description
+            next_value: (todo): write your description
+            terminal: (todo): write your description
+            _: (todo): write your description
+        """
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value

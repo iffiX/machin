@@ -3,6 +3,13 @@ from test.util_run_multi import *
 
 
 def _log(rank, msg):
+    """
+    Log a message
+
+    Args:
+        rank: (int): write your description
+        msg: (str): write your description
+    """
     default_logger.info("Client {}: {}".format(rank, msg))
 
 
@@ -12,6 +19,12 @@ class Object(object):
 
 class TestOrderedServerSimple(WorldTestBase):
     def test__push_pull_service(self):
+        """
+        Perform push push requests.
+
+        Args:
+            self: (todo): write your description
+        """
         fake_group = Object()
         fake_group.pair = lambda *_: None
         fake_group.register = lambda *_: None
@@ -32,6 +45,12 @@ class TestOrderedServerSimple(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_push_pull(rank):
+        """
+        Create a pull pull pull request.
+
+        Args:
+            rank: (int): write your description
+        """
         world = get_world()
         if rank == 0:
             group = world.create_rpc_group("group", ["0", "1"])

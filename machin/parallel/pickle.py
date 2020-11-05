@@ -36,11 +36,23 @@ def mark_static_module(module: Any):  # pragma: no cover
 
 
 def _rebuild_full(data):
+    """
+    Rebuilds the full buffer of the buffer.
+
+    Args:
+        data: (array): write your description
+    """
     buffer = io.BytesIO(data)
     return t.load(buffer)
 
 
 def _reduce_full(obj):
+    """
+    Reduce the given object.
+
+    Args:
+        obj: (todo): write your description
+    """
     # supports saving tensors, storage, etc.
     # will always save all data and not by reference.
     buffer = io.BytesIO()
@@ -60,6 +72,15 @@ class Pickler(DillPickler):
         method in ".dispatch_table".
     """
     def __init__(self, file, recurse=False, copy_tensor=False):
+        """
+        Initialize the table.
+
+        Args:
+            self: (todo): write your description
+            file: (str): write your description
+            recurse: (todo): write your description
+            copy_tensor: (todo): write your description
+        """
         super(Pickler, self).__init__(
             file, byref=False, recurse=recurse
         )

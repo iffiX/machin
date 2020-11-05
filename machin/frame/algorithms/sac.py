@@ -364,6 +364,15 @@ class SAC(TorchFramework):
             self.critic_lr_sch.step()
 
     def load(self, model_dir, network_map=None, version=-1):
+        """
+        Loads the network from disk.
+
+        Args:
+            self: (todo): write your description
+            model_dir: (str): write your description
+            network_map: (str): write your description
+            version: (str): write your description
+        """
         # DOC INHERITED
         super(SAC, self).load(model_dir, network_map, version)
         with t.no_grad():
@@ -372,10 +381,27 @@ class SAC(TorchFramework):
 
     @staticmethod
     def action_transform_function(raw_output_action, *_):
+        """
+        Convert raw function that is called function.
+
+        Args:
+            raw_output_action: (todo): write your description
+            _: (todo): write your description
+        """
         return {"action": raw_output_action}
 
     @staticmethod
     def reward_function(reward, discount, next_value, terminal, _):
+        """
+        Return the reward function.
+
+        Args:
+            reward: (str): write your description
+            discount: (todo): write your description
+            next_value: (todo): write your description
+            terminal: (todo): write your description
+            _: (todo): write your description
+        """
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value
