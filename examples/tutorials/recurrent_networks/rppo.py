@@ -20,12 +20,28 @@ disable_view_window()
 
 class RecurrentActor(nn.Module):
     def __init__(self, action_num):
+        """
+        Initialize the device.
+
+        Args:
+            self: (todo): write your description
+            action_num: (int): write your description
+        """
         super(RecurrentActor, self).__init__()
         self.gru = nn.GRU(128, 256, batch_first=True)
         self.fc1 = nn.Linear(256, 256)
         self.fc2 = nn.Linear(256, action_num)
 
     def forward(self, mem, hidden, action=None):
+        """
+        Perform forward forward computation
+
+        Args:
+            self: (todo): write your description
+            mem: (todo): write your description
+            hidden: (todo): write your description
+            action: (str): write your description
+        """
         hidden = hidden.transpose(0, 1)
         a, hidden = self.gru(mem.unsqueeze(1), hidden)
         a = self.fc2(t.relu(
@@ -43,12 +59,25 @@ class RecurrentActor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self):
+        """
+        Initialize the network.
+
+        Args:
+            self: (todo): write your description
+        """
         super(Critic, self).__init__()
         self.fc1 = nn.Linear(128, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, 1)
 
     def forward(self, mem):
+        """
+        Calculate the given amount of bytes.
+
+        Args:
+            self: (todo): write your description
+            mem: (todo): write your description
+        """
         v = t.relu(self.fc1(mem))
         v = t.relu(self.fc2(v))
         v = self.fc3(v)

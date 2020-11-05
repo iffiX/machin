@@ -7,14 +7,33 @@ class WorkerService(object):
     counter = 0
 
     def count(self):
+        """
+        Return the number of times.
+
+        Args:
+            self: (todo): write your description
+        """
         self.counter += 1
         return self.counter
 
     def get_count(self):
+        """
+        Return the number of counter.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.counter
 
 
 def worker_calculate(a, b):
+    """
+    Calculates a b : param a b.
+
+    Args:
+        a: (todo): write your description
+        b: (todo): write your description
+    """
     return a + b
 
 
@@ -26,6 +45,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_get_info(rank):
+        """
+        Returns the info is found in - place
+
+        Args:
+            rank: (todo): write your description
+        """
         _world = get_world()
         assert get_cur_rank() == rank
         assert get_cur_name() == str(rank)
@@ -38,6 +63,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_cc_send_recv(rank):
+        """
+        Determine whether the given rank is a world
+
+        Args:
+            rank: (todo): write your description
+        """
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
 
@@ -55,6 +86,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_cc_isend_irecv(rank):
+        """
+        Determine whether a rank is a rank inend.
+
+        Args:
+            rank: (todo): write your description
+        """
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
         if rank == 0:
@@ -72,6 +109,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_cc_broadcast(rank):
+        """
+        Determine whether the given rank is equivalent tomodcast.
+
+        Args:
+            rank: (int): write your description
+        """
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
         # test broadcast
@@ -88,6 +131,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_cc_all_reduce(rank):
+        """
+        Determine whether the terms in - place have the same sum.
+
+        Args:
+            rank: (int): write your description
+        """
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
         a = t.full([5], rank)
@@ -100,6 +149,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_cc_reduce(rank):
+        """
+        Determine whether the rank of the rank of the rank.
+
+        Args:
+            rank: (int): write your description
+        """
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
         a = t.full([5], 5 - rank)
@@ -113,6 +168,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_cc_all_gather(rank):
+        """
+        Returns true if the rank of the rank in the world.
+
+        Args:
+            rank: (int): write your description
+        """
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
         a = t.full([5], rank)
@@ -128,6 +189,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_cc_gather(rank):
+        """
+        Returns true if the rank of the rank is a rank.
+
+        Args:
+            rank: (todo): write your description
+        """
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
         a = t.full([5], rank)
@@ -147,6 +214,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_cc_scatter(rank):
+        """
+        Deter of the rank of the world.
+
+        Args:
+            rank: (todo): write your description
+        """
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
         if rank == 0:
@@ -165,6 +238,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_cc_barrier(_):
+        """
+        Check whether the world bar.
+
+        Args:
+            _: (todo): write your description
+        """
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
         assert group.size() == 3
@@ -177,6 +256,13 @@ class TestWorld(WorldTestBase):
                pass_through=["gpu"])
     @WorldTestBase.setup_world
     def test_cc_broadcast_multigpu(rank, gpu):
+        """
+        Determine whether the gpu is a multigpu device.
+
+        Args:
+            rank: (int): write your description
+            gpu: (str): write your description
+        """
         if isinstance(gpu, str) and gpu.startswith("cuda"):
             world = get_world()
             group = world.create_collective_group(ranks=[0, 1, 2])
@@ -194,6 +280,13 @@ class TestWorld(WorldTestBase):
                pass_through=["gpu"])
     @WorldTestBase.setup_world
     def test_cc_all_reduce_multigpu(_, gpu):
+        """
+        Test if all devices in the gpu.
+
+        Args:
+            _: (todo): write your description
+            gpu: (str): write your description
+        """
         if isinstance(gpu, str) and gpu.startswith("cuda"):
             world = get_world()
             group = world.create_collective_group(ranks=[0, 1, 2])
@@ -210,6 +303,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_rpc_sync(_):
+        """
+        Stops the rpc rpc.
+
+        Args:
+            _: (todo): write your description
+        """
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
         assert (group.rpc_sync("1", worker_calculate, args=(1, 2), timeout=1)
@@ -221,6 +320,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_rpc_async(_):
+        """
+        Stops the world group.
+
+        Args:
+            _: (todo): write your description
+        """
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
         assert (group.rpc_async("1", worker_calculate, args=(1, 2), timeout=1)
@@ -232,6 +337,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_rpc_remote(_):
+        """
+        This function starts a new rpc.
+
+        Args:
+            _: (todo): write your description
+        """
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
         assert (group.remote("1", worker_calculate, args=(1, 2), timeout=1)
@@ -243,6 +354,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_rpc_pair(rank):
+        """
+        Test if a pair is valid.
+
+        Args:
+            rank: (int): write your description
+        """
         world = get_world()
         service = WorkerService()
         if rank == 0:
@@ -283,6 +400,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_rpc_register(rank):
+        """
+        Registers a new rpc.
+
+        Args:
+            rank: (int): write your description
+        """
         world = get_world()
         service = WorkerService()
         if rank == 0:
@@ -330,6 +453,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_rpc_get_info(rank):
+        """
+        Checks if rpc info is valid rpc
+
+        Args:
+            rank: (todo): write your description
+        """
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
         assert group.size() == 3
@@ -343,6 +472,12 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_rpc_barrier(_):
+        """
+        Check to see http : // www. interactivesoft.
+
+        Args:
+            _: (array): write your description
+        """
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
         assert group.size() == 3

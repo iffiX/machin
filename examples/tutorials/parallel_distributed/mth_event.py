@@ -11,6 +11,11 @@ event3 = Event()
 
 
 def test1():
+    """
+    Perform the first event of the same as a function.
+
+    Args:
+    """
     global event1, event2, event3
     event = OrEvent(event1, event2, event3)
     while not event.wait():
@@ -20,6 +25,11 @@ def test1():
 
 
 def test2():
+    """
+    Perform a single event.
+
+    Args:
+    """
     global event1, event2, event3
     event = AndEvent(AndEvent(event1, event3), event2)
     while not event.wait():

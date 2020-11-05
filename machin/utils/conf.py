@@ -8,6 +8,13 @@ from .helper_classes import Object
 
 class Config(Object):
     def __init__(self, **configs):
+        """
+        Initialize the configuration.
+
+        Args:
+            self: (todo): write your description
+            configs: (dict): write your description
+        """
         super(Config, self).__init__(configs)
 
 

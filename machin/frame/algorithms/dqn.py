@@ -426,6 +426,15 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             self.qnet_lr_sch.step()
 
     def load(self, model_dir, network_map=None, version=-1):
+        """
+        Loads the network.
+
+        Args:
+            self: (todo): write your description
+            model_dir: (str): write your description
+            network_map: (str): write your description
+            version: (str): write your description
+        """
         # DOC INHERITED
         super(DQN, self).load(model_dir, network_map, version)
         with t.no_grad():
@@ -441,6 +450,16 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
     @staticmethod
     def reward_function(reward, discount, next_value, terminal, _):
+        """
+        Return the reward function.
+
+        Args:
+            reward: (str): write your description
+            discount: (todo): write your description
+            next_value: (todo): write your description
+            terminal: (todo): write your description
+            _: (todo): write your description
+        """
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value

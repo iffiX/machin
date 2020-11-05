@@ -9,10 +9,21 @@ _all_files = [f.split(".")[0] for f in os.listdir(_root_dir) if
 
 
 def all_envs():
+    """
+    Return all environments
+
+    Args:
+    """
     return _all_files
 
 
 def create_env(env_name):
+    """
+    Create an environment
+
+    Args:
+        env_name: (str): write your description
+    """
     if env_name not in all_envs():
         raise RuntimeError("Invalid multi-agent environment: " + env_name)
     # load scenario from script

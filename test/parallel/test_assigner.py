@@ -12,6 +12,12 @@ import torch.nn as nn
 
 class TestModelSizeEstimator(object):
     def test_estimator(self):
+        """
+        Estimate the test estimator.
+
+        Args:
+            self: (todo): write your description
+        """
         model = nn.Module()
         model.register_parameter("param1",
                                  nn.Parameter(t.zeros([10], dtype=t.int8),
@@ -43,17 +49,43 @@ class TestModelAssigner(object):
     virtual_cpu = 0
 
     def patch_gputil_get_available(self, order):
+        """
+        Patch the gputililililililil.
+
+        Args:
+            self: (todo): write your description
+            order: (todo): write your description
+        """
         return list(range(len(self.virtual_gpus)))
 
     def patch_gputil_get_gpus(self):
+        """
+        Patch gputilus. gpus.
+
+        Args:
+            self: (todo): write your description
+        """
         return [Object({"memoryFree": gsize, "load": 0})
                 for gsize in self.virtual_gpus]
 
     def patch_psutil_virtual_memory(self):
+        """
+        Patch psutil psutil memory memory.
+
+        Args:
+            self: (todo): write your description
+        """
         return Object({"available": self.virtual_cpu * 1024 ** 2})
 
     @staticmethod
     def patch_model_size_estimator(mocked_model, multiplier):
+        """
+        Patch size estimator for estimator.
+
+        Args:
+            mocked_model: (todo): write your description
+            multiplier: (float): write your description
+        """
         return Object({"estimate_size":
                        lambda: mocked_model.size * multiplier})
 
@@ -189,6 +221,18 @@ class TestModelAssigner(object):
          }, [10], 10, None, RuntimeError, "Estimated model will use"),
     ])
     def test_assigner(self, params, gpus, cpu, assignment, exception, match):
+        """
+        Assign the given parameters.
+
+        Args:
+            self: (todo): write your description
+            params: (dict): write your description
+            gpus: (str): write your description
+            cpu: (todo): write your description
+            assignment: (todo): write your description
+            exception: (todo): write your description
+            match: (todo): write your description
+        """
         t.manual_seed(0)
         self.virtual_gpus = gpus
         self.virtual_cpu = cpu

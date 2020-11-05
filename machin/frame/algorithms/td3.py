@@ -141,6 +141,17 @@ class TD3(DDPG):
                update_target=True,
                concatenate_samples=True,
                **__):
+        """
+        Update the loss.
+
+        Args:
+            self: (todo): write your description
+            update_value: (bool): write your description
+            update_policy: (bool): write your description
+            update_target: (todo): write your description
+            concatenate_samples: (str): write your description
+            __: (array): write your description
+        """
         # DOC INHERITED
         self.actor.train()
         self.critic.train()
@@ -229,6 +240,13 @@ class TD3(DDPG):
 
     @staticmethod
     def policy_noise_function(actions, *_):
+        """
+        Return the function that runs the given action.
+
+        Args:
+            actions: (todo): write your description
+            _: (todo): write your description
+        """
         # Function used to add noise to actions, mentioned in TD3
         # training tricks
         return actions
@@ -243,6 +261,15 @@ class TD3(DDPG):
 
     def load(self, model_dir: str, network_map: Dict[str, str] = None,
              version: int = -1):
+        """
+        Load the network from a network_grad.
+
+        Args:
+            self: (todo): write your description
+            model_dir: (str): write your description
+            network_map: (str): write your description
+            version: (str): write your description
+        """
         # DOC INHERITED
         TorchFramework.load(self, model_dir, network_map, version)
         with t.no_grad():

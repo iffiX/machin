@@ -13,6 +13,14 @@ import torch.nn as nn
 
 class QNet(nn.Module):
     def __init__(self, state_dim, action_num):
+        """
+        Initialize the internal state.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_num: (int): write your description
+        """
         super(QNet, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -20,12 +28,25 @@ class QNet(nn.Module):
         self.fc3 = nn.Linear(16, action_num)
 
     def forward(self, state):
+        """
+        R forward forward operation.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         return self.fc3(a)
 
 
 def main(rank):
+    """
+    Main function.
+
+    Args:
+        rank: (int): write your description
+    """
     env = gym.make("CartPole-v0")
     observe_dim = 4
     action_num = 2

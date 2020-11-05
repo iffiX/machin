@@ -17,6 +17,14 @@ from test.util_run_multi import gpu
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_num):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_num: (int): write your description
+        """
         super(Actor, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -24,6 +32,14 @@ class Actor(nn.Module):
         self.fc3 = nn.Linear(16, action_num)
 
     def forward(self, state, action=None):
+        """
+        Perform forward forward computation
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            action: (str): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
@@ -38,6 +54,13 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim):
+        """
+        Initialize the graph.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+        """
         super(Critic, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 32)
@@ -45,6 +68,13 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(32, 1)
 
     def forward(self, state):
+        """
+        Calculate forward.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         v = t.relu(self.fc1(state))
         v = t.relu(self.fc2(v))
         v = self.fc3(v)
@@ -55,6 +85,13 @@ class TestPPO(object):
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self, gpu):
+        """
+        Train a device configuration
+
+        Args:
+            self: (todo): write your description
+            gpu: (todo): write your description
+        """
         disable_view_window()
         c = Config()
         # Note: online policy algorithms such as PPO and A2C does not
@@ -74,6 +111,13 @@ class TestPPO(object):
 
     @pytest.fixture(scope="function")
     def ppo(self, train_config):
+        """
+        Perform a device.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_num)
                     .to(c.device), c.device, c.device)
@@ -88,6 +132,14 @@ class TestPPO(object):
 
     @pytest.fixture(scope="function")
     def ppo_vis(self, train_config, tmpdir):
+        """
+        Initialize the device.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            tmpdir: (todo): write your description
+        """
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
@@ -128,6 +180,14 @@ class TestPPO(object):
     # Test for PPO update
     ########################################################################
     def test_update(self, train_config, ppo_vis):
+        """
+        Updates the test update.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            ppo_vis: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1])
@@ -168,6 +228,15 @@ class TestPPO(object):
     ########################################################################
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
     def test_full_train(self, train_config, ppo, gae_lambda):
+        """
+        Perform a full training.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            ppo: (todo): write your description
+            gae_lambda: (todo): write your description
+        """
         c = train_config
         ppo.gae_lambda = gae_lambda
 

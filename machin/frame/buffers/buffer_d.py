@@ -9,6 +9,12 @@ import itertools as it
 
 
 def _round_up(num):
+    """
+    Round an integer to an integer.
+
+    Args:
+        num: (int): write your description
+    """
     return int(np.ceil(num))
 
 
@@ -61,6 +67,14 @@ class DistributedBuffer(Buffer):
     def append(self, transition: Union[Transition, Dict],
                required_attrs=("state", "action", "next_state",
                                "reward", "terminal")):
+        """
+        Append a transition.
+
+        Args:
+            self: (todo): write your description
+            transition: (todo): write your description
+            required_attrs: (todo): write your description
+        """
         # DOC INHERITED
         with self.wr_lock:
             super(DistributedBuffer, self).append(
@@ -117,6 +131,19 @@ class DistributedBuffer(Buffer):
                      sample_attrs: List[str] = None,
                      additional_concat_attrs: List[str] = None,
                      *_, **__) -> Any:
+        """
+        Returns a batch of data.
+
+        Args:
+            self: (todo): write your description
+            batch_size: (int): write your description
+            concatenate: (todo): write your description
+            sample_method: (str): write your description
+            sample_attrs: (int): write your description
+            additional_concat_attrs: (todo): write your description
+            _: (todo): write your description
+            __: (todo): write your description
+        """
         # DOC INHERITED
         p_num = self.group.size()
         local_batch_size = _round_up(batch_size / p_num)
@@ -146,12 +173,32 @@ class DistributedBuffer(Buffer):
                                       sample_attrs, additional_concat_attrs)
 
     def _size_service(self):  # pragma: no cover
+        """
+        Get the size of this service.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.size()
 
     def _clear_service(self):  # pragma: no cover
+        """
+        Clears the service.
+
+        Args:
+            self: (todo): write your description
+        """
         self.clear()
 
     def _sample_service(self, batch_size, sample_method):  # pragma: no cover
+        """
+        Sample a sample from the batch_size.
+
+        Args:
+            self: (todo): write your description
+            batch_size: (int): write your description
+            sample_method: (str): write your description
+        """
         if isinstance(sample_method, str):
             if not hasattr(self, "sample_method_" + sample_method):
                 raise RuntimeError("Cannot find specified sample method: {}"

@@ -47,6 +47,12 @@ def hard_update(target_net: nn.Module,
 
 
 def determine_device(model):
+    """
+    Determine which maps of a model.
+
+    Args:
+        model: (todo): write your description
+    """
     devices = set()
     for k, v in model.named_parameters():
         devices.add(str(v.device))
@@ -154,6 +160,12 @@ def safe_call(model, *named_args):
 
 
 def safe_return(result):
+    """
+    Return the result from result.
+
+    Args:
+        result: (todo): write your description
+    """
     if len(result) == 1:
         return result[0]
     else:
@@ -164,6 +176,12 @@ asserted_output_is_probs = False
 
 
 def assert_output_is_probs(tensor):
+    """
+    Assertion is equivalent of - 1.
+
+    Args:
+        tensor: (todo): write your description
+    """
     global asserted_output_is_probs
     if asserted_output_is_probs:
         return

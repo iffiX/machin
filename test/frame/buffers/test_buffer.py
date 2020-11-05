@@ -57,6 +57,16 @@ class TestBuffer(object):
     @pytest.mark.parametrize("trans_list,require_attr,"
                              "exception,match", param_test_append)
     def test_append(self, trans_list, require_attr, exception, match):
+        """
+        Append a list of the buffer to the buffer.
+
+        Args:
+            self: (todo): write your description
+            trans_list: (list): write your description
+            require_attr: (bool): write your description
+            exception: (todo): write your description
+            match: (todo): write your description
+        """
         buffer = Buffer(self.BUFFER_SIZE)
         if exception is not None:
             with pytest.raises(exception, match=match):
@@ -80,6 +90,13 @@ class TestBuffer(object):
 
     @pytest.mark.parametrize("trans_list", param_test_clear)
     def test_clear(self, trans_list):
+        """
+        Remove all the buffer.
+
+        Args:
+            self: (todo): write your description
+            trans_list: (list): write your description
+        """
         buffer = Buffer(self.BUFFER_SIZE)
         for trans in trans_list:
             buffer.append(trans)
@@ -90,6 +107,18 @@ class TestBuffer(object):
     # Test for Buffer.sample_batch
     ########################################################################
     def t_eq(self, a: t.Tensor, b: t.Tensor):
+        """
+        Return true if t_eq
+
+        Args:
+            self: (todo): write your description
+            a: (array): write your description
+            t: (array): write your description
+            Tensor: (todo): write your description
+            b: (array): write your description
+            t: (array): write your description
+            Tensor: (todo): write your description
+        """
         if a.shape != b.shape:
             return False
         b = b.to(a.device)
@@ -97,6 +126,13 @@ class TestBuffer(object):
 
     @pytest.fixture(scope="class")
     def const_buffer(self, pytestconfig):
+        """
+        Return a constant buffer of buffer buffer.
+
+        Args:
+            self: (todo): write your description
+            pytestconfig: (todo): write your description
+        """
         data = [{"state": {"state_1": t.zeros([1, 2])},
                  "action": {"action_1": t.zeros([1, 3])},
                  "next_state": {"next_state_1": t.zeros([1, 4])},
@@ -149,6 +185,20 @@ class TestBuffer(object):
     ])
     def test_sample(self, const_buffer, batch_size, concat, dev,
                     sample_method, sample_attrs, concat_attrs, should_be_attrs):
+        """
+        Perform sample sample.
+
+        Args:
+            self: (todo): write your description
+            const_buffer: (todo): write your description
+            batch_size: (int): write your description
+            concat: (str): write your description
+            dev: (array): write your description
+            sample_method: (str): write your description
+            sample_attrs: (int): write your description
+            concat_attrs: (todo): write your description
+            should_be_attrs: (bool): write your description
+        """
         sample_not_empty = (batch_size != 0 or sample_method == "all")
         will_concat_custom = (isinstance(concat_attrs, list) and
                               concat and sample_not_empty)
@@ -247,5 +297,12 @@ class TestBuffer(object):
     # Test for Buffer.__reduce__
     ########################################################################
     def test_reduce(self, const_buffer):
+        """
+        Reduce the given buffer.
+
+        Args:
+            self: (todo): write your description
+            const_buffer: (todo): write your description
+        """
         str = dill.dumps(const_buffer)
         buffer = dill.loads(str)

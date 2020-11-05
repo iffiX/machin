@@ -4,6 +4,12 @@ from multiagent.scenario import BaseScenario
 
 class Scenario(BaseScenario):
     def make_world(self):
+        """
+        Creates a world from world.
+
+        Args:
+            self: (todo): write your description
+        """
         world = World()
         # set any world properties first
         world.dim_c = 3
@@ -31,6 +37,13 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world(self, world):
+        """
+        Reset the world. world.
+
+        Args:
+            self: (todo): write your description
+            world: (todo): write your description
+        """
         # assign goals to agents
         for agent in world.agents:
             agent.goal_a = None
@@ -57,16 +70,40 @@ class Scenario(BaseScenario):
             landmark.state.p_vel = np.zeros(world.dim_p)
 
     def benchmark_data(self, agent, world):
+        """
+        Benchmark an agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (str): write your description
+            world: (str): write your description
+        """
         # returns data for benchmarking purposes
         return self.reward(agent, reward)
 
     def reward(self, agent, world):
+        """
+        Determine reward.
+
+        Args:
+            self: (todo): write your description
+            agent: (todo): write your description
+            world: (todo): write your description
+        """
         # squared distance from listener to landmark
         a = world.agents[0]
         dist2 = np.sum(np.square(a.goal_a.state.p_pos - a.goal_b.state.p_pos))
         return -dist2
 
     def observation(self, agent, world):
+        """
+        Returns the observation of the given agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (str): write your description
+            world: (str): write your description
+        """
         # goal color
         goal_color = np.zeros(world.dim_color)
         if agent.goal_b is not None:

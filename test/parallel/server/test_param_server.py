@@ -9,11 +9,24 @@ import torch.nn as nn
 
 
 def _log(rank, msg):
+    """
+    Log a message
+
+    Args:
+        rank: (int): write your description
+        msg: (str): write your description
+    """
     default_logger.info("Client {}: {}".format(rank, msg))
 
 
 class Model(nn.Module):
     def __init__(self):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+        """
         super(Model, self).__init__()
         self.fc1 = nn.Linear(1, 1, bias=False)
         self.fc2 = nn.Linear(1, 1, bias=False)
@@ -25,9 +38,22 @@ class Model(nn.Module):
             self.fc3.weight.fill_(3)
 
     def forward(self, x):
+        """
+        Forward forward forward forward.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         return self.fc3(self.fc2(self.fc1(x)))
 
     def __repr__(self):
+        """
+        Return a representation of this object.
+
+        Args:
+            self: (todo): write your description
+        """
         return "Model(param=({}, {}, {}), grad=({}, {}, {}))".format(
             self.fc1.weight.item(),
             self.fc2.weight.item(),
@@ -40,12 +66,31 @@ class Model(nn.Module):
 
 class Optimizer(object):
     def __init__(self, param):
+        """
+        Initialize the parameter object
+
+        Args:
+            self: (todo): write your description
+            param: (todo): write your description
+        """
         self.params = param
 
     def zero_grad(self):
+        """
+        Gradient of the number of gradients.
+
+        Args:
+            self: (todo): write your description
+        """
         pass
 
     def step(self):
+        """
+        Perform gradients.
+
+        Args:
+            self: (todo): write your description
+        """
         with t.no_grad():
             for p in self.params:
                 default_logger.critical(p.grad)
@@ -57,6 +102,12 @@ class TestPushPullModelServer(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_push_pull(rank):
+        """
+        Test to push a rank from a rank.
+
+        Args:
+            rank: (int): write your description
+        """
         world = get_world()
         if rank == 0:
             group = world.create_rpc_group("group", ["0", "1"])
@@ -102,6 +153,14 @@ class TestPushPullGradServer(WorldTestBase):
                pass_through=["reduce_method", "new_weight"])
     @WorldTestBase.setup_world
     def test_push_pull(rank, reduce_method, new_weight):
+        """
+        Perform a push of a model.
+
+        Args:
+            rank: (int): write your description
+            reduce_method: (str): write your description
+            new_weight: (array): write your description
+        """
         world = get_world()
         if rank == 0:
             # only one reduce slave, so result is controllable

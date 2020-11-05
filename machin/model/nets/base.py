@@ -12,6 +12,12 @@ class NeuralNetworkModule(nn.Module, ABC):
           other devices other than your parameter storage device in forward().
     """
     def __init__(self):
+        """
+        Initialize the module.
+
+        Args:
+            self: (todo): write your description
+        """
         super(NeuralNetworkModule, self).__init__()
         self.input_module = None
         self.output_module = None
@@ -46,6 +52,12 @@ class NeuralNetworkModule(nn.Module, ABC):
 
     @property
     def input_device(self):
+        """
+        Returns the input device.
+
+        Args:
+            self: (todo): write your description
+        """
         if self.input_module is None:
             raise RuntimeError("Input module not set.")
         else:
@@ -62,6 +74,12 @@ class NeuralNetworkModule(nn.Module, ABC):
 
     @property
     def output_device(self):
+        """
+        Returns the output device.
+
+        Args:
+            self: (todo): write your description
+        """
         if self.output_module is None and self.input_module is None:
             raise RuntimeError("Output module not set.")
         elif self.output_module is not None:
@@ -93,6 +111,13 @@ class NeuralNetworkModule(nn.Module, ABC):
             return seq
 
     def forward(self, *_):
+        """
+        Calls the given value.
+
+        Args:
+            self: (todo): write your description
+            _: (todo): write your description
+        """
         pass
 
 

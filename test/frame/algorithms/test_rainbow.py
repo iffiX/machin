@@ -17,6 +17,15 @@ from test.util_run_multi import gpu
 class QNet(nn.Module):
     # this test setup lacks the noisy linear layer and dueling structure.
     def __init__(self, state_dim, action_num, atom_num=10):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_num: (int): write your description
+            atom_num: (int): write your description
+        """
         super(QNet, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -26,6 +35,13 @@ class QNet(nn.Module):
         self.atom_num = atom_num
 
     def forward(self, state):
+        """
+        Perform forward algorithm.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         return t.softmax(self.fc3(a)
@@ -37,6 +53,13 @@ class TestRAINBOW(object):
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self, gpu):
+        """
+        Train a device config
+
+        Args:
+            self: (todo): write your description
+            gpu: (todo): write your description
+        """
         disable_view_window()
         c = Config()
         # Note: online policy algorithms such as PPO and A2C does not
@@ -65,6 +88,13 @@ class TestRAINBOW(object):
 
     @pytest.fixture(scope="function")
     def rainbow(self, train_config):
+        """
+        Perform a replay training.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         c = train_config
         q_net = smw(QNet(c.observe_dim, c.action_num)
                     .to(c.device), c.device, c.device)
@@ -81,6 +111,14 @@ class TestRAINBOW(object):
 
     @pytest.fixture(scope="function")
     def rainbow_vis(self, train_config, tmpdir):
+        """
+        Perform a turbulent training.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            tmpdir: (todo): write your description
+        """
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         q_net = smw(QNet(c.observe_dim, c.action_num)
@@ -102,6 +140,14 @@ class TestRAINBOW(object):
     # Test for RAINBOW acting
     ########################################################################
     def test_act(self, train_config, rainbow):
+        """
+        Test if a train of a train.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            rainbow: (todo): write your description
+        """
         c = train_config
         state = t.zeros([1, c.observe_dim])
         rainbow.act_discrete({"state": state})
@@ -118,6 +164,14 @@ class TestRAINBOW(object):
     # Test for RAINBOW storage
     ########################################################################
     def test_store_step(self, train_config, rainbow):
+        """
+        Perform one step.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            rainbow: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -131,6 +185,14 @@ class TestRAINBOW(object):
         })
 
     def test_store_episode(self, train_config, rainbow):
+        """
+        Store the state of the episode.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            rainbow: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -148,6 +210,14 @@ class TestRAINBOW(object):
     # Test for RAINBOW update
     ########################################################################
     def test_update(self, train_config, rainbow_vis):
+        """
+        Updates the test.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            rainbow_vis: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, 1], dtype=t.int)
@@ -188,6 +258,14 @@ class TestRAINBOW(object):
     # Test for RAINBOW full training.
     ########################################################################
     def test_full_train(self, train_config, rainbow):
+        """
+        Perform a full training.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            rainbow: (todo): write your description
+        """
         c = train_config
 
         # begin training

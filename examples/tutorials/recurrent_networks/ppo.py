@@ -22,12 +22,28 @@ disable_view_window()
 
 class Actor(nn.Module):
     def __init__(self, history_depth, action_num):
+        """
+        Initialize the wire.
+
+        Args:
+            self: (todo): write your description
+            history_depth: (int): write your description
+            action_num: (int): write your description
+        """
         super(Actor, self).__init__()
         self.fc1 = nn.Linear(128 * history_depth, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, action_num)
 
     def forward(self, mem, action=None):
+        """
+        Perform forward forward computation of the model.
+
+        Args:
+            self: (todo): write your description
+            mem: (todo): write your description
+            action: (str): write your description
+        """
         a = t.relu(self.fc1(mem.flatten(start_dim=1)))
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
@@ -42,6 +58,13 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, history_depth):
+        """
+        Initialize the transport.
+
+        Args:
+            self: (todo): write your description
+            history_depth: (int): write your description
+        """
         super(Critic, self).__init__()
 
         self.fc1 = nn.Linear(128 * history_depth, 256)
@@ -49,6 +72,13 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(256, 1)
 
     def forward(self, mem):
+        """
+        Compute forward computation
+
+        Args:
+            self: (todo): write your description
+            mem: (todo): write your description
+        """
         v = t.relu(self.fc1(mem.flatten(start_dim=1)))
         v = t.relu(self.fc2(v))
         v = self.fc3(v)

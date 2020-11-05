@@ -3,6 +3,11 @@ import time
 
 
 def test1():
+    """
+    Test the test1.
+
+    Args:
+    """
     time.sleep(1)
     print("Exception occurred at {}".format(time.time()))
     raise RuntimeError("Error")

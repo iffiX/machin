@@ -15,6 +15,12 @@ from ..utils.openai_gym import disable_view_window
 
 class GymTerminationError(Exception):
     def __init__(self):
+        """
+        Init gymTer
+
+        Args:
+            self: (todo): write your description
+        """
         super(GymTerminationError, self).__init__(
             "One or several environments have terminated, "
             "reset before continuing."
@@ -165,11 +171,23 @@ class ParallelWrapperDummy(ParallelWrapperBase):
 
     @property
     def action_space(self) -> Any:
+        """
+        The action space.
+
+        Args:
+            self: (todo): write your description
+        """
         # DOC INHERITED
         return self._envs[0].action_space
 
     @property
     def observation_space(self) -> Any:
+        """
+        Return the observation space.
+
+        Args:
+            self: (todo): write your description
+        """
         # DOC INHERITED
         return self._envs[0].observation_space
 
@@ -336,15 +354,34 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
 
     @property
     def action_space(self) -> Any:
+        """
+        The action space.
+
+        Args:
+            self: (todo): write your description
+        """
         # DOC INHERITED
         return self._action_space
 
     @property
     def observation_space(self) -> Any:
+        """
+        The observation space.
+
+        Args:
+            self: (todo): write your description
+        """
         # DOC INHERITED
         return self._obsrv_space
 
     def _select_envs(self, idx=None):
+        """
+        Return the indices of the environment.
+
+        Args:
+            self: (todo): write your description
+            idx: (int): write your description
+        """
         if idx is None:
             idx = list(range(self.env_size))
         else:
@@ -353,6 +390,14 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
         return idx
 
     def _call_gym_env_method(self, env_idxs, method, args=None, kwargs=None):
+        """
+        Invoke the smm method.
+
+        Args:
+            self: (todo): write your description
+            env_idxs: (str): write your description
+            method: (str): write your description
+        """
         if args is None:
             args = [() for _ in range(len(env_idxs))]
         if kwargs is None:
@@ -388,6 +433,15 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
     def _worker(cmd_queue: SimpleQueue,
                 result_queue: SimpleQueue,
                 env_creator, env_idx):
+        """
+        Run a command.
+
+        Args:
+            cmd_queue: (todo): write your description
+            result_queue: (todo): write your description
+            env_creator: (todo): write your description
+            env_idx: (str): write your description
+        """
         env = None
         try:
             env = loads(env_creator)(env_idx)

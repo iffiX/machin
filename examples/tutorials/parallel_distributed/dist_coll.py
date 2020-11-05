@@ -4,6 +4,12 @@ import torch as t
 
 
 def main(rank):
+    """
+    Main function.
+
+    Args:
+        rank: (int): write your description
+    """
     world = World(world_size=3, rank=rank,
                   name=str(rank), rpc_timeout=20)
     # all sub processes must enter this function, including non-group members

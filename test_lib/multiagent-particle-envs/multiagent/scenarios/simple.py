@@ -4,6 +4,12 @@ from multiagent.scenario import BaseScenario
 
 class Scenario(BaseScenario):
     def make_world(self):
+        """
+        Creates a world with world.
+
+        Args:
+            self: (todo): write your description
+        """
         world = World()
         # add agents
         world.agents = [Agent() for i in range(1)]
@@ -22,6 +28,13 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world(self, world):
+        """
+        Resets the world of the world.
+
+        Args:
+            self: (todo): write your description
+            world: (todo): write your description
+        """
         # random properties for agents
         for i, agent in enumerate(world.agents):
             agent.color = np.array([0.25,0.25,0.25])
@@ -39,10 +52,26 @@ class Scenario(BaseScenario):
             landmark.state.p_vel = np.zeros(world.dim_p)
 
     def reward(self, agent, world):
+        """
+        Calculate the agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (todo): write your description
+            world: (todo): write your description
+        """
         dist2 = np.sum(np.square(agent.state.p_pos - world.landmarks[0].state.p_pos))
         return -dist2
 
     def observation(self, agent, world):
+        """
+        Calculate the observation at the given position.
+
+        Args:
+            self: (todo): write your description
+            agent: (str): write your description
+            world: (str): write your description
+        """
         # get positions of all entities in this agent's reference frame
         entity_pos = []
         for entity in world.landmarks:

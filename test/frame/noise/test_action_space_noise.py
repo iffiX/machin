@@ -24,6 +24,17 @@ class TestAllActionSpaceNoise(object):
                              param_add_normal_noise_to_action)
     def test_add_normal_noise_to_action(self, action, noise_param,
                                         exception, match, pytestconfig):
+        """
+        Add an action to an action.
+
+        Args:
+            self: (todo): write your description
+            action: (str): write your description
+            noise_param: (float): write your description
+            exception: (todo): write your description
+            match: (todo): write your description
+            pytestconfig: (todo): write your description
+        """
         if exception is not None:
             with pytest.raises(exception, match=match):
                 add_normal_noise_to_action(action, noise_param)
@@ -48,6 +59,17 @@ class TestAllActionSpaceNoise(object):
                              param_add_clipped_normal_noise_to_action)
     def test_add_clipped_normal_noise_to_action(self, action, noise_param,
                                                 exception, match, pytestconfig):
+        """
+        Add an action to an clipped action.
+
+        Args:
+            self: (todo): write your description
+            action: (str): write your description
+            noise_param: (todo): write your description
+            exception: (todo): write your description
+            match: (todo): write your description
+            pytestconfig: (todo): write your description
+        """
         if exception is not None:
             with pytest.raises(exception, match=match):
                 add_clipped_normal_noise_to_action(action, noise_param)
@@ -71,6 +93,17 @@ class TestAllActionSpaceNoise(object):
                              param_add_uniform_noise_to_action)
     def test_add_uniform_noise_to_action(self, action, noise_param,
                                          exception, match, pytestconfig):
+        """
+        Add an action to an action.
+
+        Args:
+            self: (todo): write your description
+            action: (str): write your description
+            noise_param: (float): write your description
+            exception: (todo): write your description
+            match: (todo): write your description
+            pytestconfig: (todo): write your description
+        """
         if exception is not None:
             with pytest.raises(exception, match=match):
                 add_uniform_noise_to_action(action, noise_param)
@@ -92,6 +125,16 @@ class TestAllActionSpaceNoise(object):
                              param_add_ou_noise_to_action)
     def test_add_ou_noise_to_action(self, action, noise_param,
                                     reset, pytestconfig):
+        """
+        Add noise to the i / oise_noise. e.
+
+        Args:
+            self: (todo): write your description
+            action: (str): write your description
+            noise_param: (float): write your description
+            reset: (todo): write your description
+            pytestconfig: (todo): write your description
+        """
         add_ou_noise_to_action(action, noise_param, reset=reset)
         add_ou_noise_to_action(
             action.to(pytestconfig.getoption("gpu_device")),

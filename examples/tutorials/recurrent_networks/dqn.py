@@ -23,12 +23,27 @@ disable_view_window()
 # for atari games
 class QNet(nn.Module):
     def __init__(self, history_depth, action_num):
+        """
+        Initialize the transport.
+
+        Args:
+            self: (todo): write your description
+            history_depth: (int): write your description
+            action_num: (int): write your description
+        """
         super(QNet, self).__init__()
         self.fc1 = nn.Linear(128 * history_depth, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, action_num)
 
     def forward(self, mem):
+        """
+        Forward computation of the layer.
+
+        Args:
+            self: (todo): write your description
+            mem: (todo): write your description
+        """
         return self.fc3(t.relu(
             self.fc2(t.relu(
                 self.fc1(mem.flatten(start_dim=1))

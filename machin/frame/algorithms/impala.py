@@ -61,6 +61,14 @@ class EpisodeDistributedBuffer(DistributedBuffer):
     def append(self, transition: Dict,
                required_attrs=("state", "action", "next_state",
                                "reward", "terminal", "action_log_prob")):
+        """
+        Append a transition.
+
+        Args:
+            self: (todo): write your description
+            transition: (todo): write your description
+            required_attrs: (todo): write your description
+        """
         transition = EpisodeTransition(**transition)
         super(EpisodeDistributedBuffer, self)\
             .append(transition, required_attrs=required_attrs)
@@ -166,9 +174,22 @@ class IMPALA(TorchFramework):
         super(IMPALA, self).__init__()
 
     def set_sync(self, is_syncing):
+        """
+        Sets the syncing.
+
+        Args:
+            self: (todo): write your description
+            is_syncing: (todo): write your description
+        """
         self.is_syncing = is_syncing
 
     def manual_sync(self):
+        """
+        Manages up the actor.
+
+        Args:
+            self: (todo): write your description
+        """
         self.actor_model_server.pull(self.actor)
 
     def act(self, state: Dict[str, Any], *_, **__):

@@ -68,6 +68,14 @@ class ModelSizeEstimator:
 
     @staticmethod
     def _get_dtype_in_bytes(dtype: t.dtype):
+        """
+        Get dtype from dtype dtype.
+
+        Args:
+            dtype: (str): write your description
+            t: (todo): write your description
+            dtype: (str): write your description
+        """
         if dtype in (t.int8, t.uint8, t.bool):
             return 1
         elif dtype in (t.int16, t.float16, t.short, t.half):

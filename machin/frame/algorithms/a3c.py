@@ -95,13 +95,34 @@ class A3C(A2C):
         self.is_syncing = True
 
     def set_sync(self, is_syncing):
+        """
+        Sets the syncing.
+
+        Args:
+            self: (todo): write your description
+            is_syncing: (todo): write your description
+        """
         self.is_syncing = is_syncing
 
     def manual_sync(self):
+        """
+        Syncs the internal use of this query.
+
+        Args:
+            self: (todo): write your description
+        """
         self.actor_grad_server.pull(self.actor)
         self.critic_grad_server.pull(self.critic)
 
     def act(self, state: Dict[str, Any], **__):
+        """
+        Perform an actor.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            __: (array): write your description
+        """
         # DOC INHERITED
         if self.is_syncing:
             self.actor_grad_server.pull(self.actor)
@@ -111,12 +132,30 @@ class A3C(A2C):
                   state: Dict[str, Any],
                   action: Dict[str, Any],
                   **__):
+        """
+        Evaluate an actor.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            action: (str): write your description
+            __: (array): write your description
+        """
         # DOC INHERITED
         if self.is_syncing:
             self.actor_grad_server.pull(self.actor)
         return super(A3C, self)._eval_act(state, action)
 
     def _criticize(self, state: Dict[str, Any], *_, **__):
+        """
+        Perform a gradient search on the given state.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            _: (todo): write your description
+            __: (todo): write your description
+        """
         # DOC INHERITED
         if self.is_syncing:
             self.critic_grad_server.pull(self.critic)
@@ -127,6 +166,16 @@ class A3C(A2C):
                update_policy=True,
                concatenate_samples=True,
                **__):
+        """
+        Update the bayesian group update.
+
+        Args:
+            self: (todo): write your description
+            update_value: (bool): write your description
+            update_policy: (bool): write your description
+            concatenate_samples: (str): write your description
+            __: (array): write your description
+        """
         # DOC INHERITED
         org_sync = self.is_syncing
         self.is_syncing = False

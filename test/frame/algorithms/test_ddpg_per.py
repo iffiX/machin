@@ -16,6 +16,15 @@ from test.util_run_multi import gpu
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+            action_range: (str): write your description
+        """
         super(Actor, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -24,6 +33,13 @@ class Actor(nn.Module):
         self.action_range = action_range
 
     def forward(self, state):
+        """
+        Perform forward.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         a = t.tanh(self.fc3(a)) * self.action_range
@@ -32,6 +48,14 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
+        """
+        Initialize the internal state.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+        """
         super(Critic, self).__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
@@ -39,6 +63,14 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(16, 1)
 
     def forward(self, state, action):
+        """
+        Perform forward forward computation.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            action: (str): write your description
+        """
         state_action = t.cat([state, action], 1)
         q = t.relu(self.fc1(state_action))
         q = t.relu(self.fc2(q))
@@ -50,6 +82,13 @@ class TestDDPGPer(object):
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self, gpu):
+        """
+        Create a device device.
+
+        Args:
+            self: (todo): write your description
+            gpu: (todo): write your description
+        """
         disable_view_window()
         c = Config()
         c.env_name = "Pendulum-v0"
@@ -70,6 +109,13 @@ class TestDDPGPer(object):
 
     @pytest.fixture(scope="function")
     def ddpg_per(self, train_config):
+        """
+        Compute a random actor.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
                     .to(c.device), c.device, c.device)
@@ -88,6 +134,14 @@ class TestDDPGPer(object):
 
     @pytest.fixture(scope="function")
     def ddpg_per_vis(self, train_config, tmpdir):
+        """
+        Determine the convex.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            tmpdir: (todo): write your description
+        """
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
@@ -112,6 +166,13 @@ class TestDDPGPer(object):
     # Test for DDPGPer criterion (mainly code coverage)
     ########################################################################
     def test_criterion(self, train_config):
+        """
+        Test for the given dataset.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+        """
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
                     .to(c.device), c.device, c.device)
@@ -125,6 +186,13 @@ class TestDDPGPer(object):
                            match="Criterion does not have the "
                                  "'reduction' property"):
             def criterion(a, b):
+                """
+                Compute the first : b.
+
+                Args:
+                    a: (todo): write your description
+                    b: (todo): write your description
+                """
                 return a - b
 
             _ = DDPGPer(actor, actor_t, critic, critic_t,
@@ -157,6 +225,14 @@ class TestDDPGPer(object):
     # Test for DDPGPer update
     ########################################################################
     def test_update(self, train_config, ddpg_per_vis):
+        """
+        Update the current state of the sampler.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            ddpg_per_vis: (todo): write your description
+        """
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim])
         action = t.zeros([1, c.action_dim])
@@ -186,6 +262,14 @@ class TestDDPGPer(object):
     # Test for DDPGPer full training.
     ########################################################################
     def test_full_train(self, train_config, ddpg_per):
+        """
+        Perform a full training.
+
+        Args:
+            self: (todo): write your description
+            train_config: (todo): write your description
+            ddpg_per: (todo): write your description
+        """
         c = train_config
 
         # begin training

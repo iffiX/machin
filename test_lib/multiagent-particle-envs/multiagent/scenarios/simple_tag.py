@@ -5,6 +5,12 @@ from multiagent.scenario import BaseScenario
 
 class Scenario(BaseScenario):
     def make_world(self):
+        """
+        Creates a world.
+
+        Args:
+            self: (todo): write your description
+        """
         world = World()
         # set any world properties first
         world.dim_c = 2
@@ -37,6 +43,13 @@ class Scenario(BaseScenario):
 
 
     def reset_world(self, world):
+        """
+        Resets the world of the world.
+
+        Args:
+            self: (todo): write your description
+            world: (todo): write your description
+        """
         # random properties for agents
         for i, agent in enumerate(world.agents):
             agent.color = np.array([0.35, 0.85, 0.35]) if not agent.adversary else np.array([0.85, 0.35, 0.35])
@@ -55,6 +68,14 @@ class Scenario(BaseScenario):
 
 
     def benchmark_data(self, agent, world):
+        """
+        Benchmark data for the given agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (str): write your description
+            world: (str): write your description
+        """
         # returns data for benchmarking purposes
         if agent.adversary:
             collisions = 0
@@ -67,6 +88,14 @@ class Scenario(BaseScenario):
 
 
     def is_collision(self, agent1, agent2):
+        """
+        Checks if two agent1 and agent
+
+        Args:
+            self: (todo): write your description
+            agent1: (todo): write your description
+            agent2: (todo): write your description
+        """
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
         dist = np.sqrt(np.sum(np.square(delta_pos)))
         dist_min = agent1.size + agent2.size
@@ -74,19 +103,49 @@ class Scenario(BaseScenario):
 
     # return all agents that are not adversaries
     def good_agents(self, world):
+        """
+        Return the agents for a given world.
+
+        Args:
+            self: (todo): write your description
+            world: (todo): write your description
+        """
         return [agent for agent in world.agents if not agent.adversary]
 
     # return all adversarial agents
     def adversaries(self, world):
+        """
+        Returns a list of all matching agents.
+
+        Args:
+            self: (todo): write your description
+            world: (todo): write your description
+        """
         return [agent for agent in world.agents if agent.adversary]
 
 
     def reward(self, agent, world):
+        """
+        Evaluate the reward of an agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (todo): write your description
+            world: (todo): write your description
+        """
         # Agents are rewarded based on minimum agent distance to each landmark
         main_reward = self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
         return main_reward
 
     def agent_reward(self, agent, world):
+        """
+        Determine agent of an agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (todo): write your description
+            world: (todo): write your description
+        """
         # Agents are negatively rewarded if caught by adversaries
         rew = 0
         shape = False
@@ -101,6 +160,12 @@ class Scenario(BaseScenario):
 
         # agents are penalized for exiting the screen, so that they can be caught by the adversaries
         def bound(x):
+            """
+            Return the minimum value of x.
+
+            Args:
+                x: (float): write your description
+            """
             if x < 0.9:
                 return 0
             if x < 1.0:
@@ -113,6 +178,14 @@ class Scenario(BaseScenario):
         return rew
 
     def adversary_reward(self, agent, world):
+        """
+        Calculate neighbors for each agent.
+
+        Args:
+            self: (todo): write your description
+            agent: (todo): write your description
+            world: (todo): write your description
+        """
         # Adversaries are rewarded for collisions with agents
         rew = 0
         shape = False
@@ -129,6 +202,14 @@ class Scenario(BaseScenario):
         return rew
 
     def observation(self, agent, world):
+        """
+        Compute observation position.
+
+        Args:
+            self: (todo): write your description
+            agent: (str): write your description
+            world: (str): write your description
+        """
         # get positions of all entities in this agent's reference frame
         entity_pos = []
         for entity in world.landmarks:

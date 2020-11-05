@@ -31,10 +31,24 @@ def conv5x5(in_planes, out_planes, stride=2):
 
 
 def none_norm(*_, **__):
+    """
+    Return the norm of a vector.
+
+    Args:
+        _: (todo): write your description
+        __: (todo): write your description
+    """
     return nn.Sequential()
 
 
 def cfg(depth, norm="none"):
+    """
+    Convert the depth of the corresponding depth.
+
+    Args:
+        depth: (int): write your description
+        norm: (todo): write your description
+    """
     depth_lst = [18, 34, 50, 101, 152]
     if depth not in depth_lst:
         raise ValueError("Error : Resnet depth should be either "
@@ -104,6 +118,13 @@ class BasicBlock(NeuralNetworkModule):
             )
 
     def forward(self, x):
+        """
+        Forward computation of forward.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         out = t.relu(self.bn1(self.conv1(x)))
         out = self.bn2(self.conv2(out))
         out += self.shortcut(x)
@@ -145,6 +166,13 @@ class Bottleneck(NeuralNetworkModule):
             )
 
     def forward(self, x):
+        """
+        Implement forward computation.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         out = t.relu(self.bn1(self.conv1(x)))
         out = t.relu(self.bn2(self.conv2(out)))
         out = self.bn3(self.conv3(out))
@@ -188,6 +216,13 @@ class BasicBlockWN(NeuralNetworkModule):
             )
 
     def forward(self, x):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         out = t.relu(self.conv1(x))
         out = self.conv2(out)
         out += self.shortcut(x)
@@ -232,6 +267,13 @@ class BottleneckWN(NeuralNetworkModule):
             )
 
     def forward(self, x):
+        """
+        Perform computation.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         out = t.relu(self.conv1(x))
         out = t.relu(self.conv2(out))
         out = self.conv3(out)
@@ -298,6 +340,16 @@ class ResNet(NeuralNetworkModule):
         self.set_input_module(self.conv1)
 
     def _make_layer(self, block, planes, num_blocks, stride, kwargs):
+        """
+        Make a layer.
+
+        Args:
+            self: (todo): write your description
+            block: (todo): write your description
+            planes: (todo): write your description
+            num_blocks: (int): write your description
+            stride: (int): write your description
+        """
         strides = [stride] + [1] * (num_blocks - 1)
         layers = []
 
@@ -308,6 +360,13 @@ class ResNet(NeuralNetworkModule):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        """
+        Forward computation
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         assert x.shape[2] == 224 and x.shape[3] == 224
         x = self.base(x)
         kernel_size = (np.int(np.floor(x.size(2) / self.out_pool_size[0])),

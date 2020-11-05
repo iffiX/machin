@@ -56,39 +56,81 @@ class SaveEnv:
         ) for d in dirs])
 
     def get_trial_root(self):
+        """
+        Returns root root trial.
+
+        Args:
+            self: (todo): write your description
+        """
         # pylint: disable=missing-docstring
         return join(self.env_root,
                     self.env_create_time.strftime(self.time_format))
 
     def get_trial_config_dir(self):
+        """
+        Returns the trial config directory.
+
+        Args:
+            self: (todo): write your description
+        """
         # pylint: disable=missing-docstring
         return join(self.env_root,
                     self.env_create_time.strftime(self.time_format),
                     "config")
 
     def get_trial_model_dir(self):
+        """
+        Returns the trial directory.
+
+        Args:
+            self: (todo): write your description
+        """
         # pylint: disable=missing-docstring
         return join(self.env_root,
                     self.env_create_time.strftime(self.time_format),
                     "model")
 
     def get_trial_image_dir(self):
+        """
+        Returns the trial directory.
+
+        Args:
+            self: (todo): write your description
+        """
         # pylint: disable=missing-docstring
         return join(self.env_root,
                     self.env_create_time.strftime(self.time_format),
                     "log", "images")
 
     def get_trial_train_log_dir(self):
+        """
+        Get log directory.
+
+        Args:
+            self: (todo): write your description
+        """
         # pylint: disable=missing-docstring
         return join(self.env_root,
                     self.env_create_time.strftime(self.time_format),
                     "log", "train_log")
 
     def get_trial_time(self):
+        """
+        Get the last trial time.
+
+        Args:
+            self: (todo): write your description
+        """
         # pylint: disable=missing-docstring
         return self.env_create_time
 
     def clear_trial_config_dir(self):
+        """
+        Clear trial config directory.
+
+        Args:
+            self: (todo): write your description
+        """
         # pylint: disable=missing-docstring
         prep_clear_dirs([
             join(self.env_root,
@@ -97,6 +139,12 @@ class SaveEnv:
         ])
 
     def clear_trial_model_dir(self):
+        """
+        Clear trial directory.
+
+        Args:
+            self: (todo): write your description
+        """
         # pylint: disable=missing-docstring
         prep_clear_dirs([
             join(self.env_root,
@@ -105,6 +153,12 @@ class SaveEnv:
         ])
 
     def clear_trial_image_dir(self):
+        """
+        Clear trial directory.
+
+        Args:
+            self: (todo): write your description
+        """
         # pylint: disable=missing-docstring
         prep_clear_dirs([
             join(self.env_root,
@@ -113,6 +167,12 @@ class SaveEnv:
         ])
 
     def clear_trial_train_log_dir(self):
+        """
+        Clear all trial log directory.
+
+        Args:
+            self: (todo): write your description
+        """
         # pylint: disable=missing-docstring
         prep_clear_dirs([
             join(self.env_root,
@@ -154,6 +214,12 @@ class SaveEnv:
                     shutil.rmtree(rm_path)
 
     def _prep_dirs(self):
+        """
+        Prepare the directories.
+
+        Args:
+            self: (todo): write your description
+        """
         root_dir = join(self.env_root,
                         self.env_create_time.strftime(self.time_format))
         prep_create_dirs((join(root_dir, "model"),

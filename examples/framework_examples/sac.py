@@ -20,12 +20,27 @@ solved_repeat = 5
 
 
 def atanh(x):
+    """
+    Eval function that calculates )
+
+    Args:
+        x: (todo): write your description
+    """
     return 0.5 * t.log((1 + x) / (1 - x))
 
 
 # model definition
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+            action_range: (str): write your description
+        """
         super(Actor, self).__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -35,6 +50,14 @@ class Actor(nn.Module):
         self.action_range = action_range
 
     def forward(self, state, action=None):
+        """
+        Perform forward forward forward.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            action: (str): write your description
+        """
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         mu = self.mu_head(a)
@@ -78,6 +101,14 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
+        """
+        Initialize the internal state.
+
+        Args:
+            self: (todo): write your description
+            state_dim: (int): write your description
+            action_dim: (str): write your description
+        """
         super(Critic, self).__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
@@ -85,6 +116,14 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(16, 1)
 
     def forward(self, state, action):
+        """
+        Perform forward forward computation.
+
+        Args:
+            self: (todo): write your description
+            state: (todo): write your description
+            action: (str): write your description
+        """
         state_action = t.cat([state, action], 1)
         q = t.relu(self.fc1(state_action))
         q = t.relu(self.fc2(q))
