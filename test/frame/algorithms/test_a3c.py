@@ -13,6 +13,7 @@ import gym
 
 from .utils import unwrap_time_limit, Smooth
 from test.util_run_multi import *
+from test.util_fixtures import *
 
 
 class Actor(nn.Module):
@@ -65,16 +66,16 @@ class TestA3C(object):
     c.max_episodes = 3000
     c.max_steps = 200
     c.replay_size = 10000
-    c.solved_reward = 190
+    c.solved_reward = 150
     c.solved_repeat = 5
 
     @staticmethod
-    def a3c():
+    def a3c(device, dtype):
         c = TestA3C.c
         actor = smw(Actor(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         # in all test scenarios, all processes will be used as reducers
         servers = grad_server_helper(
             [lambda: Actor(c.observe_dim, c.action_num),
@@ -93,14 +94,13 @@ class TestA3C(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_act(_, gpu):
+    def test_act(_, device, dtype):
         c = TestA3C.c
-        c.device = gpu
-        a3c = TestA3C.a3c()
-        state = t.zeros([1, c.observe_dim])
+        a3c = TestA3C.a3c(device, dtype)
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         a3c.act({"state": state})
         return True
 
@@ -109,14 +109,13 @@ class TestA3C(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_eval_action(_, gpu):
+    def test_eval_action(_, device, dtype):
         c = TestA3C.c
-        c.device = gpu
-        a3c = TestA3C.a3c()
-        state = t.zeros([1, c.observe_dim])
+        a3c = TestA3C.a3c(device, dtype)
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         a3c._eval_act({"state": state}, {"action": action})
         return True
@@ -126,14 +125,13 @@ class TestA3C(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test__criticize(_, gpu):
+    def test__criticize(_, device, dtype):
         c = TestA3C.c
-        c.device = gpu
-        a3c = TestA3C.a3c()
-        state = t.zeros([1, c.observe_dim])
+        a3c = TestA3C.a3c(device, dtype)
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         a3c._criticize({"state": state})
         return True
 
@@ -147,14 +145,14 @@ class TestA3C(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_update(rank, gpu):
+    def test_update(rank, device, dtype):
         c = TestA3C.c
         c.device = gpu
-        a3c = TestA3C.a3c()
-        old_state = state = t.zeros([1, c.observe_dim])
+        a3c = TestA3C.a3c(device, dtype)
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
 
         begin = time()
@@ -192,13 +190,12 @@ class TestA3C(object):
     @staticmethod
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gae_lambda", "gpu"],
+               pass_through=["gae_lambda"],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank, gae_lambda, gpu):
+    def test_full_train(rank, gae_lambda):
         c = TestA3C.c
-        c.device = gpu
-        a3c = TestA3C.a3c()
+        a3c = TestA3C.a3c("cpu", t.float32)
         a3c.set_sync(False)
 
         # begin training
@@ -215,7 +212,7 @@ class TestA3C(object):
 
             # batch size = 1
             total_reward = 0
-            state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+            state = t.tensor(env.reset(), dtype=t.float32)
 
             a3c.manual_sync()
             tmp_observations = []
@@ -226,8 +223,7 @@ class TestA3C(object):
                     # agent model inference
                     action = a3c.act({"state": old_state.unsqueeze(0)})[0]
                     state, reward, terminal, _ = env.step(action.item())
-                    state = t.tensor(state, dtype=t.float32, device=c.device) \
-                        .flatten()
+                    state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
                     tmp_observations.append({

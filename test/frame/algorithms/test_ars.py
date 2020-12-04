@@ -14,6 +14,7 @@ import gym
 
 from .utils import unwrap_time_limit, Smooth
 from test.util_run_multi import *
+from test.util_fixtures import *
 
 
 class TestRunningStat(object):
@@ -78,7 +79,7 @@ class TestARS(object):
     # within 200 episodes, using single layer Actor
     # within 400 episodes, using double layer Actor
 
-    # However, ARS fail to deal with pendulum v0:
+    # However, ARS fails to deal with pendulum v0:
     # Actor((st, 16)->(16, a)), noise_std=0.01, lr=0.05, rollout=9, optim=Adam)
     # reaches mean score = -700 at 10000 episodes
     # Actor((st, a)), noise_std=0.01, lr=0.05, rollout=9, optim=Adam)
@@ -92,14 +93,14 @@ class TestARS(object):
     c.action_num = 2
     c.max_episodes = 1000
     c.max_steps = 200
-    c.solved_reward = 190
+    c.solved_reward = 150
     c.solved_repeat = 5
 
     @staticmethod
-    def ars():
+    def ars(device, dtype):
         c = TestARS.c
         actor = smw(ActorDiscrete(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         servers = model_server_helper(model_num=1)
         world = get_world()
         ars_group = world.create_rpc_group("ars", ["0", "1", "2"])
@@ -113,10 +114,10 @@ class TestARS(object):
         return ars
 
     @staticmethod
-    def ars_lr():
+    def ars_lr(device, dtype):
         c = TestARS.c
         actor = smw(ActorDiscrete(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
                                          logger=default_logger)
         servers = model_server_helper(model_num=1)
@@ -133,14 +134,13 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_act(_, gpu):
+    def test_act(_, device, dtype):
         c = TestARS.c
-        c.device = gpu
-        ars = TestARS.ars()
-        state = t.zeros([1, c.observe_dim])
+        ars = TestARS.ars(device, dtype)
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         ars.act({"state": state}, "original")
         ars.act({"state": state}, ars.get_actor_types()[0])
         with pytest.raises(ValueError):
@@ -152,13 +152,11 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_store_reward(_, gpu):
-        c = TestARS.c
-        c.device = gpu
-        ars = TestARS.ars()
+    def test_store_reward(_, device, dtype):
+        ars = TestARS.ars(device, dtype)
         ars.store_reward(0.0, ars.get_actor_types()[0])
         with pytest.raises(ValueError):
             ars.store_reward(1.0, "some_invalid_actor_type")
@@ -169,16 +167,17 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_update(_, gpu):
+    def test_update(_, device, dtype):
         c = TestARS.c
-        c.device = gpu
-        ars = TestARS.ars()
+        ars = TestARS.ars(device, dtype)
         for at in ars.get_actor_types():
             # get action will cause filters to initialize
-            _action = ars.act({"state": t.zeros([1, c.observe_dim])}, at)
+            _action = ars.act({
+                "state": t.zeros([1, c.observe_dim], dtype=dtype)
+            }, at)
             if at.startswith("neg"):
                 ars.store_reward(1.0, at)
             else:
@@ -196,13 +195,11 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_lr_scheduler(_, gpu):
-        c = TestARS.c
-        c.device = gpu
-        ars = TestARS.ars_lr()
+    def test_lr_scheduler(_, device, dtype):
+        ars = TestARS.ars_lr(device, dtype)
         ars.update_lr_scheduler()
         return True
 
@@ -211,13 +208,11 @@ class TestARS(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank, gpu):
+    def test_full_train(rank):
         c = TestARS.c
-        c.device = gpu
-        ars = TestARS.ars()
+        ars = TestARS.ars("cpu", t.float32)
 
         # begin training
         episode, step = Counter(), Counter()
@@ -236,15 +231,14 @@ class TestARS(object):
                 total_reward = 0
 
                 # batch size = 1
-                state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+                state = t.tensor(env.reset(), dtype=t.float32)
                 while not terminal and step <= c.max_steps:
                     step.count()
                     with t.no_grad():
                         # agent model inference
                         action = ars.act({"state": state.unsqueeze(0)}, at)
                         state, reward, terminal, __ = env.step(action)
-                        state = t.tensor(state, dtype=t.float32,
-                                         device=c.device)
+                        state = t.tensor(state, dtype=t.float32)
                         total_reward += float(reward)
                 step.reset()
                 terminal = False

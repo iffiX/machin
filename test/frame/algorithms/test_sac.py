@@ -15,7 +15,7 @@ import torch.nn as nn
 import gym
 
 from .utils import unwrap_time_limit, Smooth
-from test.util_run_multi import gpu
+from test.util_fixtures import *
 
 
 def atanh(x):
@@ -93,7 +93,7 @@ class Critic(nn.Module):
 class TestSAC(object):
     # configs and definitions
     @pytest.fixture(scope="class")
-    def train_config(self, gpu):
+    def train_config(self):
         disable_view_window()
         c = Config()
         c.env_name = "Pendulum-v0"
@@ -104,24 +104,23 @@ class TestSAC(object):
         c.max_episodes = 1000
         c.max_steps = 200
         c.replay_size = 100000
-        c.solved_reward = -300
+        c.solved_reward = -400
         c.solved_repeat = 5
-        c.device = gpu
         return c
 
     @pytest.fixture(scope="function")
-    def sac(self, train_config):
+    def sac(self, train_config, device, dtype):
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
+                       .type(dtype).to(device), device, device)
         critic2 = smw(Critic(c.observe_dim, c.action_dim)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         critic2_t = smw(Critic(c.observe_dim, c.action_dim)
-                        .to(c.device), c.device, c.device)
+                        .type(dtype).to(device), device, device)
         sac = SAC(actor, critic, critic_t, critic2, critic2_t,
                   t.optim.Adam,
                   nn.MSELoss(reduction='sum'),
@@ -130,20 +129,20 @@ class TestSAC(object):
         return sac
 
     @pytest.fixture(scope="function")
-    def sac_vis(self, train_config, tmpdir):
+    def sac_vis(self, train_config, device, dtype, tmpdir):
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
+                       .type(dtype).to(device), device, device)
         critic2 = smw(Critic(c.observe_dim, c.action_dim)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         critic2_t = smw(Critic(c.observe_dim, c.action_dim)
-                        .to(c.device), c.device, c.device)
+                        .type(dtype).to(device), device, device)
         sac = SAC(actor, critic, critic_t, critic2, critic2_t,
                   t.optim.Adam,
                   nn.MSELoss(reduction='sum'),
@@ -154,19 +153,19 @@ class TestSAC(object):
         return sac
 
     @pytest.fixture(scope="function")
-    def sac_lr(self, train_config):
+    def sac_lr(self, train_config, device, dtype):
         # not used for training, only used for testing apis
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
+                       .type(dtype).to(device), device, device)
         critic2 = smw(Critic(c.observe_dim, c.action_dim)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         critic2_t = smw(Critic(c.observe_dim, c.action_dim)
-                        .to(c.device), c.device, c.device)
+                        .type(dtype).to(device), device, device)
         lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
                                          logger=logger)
         with pytest.raises(TypeError, match="missing .+ positional argument"):
@@ -185,21 +184,41 @@ class TestSAC(object):
                   lr_scheduler_args=((lr_func,), (lr_func,), (lr_func,)))
         return sac
 
+    @pytest.fixture(scope="function")
+    def sac_train(self, train_config):
+        c = train_config
+        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range),
+                    "cpu", "cpu")
+        critic = smw(Critic(c.observe_dim, c.action_dim),
+                     "cpu", "cpu")
+        critic_t = smw(Critic(c.observe_dim, c.action_dim),
+                       "cpu", "cpu")
+        critic2 = smw(Critic(c.observe_dim, c.action_dim),
+                      "cpu", "cpu")
+        critic2_t = smw(Critic(c.observe_dim, c.action_dim),
+                        "cpu", "cpu")
+        sac = SAC(actor, critic, critic_t, critic2, critic2_t,
+                  t.optim.Adam,
+                  nn.MSELoss(reduction='sum'),
+                  replay_device="cpu",
+                  replay_size=c.replay_size)
+        return sac
+
     ########################################################################
     # Test for SAC acting
     ########################################################################
-    def test_act(self, train_config, sac):
+    def test_act(self, train_config, sac, dtype):
         c = train_config
-        state = t.zeros([1, c.observe_dim])
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         sac.act({"state": state})
 
     ########################################################################
     # Test for SAC criticizing
     ########################################################################
-    def test__criticize(self, train_config, sac):
+    def test__criticize(self, train_config, sac, dtype):
         c = train_config
-        state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
+        action = t.zeros([1, c.action_dim], dtype=dtype)
         sac._criticize({"state": state}, {"action": action})
         sac._criticize({"state": state}, {"action": action}, use_target=True)
         sac._criticize2({"state": state}, {"action": action})
@@ -208,10 +227,10 @@ class TestSAC(object):
     ########################################################################
     # Test for SAC storage
     ########################################################################
-    def test_store(self, train_config, sac):
+    def test_store(self, train_config, sac, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
+        action = t.zeros([1, c.action_dim], dtype=dtype)
         sac.store_transition({
             "state": {"state": old_state},
             "action": {"action": action},
@@ -230,10 +249,10 @@ class TestSAC(object):
     ########################################################################
     # Test for SAC update
     ########################################################################
-    def test_update(self, train_config, sac_vis):
+    def test_update(self, train_config, sac_vis, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
+        action = t.zeros([1, c.action_dim], dtype=dtype)
         sac_vis.store_transition({
             "state": {"state": old_state},
             "action": {"action": action},
@@ -279,9 +298,9 @@ class TestSAC(object):
     ########################################################################
     # Test for SAC full training.
     ########################################################################
-    def test_full_train(self, train_config, sac):
+    def test_full_train(self, train_config, sac_train):
         c = train_config
-        sac.target_entropy = -c.action_dim
+        sac_train.target_entropy = -c.action_dim
 
         # begin training
         episode, step = Counter(), Counter()
@@ -295,7 +314,7 @@ class TestSAC(object):
 
             # batch size = 1
             total_reward = 0
-            state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+            state = t.tensor(env.reset(), dtype=t.float32)
 
             while not terminal and step <= c.max_steps:
                 step.count()
@@ -303,16 +322,17 @@ class TestSAC(object):
                     old_state = state
 
                     # agent model inference
-                    action = sac.act({"state": old_state.unsqueeze(0)})[0]
+                    action = sac_train.act(
+                        {"state": old_state.unsqueeze(0)}
+                    )[0]
 
                     state, reward, terminal, _ = env.step(
                         action.cpu().numpy()
                     )
-                    state = t.tensor(state, dtype=t.float32, device=c.device) \
-                        .flatten()
+                    state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    sac.store_transition({
+                    sac_train.store_transition({
                         "state": {"state": old_state.unsqueeze(0)},
                         "action": {"action": action},
                         "next_state": {"state": state.unsqueeze(0)},
@@ -322,9 +342,9 @@ class TestSAC(object):
             # update
             if episode > 100:
                 for i in range(step.get()):
-                    sac.update()
+                    sac_train.update()
                 logger.info("new entropy alpha: {}"
-                            .format(sac.entropy_alpha.item()))
+                            .format(sac_train.entropy_alpha.item()))
 
             smoother.update(total_reward)
             step.reset()

@@ -13,7 +13,7 @@ import torch.nn as nn
 import gym
 
 from .utils import unwrap_time_limit, Smooth
-from test.util_run_multi import gpu
+from test.util_fixtures import *
 
 
 class Actor(nn.Module):
@@ -66,7 +66,7 @@ class Critic(nn.Module):
 class TestDDPG(object):
     # configs and definitions
     @pytest.fixture(scope="class")
-    def train_config(self, gpu):
+    def train_config(self):
         disable_view_window()
         c = Config()
         c.env_name = "Pendulum-v0"
@@ -80,22 +80,21 @@ class TestDDPG(object):
         c.noise_mode = "normal"
         c.noise_interval = 2
         c.replay_size = 100000
-        c.solved_reward = -300
+        c.solved_reward = -400
         c.solved_repeat = 5
-        c.device = gpu
         return c
 
     @pytest.fixture(scope="function")
-    def ddpg(self, train_config):
+    def ddpg(self, train_config, device, dtype):
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
+                       .type(dtype).to(device), device, device)
         ddpg = DDPG(actor, actor_t, critic, critic_t,
                     t.optim.Adam,
                     nn.MSELoss(reduction='sum'),
@@ -104,18 +103,18 @@ class TestDDPG(object):
         return ddpg
 
     @pytest.fixture(scope="function")
-    def ddpg_vis(self, train_config, tmpdir):
+    def ddpg_vis(self, train_config, device, dtype, tmpdir):
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
+                       .type(dtype).to(device), device, device)
         ddpg = DDPG(actor, actor_t, critic, critic_t,
                     t.optim.Adam,
                     nn.MSELoss(reduction='sum'),
@@ -126,17 +125,17 @@ class TestDDPG(object):
         return ddpg
 
     @pytest.fixture(scope="function")
-    def ddpg_disc(self, train_config):
+    def ddpg_disc(self, train_config, device, dtype):
         # not used for training, only used for testing apis
         c = train_config
         actor = smw(ActorDiscrete(c.observe_dim, c.action_dim)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         actor_t = smw(ActorDiscrete(c.observe_dim, c.action_dim)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
+                       .type(dtype).to(device), device, device)
         ddpg = DDPG(actor, actor_t, critic, critic_t,
                     t.optim.Adam,
                     nn.MSELoss(reduction='sum'),
@@ -145,17 +144,17 @@ class TestDDPG(object):
         return ddpg
 
     @pytest.fixture(scope="function")
-    def ddpg_lr(self, train_config):
+    def ddpg_lr(self, train_config, device, dtype):
         # not used for training, only used for testing apis
         c = train_config
         actor = smw(ActorDiscrete(c.observe_dim, c.action_dim)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         actor_t = smw(ActorDiscrete(c.observe_dim, c.action_dim)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
+                       .type(dtype).to(device), device, device)
         lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
                                          logger=logger)
         with pytest.raises(TypeError, match="missing .+ positional argument"):
@@ -174,12 +173,31 @@ class TestDDPG(object):
                     lr_scheduler_args=((lr_func,), (lr_func,)))
         return ddpg
 
+    @pytest.fixture(scope="function")
+    def ddpg_train(self, train_config):
+        c = train_config
+        # cpu is faster for testing full training.
+        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range),
+                    "cpu", "cpu")
+        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range),
+                      "cpu", "cpu")
+        critic = smw(Critic(c.observe_dim, c.action_dim),
+                     "cpu", "cpu")
+        critic_t = smw(Critic(c.observe_dim, c.action_dim),
+                       "cpu", "cpu")
+        ddpg = DDPG(actor, actor_t, critic, critic_t,
+                    t.optim.Adam,
+                    nn.MSELoss(reduction='sum'),
+                    replay_device="cpu",
+                    replay_size=c.replay_size)
+        return ddpg
+
     ########################################################################
     # Test for DDPG contiguous domain acting
     ########################################################################
-    def test_contiguous_act(self, train_config, ddpg):
+    def test_contiguous_act(self, train_config, ddpg, dtype):
         c = train_config
-        state = t.zeros([1, c.observe_dim])
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         ddpg.act({"state": state})
         ddpg.act({"state": state}, use_target=True)
         ddpg.act_with_noise({"state": state}, noise_param=(0, 1.0),
@@ -198,9 +216,9 @@ class TestDDPG(object):
     ########################################################################
     # Test for DDPG discrete domain acting
     ########################################################################
-    def test_discrete_act(self, train_config, ddpg_disc):
+    def test_discrete_act(self, train_config, ddpg_disc, dtype):
         c = train_config
-        state = t.zeros([1, c.observe_dim])
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         ddpg_disc.act_discrete({"state": state})
         ddpg_disc.act_discrete({"state": state}, use_target=True)
         ddpg_disc.act_discrete_with_noise({"state": state})
@@ -209,20 +227,20 @@ class TestDDPG(object):
     ########################################################################
     # Test for DDPG criticizing
     ########################################################################
-    def test__criticize(self, train_config, ddpg):
+    def test__criticize(self, train_config, ddpg, dtype):
         c = train_config
-        state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
+        action = t.zeros([1, c.action_dim], dtype=dtype)
         ddpg._criticize({"state": state}, {"action": action})
         ddpg._criticize({"state": state}, {"action": action}, use_target=True)
 
     ########################################################################
     # Test for DDPG storage
     ########################################################################
-    def test_store(self, train_config, ddpg):
+    def test_store(self, train_config, ddpg, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
+        action = t.zeros([1, c.action_dim], dtype=dtype)
         ddpg.store_transition({
             "state": {"state": old_state},
             "action": {"action": action},
@@ -241,10 +259,10 @@ class TestDDPG(object):
     ########################################################################
     # Test for DDPG update
     ########################################################################
-    def test_update(self, train_config, ddpg_vis):
+    def test_update(self, train_config, ddpg_vis, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
+        action = t.zeros([1, c.action_dim], dtype=dtype)
         ddpg_vis.store_transition({
             "state": {"state": old_state},
             "action": {"action": action},
@@ -284,7 +302,7 @@ class TestDDPG(object):
     ########################################################################
     # Test for DDPG full training.
     ########################################################################
-    def test_full_train(self, train_config, ddpg):
+    def test_full_train(self, train_config, ddpg_train):
         c = train_config
 
         # begin training
@@ -299,7 +317,7 @@ class TestDDPG(object):
 
             # batch size = 1
             total_reward = 0
-            state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+            state = t.tensor(env.reset(), dtype=t.float32)
 
             while not terminal and step <= c.max_steps:
                 step.count()
@@ -308,21 +326,21 @@ class TestDDPG(object):
 
                     # agent model inference
                     if episode.get() % c.noise_interval == 0:
-                        action = ddpg.act_with_noise(
+                        action = ddpg_train.act_with_noise(
                             {"state": old_state.unsqueeze(0)},
                             noise_param=c.noise_param,
                             mode=c.noise_mode
                         )
                     else:
-                        action = ddpg.act({"state": old_state.unsqueeze(0)}) \
-                            .clamp(-c.action_range, c.action_range)
+                        action = ddpg_train.act(
+                            {"state": old_state.unsqueeze(0)}
+                        ).clamp(-c.action_range, c.action_range)
 
                     state, reward, terminal, _ = env.step(action.cpu().numpy())
-                    state = t.tensor(state, dtype=t.float32, device=c.device) \
-                        .flatten()
+                    state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    ddpg.store_transition({
+                    ddpg_train.store_transition({
                         "state": {"state": old_state.unsqueeze(0)},
                         "action": {"action": action},
                         "next_state": {"state": state.unsqueeze(0)},
@@ -332,7 +350,7 @@ class TestDDPG(object):
             # update
             if episode > 100:
                 for i in range(step.get()):
-                    ddpg.update()
+                    ddpg_train.update()
 
             smoother.update(total_reward)
             step.reset()

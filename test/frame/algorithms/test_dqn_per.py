@@ -11,7 +11,7 @@ import torch.nn as nn
 import gym
 
 from .utils import unwrap_time_limit, Smooth
-from test.util_run_multi import gpu
+from test.util_fixtures import *
 
 
 class QNet(nn.Module):
@@ -31,7 +31,7 @@ class QNet(nn.Module):
 class TestDQNPer(object):
     # configs and definitions
     @pytest.fixture(scope="class")
-    def train_config(self, gpu):
+    def train_config(self):
         disable_view_window()
         c = Config()
         # Note: online policy algorithms such as PPO and A2C does not
@@ -44,18 +44,17 @@ class TestDQNPer(object):
         c.max_episodes = 1000
         c.max_steps = 200
         c.replay_size = 100000
-        c.solved_reward = 190
+        c.solved_reward = 150
         c.solved_repeat = 5
-        c.device = gpu
         return c
 
     @pytest.fixture(scope="function")
-    def dqn_per(self, train_config):
+    def dqn_per(self, train_config, device, dtype):
         c = train_config
         q_net = smw(QNet(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         q_net_t = smw(QNet(c.observe_dim, c.action_num)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         dqn_per = DQNPer(q_net, q_net_t,
                          t.optim.Adam,
                          nn.MSELoss(reduction='sum'),
@@ -64,13 +63,13 @@ class TestDQNPer(object):
         return dqn_per
 
     @pytest.fixture(scope="function")
-    def dqn_per_vis(self, train_config, tmpdir):
+    def dqn_per_vis(self, train_config, device, dtype, tmpdir):
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         q_net = smw(QNet(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         q_net_t = smw(QNet(c.observe_dim, c.action_num)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         dqn_per = DQNPer(q_net, q_net_t,
                          t.optim.Adam,
                          nn.MSELoss(reduction='sum'),
@@ -80,15 +79,28 @@ class TestDQNPer(object):
                          visualize_dir=str(tmp_dir))
         return dqn_per
 
+    @pytest.fixture(scope="function")
+    def dqn_per_train(self, train_config):
+        c = train_config
+        # cpu is faster for testing full training.
+        q_net = smw(QNet(c.observe_dim, c.action_num), "cpu", "cpu")
+        q_net_t = smw(QNet(c.observe_dim, c.action_num), "cpu", "cpu")
+        dqn_per = DQNPer(q_net, q_net_t,
+                         t.optim.Adam,
+                         nn.MSELoss(reduction='sum'),
+                         replay_device="cpu",
+                         replay_size=c.replay_size)
+        return dqn_per
+
     ########################################################################
     # Test for DQNPer criterion (mainly code coverage)
     ########################################################################
-    def test_criterion(self, train_config):
+    def test_criterion(self, train_config, device, dtype):
         c = train_config
         q_net = smw(QNet(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         q_net_t = smw(QNet(c.observe_dim, c.action_num)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         with pytest.raises(RuntimeError, match="Criterion does not have the "
                                                "'reduction' property"):
             def criterion(a, b):
@@ -118,9 +130,9 @@ class TestDQNPer(object):
     ########################################################################
     # Test for DQNPer update
     ########################################################################
-    def test_update(self, train_config, dqn_per_vis):
+    def test_update(self, train_config, dqn_per_vis, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         dqn_per_vis.store_episode([
             {"state": {"state": old_state},
@@ -158,7 +170,7 @@ class TestDQNPer(object):
     ########################################################################
     # Test for DQNPer full training.
     ########################################################################
-    def test_full_train(self, train_config, dqn_per):
+    def test_full_train(self, train_config, dqn_per_train):
         c = train_config
 
         # begin training
@@ -173,22 +185,21 @@ class TestDQNPer(object):
 
             # batch size = 1
             total_reward = 0
-            state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+            state = t.tensor(env.reset(), dtype=t.float32)
 
             while not terminal and step <= c.max_steps:
                 step.count()
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action = dqn_per.act_discrete_with_noise(
+                    action = dqn_per_train.act_discrete_with_noise(
                         {"state": old_state.unsqueeze(0)}
                     )
                     state, reward, terminal, _ = env.step(action.item())
-                    state = t.tensor(state, dtype=t.float32, device=c.device) \
-                        .flatten()
+                    state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    dqn_per.store_transition({
+                    dqn_per_train.store_transition({
                         "state": {"state": old_state.unsqueeze(0)},
                         "action": {"action": action},
                         "next_state": {"state": state.unsqueeze(0)},
@@ -199,7 +210,7 @@ class TestDQNPer(object):
             # update
             if episode.get() > 100:
                 for _ in range(step.get()):
-                    dqn_per.update()
+                    dqn_per_train.update()
 
             smoother.update(total_reward)
             step.reset()

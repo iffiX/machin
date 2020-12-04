@@ -12,7 +12,7 @@ import torch.nn as nn
 import gym
 
 from .utils import unwrap_time_limit, Smooth
-from test.util_run_multi import gpu
+from test.util_fixtures import *
 
 
 class Actor(nn.Module):
@@ -54,7 +54,7 @@ class Critic(nn.Module):
 class TestPPO(object):
     # configs and definitions
     @pytest.fixture(scope="class")
-    def train_config(self, gpu):
+    def train_config(self):
         disable_view_window()
         c = Config()
         # Note: online policy algorithms such as PPO and A2C does not
@@ -67,18 +67,17 @@ class TestPPO(object):
         c.max_episodes = 1000
         c.max_steps = 200
         c.replay_size = 10000
-        c.solved_reward = 190
+        c.solved_reward = 150
         c.solved_repeat = 5
-        c.device = gpu
         return c
 
     @pytest.fixture(scope="function")
-    def ppo(self, train_config):
+    def ppo(self, train_config, device, dtype):
         c = train_config
         actor = smw(Actor(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         ppo = PPO(actor, critic,
                   t.optim.Adam,
                   nn.MSELoss(reduction='sum'),
@@ -87,14 +86,14 @@ class TestPPO(object):
         return ppo
 
     @pytest.fixture(scope="function")
-    def ppo_vis(self, train_config, tmpdir):
+    def ppo_vis(self, train_config, device, dtype, tmpdir):
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         actor = smw(Actor(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         ppo = PPO(actor, critic,
                   t.optim.Adam,
                   nn.MSELoss(reduction='sum'),
@@ -102,6 +101,18 @@ class TestPPO(object):
                   replay_size=c.replay_size,
                   visualize=True,
                   visualize_dir=str(tmp_dir))
+        return ppo
+
+    @pytest.fixture(scope="function")
+    def ppo_train(self, train_config):
+        c = train_config
+        actor = smw(Actor(c.observe_dim, c.action_num), "cpu", "cpu")
+        critic = smw(Critic(c.observe_dim), "cpu", "cpu")
+        ppo = PPO(actor, critic,
+                  t.optim.Adam,
+                  nn.MSELoss(reduction='sum'),
+                  replay_device="cpu",
+                  replay_size=c.replay_size)
         return ppo
 
     ########################################################################
@@ -127,10 +138,10 @@ class TestPPO(object):
     ########################################################################
     # Test for PPO update
     ########################################################################
-    def test_update(self, train_config, ppo_vis):
+    def test_update(self, train_config, ppo_vis, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, 1])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
+        action = t.zeros([1, 1], dtype=dtype)
         ppo_vis.store_episode([
             {"state": {"state": old_state},
              "action": {"action": action},
@@ -167,9 +178,9 @@ class TestPPO(object):
     # Test for PPO full training.
     ########################################################################
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
-    def test_full_train(self, train_config, ppo, gae_lambda):
+    def test_full_train(self, train_config, ppo_train, gae_lambda):
         c = train_config
-        ppo.gae_lambda = gae_lambda
+        ppo_train.gae_lambda = gae_lambda
 
         # begin training
         episode, step = Counter(), Counter()
@@ -183,7 +194,7 @@ class TestPPO(object):
 
             # batch size = 1
             total_reward = 0
-            state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+            state = t.tensor(env.reset(), dtype=t.float32)
 
             tmp_observations = []
             while not terminal and step <= c.max_steps:
@@ -191,10 +202,11 @@ class TestPPO(object):
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action = ppo.act({"state": old_state.unsqueeze(0)})[0]
+                    action = ppo_train.act(
+                        {"state": old_state.unsqueeze(0)}
+                    )[0]
                     state, reward, terminal, _ = env.step(action.item())
-                    state = t.tensor(state, dtype=t.float32, device=c.device) \
-                        .flatten()
+                    state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
                     tmp_observations.append({
@@ -206,8 +218,8 @@ class TestPPO(object):
                     })
 
             # update
-            ppo.store_episode(tmp_observations)
-            ppo.update()
+            ppo_train.store_episode(tmp_observations)
+            ppo_train.update()
 
             smoother.update(total_reward)
             step.reset()

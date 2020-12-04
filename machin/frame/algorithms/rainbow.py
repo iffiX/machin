@@ -278,7 +278,7 @@ class RAINBOW(DQN):
             # shape: [batch_size * atom_num] -> [batch_size, atom_num]
             # Note: index_add_ on CUDA uses atomicAdd, will cause
             # rounding errors and be a source of noise.
-            target_dist = t.zeros([batch_size * atom_num])
+            target_dist = t.zeros([batch_size * atom_num], dtype=l_weight.dtype)
             target_dist.index_add_(dim=0, index=l_idx + offset,
                                    source=l_weight)
             target_dist.index_add_(dim=0, index=u_idx + offset,

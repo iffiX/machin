@@ -15,6 +15,7 @@ import gym
 
 from .utils import unwrap_time_limit, Smooth
 from test.util_run_multi import *
+from test.util_fixtures import *
 
 
 class Actor(nn.Module):
@@ -67,16 +68,16 @@ class TestIMPALA(object):
     c.max_episodes = 2000
     c.max_steps = 200
     c.replay_size = 10000
-    c.solved_reward = 190
+    c.solved_reward = 150
     c.solved_repeat = 5
 
     @staticmethod
-    def impala(use_lr_sch=False):
+    def impala(device, dtype, use_lr_sch=False):
         c = TestIMPALA.c
         actor = smw(Actor(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         servers = model_server_helper(model_num=1)
         world = get_world()
         # process 0 and 1 will be workers, and 2 will be trainer
@@ -105,15 +106,14 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_act(_, gpu):
+    def test_act(_, device, dtype):
         c = TestIMPALA.c
-        c.device = gpu
-        impala = TestIMPALA.impala()
+        impala = TestIMPALA.impala(device, dtype)
 
-        state = t.zeros([1, c.observe_dim])
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         impala.act({"state": state})
         return True
 
@@ -122,15 +122,14 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_eval_action(_, gpu):
+    def test_eval_action(_, device, dtype):
         c = TestIMPALA.c
-        c.device = gpu
-        impala = TestIMPALA.impala()
+        impala = TestIMPALA.impala(device, dtype)
 
-        state = t.zeros([1, c.observe_dim])
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         impala._eval_act({"state": state}, {"action": action})
         return True
@@ -140,15 +139,14 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test__criticize(_, gpu):
+    def test__criticize(_, device, dtype):
         c = TestIMPALA.c
-        c.device = gpu
-        impala = TestIMPALA.impala()
+        impala = TestIMPALA.impala(device, dtype)
 
-        state = t.zeros([1, c.observe_dim])
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         impala._criticize({"state": state})
         return True
 
@@ -157,15 +155,14 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_store_step(_, gpu):
+    def test_store_step(_, device, dtype):
         c = TestIMPALA.c
-        c.device = gpu
-        impala = TestIMPALA.impala()
+        impala = TestIMPALA.impala(device, dtype)
 
-        old_state = state = t.zeros([1, c.observe_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
 
         with pytest.raises(NotImplementedError):
@@ -181,15 +178,14 @@ class TestIMPALA(object):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_store_episode(_, gpu):
+    def test_store_episode(_, device, dtype):
         c = TestIMPALA.c
-        c.device = gpu
-        impala = TestIMPALA.impala()
+        impala = TestIMPALA.impala(device, dtype)
 
-        old_state = state = t.zeros([1, c.observe_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         episode = [
             {"state": {"state": old_state},
@@ -208,15 +204,14 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_update(rank, gpu):
+    def test_update(rank, device, dtype):
         c = TestIMPALA.c
-        c.device = gpu
-        impala = TestIMPALA.impala()
+        impala = TestIMPALA.impala(device, dtype)
 
-        old_state = state = t.zeros([1, c.observe_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         if rank == 0:
             # episode length = 3
@@ -257,13 +252,11 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_lr_scheduler(_, gpu):
-        c = TestIMPALA.c
-        c.device = gpu
-        impala = TestIMPALA.impala()
+    def test_lr_scheduler(_, device, dtype):
+        impala = TestIMPALA.impala(device, dtype)
 
         impala.update_lr_scheduler()
         return True
@@ -273,13 +266,11 @@ class TestIMPALA(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank, gpu):
+    def test_full_train(rank, device, dtype):
         c = TestIMPALA.c
-        c.device = gpu
-        impala = TestIMPALA.impala()
+        impala = TestIMPALA.impala("cpu", t.float32)
 
         # perform manual syncing to decrease the number of rpc calls
         impala.set_sync(False)
@@ -306,7 +297,7 @@ class TestIMPALA(object):
 
                 # batch size = 1
                 total_reward = 0
-                state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+                state = t.tensor(env.reset(), dtype=t.float32)
 
                 impala.manual_sync()
                 tmp_observations = []
@@ -317,9 +308,7 @@ class TestIMPALA(object):
                         action, action_log_prob, *_ = impala.act(
                             {"state": old_state.unsqueeze(0)})
                         state, reward, terminal, _ = env.step(action.item())
-                        state = t.tensor(state, dtype=t.float32,
-                                         device=c.device) \
-                            .flatten()
+                        state = t.tensor(state, dtype=t.float32).flatten()
                         total_reward += float(reward)
 
                         tmp_observations.append({

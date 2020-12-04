@@ -13,7 +13,7 @@ import torch.nn as nn
 import gym
 
 from .utils import unwrap_time_limit, Smooth
-from test.util_run_multi import gpu
+from test.util_fixtures import *
 
 
 class QNet(nn.Module):
@@ -33,7 +33,7 @@ class QNet(nn.Module):
 class TestDQN(object):
     # configs and definitions
     @pytest.fixture(scope="class")
-    def train_config(self, gpu):
+    def train_config(self):
         disable_view_window()
         c = Config()
         # Note: online policy algorithms such as PPO and A2C does not
@@ -46,18 +46,17 @@ class TestDQN(object):
         c.max_episodes = 1000
         c.max_steps = 200
         c.replay_size = 100000
-        c.solved_reward = 190
+        c.solved_reward = 150
         c.solved_repeat = 5
-        c.device = gpu
         return c
 
     @pytest.fixture(scope="function", params=["double"])
-    def dqn(self, train_config, request):
+    def dqn(self, train_config, device, dtype, request):
         c = train_config
         q_net = smw(QNet(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         q_net_t = smw(QNet(c.observe_dim, c.action_num)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         dqn = DQN(q_net, q_net_t,
                   t.optim.Adam,
                   nn.MSELoss(reduction='sum'),
@@ -67,13 +66,13 @@ class TestDQN(object):
         return dqn
 
     @pytest.fixture(scope="function", params=["double"])
-    def dqn_vis(self, train_config, tmpdir, request):
+    def dqn_vis(self, train_config, device, dtype, tmpdir, request):
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         q_net = smw(QNet(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         q_net_t = smw(QNet(c.observe_dim, c.action_num)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         dqn = DQN(q_net, q_net_t,
                   t.optim.Adam,
                   nn.MSELoss(reduction='sum'),
@@ -85,13 +84,13 @@ class TestDQN(object):
         return dqn
 
     @pytest.fixture(scope="function")
-    def dqn_lr(self, train_config):
+    def dqn_lr(self, train_config, device, dtype):
         # not used for training, only used for testing apis
         c = train_config
         q_net = smw(QNet(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         q_net_t = smw(QNet(c.observe_dim, c.action_num)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
                                          logger=logger)
         with pytest.raises(TypeError, match="missing .+ positional argument"):
@@ -110,15 +109,29 @@ class TestDQN(object):
                   lr_scheduler_args=((lr_func,),))
         return dqn
 
+    @pytest.fixture(scope="function", params=["double"])
+    def dqn_train(self, train_config, request):
+        c = train_config
+        # cpu is faster for testing full training.
+        q_net = smw(QNet(c.observe_dim, c.action_num), "cpu", "cpu")
+        q_net_t = smw(QNet(c.observe_dim, c.action_num), "cpu", "cpu")
+        dqn = DQN(q_net, q_net_t,
+                  t.optim.Adam,
+                  nn.MSELoss(reduction='sum'),
+                  replay_device="cpu",
+                  replay_size=c.replay_size,
+                  mode=request.param)
+        return dqn
+
     ########################################################################
     # Test for DQN modes (mainly code coverage)
     ########################################################################
-    def test_mode(self, train_config):
+    def test_mode(self, train_config, device, dtype):
         c = train_config
         q_net = smw(QNet(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         q_net_t = smw(QNet(c.observe_dim, c.action_num)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
 
         with pytest.raises(ValueError, match="Unknown DQN mode"):
             _ = DQN(q_net, q_net_t,
@@ -136,7 +149,7 @@ class TestDQN(object):
                       replay_size=c.replay_size,
                       mode="double")
 
-            old_state = state = t.zeros([1, c.observe_dim])
+            old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
             action = t.zeros([1, 1], dtype=t.int)
             dqn.store_episode([
                 {"state": {"state": old_state},
@@ -154,9 +167,9 @@ class TestDQN(object):
     ########################################################################
     # Test for DQN acting
     ########################################################################
-    def test_act(self, train_config, dqn):
+    def test_act(self, train_config, dqn, dtype):
         c = train_config
-        state = t.zeros([1, c.observe_dim])
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         dqn.act_discrete({"state": state})
         dqn.act_discrete({"state": state}, True)
         dqn.act_discrete_with_noise({"state": state})
@@ -165,18 +178,18 @@ class TestDQN(object):
     ########################################################################
     # Test for DQN criticizing
     ########################################################################
-    def test__criticize(self, train_config, dqn):
+    def test__criticize(self, train_config, dqn, dtype):
         c = train_config
-        state = t.zeros([1, c.observe_dim])
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         dqn._criticize({"state": state})
         dqn._criticize({"state": state}, True)
 
     ########################################################################
     # Test for DQN storage
     ########################################################################
-    def test_store_step(self, train_config, dqn):
+    def test_store_step(self, train_config, dqn, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         dqn.store_transition({
             "state": {"state": old_state},
@@ -186,9 +199,9 @@ class TestDQN(object):
             "terminal": False
         })
 
-    def test_store_episode(self, train_config, dqn):
+    def test_store_episode(self, train_config, dqn, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         episode = [
             {"state": {"state": old_state},
@@ -206,9 +219,9 @@ class TestDQN(object):
     @pytest.mark.parametrize("dqn_vis",
                              ["vanilla", "fixed_target", "double"],
                              indirect=True)
-    def test_update(self, train_config, dqn_vis):
+    def test_update(self, train_config, dqn_vis, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         dqn_vis.store_episode([
             {"state": {"state": old_state},
@@ -258,10 +271,10 @@ class TestDQN(object):
     ########################################################################
     # Test for DQN full training.
     ########################################################################
-    @pytest.mark.parametrize("dqn",
+    @pytest.mark.parametrize("dqn_train",
                              ["vanilla", "fixed_target", "double"],
                              indirect=True)
-    def test_full_train(self, train_config, dqn):
+    def test_full_train(self, train_config, dqn_train):
         c = train_config
 
         # begin training
@@ -276,22 +289,21 @@ class TestDQN(object):
 
             # batch size = 1
             total_reward = 0
-            state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+            state = t.tensor(env.reset(), dtype=t.float32)
 
             while not terminal and step <= c.max_steps:
                 step.count()
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action = dqn.act_discrete_with_noise(
+                    action = dqn_train.act_discrete_with_noise(
                         {"state": old_state.unsqueeze(0)}
                     )
                     state, reward, terminal, _ = env.step(action.item())
-                    state = t.tensor(state, dtype=t.float32, device=c.device) \
-                        .flatten()
+                    state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    dqn.store_transition({
+                    dqn_train.store_transition({
                         "state": {"state": old_state.unsqueeze(0)},
                         "action": {"action": action},
                         "next_state": {"state": state.unsqueeze(0)},
@@ -302,7 +314,7 @@ class TestDQN(object):
             # update
             if episode.get() > 100:
                 for _ in range(step.get()):
-                    dqn.update()
+                    dqn_train.update()
 
             smoother.update(total_reward)
             step.reset()

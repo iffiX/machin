@@ -11,7 +11,7 @@ import torch.nn as nn
 import gym
 
 from .utils import unwrap_time_limit, Smooth
-from test.util_run_multi import gpu
+from test.util_fixtures import *
 
 
 class QNet(nn.Module):
@@ -36,7 +36,7 @@ class QNet(nn.Module):
 class TestRAINBOW(object):
     # configs and definitions
     @pytest.fixture(scope="class")
-    def train_config(self, gpu):
+    def train_config(self):
         disable_view_window()
         c = Config()
         # Note: online policy algorithms such as PPO and A2C does not
@@ -58,18 +58,17 @@ class TestRAINBOW(object):
 
         # RAINBOW is not very stable (without dueling and noisy linear)
         # compared to other DQNs
-        c.solved_reward = 180
+        c.solved_reward = 150
         c.solved_repeat = 5
-        c.device = gpu
         return c
 
     @pytest.fixture(scope="function")
-    def rainbow(self, train_config):
+    def rainbow(self, train_config, device, dtype):
         c = train_config
         q_net = smw(QNet(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         q_net_t = smw(QNet(c.observe_dim, c.action_num)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         rainbow = RAINBOW(q_net, q_net_t,
                           t.optim.Adam,
                           c.value_min,
@@ -80,13 +79,13 @@ class TestRAINBOW(object):
         return rainbow
 
     @pytest.fixture(scope="function")
-    def rainbow_vis(self, train_config, tmpdir):
+    def rainbow_vis(self, train_config, device, dtype, tmpdir):
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
         q_net = smw(QNet(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         q_net_t = smw(QNet(c.observe_dim, c.action_num)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         rainbow = RAINBOW(q_net, q_net_t,
                           t.optim.Adam,
                           c.value_min,
@@ -98,12 +97,27 @@ class TestRAINBOW(object):
                           visualize_dir=str(tmp_dir))
         return rainbow
 
+    @pytest.fixture(scope="function")
+    def rainbow_train(self, train_config):
+        c = train_config
+        # cpu is faster for testing full training.
+        q_net = smw(QNet(c.observe_dim, c.action_num), "cpu", "cpu")
+        q_net_t = smw(QNet(c.observe_dim, c.action_num), "cpu", "cpu")
+        rainbow = RAINBOW(q_net, q_net_t,
+                          t.optim.Adam,
+                          c.value_min,
+                          c.value_max,
+                          reward_future_steps=c.reward_future_steps,
+                          replay_device="cpu",
+                          replay_size=c.replay_size)
+        return rainbow
+
     ########################################################################
     # Test for RAINBOW acting
     ########################################################################
-    def test_act(self, train_config, rainbow):
+    def test_act(self, train_config, rainbow, dtype):
         c = train_config
-        state = t.zeros([1, c.observe_dim])
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         rainbow.act_discrete({"state": state})
         rainbow.act_discrete({"state": state}, True)
         rainbow.act_discrete_with_noise({"state": state})
@@ -117,9 +131,9 @@ class TestRAINBOW(object):
     ########################################################################
     # Test for RAINBOW storage
     ########################################################################
-    def test_store_step(self, train_config, rainbow):
+    def test_store_step(self, train_config, rainbow, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         rainbow.store_transition({
             "state": {"state": old_state},
@@ -130,9 +144,9 @@ class TestRAINBOW(object):
             "terminal": False
         })
 
-    def test_store_episode(self, train_config, rainbow):
+    def test_store_episode(self, train_config, rainbow, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         episode = [
             {"state": {"state": old_state},
@@ -147,9 +161,9 @@ class TestRAINBOW(object):
     ########################################################################
     # Test for RAINBOW update
     ########################################################################
-    def test_update(self, train_config, rainbow_vis):
+    def test_update(self, train_config, rainbow_vis, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim])
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         rainbow_vis.store_episode([
             {"state": {"state": old_state},
@@ -187,7 +201,7 @@ class TestRAINBOW(object):
     ########################################################################
     # Test for RAINBOW full training.
     ########################################################################
-    def test_full_train(self, train_config, rainbow):
+    def test_full_train(self, train_config, rainbow_train):
         c = train_config
 
         # begin training
@@ -202,7 +216,7 @@ class TestRAINBOW(object):
 
             # batch size = 1
             total_reward = 0
-            state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+            state = t.tensor(env.reset(), dtype=t.float32)
 
             tmp_observations = []
             while not terminal and step <= c.max_steps:
@@ -210,12 +224,11 @@ class TestRAINBOW(object):
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action = rainbow.act_discrete_with_noise(
+                    action = rainbow_train.act_discrete_with_noise(
                         {"state": old_state.unsqueeze(0)}
                     )
                     state, reward, terminal, _ = env.step(action.item())
-                    state = t.tensor(state, dtype=t.float32, device=c.device) \
-                        .flatten()
+                    state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
                     tmp_observations.append({
@@ -226,11 +239,11 @@ class TestRAINBOW(object):
                         "terminal": terminal or step == c.max_steps
                     })
 
-            rainbow.store_episode(tmp_observations)
+            rainbow_train.store_episode(tmp_observations)
             # update
             if episode.get() > 100:
                 for _ in range(step.get()):
-                    rainbow.update()
+                    rainbow_train.update()
 
             smoother.update(total_reward)
             step.reset()

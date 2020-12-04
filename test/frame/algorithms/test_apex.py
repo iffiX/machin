@@ -12,6 +12,7 @@ import gym
 
 from .utils import unwrap_time_limit, Smooth
 from test.util_run_multi import *
+from test.util_fixtures import *
 
 
 class QNet(nn.Module):
@@ -89,16 +90,16 @@ class TestDQNApex(object):
     c.max_episodes = 2000
     c.max_steps = 200
     c.replay_size = 100000
-    c.solved_reward = 190
+    c.solved_reward = 150
     c.solved_repeat = 5
 
     @staticmethod
-    def dqn_apex():
+    def dqn_apex(device, dtype):
         c = TestDQNApex.c
         q_net = smw(QNet(c.observe_dim, c.action_num)
-                    .to(c.device), c.device, c.device)
+                    .type(dtype).to(device), device, device)
         q_net_t = smw(QNet(c.observe_dim, c.action_num)
-                      .to(c.device), c.device, c.device)
+                      .type(dtype).to(device), device, device)
         servers = model_server_helper(model_num=1)
         world = get_world()
         # process 0 and 1 will be workers, and 2 will be trainer
@@ -117,14 +118,13 @@ class TestDQNApex(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_act(_, gpu):
+    def test_act(_, device, dtype):
         c = TestDQNApex.c
-        c.device = gpu
-        dqn_apex = TestDQNApex.dqn_apex()
-        state = t.zeros([1, c.observe_dim])
+        dqn_apex = TestDQNApex.dqn_apex(device, dtype)
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         dqn_apex.act_discrete({"state": state})
         dqn_apex.act_discrete({"state": state}, True)
         dqn_apex.act_discrete_with_noise({"state": state})
@@ -136,14 +136,13 @@ class TestDQNApex(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_criticize(_, gpu):
+    def test_criticize(_, device, dtype):
         c = TestDQNApex.c
-        c.device = gpu
-        dqn_apex = TestDQNApex.dqn_apex()
-        state = t.zeros([1, c.observe_dim])
+        dqn_apex = TestDQNApex.dqn_apex(device, dtype)
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         dqn_apex._criticize({"state": state})
         dqn_apex._criticize({"state": state}, True)
         return True
@@ -158,14 +157,13 @@ class TestDQNApex(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_update(rank, gpu):
+    def test_update(rank, device, dtype):
         c = TestDQNApex.c
-        c.device = gpu
-        dqn_apex = TestDQNApex.dqn_apex()
-        old_state = state = t.zeros([1, c.observe_dim])
+        dqn_apex = TestDQNApex.dqn_apex(device, dtype)
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         if rank in (0, 1):
             dqn_apex.store_episode([
@@ -199,13 +197,11 @@ class TestDQNApex(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank, gpu):
+    def test_full_train(rank):
         c = TestDQNApex.c
-        c.device = gpu
-        dqn_apex = TestDQNApex.dqn_apex()
+        dqn_apex = TestDQNApex.dqn_apex("cpu", t.float32)
         # perform manual syncing to decrease the number of rpc calls
         dqn_apex.set_sync(False)
 
@@ -228,7 +224,7 @@ class TestDQNApex(object):
 
                 # batch size = 1
                 total_reward = 0
-                state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+                state = t.tensor(env.reset(), dtype=t.float32)
 
                 dqn_apex.manual_sync()
                 while not terminal and step <= c.max_steps:
@@ -240,8 +236,7 @@ class TestDQNApex(object):
                             {"state": old_state.unsqueeze(0)}
                         )
                         state, reward, terminal, _ = env.step(action.item())
-                        state = t.tensor(state, dtype=t.float32,
-                                         device=c.device).flatten()
+                        state = t.tensor(state, dtype=t.float32).flatten()
                         total_reward += float(reward)
 
                         dqn_apex.store_transition({
@@ -301,26 +296,26 @@ class TestDDPGApex(object):
     c.replay_size = 100000
     # takes too much computing resource
     # decrease standard for faster validation
-    c.solved_reward = -300
+    c.solved_reward = -400
     c.solved_repeat = 5
 
     @staticmethod
-    def ddpg_apex(discrete=False):
+    def ddpg_apex(device, dtype, discrete=False):
         c = TestDDPGApex.c
         if not discrete:
             actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                        .to(c.device), c.device, c.device)
+                        .type(dtype).to(device), device, device)
             actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                          .to(c.device), c.device, c.device)
+                          .type(dtype).to(device), device, device)
         else:
             actor = smw(ActorDiscrete(c.observe_dim, c.action_dim)
-                        .to(c.device), c.device, c.device)
+                        .type(dtype).to(device), device, device)
             actor_t = smw(ActorDiscrete(c.observe_dim, c.action_dim)
-                          .to(c.device), c.device, c.device)
+                          .type(dtype).to(device), device, device)
         critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .to(c.device), c.device, c.device)
+                     .type(dtype).to(device), device, device)
         critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .to(c.device), c.device, c.device)
+                       .type(dtype).to(device), device, device)
 
         servers = model_server_helper(model_num=2)
         world = get_world()
@@ -340,14 +335,13 @@ class TestDDPGApex(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_contiguous_act(_, gpu):
+    def test_contiguous_act(_, device, dtype):
         c = TestDDPGApex.c
-        c.device = gpu
-        ddpg_apex = TestDDPGApex.ddpg_apex()
-        state = t.zeros([1, c.observe_dim])
+        ddpg_apex = TestDDPGApex.ddpg_apex(device, dtype)
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         ddpg_apex.act({"state": state})
         ddpg_apex.act({"state": state}, use_target=True)
         ddpg_apex.act_with_noise({"state": state}, noise_param=(0, 1.0),
@@ -361,14 +355,14 @@ class TestDDPGApex(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_discrete_act(_, gpu):
+    def test_discrete_act(_, device, dtype):
         c = TestDDPGApex.c
         c.device = gpu
-        ddpg_apex = TestDDPGApex.ddpg_apex(discrete=True)
-        state = t.zeros([1, c.observe_dim])
+        ddpg_apex = TestDDPGApex.ddpg_apex(device, dtype, discrete=True)
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
         ddpg_apex.act_discrete({"state": state})
         ddpg_apex.act_discrete({"state": state}, use_target=True)
         ddpg_apex.act_discrete_with_noise({"state": state})
@@ -380,15 +374,15 @@ class TestDDPGApex(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test__criticize(_, gpu):
+    def test__criticize(_, device, dtype):
         c = TestDDPGApex.c
         c.device = gpu
-        ddpg_apex = TestDDPGApex.ddpg_apex()
-        state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
+        ddpg_apex = TestDDPGApex.ddpg_apex(device, dtype)
+        state = t.zeros([1, c.observe_dim], dtype=dtype)
+        action = t.zeros([1, c.action_dim], dtype=dtype)
         ddpg_apex._criticize({"state": state}, {"action": action})
         ddpg_apex._criticize({"state": state}, {"action": action},
                              use_target=True)
@@ -404,15 +398,15 @@ class TestDDPGApex(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
+               pass_through=["device", "dtype"],
                timeout=180)
     @WorldTestBase.setup_world
-    def test_update(rank, gpu):
+    def test_update(rank, device, dtype):
         c = TestDDPGApex.c
         c.device = gpu
-        ddpg_apex = TestDDPGApex.ddpg_apex()
-        old_state = state = t.zeros([1, c.observe_dim])
-        action = t.zeros([1, c.action_dim])
+        ddpg_apex = TestDDPGApex.ddpg_apex(device, dtype)
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
+        action = t.zeros([1, c.action_dim], dtype=dtype)
         if rank in (0, 1):
             ddpg_apex.store_transition({
                 "state": {"state": old_state},
@@ -446,13 +440,11 @@ class TestDDPGApex(object):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank, gpu):
+    def test_full_train(rank):
         c = TestDDPGApex.c
-        c.device = gpu
-        ddpg_apex = TestDDPGApex.ddpg_apex()
+        ddpg_apex = TestDDPGApex.ddpg_apex("cpu", t.float32)
         # perform manual syncing to decrease the number of rpc calls
         ddpg_apex.set_sync(False)
 
@@ -478,7 +470,7 @@ class TestDDPGApex(object):
 
                 # batch size = 1
                 total_reward = 0
-                state = t.tensor(env.reset(), dtype=t.float32, device=c.device)
+                state = t.tensor(env.reset(), dtype=t.float32)
 
                 ddpg_apex.manual_sync()
                 while not terminal and step <= c.max_steps:
@@ -493,8 +485,7 @@ class TestDDPGApex(object):
 
                         state, reward, terminal, _ = env.step(action.cpu()
                                                               .numpy())
-                        state = t.tensor(state, dtype=t.float32,
-                                         device=c.device).flatten()
+                        state = t.tensor(state, dtype=t.float32).flatten()
                         total_reward += float(reward)
 
                         ddpg_apex.store_transition({

@@ -327,8 +327,8 @@ class IMPALA(TorchFramework):
 
         # similarity = pi(a_t|x_t)/mu(a_t|x_t)
         sim = t.exp(cur_action_log_prob - action_log_prob)
-        c = t.min(t.full(sim.shape, self.isw_clip_c), sim)
-        rho = t.min(t.full(sim.shape, self.isw_clip_rho), sim)
+        c = t.min(t.full(sim.shape, self.isw_clip_c, dtype=sim.dtype), sim)
+        rho = t.min(t.full(sim.shape, self.isw_clip_rho, dtype=sim.dtype), sim)
 
         # calculate delta V
         # delta_t V = rho_t(r_t + gamma * V(x_{t+1}) - V(x_t))
@@ -345,8 +345,8 @@ class IMPALA(TorchFramework):
 
         # do reversed cumulative product for each episode segment
         with t.no_grad():
-            vs = t.zeros(value.shape)
-            vss = t.zeros(value.shape)
+            vs = t.zeros_like(value)
+            vss = t.zeros_like(value)
             offset = 0
             for ep_len in all_length:
                 # the last v_s of each episode should be 0
