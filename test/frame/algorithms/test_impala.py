@@ -268,7 +268,7 @@ class TestIMPALA(object):
     @run_multi(expected_results=[True, True, True],
                timeout=1800)
     @WorldTestBase.setup_world
-    def test_full_train(rank, device, dtype):
+    def test_full_train(rank):
         c = TestIMPALA.c
         impala = TestIMPALA.impala("cpu", t.float32)
 
