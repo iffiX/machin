@@ -1,5 +1,4 @@
 from typing import Union, Dict, List, Tuple, Callable, Any
-from torch.distributions import Categorical
 
 import torch as t
 import torch.nn as nn
@@ -29,7 +28,9 @@ class DQN(TorchFramework):
                  lr_scheduler_args: Tuple[Tuple] = None,
                  lr_scheduler_kwargs: Tuple[Dict] = None,
                  batch_size: int = 100,
-                 update_rate: float = 0.005,
+                 epsilon_decay: float = 0.9999,
+                 update_rate: Union[float, None] = 0.005,
+                 update_steps: Union[int, None] = None,
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
                  gradient_max: float = np.inf,
@@ -100,6 +101,25 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                     predicted_value.view(batch_size, 1)
                 )
 
+        Note:
+            DQN supports two ways of updating the target network, the first
+            way is polyak update (soft update), which updates the target network
+            in every training step by mixing its weights with the online network
+            using ``update_rate``.
+
+            The other way is hard update, which copies weights of the online
+            network after every ``update_steps`` training step.
+
+            You can either specify ``update_rate`` or ``update_steps`` to select
+            one update scheme, if both are specified, an error will be raised.
+
+            These two different update schemes may result in different training
+            stability.
+
+        Attributes:
+            epsilon: Current epsilon value, determines randomness in
+            ``act_discrete_with_noise``. You can set it to any value.
+
         Args:
             qnet: Q network module.
             qnet_target: Target Q network module.
@@ -112,11 +132,14 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             lr_scheduler_kwargs: Keyword arguments of the learning
                 rate scheduler.
             batch_size: Batch size used during training.
+            epsilon_decay: Epsilon decay rate per acting with noise step.
+                ``epsilon`` attribute is multiplied with this every time
+                ``act_discrete_with_noise`` is called.
             update_rate: :math:`\\tau` used to update target networks.
                 Target parameters are updated as:
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
-
+            update_steps: Training step number used to update target networks.
             discount: :math:`\\gamma` used in the bellman function.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
@@ -127,15 +150,24 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             visualize: Whether visualize the network flow in the first pass.
         """
         self.batch_size = batch_size
+        self.epsilon_decay = epsilon_decay
         self.update_rate = update_rate
+        self.update_steps = update_steps
         self.discount = discount
         self.grad_max = gradient_max
         self.visualize = visualize
         self.visualize_dir = visualize_dir
+        self.mode = mode
+        self.epsilon = 1
+        self._update_counter = 0
 
         if mode not in {"vanilla", "fixed_target", "double"}:
             raise ValueError("Unknown DQN mode: {}".format(mode))
-        self.mode = mode
+
+        if update_rate is not None and update_steps is not None:
+            raise ValueError("You can only specify one target network update"
+                             " scheme, either by update_rate or update_steps,"
+                             " but not both.")
 
         self.qnet = qnet
         if self.mode == "vanilla":
@@ -197,14 +229,17 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
     def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
                                 use_target: bool = False,
+                                decay_epsilon: bool = True,
                                 **__):
         """
-        Use Q network to produce a noisy discrete action for
-        the current state.
+        Randomly selects an action from the action space according
+        to a uniform distribution, with regard to the epsilon decay
+        policy.
 
         Args:
             state: Current state.
             use_target: Whether to use the target network.
+            decay_epsilon: Whether to decay the ``epsilon`` attribute.
 
         Returns:
             Noisy action of shape ``[batch_size, 1]``.
@@ -215,15 +250,19 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         else:
             result, *others = safe_call(self.qnet, state)
 
-        result = t.softmax(result, dim=1)
-        dist = Categorical(result)
-        batch_size = result.shape[0]
-        sample = dist.sample([batch_size])
+        action_dim = result.shape[1]
+        result = t.argmax(result, dim=1).view(-1, 1)
+
+        if t.rand([1]).item() < self.epsilon:
+            result = t.randint(0, action_dim, [result.shape[0], 1])
+
+        if decay_epsilon:
+            self.epsilon *= self.epsilon_decay
 
         if len(others) == 0:
-            return sample
+            return result
         else:
-            return (sample, *others)
+            return (result, *others)
 
     def _act_discrete(self,
                       state: Dict[str, Any],
@@ -409,7 +448,12 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
             # Update target Q network
             if update_target:
-                soft_update(self.qnet_target, self.qnet, self.update_rate)
+                if self.update_rate is not None:
+                    soft_update(self.qnet_target, self.qnet, self.update_rate)
+                else:
+                    self._update_counter += 1
+                    if self._update_counter % self.update_steps == 0:
+                        hard_update(self.qnet_target, self.qnet)
 
         else:
             raise ValueError("Unknown DQN mode: {}".format(self.mode))

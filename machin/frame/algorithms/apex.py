@@ -26,7 +26,9 @@ class DQNApex(DQNPer):
                  lr_scheduler_args: Tuple[Tuple] = (),
                  lr_scheduler_kwargs: Tuple[Dict] = (),
                  batch_size: int = 100,
+                 epsilon_decay: float = 0.9999,
                  update_rate: float = 0.005,
+                 update_steps: Union[int, None] = None,
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
                  replay_size: int = 500000,
@@ -54,10 +56,14 @@ class DQNApex(DQNPer):
             lr_scheduler_kwargs: Keyword arguments of the learning
                 rate scheduler.
             batch_size: Batch size used during training.
+            epsilon_decay: Epsilon decay rate per acting with noise step.
+                ``epsilon`` attribute is multiplied with this every time
+                ``act_discrete_with_noise`` is called.
             update_rate: :math:`\\tau` used to update target networks.
                 Target parameters are updated as:
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
+            update_steps: Training step number used to update target networks.
             learning_rate: Learning rate of the optimizer, not compatible with
                 ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
@@ -68,7 +74,9 @@ class DQNApex(DQNPer):
                                       lr_scheduler_args=lr_scheduler_args,
                                       lr_scheduler_kwargs=lr_scheduler_kwargs,
                                       batch_size=batch_size,
+                                      epsilon_decay=epsilon_decay,
                                       update_rate=update_rate,
+                                      update_steps=update_steps,
                                       learning_rate=learning_rate,
                                       discount=discount)
 
@@ -100,11 +108,13 @@ class DQNApex(DQNPer):
     def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
                                 use_target: bool = False,
+                                decay_epsilon: bool = True,
                                 **__):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.qnet_model_server.pull(self.qnet)
-        return super(DQNApex, self).act_discrete_with_noise(state, use_target)
+        return super(DQNApex, self)\
+            .act_discrete_with_noise(state, use_target, decay_epsilon)
 
     def update(self,
                update_value=True,

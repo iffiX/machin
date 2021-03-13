@@ -19,7 +19,9 @@ class RAINBOW(DQN):
                  lr_scheduler_args: Tuple[Tuple] = None,
                  lr_scheduler_kwargs: Tuple[Dict] = None,
                  batch_size: int = 100,
+                 epsilon_decay: float = 0.9999,
                  update_rate: float = 0.001,
+                 update_steps: Union[int, None] = None,
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
                  gradient_max: float = np.inf,
@@ -57,11 +59,14 @@ class RAINBOW(DQN):
             lr_scheduler_kwargs: Keyword arguments of the learning
                 rate scheduler.
             batch_size: Batch size used during training.
+            epsilon_decay: Epsilon decay rate per acting with noise step.
+                ``epsilon`` attribute is multiplied with this every time
+                ``act_discrete_with_noise`` is called.
             update_rate: :math:`\\tau` used to update target networks.
                 Target parameters are updated as:
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
-
+            update_steps: Training step number used to update target networks.
             discount: :math:`\\gamma` used in the bellman function.
             reward_future_steps: Number of future steps to be considered when
                 the framework calculates value from reward.
@@ -80,7 +85,9 @@ class RAINBOW(DQN):
             lr_scheduler_args=lr_scheduler_args,
             lr_scheduler_kwargs=lr_scheduler_kwargs,
             batch_size=batch_size,
+            epsilon_decay=epsilon_decay,
             update_rate=update_rate,
+            update_steps=update_steps,
             discount=discount,
             gradient_max=gradient_max,
             replay_size=replay_size,
@@ -125,6 +132,7 @@ class RAINBOW(DQN):
     def act_discrete_with_noise(self,
                                 state: Dict[str, Any],
                                 use_target: bool = False,
+                                decay_epsilon: bool = True,
                                 **__):
         # DOC INHERITED
         # q value distribution of each action
@@ -143,14 +151,19 @@ class RAINBOW(DQN):
         # q value of each action, shape: [batch_size, action_num]
         q_value = t.sum(q_dist_support.to(q_dist.device) * q_dist, dim=-1)
 
-        result = t.softmax(q_value, dim=1)
-        dist = Categorical(result)
-        batch_size = result.shape[0]
-        sample = dist.sample([batch_size])
+        action_dim = q_value.shape[1]
+        result = t.argmax(q_value, dim=1).view(-1, 1)
+
+        if t.rand([1]).item() < self.epsilon:
+            result = t.randint(0, action_dim, [result.shape[0], 1])
+
+        if decay_epsilon:
+            self.epsilon *= self.epsilon_decay
+
         if len(others) == 0:
-            return sample
+            return result
         else:
-            return (sample, *others)
+            return (result, *others)
 
     def store_transition(self, transition: Union[Transition, Dict]):
         """
@@ -313,7 +326,12 @@ class RAINBOW(DQN):
 
         # Update target Q network
         if update_target:
-            soft_update(self.qnet_target, self.qnet, self.update_rate)
+            if self.update_rate is not None:
+                soft_update(self.qnet_target, self.qnet, self.update_rate)
+            else:
+                self._update_counter += 1
+                if self._update_counter % self.update_steps == 0:
+                    hard_update(self.qnet_target, self.qnet)
 
         self.qnet.eval()
         # use .item() to prevent memory leakage

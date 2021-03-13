@@ -28,7 +28,9 @@ class DQNPer(DQN):
                  lr_scheduler_args: Tuple[Tuple] = None,
                  lr_scheduler_kwargs: Tuple[Dict] = None,
                  batch_size: int = 100,
-                 update_rate: float = 0.005,
+                 epsilon_decay: float = 0.9999,
+                 update_rate: Union[float, None] = 0.005,
+                 update_steps: Union[int, None] = None,
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
                  gradient_max: float = np.inf,
@@ -45,7 +47,9 @@ class DQNPer(DQN):
             lr_scheduler_args=lr_scheduler_args,
             lr_scheduler_kwargs=lr_scheduler_kwargs,
             batch_size=batch_size,
+            epsilon_decay=epsilon_decay,
             update_rate=update_rate,
+            update_steps=update_steps,
             learning_rate=learning_rate,
             discount=discount,
             gradient_max=gradient_max,
@@ -133,7 +137,12 @@ class DQNPer(DQN):
 
         # Update target Q network
         if update_target:
-            soft_update(self.qnet_target, self.qnet, self.update_rate)
+            if self.update_rate is not None:
+                soft_update(self.qnet_target, self.qnet, self.update_rate)
+            else:
+                self._update_counter += 1
+                if self._update_counter % self.update_steps == 0:
+                    hard_update(self.qnet_target, self.qnet)
 
         self.qnet.eval()
         # use .item() to prevent memory leakage
