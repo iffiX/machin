@@ -57,14 +57,14 @@ class MADDPG(TorchFramework):
                  actor_targets: List[Union[NeuralNetworkModule, nn.Module]],
                  critics: List[Union[NeuralNetworkModule, nn.Module]],
                  critic_targets: List[Union[NeuralNetworkModule, nn.Module]],
-                 critic_visible_actors: List[List[int]],
                  optimizer: Callable,
                  criterion: Callable,
                  *_,
-                 sub_policy_num: int = 0,
                  lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = None,
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
+                 lr_scheduler_args: Tuple[List[Tuple], List[Tuple]] = None,
+                 lr_scheduler_kwargs: Tuple[List[Dict], List[Dict]] = None,
+                 critic_visible_actors: List[List[int]] = None,
+                 sub_policy_num: int = 0,
                  batch_size: int = 100,
                  update_rate: float = 0.001,
                  update_steps: Union[int, None] = None,
@@ -104,6 +104,10 @@ class MADDPG(TorchFramework):
                 [[0, 1], [1, 2], [2, 0]]
 
         Note:
+            Learning rate scheduler args and kwargs for each actor and critic,
+            the first list is for actors, and the second list is for critics.
+
+        Note:
             This implementation contains:
                 - Ensemble Training
 
@@ -116,9 +120,10 @@ class MADDPG(TorchFramework):
             actor_targets: Target actor network modules.
             critics: Critic network modules.
             critic_targets: Target critic network modules.
-            critic_visible_actors: Indexes of visible actors for each critic.
             optimizer: Optimizer used to optimize ``actors`` and ``critics``.
+                By default all critics can see outputs of all actors.
             criterion: Criterion used to evaluate the value loss.
+            critic_visible_actors: Indexes of visible actors for each critic.
             sub_policy_num: Times to replicate each actor. Equals to
                 `ensemble_policy_num - 1`
             lr_scheduler: Learning rate scheduler of ``optimizer``.
@@ -159,7 +164,8 @@ class MADDPG(TorchFramework):
         self.visualize = visualize
         self.visualize_dir = visualize_dir
         self.grad_max = gradient_max
-        self.critic_visible_actors = critic_visible_actors
+        self.critic_visible_actors = \
+            critic_visible_actors or [list(range(len(actors)))] * len(actors)
         self._update_counter = 0
 
         if update_rate is not None and update_steps is not None:
@@ -235,18 +241,24 @@ class MADDPG(TorchFramework):
 
         if lr_scheduler is not None:
             if lr_scheduler_args is None:
-                lr_scheduler_args = ((), ())
+                lr_scheduler_args = ([()] * len(actors), [()] * len(critics))
             if lr_scheduler_kwargs is None:
-                lr_scheduler_kwargs = ({}, {})
-            self.actor_lr_schs = [lr_scheduler(ac_opt,
-                                               *lr_scheduler_args[0],
-                                               *lr_scheduler_kwargs[0])
-                                  for acc_opt in self.actor_optims
-                                  for ac_opt in acc_opt]
+                lr_scheduler_kwargs = ([{}] * len(actors), [{}] * len(critics))
+            self.actor_lr_schs = [lr_scheduler(acc_opt,
+                                               *lr_sch_args,
+                                               *lr_sch_kwargs)
+                                  for ac_opt, lr_sch_args, lr_sch_kwargs in
+                                  zip(self.actor_optims,
+                                      lr_scheduler_args[0],
+                                      lr_scheduler_kwargs[0])
+                                  for acc_opt in ac_opt]
             self.critic_lr_schs = [lr_scheduler(cr_opt,
-                                                *lr_scheduler_args[1],
-                                                *lr_scheduler_kwargs[1])
-                                   for cr_opt in self.critic_optims]
+                                                *lr_sch_args,
+                                                *lr_sch_kwargs)
+                                   for cr_opt, lr_sch_args, lr_sch_kwargs in
+                                   zip(self.critic_optims,
+                                       lr_scheduler_args[1],
+                                       lr_scheduler_kwargs[1])]
 
         self.criterion = criterion
 
@@ -928,3 +940,64 @@ class MADDPG(TorchFramework):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        default_values = {
+            "models": [["Actor"], ["Actor"], ["Critic"], ["Critic"]],
+            "model_args": ([()], [()], [()], [()]),
+            "model_kwargs": ([{}], [{}], [{}], [{}]),
+            "optimizer": "Adam",
+            "criterion": "MSELoss",
+            "critic_visible_actors": None,
+            "sub_policy_num": 0,
+            "lr_scheduler": None,
+            "lr_scheduler_args": None,
+            "lr_scheduler_kwargs": None,
+            "batch_size": 100,
+            "update_rate": 0.001,
+            "update_steps": None,
+            "actor_learning_rate": 0.0005,
+            "critic_learning_rate": 0.001,
+            "discount": 0.99,
+            "gradient_max": np.inf,
+            "replay_size": 500000,
+            "replay_device": "cpu",
+            "replay_buffer": None,
+            "visualize": False,
+            "visualize_dir": "",
+            "use_jit": True,
+            "pool_type": "thread",
+            "pool_size": None
+        }
+        config["frame"] = "MADDPG"
+        if "frame_config" not in config:
+            config["frame_config"] = default_values
+        else:
+            config["frame_config"] = {**config["frame_config"],
+                                      **default_values}
+        return config
+
+    @classmethod
+    def init_from_config(cls, config: Dict[str, Any]):
+        f_config = config["frame_config"]
+        all_models = []
+        for models, model_args, model_kwargs in zip(
+                f_config["models"],
+                f_config["model_args"],
+                f_config["model_kwargs"]):
+            models = assert_and_get_valid_models(models)
+            models = [
+                m(*arg, **kwarg)
+                for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            ]
+            all_models.append(models)
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        lr_scheduler = (
+                f_config["lr_scheduler"]
+                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+        frame = cls(*all_models, optimizer, criterion,
+                    lr_scheduler=lr_scheduler, **f_config)
+        return frame
