@@ -215,3 +215,10 @@ class PPO(A2C):
         self.critic.eval()
         return (-sum_act_policy_loss / self.actor_update_times,
                 sum_value_loss / self.critic_update_times)
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        config = A2C.generate_config(config)
+        config["frame"] = "PPO"
+        config["frame_config"]["surrogate_loss_clip"] = 0.2
+        return config

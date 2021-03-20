@@ -1,6 +1,7 @@
 from .a2c import *
 from machin.parallel.server import PushPullGradServer
-from torch.optim import Adam
+from machin.frame.helpers.servers import grad_server_helper
+from .utils import FakeOptimizer, assert_and_get_valid_lr_scheduler
 
 
 class A3C(A2C):
@@ -14,16 +15,20 @@ class A3C(A2C):
                  grad_server: Tuple[PushPullGradServer,
                                     PushPullGradServer],
                  *_,
+                 batch_size: int = 100,
+                 actor_update_times: int = 5,
+                 critic_update_times: int = 10,
                  entropy_weight: float = None,
                  value_weight: float = 0.5,
                  gradient_max: float = np.inf,
                  gae_lambda: float = 1.0,
                  discount: float = 0.99,
-                 update_times: int = 50,
+                 normalize_advantage: bool = True,
                  replay_size: int = 500000,
                  replay_device: Union[str, t.device] = "cpu",
                  replay_buffer: Buffer = None,
                  visualize: bool = False,
+                 visualize_dir: str = "",
                  **__):
         """
         See Also:
@@ -53,10 +58,12 @@ class A3C(A2C):
         Args:
             actor: Actor network module.
             critic: Critic network module.
-            optimizer: Optimizer used to optimize ``actor`` and ``critic``.
             criterion: Criterion used to evaluate the value loss.
             grad_server: Custom gradient sync server accessors, the first
                 server accessor is for actor, and the second one is for critic.
+            batch_size: Batch size used during training.
+            actor_update_times: Times to update actor in ``update()``.
+            critic_update_times: Times to update critic in ``update()``.
             entropy_weight: Weight of entropy in your loss function, a positive
                 entropy weight will minimize entropy, while a negative one will
                 maximize entropy.
@@ -65,28 +72,32 @@ class A3C(A2C):
             gae_lambda: :math:`\\lambda` used in generalized advantage
                 estimation.
             discount: :math:`\\gamma` used in the bellman function.
-            update_times: Number of update iterations per sample period. Buffer
-                will be cleared after ``update()``
+            normalize_advantage: Whether to normalize the advantage function.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
             replay_device: Device where the replay buffer locates on, Not
                 compatible with ``replay_buffer``.
             replay_buffer: Custom replay buffer.
             visualize: Whether visualize the network flow in the first pass.
+            visualize_dir: Visualized graph save directory.
         """
         # Adam is just a placeholder here, the actual optimizer is
         # set in parameter servers
-        super(A3C, self).__init__(actor, critic, Adam, criterion,
+        super(A3C, self).__init__(actor, critic, FakeOptimizer, criterion,
+                                  batch_size=batch_size,
+                                  actor_update_times=actor_update_times,
+                                  critic_update_times=critic_update_times,
                                   entropy_weight=entropy_weight,
                                   value_weight=value_weight,
                                   gradient_max=gradient_max,
                                   gae_lambda=gae_lambda,
                                   discount=discount,
-                                  update_times=update_times,
+                                  normalize_advantage=normalize_advantage,
                                   replay_size=replay_size,
                                   replay_device=replay_device,
                                   replay_buffer=replay_buffer,
-                                  visualize=visualize)
+                                  visualize=visualize,
+                                  visualize_dir=visualize_dir)
         # disable local stepping
         self.actor_optim.step = lambda: None
         self.critic_optim.step = lambda: None
@@ -135,3 +146,84 @@ class A3C(A2C):
         self.is_syncing = org_sync
         self.actor_grad_server.push(self.actor)
         self.critic_grad_server.push(self.critic)
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        default_values = {
+            "grad_server_group_name": "a3c_grad_server",
+            "grad_server_members": "all",
+            "models": ["Actor", "Critic"],
+            "model_args": ((), ()),
+            "model_kwargs": ({}, {}),
+            "optimizer": "Adam",
+            "criterion": "MSELoss",
+            "lr_scheduler": None,
+            "lr_scheduler_args": None,
+            "lr_scheduler_kwargs": None,
+            "batch_size": 100,
+            "actor_update_times": 5,
+            "critic_update_times": 10,
+            "actor_learning_rate": 0.001,
+            "critic_learning_rate": 0.001,
+            "entropy_weight": None,
+            "value_weight": 0.5,
+            "gradient_max": np.inf,
+            "gae_lambda": 1.0,
+            "discount": 0.99,
+            "normalize_advantage": True,
+            "replay_size": 500000,
+            "replay_device": "cpu",
+            "replay_buffer": None,
+            "visualize": False,
+            "visualize_dir": "",
+        }
+        config["frame"] = "A3C"
+        if "frame_config" not in config:
+            config["frame_config"] = default_values
+        else:
+            config["frame_config"] = {**config["frame_config"],
+                                      **default_values}
+        return config
+
+    @classmethod
+    def init_from_config(cls, config: Dict[str, Any]):
+        f_config = config["frame_config"]
+        models = assert_and_get_valid_models(f_config["models"])
+        model_args = f_config["model_args"]
+        model_kwargs = f_config["model_kwargs"]
+        models = [
+            m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+        model_creators = [
+            lambda: m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        lr_scheduler = (
+            f_config["lr_scheduler"]
+            and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+
+        servers = grad_server_helper(model_creators,
+                                     group_name=f_config[
+                                         "grad_server_group_name"
+                                     ],
+                                     members=f_config[
+                                         "grad_server_members"
+                                     ],
+                                     optimizer=optimizer,
+                                     learning_rate=[
+                                         f_config["actor_learning_rate"],
+                                         f_config["critic_learning_rate"]
+                                     ],
+                                     lr_scheduler=lr_scheduler,
+                                     lr_scheduler_args=f_config[
+                                         "lr_scheduler_args"
+                                     ] or ((), ()),
+                                     lr_scheduler_kwargs=f_config[
+                                         "lr_scheduler_kwargs"
+                                     ] or ({}, {}))
+        frame = cls(*models, criterion, servers, **f_config)
+        return frame

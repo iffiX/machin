@@ -230,6 +230,7 @@ class World:
     def __init__(self,
                  name: str,
                  rank: int = -1,
+                 init_rpc: bool = True,
                  world_size: int = None,
                  init_method: str = "tcp://localhost:9100",
                  rpc_timeout: float = 60,
@@ -252,14 +253,15 @@ class World:
         self.group_create_signals = {}
 
         # "<rank-number>" is used as the unique name.
-        rpc.init_rpc(self.name,
-                     rank=rank,
-                     world_size=world_size,
-                     rpc_backend_options=rpc.ProcessGroupRpcBackendOptions(
-                         init_method=init_method,
-                         num_send_recv_threads=rpc_threads,
-                         rpc_timeout=timedelta(seconds=rpc_timeout)
-                     ))
+        if init_rpc:
+            rpc.init_rpc(self.name,
+                         rank=rank,
+                         world_size=world_size,
+                         rpc_backend_options=rpc.ProcessGroupRpcBackendOptions(
+                             init_method=init_method,
+                             num_send_recv_threads=rpc_threads,
+                             rpc_timeout=timedelta(seconds=rpc_timeout)
+                         ))
 
         # get rank-name mapping
         self.rank_name_map = {}

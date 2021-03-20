@@ -17,6 +17,7 @@ DDPG
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 Hysterical DDPG
 -----------------------------
@@ -24,6 +25,7 @@ Hysterical DDPG
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 DDPG with prioritized replay
 -----------------------------
@@ -31,6 +33,7 @@ DDPG with prioritized replay
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 TD3
 -----------------------------
@@ -38,6 +41,7 @@ TD3
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 DQN, Fixed-Target DQN, Dueling DQN, Double DQN
 ----------------------------------------------
@@ -45,6 +49,7 @@ DQN, Fixed-Target DQN, Dueling DQN, Double DQN
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 DQN with prioritized replay
 ------------------------------
@@ -52,6 +57,7 @@ DQN with prioritized replay
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 RAINBOW
 ------------------------------
@@ -59,6 +65,7 @@ RAINBOW
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 A2C
 ------------------------------
@@ -66,6 +73,7 @@ A2C
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 A3C
 ------------------------------
@@ -73,6 +81,7 @@ A3C
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 PPO
 ------------------------------
@@ -80,6 +89,7 @@ PPO
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 SAC
 ------------------------------
@@ -87,6 +97,7 @@ SAC
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 APEX
 ------------------------------
@@ -94,6 +105,7 @@ APEX
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 IMPALA
 ------------------------------
@@ -108,6 +120,7 @@ MADDPG
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 buffers
 +++++++++++++

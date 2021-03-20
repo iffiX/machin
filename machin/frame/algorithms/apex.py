@@ -1,8 +1,11 @@
+import math
 from .dqn_per import *
 from .ddpg_per import *
 from ..buffers.prioritized_buffer_d import DistributedPrioritizedBuffer
+from torch.nn.parallel import DistributedDataParallel
 from machin.parallel.server import PushPullModelServer
-from machin.parallel.distributed import RpcGroup
+from machin.parallel.distributed import get_world, RpcGroup
+from machin.frame.helpers.servers import model_server_helper
 
 
 class DQNApex(DQNPer):
@@ -31,6 +34,7 @@ class DQNApex(DQNPer):
                  update_steps: Union[int, None] = None,
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
+                 gradient_max: float = np.inf,
                  replay_size: int = 500000,
                  **__):
         """
@@ -67,6 +71,7 @@ class DQNApex(DQNPer):
             learning_rate: Learning rate of the optimizer, not compatible with
                 ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
+            gradient_max: Maximum gradient.
             replay_size: Local replay buffer size of a single worker.
         """
         super(DQNApex, self).__init__(qnet, qnet_target, optimizer, criterion,
@@ -78,7 +83,8 @@ class DQNApex(DQNPer):
                                       update_rate=update_rate,
                                       update_steps=update_steps,
                                       learning_rate=learning_rate,
-                                      discount=discount)
+                                      discount=discount,
+                                      gradient_max=gradient_max)
 
         # will not support sharing rpc group,
         # use static buffer_name is ok here.
@@ -86,7 +92,6 @@ class DQNApex(DQNPer):
             buffer_name="buffer", group=apex_group,
             buffer_size=replay_size
         )
-        self.apex_group = apex_group
         self.qnet_model_server = model_server[0]
         self.is_syncing = True
 
@@ -133,6 +138,87 @@ class DQNApex(DQNPer):
             self.qnet_model_server.push(self.qnet)
         return result
 
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        default_values = {
+            "learner_process_ratio": 0.1,
+            "model_server_group_name": "dqn_apex_model_server",
+            "model_server_members": "all",
+            "apex_group_name": "dqn_apex",
+            "apex_members": "all",
+            "models": ["QNet", "QNet"],
+            "model_args": ((), ()),
+            "model_kwargs": ({}, {}),
+            "optimizer": "Adam",
+            "criterion": "MSELoss",
+            "lr_scheduler": None,
+            "lr_scheduler_args": None,
+            "lr_scheduler_kwargs": None,
+            "batch_size": 100,
+            "epsilon_decay": 0.9999,
+            "update_rate": 0.005,
+            "update_steps": None,
+            "learning_rate": 0.001,
+            "discount": 0.99,
+            "gradient_max": np.inf,
+            "replay_size": 500000,
+        }
+        config["frame"] = "DQNApex"
+        if "frame_config" not in config:
+            config["frame_config"] = default_values
+        else:
+            config["frame_config"] = {**config["frame_config"],
+                                      **default_values}
+        return config
+
+    @classmethod
+    def init_from_config(cls, config: Dict[str, Any]):
+        world = get_world()
+        f_config = config["frame_config"]
+        apex_group = world.create_rpc_group(
+            group_name=f_config["apex_group_name"],
+            members=f_config["apex_members"]
+        )
+
+        models = assert_and_get_valid_models(f_config["models"])
+        model_args = f_config["model_args"]
+        model_kwargs = f_config["model_kwargs"]
+        models = [
+            m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+        # wrap models in DistributedDataParallel when running in learner mode
+        max_learner_id = int(math.ceil(
+            f_config["learner_process_ratio"] * apex_group.size()
+        ))
+        if world.rank < max_learner_id:
+            learner_group = world.create_collective_group(
+                ranks=list(range(max_learner_id))
+            )
+            models = [
+                DistributedDataParallel(module=m,
+                                        process_group=learner_group.group)
+                for m in models
+            ]
+
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        lr_scheduler = (
+                f_config["lr_scheduler"]
+                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+        servers = model_server_helper(model_num=1,
+                                      group_name=f_config[
+                                          "model_server_group_name"
+                                      ],
+                                      members=f_config[
+                                          "model_server_members"
+                                      ])
+
+        frame = cls(*models, optimizer, criterion, apex_group, servers,
+                    lr_scheduler=lr_scheduler, **f_config)
+        return frame
+
 
 class DDPGApex(DDPGPer):
     """
@@ -159,8 +245,10 @@ class DDPGApex(DDPGPer):
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
                  batch_size: int = 100,
                  update_rate: float = 0.005,
+                 update_steps: Union[int, None] = None,
                  learning_rate: float = 0.001,
                  discount: float = 0.99,
+                 gradient_max: float = np.inf,
                  replay_size: int = 500000,
                  **__):
         """
@@ -171,13 +259,11 @@ class DDPGApex(DDPGPer):
             implement truncated n-step returns, just like the one used in
             :class:`.RAINBOW`.
 
-        Hint:
-            Your push and pull function will be called like::
-
-                function(actor_model, "actor")
-
-            The default implementation of pull and push functions
-            is provided by :class:`.PushPullModelServer`.
+        Note:
+            Apex framework supports multiple workers(samplers), and only
+            one trainer, you may use ``DistributedDataParallel`` in trainer.
+            If you use ``DistributedDataParallel``, you must call ``update()``
+            in all member processes of ``DistributedDataParallel``.
 
         Args:
             actor: Actor network module.
@@ -198,9 +284,11 @@ class DDPGApex(DDPGPer):
                 Target parameters are updated as:
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
+            update_steps: Training step number used to update target networks.
             learning_rate: Learning rate of the optimizer, not compatible with
                 ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
+            gradient_max: Maximum gradient.
             replay_size: Local replay buffer size of a single worker.
         """
         super(DDPGApex, self).__init__(actor, actor_target,
@@ -211,8 +299,10 @@ class DDPGApex(DDPGPer):
                                        lr_scheduler_kwargs=lr_scheduler_kwargs,
                                        batch_size=batch_size,
                                        update_rate=update_rate,
+                                       update_steps=update_steps,
                                        learning_rate=learning_rate,
-                                       discount=discount)
+                                       discount=discount,
+                                       gradient_max=gradient_max)
 
         # will not support sharing rpc group,
         # use static buffer_name is ok here.
@@ -291,3 +381,83 @@ class DDPGApex(DDPGPer):
         else:
             self.actor_model_server.push(self.actor)
         return result
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        default_values = {
+            "learner_process_ratio": 0.1,
+            "model_server_group_name": "ddpg_apex_model_server",
+            "model_server_members": "all",
+            "apex_group_name": "ddpg_apex",
+            "apex_members": "all",
+            "models": ["Actor", "Actor", "Critic", "Critic"],
+            "model_args": ((), (), (), ()),
+            "model_kwargs": ({}, {}, {}, {}),
+            "optimizer": "Adam",
+            "criterion": "MSELoss",
+            "lr_scheduler": None,
+            "lr_scheduler_args": None,
+            "lr_scheduler_kwargs": None,
+            "batch_size": 100,
+            "update_rate": 0.005,
+            "update_steps": None,
+            "learning_rate": 0.001,
+            "discount": 0.99,
+            "gradient_max": np.inf,
+            "replay_size": 500000,
+        }
+        config["frame"] = "DDPGApex"
+        if "frame_config" not in config:
+            config["frame_config"] = default_values
+        else:
+            config["frame_config"] = {**config["frame_config"],
+                                      **default_values}
+        return config
+
+    @classmethod
+    def init_from_config(cls, config: Dict[str, Any]):
+        world = get_world()
+        f_config = config["frame_config"]
+        apex_group = world.create_rpc_group(
+            group_name=f_config["apex_group_name"],
+            members=f_config["apex_members"]
+        )
+
+        models = assert_and_get_valid_models(f_config["models"])
+        model_args = f_config["model_args"]
+        model_kwargs = f_config["model_kwargs"]
+        models = [
+            m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+        # wrap models in DistributedDataParallel when running in learner mode
+        max_learner_id = int(math.ceil(
+            f_config["learner_process_ratio"] * apex_group.size()
+        ))
+        if world.rank < max_learner_id:
+            learner_group = world.create_collective_group(
+                ranks=list(range(max_learner_id))
+            )
+            models = [
+                DistributedDataParallel(module=m,
+                                        process_group=learner_group.group)
+                for m in models
+            ]
+
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        lr_scheduler = (
+                f_config["lr_scheduler"]
+                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+        servers = model_server_helper(model_num=1,
+                                      group_name=f_config[
+                                          "model_server_group_name"
+                                      ],
+                                      members=f_config[
+                                          "model_server_members"
+                                      ])
+
+        frame = cls(*models, optimizer, criterion, apex_group, servers,
+                    lr_scheduler=lr_scheduler, **f_config)
+        return frame

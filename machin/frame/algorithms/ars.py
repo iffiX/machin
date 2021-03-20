@@ -8,10 +8,17 @@ import numpy as np
 
 from machin.model.nets.base import NeuralNetworkModule
 from machin.parallel.server import PushPullModelServer
-from machin.parallel.distributed import RpcGroup
+from machin.parallel.distributed import RpcGroup, get_world
+from machin.frame.helpers.servers import model_server_helper
 from machin.utils.logging import default_logger
 from .base import TorchFramework
-from .utils import safe_call, safe_return
+from .utils import (
+    safe_call,
+    safe_return,
+    assert_and_get_valid_models,
+    assert_and_get_valid_optimizer,
+    assert_and_get_valid_lr_scheduler
+)
 
 
 class RunningStat(object):
@@ -674,3 +681,69 @@ class ARS(TorchFramework):
                     param_n.data.copy_(param.data - delta)
             self.actor_with_delta[(r_idx, False)] = actor_negative
             self.actor_with_delta[(r_idx, True)] = actor_positive
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        default_values = {
+            "model_server_group_name": "ars_model_server",
+            "model_server_members": "all",
+            "ars_group_name": "ars",
+            "ars_members": "all",
+            "models": ["Actor"],
+            "model_args": ((),),
+            "model_kwargs": ({},),
+            "optimizer": "Adam",
+            "lr_scheduler": None,
+            "lr_scheduler_args": None,
+            "lr_scheduler_kwargs": None,
+            "learning_rate": 0.001,
+            "gradient_max": np.inf,
+            "noise_std_dev": 0.02,
+            "noise_size": 250000000,
+            "rollout_num": 32,
+            "used_rollout_num": 32,
+            "normalize_state": True,
+            "noise_seed": 12345,
+            "sample_seed": 123
+        }
+        config["frame"] = "ARS"
+        if "frame_config" not in config:
+            config["frame_config"] = default_values
+        else:
+            config["frame_config"] = {**config["frame_config"],
+                                      **default_values}
+        return config
+
+    @classmethod
+    def init_from_config(cls, config: Dict[str, Any]):
+        world = get_world()
+        f_config = config["frame_config"]
+        ars_group = world.create_rpc_group(
+            group_name=f_config["ars_group_name"],
+            members=f_config["ars_members"]
+        )
+
+        models = assert_and_get_valid_models(f_config["models"])
+        model_args = f_config["model_args"]
+        model_kwargs = f_config["model_kwargs"]
+        models = [
+            m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        lr_scheduler = (
+                f_config["lr_scheduler"]
+                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+        servers = model_server_helper(model_num=1,
+                                      group_name=f_config[
+                                          "model_server_group_name"
+                                      ],
+                                      members=f_config[
+                                          "model_server_members"
+                                      ])
+
+        frame = cls(*models, optimizer, ars_group, servers,
+                    lr_scheduler=lr_scheduler, **f_config)
+        return frame

@@ -1,5 +1,5 @@
 from os.path import join
-from typing import Dict
+from typing import Dict, Any
 from torchviz import make_dot
 import torch as t
 
@@ -112,3 +112,11 @@ class TorchFramework:
                      view=False,
                      cleanup=False,
                      quiet=True)
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        raise NotImplementedError
+
+    @classmethod
+    def init_from_config(cls, config: Dict[str, Any]):
+        raise NotImplementedError

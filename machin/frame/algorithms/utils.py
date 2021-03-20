@@ -179,3 +179,81 @@ def assert_output_is_probs(tensor):
                          "have 2 dimensions (0 and 1), a sum of 1.0 for each "
                          "row in dimension 1, and a positive value for each "
                          "element.")
+
+
+def assert_and_get_valid_models(models):
+    m = []
+    for model in models:
+        if issubclass(model, nn.Module):
+            m.append(model)
+        if isinstance(model, str) and model in globals() \
+                and issubclass(globals()[model], nn.Module):
+            m.append(globals()[model])
+        else:
+            raise ValueError("Invalid model: {}, it needs to be an nn.Module "
+                             "sub class, or a string name of a global of a "
+                             "variable."
+                             .format(model))
+    return m
+
+
+def assert_and_get_valid_optimizer(optimizer):
+    if issubclass(optimizer, torch.optim.Optimizer):
+        return optimizer
+    if isinstance(optimizer, str):
+        if hasattr(torch.optim, optimizer):
+            return getattr(torch.optim, optimizer)
+        if optimizer in globals() and \
+                issubclass(globals()[optimizer], torch.optim.Optimizer):
+            return globals()[optimizer]
+    else:
+        raise ValueError("Invalid optimizer: {}, it needs to be an optimizer "
+                         "class, or a string name of a valid optimizer class "
+                         "in torch.optim, or a string name of a global "
+                         "variable."
+                         .format(optimizer))
+
+
+def assert_and_get_valid_lr_scheduler(lr_scheduler):
+    if issubclass(lr_scheduler, torch.optim.lr_scheduler._LRScheduler):
+        return lr_scheduler
+    if isinstance(lr_scheduler, str):
+        if hasattr(torch.optim.lr_scheduler, lr_scheduler):
+            return getattr(torch.optim.lr_scheduler, lr_scheduler)
+        if lr_scheduler in globals() and \
+                issubclass(globals()[lr_scheduler],
+                           torch.optim.lr_scheduler._LRScheduler):
+            return globals()[lr_scheduler]
+    else:
+        raise ValueError("Invalid lr_scheduler: {}, it needs to be a "
+                         "lr_scheduler class, or a string name of a "
+                         "valid lr_scheduler class in torch.optim.lr_scheduler"
+                         ", or a string name of a global variable."
+                         .format(lr_scheduler))
+
+
+def assert_and_get_valid_criterion(criterion):
+    if issubclass(criterion, nn.Module):
+        return criterion
+    if callable(criterion):
+        return criterion
+    if isinstance(criterion, str):
+        if hasattr(torch.nn.modules.loss, criterion):
+            return getattr(torch.nn.modules.loss, criterion)
+        if criterion in globals() and callable(globals()[criterion]):
+            return globals()[criterion]
+    else:
+        raise ValueError("Invalid optimizer: {}, it needs to be a loss "
+                         "class, callable loss function, "
+                         "or a string name of a valid loss class in "
+                         "torch.nn.modules.loss, or a string name of a global "
+                         "variable."
+                         .format(criterion))
+
+
+class FakeOptimizer(torch.optim.Optimizer):
+    """
+    A fake optimizer which does not change model parameters.
+    """
+    def step(self, *args, **kwargs):
+        pass

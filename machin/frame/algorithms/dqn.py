@@ -7,7 +7,15 @@ import numpy as np
 from machin.frame.buffers.buffer import Transition, Buffer
 from machin.model.nets.base import NeuralNetworkModule
 from .base import TorchFramework
-from .utils import hard_update, soft_update, safe_call
+from .utils import (
+    hard_update,
+    soft_update,
+    safe_call,
+    assert_and_get_valid_models,
+    assert_and_get_valid_optimizer,
+    assert_and_get_valid_criterion,
+    assert_and_get_valid_lr_scheduler
+)
 
 
 class DQN(TorchFramework):
@@ -118,7 +126,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
         Attributes:
             epsilon: Current epsilon value, determines randomness in
-            ``act_discrete_with_noise``. You can set it to any value.
+                ``act_discrete_with_noise``. You can set it to any value.
 
         Args:
             qnet: Q network module.
@@ -141,6 +149,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
             update_steps: Training step number used to update target networks.
             discount: :math:`\\gamma` used in the bellman function.
+            gradient_max: Maximum gradient.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
             replay_device: Device where the replay buffer locates on, Not
@@ -488,3 +497,56 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        default_values = {
+            "models": ["QNet", "QNet"],
+            "model_args": ((), ()),
+            "model_kwargs": ({}, {}),
+            "optimizer": "Adam",
+            "criterion": "MSELoss",
+            "lr_scheduler": None,
+            "lr_scheduler_args": None,
+            "lr_scheduler_kwargs": None,
+            "batch_size": 100,
+            "epsilon_decay": 0.9999,
+            "update_rate": 0.005,
+            "update_steps": None,
+            "learning_rate": 0.001,
+            "discount": 0.99,
+            "gradient_max": np.inf,
+            "replay_size": 500000,
+            "replay_device": "cpu",
+            "replay_buffer": None,
+            "mode": "double",
+            "visualize": False,
+            "visualize_dir": "",
+        }
+        config["frame"] = "DQN"
+        if "frame_config" not in config:
+            config["frame_config"] = default_values
+        else:
+            config["frame_config"] = {**config["frame_config"],
+                                      **default_values}
+        return config
+
+    @classmethod
+    def init_from_config(cls, config: Dict[str, Any]):
+        f_config = config["frame_config"]
+        models = assert_and_get_valid_models(f_config["models"])
+        model_args = f_config["model_args"]
+        model_kwargs = f_config["model_kwargs"]
+        models = [
+            m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        lr_scheduler = (
+                f_config["lr_scheduler"]
+                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+        frame = cls(*models, optimizer, criterion,
+                    lr_scheduler=lr_scheduler, **f_config)
+        return frame

@@ -1,15 +1,22 @@
 from typing import Union, Dict, List, Tuple, Callable, Any
+import math
 import numpy as np
 import torch as t
 import torch.nn as nn
-
+from torch.nn.parallel import DistributedDataParallel
 from machin.frame.buffers.buffer_d import Transition, DistributedBuffer
+from machin.frame.helpers.servers import model_server_helper
 from machin.model.nets.base import NeuralNetworkModule
-from .base import TorchFramework
-from .utils import safe_call
-
 from machin.parallel.server import PushPullModelServer
-from machin.parallel.distributed import RpcGroup
+from machin.parallel.distributed import RpcGroup, get_world
+from .base import TorchFramework
+from .utils import (
+    safe_call,
+    assert_and_get_valid_models,
+    assert_and_get_valid_optimizer,
+    assert_and_get_valid_criterion,
+    assert_and_get_valid_lr_scheduler
+)
 
 
 def _make_tensor_from_batch(batch: List[Any], device, concatenate):
@@ -94,7 +101,6 @@ class IMPALA(TorchFramework):
                  gradient_max: float = np.inf,
                  discount: float = 0.99,
                  replay_size: int = 500,
-                 visualize: bool = False,
                  **__):
         """
         Note:
@@ -123,7 +129,6 @@ class IMPALA(TorchFramework):
             gradient_max: Maximum gradient.
             discount: :math:`\\gamma` used in the bellman function.
             replay_size: Size of the local replay buffer.
-            visualize: Whether visualize the network flow in the first pass.
         """
         self.batch_size = batch_size
         self.discount = discount
@@ -132,7 +137,6 @@ class IMPALA(TorchFramework):
         self.grad_max = gradient_max
         self.isw_clip_c = isw_clip_c
         self.isw_clip_rho = isw_clip_rho
-        self.visualize = visualize
 
         self.impala_group = impala_group
 
@@ -414,3 +418,85 @@ class IMPALA(TorchFramework):
             self.actor_lr_sch.step()
         if hasattr(self, "critic_lr_sch"):
             self.critic_lr_sch.step()
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        default_values = {
+            "learner_process_ratio": 0.1,
+            "model_server_group_name": "impala_model_server",
+            "model_server_members": "all",
+            "impala_group_name": "impala",
+            "impala_members": "all",
+            "models": ["Actor", "Critic"],
+            "model_args": ((), ()),
+            "model_kwargs": ({}, {}),
+            "optimizer": "Adam",
+            "criterion": "MSELoss",
+            "lr_scheduler": None,
+            "lr_scheduler_args": None,
+            "lr_scheduler_kwargs": None,
+            "batch_size": 5,
+            "learning_rate": 0.001,
+            "isw_clip_c": 1.0,
+            "isw_clip_rho": 1.0,
+            "entropy_weight": None,
+            "value_weight": 0.5,
+            "gradient_max": np.inf,
+            "discount": 0.99,
+            "replay_size": 500
+        }
+        config["frame"] = "IMPALA"
+        if "frame_config" not in config:
+            config["frame_config"] = default_values
+        else:
+            config["frame_config"] = {**config["frame_config"],
+                                      **default_values}
+        return config
+
+    @classmethod
+    def init_from_config(cls, config: Dict[str, Any]):
+        world = get_world()
+        f_config = config["frame_config"]
+        impala_group = world.create_rpc_group(
+            group_name=f_config["impala_group_name"],
+            members=f_config["impala_members"]
+        )
+
+        models = assert_and_get_valid_models(f_config["models"])
+        model_args = f_config["model_args"]
+        model_kwargs = f_config["model_kwargs"]
+        models = [
+            m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+        # wrap models in DistributedDataParallel when running in learner mode
+        max_learner_id = int(math.ceil(
+            f_config["learner_process_ratio"] * apex_group.size()
+        ))
+        if world.rank < max_learner_id:
+            learner_group = world.create_collective_group(
+                ranks=list(range(max_learner_id))
+            )
+            models = [
+                DistributedDataParallel(module=m,
+                                        process_group=learner_group.group)
+                for m in models
+            ]
+
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        lr_scheduler = (
+                f_config["lr_scheduler"]
+                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+        servers = model_server_helper(model_num=1,
+                                      group_name=f_config[
+                                          "model_server_group_name"
+                                      ],
+                                      members=f_config[
+                                          "model_server_members"
+                                      ])
+
+        frame = cls(*models, optimizer, criterion, impala_group, servers,
+                    lr_scheduler=lr_scheduler, **f_config)
+        return frame

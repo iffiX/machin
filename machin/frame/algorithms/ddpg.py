@@ -5,19 +5,25 @@ import torch.nn as nn
 import numpy as np
 
 from machin.frame.buffers.buffer import Transition, Buffer
-from machin.frame.noise.action_space_noise import \
-    add_normal_noise_to_action, \
-    add_clipped_normal_noise_to_action, \
-    add_uniform_noise_to_action, \
+from machin.frame.noise.action_space_noise import (
+    add_normal_noise_to_action,
+    add_clipped_normal_noise_to_action,
+    add_uniform_noise_to_action,
     add_ou_noise_to_action
+)
 from machin.model.nets.base import NeuralNetworkModule
 from .base import TorchFramework
-from .utils import \
-    hard_update, \
-    soft_update, \
-    safe_call, \
-    safe_return, \
-    assert_output_is_probs
+from .utils import (
+    hard_update,
+    soft_update,
+    safe_call,
+    safe_return,
+    assert_output_is_probs,
+    assert_and_get_valid_models,
+    assert_and_get_valid_optimizer,
+    assert_and_get_valid_criterion,
+    assert_and_get_valid_lr_scheduler
+)
 
 
 class DDPG(TorchFramework):
@@ -41,6 +47,7 @@ class DDPG(TorchFramework):
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
                  batch_size: int = 100,
                  update_rate: float = 0.001,
+                 update_steps: Union[int, None] = None,
                  actor_learning_rate: float = 0.0005,
                  critic_learning_rate: float = 0.001,
                  discount: float = 0.99,
@@ -72,6 +79,21 @@ class DDPG(TorchFramework):
                     predicted_value.view(batch_size, 1)
                 )
 
+        Note:
+            DDPG supports two ways of updating the target network, the first
+            way is polyak update (soft update), which updates the target network
+            in every training step by mixing its weights with the online network
+            using ``update_rate``.
+
+            The other way is hard update, which copies weights of the online
+            network after every ``update_steps`` training step.
+
+            You can either specify ``update_rate`` or ``update_steps`` to select
+            one update scheme, if both are specified, an error will be raised.
+
+            These two different update schemes may result in different training
+            stability.
+
         Args:
             actor: Actor network module.
             actor_target: Target actor network module.
@@ -88,6 +110,7 @@ class DDPG(TorchFramework):
                 Target parameters are updated as:
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
+            update_steps: Training step number used to update target networks.
             actor_learning_rate: Learning rate of the actor optimizer,
                 not compatible with ``lr_scheduler``.
             critic_learning_rate: Learning rate of the critic optimizer,
@@ -103,10 +126,17 @@ class DDPG(TorchFramework):
         """
         self.batch_size = batch_size
         self.update_rate = update_rate
+        self.update_steps = update_steps
         self.discount = discount
         self.grad_max = gradient_max
         self.visualize = visualize
         self.visualize_dir = visualize_dir
+        self._update_counter = 0
+
+        if update_rate is not None and update_steps is not None:
+            raise ValueError("You can only specify one target network update"
+                             " scheme, either by update_rate or update_steps,"
+                             " but not both.")
 
         self.actor = actor
         self.actor_target = actor_target
@@ -418,8 +448,14 @@ class DDPG(TorchFramework):
 
         # Update target networks
         if update_target:
-            soft_update(self.actor_target, self.actor, self.update_rate)
-            soft_update(self.critic_target, self.critic, self.update_rate)
+            if self.update_rate is not None:
+                soft_update(self.actor_target, self.actor, self.update_rate)
+                soft_update(self.critic_target, self.critic, self.update_rate)
+            else:
+                self._update_counter += 1
+                if self._update_counter % self.update_steps == 0:
+                    hard_update(self.actor_target, self.actor)
+                    hard_update(self.critic_target, self.critic)
 
         self.actor.eval()
         self.critic.eval()
@@ -468,3 +504,55 @@ class DDPG(TorchFramework):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        default_values = {
+            "models": ["Actor", "Actor", "Critic", "Critic"],
+            "model_args": ((), (), (), ()),
+            "model_kwargs": ({}, {}, {}, {}),
+            "optimizer": "Adam",
+            "criterion": "MSELoss",
+            "lr_scheduler": None,
+            "lr_scheduler_args": None,
+            "lr_scheduler_kwargs": None,
+            "batch_size": 100,
+            "update_rate": 0.001,
+            "update_steps": None,
+            "actor_learning_rate": 0.0005,
+            "critic_learning_rate": 0.001,
+            "gradient_max": np.inf,
+            "discount": 0.99,
+            "replay_size": 500000,
+            "replay_device": "cpu",
+            "replay_buffer": None,
+            "visualize": False,
+            "visualize_dir": "",
+        }
+        config["frame"] = "DDPG"
+        if "frame_config" not in config:
+            config["frame_config"] = default_values
+        else:
+            config["frame_config"] = {**config["frame_config"],
+                                      **default_values}
+        return config
+
+    @classmethod
+    def init_from_config(cls, config: Dict[str, Any]):
+        f_config = config["frame_config"]
+        models = assert_and_get_valid_models(f_config["models"])
+        model_args = f_config["model_args"]
+        model_kwargs = f_config["model_kwargs"]
+        models = [
+            m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        lr_scheduler = (
+                f_config["lr_scheduler"]
+                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+        frame = cls(*models, optimizer, criterion,
+                    lr_scheduler=lr_scheduler, **f_config)
+        return frame

@@ -67,6 +67,7 @@ class MADDPG(TorchFramework):
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
                  batch_size: int = 100,
                  update_rate: float = 0.001,
+                 update_steps: Union[int, None] = None,
                  actor_learning_rate: float = 0.0005,
                  critic_learning_rate: float = 0.001,
                  discount: float = 0.99,
@@ -128,6 +129,7 @@ class MADDPG(TorchFramework):
             update_rate: :math:`\\tau` used to update target networks.
                 Target parameters are updated as:
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
+            update_steps: Training step number used to update target networks.
             actor_learning_rate: Learning rate of the actor optimizer,
                 not compatible with ``lr_scheduler``.
             critic_learning_rate: Learning rate of the critic optimizer,
@@ -151,12 +153,19 @@ class MADDPG(TorchFramework):
         assert pool_type in ("process", "thread")
         self.batch_size = batch_size
         self.update_rate = update_rate
+        self.update_steps = update_steps
         self.discount = discount
         self.has_visualized = False
         self.visualize = visualize
         self.visualize_dir = visualize_dir
         self.grad_max = gradient_max
         self.critic_visible_actors = critic_visible_actors
+        self._update_counter = 0
+
+        if update_rate is not None and update_steps is not None:
+            raise ValueError("You can only specify one target network update"
+                             " scheme, either by update_rate or update_steps,"
+                             " but not both.")
 
         # create ensembles of policies
         self.actors = [[actor] +
@@ -551,6 +560,7 @@ class MADDPG(TorchFramework):
             next_actions_t = self._move_to_shared_mem(next_actions_t)
 
         args = []
+        self._update_counter += 1
         for e_idx in range(self.ensemble_size):
             for a_idx in range(len(self.actors)):
                 args.append((
@@ -566,7 +576,7 @@ class MADDPG(TorchFramework):
                     self.state_concat_function,
                     self.reward_function,
                     self.criterion, self.discount, self.update_rate,
-                    self.grad_max,
+                    self.update_steps, self._update_counter, self.grad_max,
                     self.visualize and not self.has_visualized,
                     self.visualize_dir
                 ))
@@ -691,7 +701,8 @@ class MADDPG(TorchFramework):
                            actor_optims, critic_optims,
                            update_value, update_policy, update_target,
                            atf, acf, scf, rf,
-                           criterion, discount, update_rate, grad_max,
+                           criterion, discount, update_rate, update_steps,
+                           update_counter, grad_max,
                            visualize, visualize_dir):
         # atf: action transform function, used to transform the
         #      raw output of a single actor to a arg dict like:
@@ -819,12 +830,19 @@ class MADDPG(TorchFramework):
 
         # Update target networks
         if update_target:
-            soft_update(actor_targets[actor_index][policy_index],
-                        actors[actor_index][policy_index],
-                        update_rate)
-            soft_update(critic_targets[actor_index],
-                        critics[actor_index],
-                        update_rate)
+            if update_rate is not None:
+                soft_update(actor_targets[actor_index][policy_index],
+                            actors[actor_index][policy_index],
+                            update_rate)
+                soft_update(critic_targets[actor_index],
+                            critics[actor_index],
+                            update_rate)
+            else:
+                if update_counter % update_steps == 0:
+                    hard_update(actor_targets[actor_index][policy_index],
+                                actors[actor_index][policy_index])
+                    hard_update(critic_targets[actor_index],
+                                critics[actor_index])
 
         actors[actor_index][policy_index].eval()
         critics[actor_index].eval()

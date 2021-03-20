@@ -6,7 +6,16 @@ import numpy as np
 from machin.frame.buffers.buffer import Transition, Buffer
 from machin.model.nets.base import NeuralNetworkModule
 from .base import TorchFramework
-from .utils import hard_update, soft_update, safe_call, safe_return
+from .utils import (
+    hard_update,
+    soft_update,
+    safe_call,
+    safe_return,
+    assert_and_get_valid_models,
+    assert_and_get_valid_optimizer,
+    assert_and_get_valid_criterion,
+    assert_and_get_valid_lr_scheduler
+)
 
 
 class SAC(TorchFramework):
@@ -33,6 +42,7 @@ class SAC(TorchFramework):
                  initial_entropy_alpha: float = 1.0,
                  batch_size: int = 100,
                  update_rate: float = 0.005,
+                 update_steps: Union[int, None] = None,
                  actor_learning_rate: float = 0.0005,
                  critic_learning_rate: float = 0.001,
                  alpha_learning_rate: float = 0.001,
@@ -93,6 +103,7 @@ class SAC(TorchFramework):
                 Target parameters are updated as:
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
+            update_steps: Training step number used to update target networks.
             actor_learning_rate: Learning rate of the actor optimizer,
                 not compatible with ``lr_scheduler``.
             critic_learning_rate: Learning rate of the critic optimizer,
@@ -108,6 +119,7 @@ class SAC(TorchFramework):
         """
         self.batch_size = batch_size
         self.update_rate = update_rate
+        self.update_steps = update_steps
         self.discount = discount
         self.visualize = visualize
         self.visualize_dir = visualize_dir
@@ -115,6 +127,12 @@ class SAC(TorchFramework):
                                       requires_grad=True)
         self.grad_max = gradient_max
         self.target_entropy = target_entropy
+        self._update_counter = 0
+
+        if update_rate is not None and update_steps is not None:
+            raise ValueError("You can only specify one target network update"
+                             " scheme, either by update_rate or update_steps,"
+                             " but not both.")
 
         self.actor = actor
         self.critic = critic
@@ -332,8 +350,14 @@ class SAC(TorchFramework):
 
         # Update target networks
         if update_target:
-            soft_update(self.critic_target, self.critic, self.update_rate)
-            soft_update(self.critic2_target, self.critic2, self.update_rate)
+            if self.update_rate is not None:
+                soft_update(self.critic_target, self.critic, self.update_rate)
+                soft_update(self.critic2_target, self.critic2, self.update_rate)
+            else:
+                self._update_counter += 1
+                if self._update_counter % self.update_steps == 0:
+                    hard_update(self.critic_target, self.critic)
+                    hard_update(self.critic2_target, self.critic2)
 
         if update_entropy_alpha and self.target_entropy is not None:
             alpha_loss = -(t.log(self.entropy_alpha) *
@@ -379,3 +403,58 @@ class SAC(TorchFramework):
         next_value = next_value.to(reward.device)
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        default_values = {
+            "models": ["Actor", "Critic", "Critic", "Critic", "Critic"],
+            "model_args": ((), (), (), (), ()),
+            "model_kwargs": ({}, {}, {}, {}, {}),
+            "optimizer": "Adam",
+            "criterion": "MSELoss",
+            "lr_scheduler": None,
+            "lr_scheduler_args": None,
+            "lr_scheduler_kwargs": None,
+            "target_entropy": None,
+            "initial_entropy_alpha": 1.0,
+            "batch_size": 100,
+            "update_rate": 0.001,
+            "update_steps": None,
+            "actor_learning_rate": 0.0005,
+            "critic_learning_rate": 0.001,
+            "alpha_learning_rate": 0.001,
+            "discount": 0.99,
+            "gradient_max": np.inf,
+            "replay_size": 500000,
+            "replay_device": "cpu",
+            "replay_buffer": None,
+            "visualize": False,
+            "visualize_dir": "",
+        }
+        config["frame"] = "SAC"
+        if "frame_config" not in config:
+            config["frame_config"] = default_values
+        else:
+            config["frame_config"] = {**config["frame_config"],
+                                      **default_values}
+        return config
+
+    @classmethod
+    def init_from_config(cls, config: Dict[str, Any]):
+        f_config = config["frame_config"]
+        models = assert_and_get_valid_models(f_config["models"])
+        model_args = f_config["model_args"]
+        model_kwargs = f_config["model_kwargs"]
+        models = [
+            m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        lr_scheduler = (
+                f_config["lr_scheduler"]
+                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+        frame = cls(*models, optimizer, criterion,
+                    lr_scheduler=lr_scheduler, **f_config)
+        return frame

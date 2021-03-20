@@ -1,3 +1,4 @@
+import warnings
 from .base import TorchFramework
 
 from .dqn import DQN
@@ -14,10 +15,19 @@ from .a3c import A3C
 from .ppo import PPO
 from .sac import SAC
 
-from .apex import DQNApex, DDPGApex
-from .impala import IMPALA
-from .ars import ARS
 from .maddpg import MADDPG
+try:
+    from .apex import DQNApex, DDPGApex
+    from .impala import IMPALA
+    from .ars import ARS
+except ImportError as _:
+    warnings.warn("Failed to import algorithms relying on torch.distributed."
+                  " Set them to None.")
+    DQNApex = None
+    DDPGApex = None
+    IMPALA = None
+    ARS = None
+
 
 __all__ = [
     "TorchFramework",

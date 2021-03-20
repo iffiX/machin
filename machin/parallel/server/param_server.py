@@ -319,6 +319,7 @@ class PushPullGradServerImpl:
         self.max_queue_size = max_queue_size
         self.model = None  # type: Union[nn.Module, None]
         self.optimizer = None
+        self.lr_scheduler = None
         # do not set max_queue_size here, will raise queue.Full
         self.master_queue = Queue()
         self.secondary_queue = Queue()
@@ -341,7 +342,10 @@ class PushPullGradServerImpl:
     def watch(self):
         self.reduce_task.watch()
 
-    def manage_model(self, model: nn.Module, optimizer: Any):
+    def manage_model(self,
+                     model: nn.Module,
+                     optimizer: Any,
+                     lr_scheduler: Any = None):
         """
         Let the main reducer manage your model. Must be called before start.
 
@@ -352,7 +356,11 @@ class PushPullGradServerImpl:
         Args:
             model: Model to manage.
             optimizer: Optimizer of your model. you should initialize it first:
-            >>> optimizer(model.parameters(), lr=1e-3)
+            >>> optimizer = Adam(model.parameters(), lr=1e-3)
+
+            lr_scheduler: learning rate scheduler, you should initialize it
+                first:
+            >>> scheduler = LambdaLR(optimizer, lr_lambda=[lambda1, lambda2])
 
         Raises:
             ``RuntimeError`` if current rpc role is not the main reducer.
@@ -360,6 +368,7 @@ class PushPullGradServerImpl:
         if self.group.get_cur_name() == self.primary_reducer:
             self.model = model
             self.optimizer = optimizer
+            self.lr_scheduler = lr_scheduler
             self.model.pp_version = 0
         else:  # pragma: no cover
             raise RuntimeError("Current worker is not the reduce master, and"

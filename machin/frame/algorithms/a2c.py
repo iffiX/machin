@@ -6,7 +6,13 @@ import numpy as np
 from machin.model.nets.base import NeuralNetworkModule
 from machin.frame.buffers.buffer import Transition, Buffer
 from .base import TorchFramework
-from .utils import safe_call
+from .utils import (
+    safe_call,
+    assert_and_get_valid_models,
+    assert_and_get_valid_optimizer,
+    assert_and_get_valid_criterion,
+    assert_and_get_valid_lr_scheduler
+)
 
 
 class A2C(TorchFramework):
@@ -152,6 +158,7 @@ class A2C(TorchFramework):
             gae_lambda: :math:`\\lambda` used in generalized advantage
                 estimation.
             discount: :math:`\\gamma` used in the bellman function.
+            normalize_advantage: Whether to normalize the advantage function.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
             replay_device: Device where the replay buffer locates on, Not
@@ -409,3 +416,59 @@ class A2C(TorchFramework):
             self.actor_lr_sch.step()
         if hasattr(self, "critic_lr_sch"):
             self.critic_lr_sch.step()
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        default_values = {
+            "models": ["Actor", "Critic"],
+            "model_args": ((), ()),
+            "model_kwargs": ({}, {}),
+            "optimizer": "Adam",
+            "criterion": "MSELoss",
+            "lr_scheduler": None,
+            "lr_scheduler_args": None,
+            "lr_scheduler_kwargs": None,
+            "batch_size": 100,
+            "actor_update_times": 5,
+            "critic_update_times": 10,
+            "actor_learning_rate": 0.001,
+            "critic_learning_rate": 0.001,
+            "entropy_weight": None,
+            "value_weight": 0.5,
+            "gradient_max": np.inf,
+            "gae_lambda": 1.0,
+            "discount": 0.99,
+            "normalize_advantage": True,
+            "replay_size": 500000,
+            "replay_device": "cpu",
+            "replay_buffer": None,
+            "visualize": False,
+            "visualize_dir": "",
+        }
+        config["frame"] = "A2C"
+        if "frame_config" not in config:
+            config["frame_config"] = default_values
+        else:
+            config["frame_config"] = {**config["frame_config"],
+                                      **default_values}
+        return config
+
+    @classmethod
+    def init_from_config(cls, config: Dict[str, Any]):
+        f_config = config["frame_config"]
+        models = assert_and_get_valid_models(f_config["models"])
+        model_args = f_config["model_args"]
+        model_kwargs = f_config["model_kwargs"]
+        models = [
+            m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        lr_scheduler = (
+                f_config["lr_scheduler"]
+                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+        frame = cls(*models, optimizer, criterion, lr_scheduler=lr_scheduler,
+                    **f_config)
+        return frame

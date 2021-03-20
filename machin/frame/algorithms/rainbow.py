@@ -336,3 +336,12 @@ class RAINBOW(DQN):
         self.qnet.eval()
         # use .item() to prevent memory leakage
         return value_loss.item()
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        config = DQN.generate_config(config)
+        config["frame"] = "RAINBOW"
+        config["frame_config"]["value_min"] = -1.0
+        config["frame_config"]["value_max"] = 1.0
+        config["frame_config"]["reward_future_steps"] = 3
+        return config

@@ -30,6 +30,7 @@ class DDPGPer(DDPG):
                  lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
                  batch_size: int = 100,
                  update_rate: float = 0.005,
+                 update_steps: Union[int, None] = None,
                  actor_learning_rate: float = 0.0005,
                  critic_learning_rate: float = 0.001,
                  discount: float = 0.99,
@@ -48,6 +49,7 @@ class DDPGPer(DDPG):
             lr_scheduler_kwargs=lr_scheduler_kwargs,
             batch_size=batch_size,
             update_rate=update_rate,
+            update_steps=update_steps,
             actor_learning_rate=actor_learning_rate,
             critic_learning_rate=critic_learning_rate,
             discount=discount,
@@ -154,10 +156,22 @@ class DDPGPer(DDPG):
 
         # Update target networks
         if update_target:
-            soft_update(self.actor_target, self.actor, self.update_rate)
-            soft_update(self.critic_target, self.critic, self.update_rate)
+            if self.update_rate is not None:
+                soft_update(self.actor_target, self.actor, self.update_rate)
+                soft_update(self.critic_target, self.critic, self.update_rate)
+            else:
+                self._update_counter += 1
+                if self._update_counter % self.update_steps == 0:
+                    hard_update(self.actor_target, self.actor)
+                    hard_update(self.critic_target, self.critic)
 
         self.actor.eval()
         self.critic.eval()
         # use .item() to prevent memory leakage
         return -act_policy_loss.item(), value_loss.item()
+
+    @staticmethod
+    def generate_config(config: Dict[str, Any]):
+        config = DDPG.generate_config(config)
+        config["frame"] = "DDPGPer"
+        return config
