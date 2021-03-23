@@ -117,6 +117,28 @@ class TD3(DDPG):
                 **lr_scheduler_kwargs[2]
             )
 
+    @property
+    def optimizers(self):
+        return [self.actor_optim,
+                self.critic_optim,
+                self.critic2_optim]
+
+    @optimizers.setter
+    def optimizers(self, optimizers):
+        self.actor_optim, \
+        self.critic_optim, \
+        self.critic2_optim = optimizers
+
+    @property
+    def lr_schedulers(self):
+        if hasattr(self, "actor_lr_sch") \
+                and hasattr(self, "critic_lr_sch") \
+                and hasattr(self, "critic2_lr_sch"):
+            return [self.actor_lr_sch,
+                    self.critic_lr_sch,
+                    self.critic2_lr_sch]
+        return []
+
     def _criticize2(self,
                     state: Dict[str, Any],
                     action: Dict[str, Any],
@@ -186,13 +208,13 @@ class TD3(DDPG):
             self.critic.zero_grad()
             value_loss.backward()
             nn.utils.clip_grad_norm_(
-                self.critic.parameters(), self.grad_max
+                self.critic.parameters(), self.gradient_max
             )
             self.critic_optim.step()
             self.critic2.zero_grad()
             value_loss2.backward()
             nn.utils.clip_grad_norm_(
-                self.critic2.parameters(), self.grad_max
+                self.critic2.parameters(), self.gradient_max
             )
             self.critic2_optim.step()
 
@@ -213,7 +235,7 @@ class TD3(DDPG):
             self.actor.zero_grad()
             act_policy_loss.backward()
             nn.utils.clip_grad_norm_(
-                self.actor.parameters(), self.grad_max
+                self.actor.parameters(), self.gradient_max
             )
             self.actor_optim.step()
 
@@ -260,8 +282,8 @@ class TD3(DDPG):
             hard_update(self.critic, self.critic_target)
             hard_update(self.critic2, self.critic2_target)
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         config = DDPG.generate_config(config)
         config["frame"] = "TD2"
         config["frame_config"]["models"] = [

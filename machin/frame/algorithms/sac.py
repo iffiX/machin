@@ -185,6 +185,32 @@ class SAC(TorchFramework):
         self.criterion = criterion
         super(SAC, self).__init__()
 
+    @property
+    def optimizers(self):
+        return [self.actor_optim,
+                self.critic_optim,
+                self.critic2_optim,
+                self.alpha_optim]
+
+    @optimizers.setter
+    def optimizers(self, optimizers):
+        self.actor_optim, \
+        self.critic_optim, \
+        self.critic2_optim, \
+        self.alpha_optim = optimizers
+
+    @property
+    def lr_schedulers(self):
+        if hasattr(self, "actor_lr_sch") \
+                and hasattr(self, "critic_lr_sch") \
+                and hasattr(self, "critic2_lr_sch") \
+                and hasattr(self, "alpha_lr_sch"):
+            return [self.actor_lr_sch,
+                    self.critic_lr_sch,
+                    self.critic2_lr_sch,
+                    self.alpha_lr_sch]
+        return []
+
     def act(self, state: Dict[str, Any], **__):
         """
         Use actor network to produce an action for the current state.
@@ -404,8 +430,8 @@ class SAC(TorchFramework):
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         default_values = {
             "models": ["Actor", "Critic", "Critic", "Critic", "Critic"],
             "model_args": ((), (), (), (), ()),

@@ -131,9 +131,9 @@ class HDDPG(DDPG):
 
         if update_value:
             self.critic.zero_grad()
-            value_loss.backward()
+            self._backward(value_loss)
             nn.utils.clip_grad_norm_(
-                self.critic.parameters(), self.grad_max
+                self.critic.parameters(), self.gradient_max
             )
             self.critic_optim.step()
 
@@ -152,9 +152,9 @@ class HDDPG(DDPG):
 
         if update_policy:
             self.actor.zero_grad()
-            act_policy_loss.backward()
+            self._backward(act_policy_loss)
             nn.utils.clip_grad_norm_(
-                self.actor.parameters(), self.grad_max
+                self.actor.parameters(), self.gradient_max
             )
             self.actor_optim.step()
 
@@ -174,8 +174,8 @@ class HDDPG(DDPG):
         # use .item() to prevent memory leakage
         return -act_policy_loss.item(), value_loss.item()
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         config = DDPG.generate_config(config)
         config["frame"] = "HDDPG"
         config["frame_config"]["q_increase_rate"] = 1.0

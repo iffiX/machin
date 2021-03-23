@@ -172,9 +172,9 @@ class PPO(A2C):
             # Update actor network
             if update_policy:
                 self.actor.zero_grad()
-                act_policy_loss.backward()
+                self._backward(act_policy_loss)
                 nn.utils.clip_grad_norm_(
-                    self.actor.parameters(), self.grad_max
+                    self.actor.parameters(), self.gradient_max
                 )
                 self.actor_optim.step()
             sum_act_policy_loss += act_policy_loss.item()
@@ -203,9 +203,9 @@ class PPO(A2C):
             # Update critic network
             if update_value:
                 self.critic.zero_grad()
-                value_loss.backward()
+                self._backward(value_loss)
                 nn.utils.clip_grad_norm_(
-                    self.critic.parameters(), self.grad_max
+                    self.critic.parameters(), self.gradient_max
                 )
                 self.critic_optim.step()
             sum_value_loss += value_loss.item()
@@ -216,8 +216,8 @@ class PPO(A2C):
         return (-sum_act_policy_loss / self.actor_update_times,
                 sum_value_loss / self.critic_update_times)
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         config = A2C.generate_config(config)
         config["frame"] = "PPO"
         config["frame_config"]["surrogate_loss_clip"] = 0.2

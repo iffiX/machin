@@ -95,6 +95,10 @@ class DQNApex(DQNPer):
         self.qnet_model_server = model_server[0]
         self.is_syncing = True
 
+    @classmethod
+    def is_distributed(cls):
+        return True
+
     def set_sync(self, is_syncing):
         self.is_syncing = is_syncing
 
@@ -138,8 +142,8 @@ class DQNApex(DQNPer):
             self.qnet_model_server.push(self.qnet)
         return result
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         default_values = {
             "learner_process_ratio": 0.1,
             "model_server_group_name": "dqn_apex_model_server",
@@ -314,6 +318,10 @@ class DDPGApex(DDPGPer):
         self.actor_model_server = model_server[0]
         self.is_syncing = True
 
+    @classmethod
+    def is_distributed(cls):
+        return True
+
     def set_sync(self, is_syncing):
         self.is_syncing = is_syncing
 
@@ -382,8 +390,8 @@ class DDPGApex(DDPGPer):
             self.actor_model_server.push(self.actor)
         return result
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         default_values = {
             "learner_process_ratio": 0.1,
             "model_server_group_name": "ddpg_apex_model_server",

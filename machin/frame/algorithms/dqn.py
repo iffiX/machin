@@ -208,6 +208,20 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
         super(DQN, self).__init__()
 
+    @property
+    def optimizers(self):
+        return [self.qnet_optim]
+
+    @optimizers.setter
+    def optimizers(self, optimizers):
+        self.qnet_optim = optimizers[0]
+
+    @property
+    def lr_schedulers(self):
+        if hasattr(self, "qnet_lr_sch"):
+            return [self.qnet_lr_sch]
+        return []
+
     def act_discrete(self,
                      state: Dict[str, Any],
                      use_target: bool = False,
@@ -408,7 +422,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
             if update_value:
                 self.qnet.zero_grad()
-                value_loss.backward()
+                self._backward(value_loss)
                 nn.utils.clip_grad_norm_(
                     self.qnet.parameters(), self.grad_max
                 )
@@ -449,7 +463,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
             if update_value:
                 self.qnet.zero_grad()
-                value_loss.backward()
+                self._backward(value_loss)
                 nn.utils.clip_grad_norm_(
                     self.qnet.parameters(), self.grad_max
                 )
@@ -498,8 +512,8 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         default_values = {
             "models": ["QNet", "QNet"],
             "model_args": ((), ()),

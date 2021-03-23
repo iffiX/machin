@@ -291,6 +291,27 @@ class MADDPG(TorchFramework):
 
         super(MADDPG, self).__init__()
 
+    @property
+    def optimizers(self):
+        return sum(self.actor_optims, self.critic_optims)
+
+    @optimizers.setter
+    def optimizers(self, optimizers):
+        counter = 0
+        for ac in self.actor_optims:
+            for id, _acc in enumerate(ac):
+                ac[id] = optimizers[counter]
+                counter += 1
+        for id in range(len(self.critic_optims)):
+            self.critic_optims[id] = optimizers[counter]
+            counter += 1
+
+    @property
+    def lr_schedulers(self):
+        if hasattr(self, "actor_lr_schs") and hasattr(self, "critic_lr_schs"):
+            return self.actor_lr_schs + self.critic_lr_schs
+        return []
+
     def act(self,
             states: List[Dict[str, Any]],
             use_target: bool = False,
@@ -590,7 +611,8 @@ class MADDPG(TorchFramework):
                     self.criterion, self.discount, self.update_rate,
                     self.update_steps, self._update_counter, self.grad_max,
                     self.visualize and not self.has_visualized,
-                    self.visualize_dir
+                    self.visualize_dir,
+                    self._backward
                 ))
         all_loss = self.pool.starmap(self._update_sub_policy, args)
         mean_loss = t.tensor(all_loss).mean(dim=0)
@@ -715,7 +737,8 @@ class MADDPG(TorchFramework):
                            atf, acf, scf, rf,
                            criterion, discount, update_rate, update_steps,
                            update_counter, grad_max,
-                           visualize, visualize_dir):
+                           visualize, visualize_dir,
+                           backward_func):
         # atf: action transform function, used to transform the
         #      raw output of a single actor to a arg dict like:
         #      {"action": tensor}, where "action" is the keyword argument
@@ -792,7 +815,7 @@ class MADDPG(TorchFramework):
 
         if update_value:
             critics[actor_index].zero_grad()
-            value_loss.backward()
+            backward_func(value_loss)
             nn.utils.clip_grad_norm_(
                 critics[actor_index].parameters(), grad_max
             )
@@ -834,7 +857,7 @@ class MADDPG(TorchFramework):
 
         if update_policy:
             actors[actor_index][policy_index].zero_grad()
-            act_policy_loss.backward()
+            backward_func(act_policy_loss)
             nn.utils.clip_grad_norm_(
                 actors[actor_index][policy_index].parameters(), grad_max
             )
@@ -941,8 +964,8 @@ class MADDPG(TorchFramework):
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         default_values = {
             "models": [["Actor"], ["Actor"], ["Critic"], ["Critic"]],
             "model_args": ([()], [()], [()], [()]),

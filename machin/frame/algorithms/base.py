@@ -1,5 +1,5 @@
 from os.path import join
-from typing import Dict, Any
+from typing import Dict, Any, Callable
 from torchviz import make_dot
 import torch as t
 
@@ -16,13 +16,65 @@ class TorchFramework:
 
     def __init__(self):
         self._visualized = set()
+        self._backward = t.autograd.backward
+
+    @property
+    def optimizers(self):
+        raise NotImplementedError
+
+    @optimizers.setter
+    def optimizers(self, optimizers):
+        raise NotImplementedError
+
+    @property
+    def lr_schedulers(self):
+        raise NotImplementedError
+
+
+    @property
+    def top_models(self):
+        models = []
+        for m in self._is_top:
+            models.append(getattr(self, m))
+        return models
+
+    @property
+    def restorable_models(self):
+        models = []
+        for m in self._is_restorable:
+            models.append(getattr(self, m))
+        return models
 
     @classmethod
-    def get_restorable(cls):
+    def get_top_model_names(cls):
         """
-        Get restorable modules.
+        Get attribute name of top level nn models.
+        """
+        return cls._is_top
+
+    @classmethod
+    def get_restorable_model_names(cls):
+        """
+        Get attribute name of restorable nn models.
         """
         return cls._is_restorable
+
+    @classmethod
+    def is_distributed(cls):
+        """
+        Whether this framework is a distributed framework which require
+        multiple processes to run, and depends on ``torch.distributed`` or
+        ``torch.distributed.rpc``
+        """
+        return False
+
+    def set_backward_function(self, backward_func: Callable):
+        """
+        Replace the default backward function with a custom function.
+        The default loss backward function is ``torch.autograd.backward``
+        """
+        assert callable(backward_func), "Backward function must be callable."
+        self._backward = backward_func
 
     def enable_multiprocessing(self):
         """
@@ -113,8 +165,8 @@ class TorchFramework:
                      cleanup=False,
                      quiet=True)
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         raise NotImplementedError
 
     @classmethod

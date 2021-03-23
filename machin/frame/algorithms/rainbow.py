@@ -318,7 +318,7 @@ class RAINBOW(DQN):
 
         if update_value:
             self.qnet.zero_grad()
-            value_loss.backward()
+            self._backward(value_loss)
             nn.utils.clip_grad_norm_(
                 self.qnet.parameters(), self.grad_max
             )
@@ -337,8 +337,8 @@ class RAINBOW(DQN):
         # use .item() to prevent memory leakage
         return value_loss.item()
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         config = DQN.generate_config(config)
         config["frame"] = "RAINBOW"
         config["frame_config"]["value_min"] = -1.0

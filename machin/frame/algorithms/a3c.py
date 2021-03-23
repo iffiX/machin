@@ -105,6 +105,18 @@ class A3C(A2C):
             grad_server[0], grad_server[1]
         self.is_syncing = True
 
+    @property
+    def optimizers(self):
+        return []
+
+    @optimizers.setter
+    def optimizers(self, optimizers):
+        pass
+
+    @property
+    def lr_schedulers(self):
+        return []
+
     def set_sync(self, is_syncing):
         self.is_syncing = is_syncing
 
@@ -147,8 +159,8 @@ class A3C(A2C):
         self.actor_grad_server.push(self.actor)
         self.critic_grad_server.push(self.critic)
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         default_values = {
             "grad_server_group_name": "a3c_grad_server",
             "grad_server_members": "all",

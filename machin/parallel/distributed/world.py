@@ -188,6 +188,10 @@ def get_world():  # pragma: no cover
     return WORLD
 
 
+def is_world_initialized(): # pragma: no cover
+    return WORLD is not None
+
+
 def _is_group_ready(group_name):  # pragma: no cover
     return WORLD.group_create_signals.get(group_name, None) is False
 
@@ -230,11 +234,14 @@ class World:
     def __init__(self,
                  name: str,
                  rank: int = -1,
+                 init_dist: bool = True,
                  init_rpc: bool = True,
                  world_size: int = None,
-                 init_method: str = "tcp://localhost:9100",
-                 rpc_timeout: float = 60,
-                 rpc_threads: int = 8):
+                 dist_backend: str = "gloo",
+                 dist_init_method: str = "tcp://localhost:9100",
+                 rpc_init_method: str = "tcp://localhost:9101",
+                 dist_timeout: float = 60,
+                 rpc_timeout: float = 60):
         """
         Args:
             name: A unique name to identify current process.
@@ -242,9 +249,8 @@ class World:
                 it if you are using `torch.distributed.launch` or `torchelastic`
             world_size:   Size of the distributed world. You do not need to specify
                 it if you are using `torch.distributed.launch` or `torchelastic`
-            init_method:  Backend initialization method.
+            dist_timeout: Distributed package timeout in seconds.
             rpc_timeout:  Global rpc call timeout in seconds.
-            rpc_threads:  Rpc recv/send thread num.
         """
         self.world_size = world_size
         self.rank = rank
@@ -252,15 +258,19 @@ class World:
         self.groups = {}
         self.group_create_signals = {}
 
-        # "<rank-number>" is used as the unique name.
+        if init_dist:
+            dist.init_process_group(backend=dist_backend,
+                                    init_method=dist_init_method,
+                                    timeout=dist_timeout,
+                                    rank=rank,
+                                    world_size=world_size)
         if init_rpc:
             rpc.init_rpc(self.name,
                          rank=rank,
                          world_size=world_size,
-                         rpc_backend_options=rpc.ProcessGroupRpcBackendOptions(
-                             init_method=init_method,
-                             num_send_recv_threads=rpc_threads,
-                             rpc_timeout=timedelta(seconds=rpc_timeout)
+                         rpc_backend_options=rpc.TensorPipeRpcBackendOptions(
+                             init_method=rpc_init_method,
+                             rpc_timeout=rpc_timeout
                          ))
 
         # get rank-name mapping

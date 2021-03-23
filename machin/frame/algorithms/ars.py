@@ -410,6 +410,24 @@ class ARS(TorchFramework):
         self._reset_reward_dict()
         super(ARS, self).__init__()
 
+    @property
+    def optimizers(self):
+        return [self.actor_optim]
+
+    @optimizers.setter
+    def optimizers(self, optimizers):
+        self.actor_optim = optimizers[0]
+
+    @property
+    def lr_schedulers(self):
+        if hasattr(self, "actor_lr_sch"):
+            return [self.actor_lr_sch]
+        return []
+
+    @classmethod
+    def is_distributed(cls):
+        return True
+
     def get_actor_types(self) -> List[str]:
         """
         Returns:
@@ -682,8 +700,8 @@ class ARS(TorchFramework):
             self.actor_with_delta[(r_idx, False)] = actor_negative
             self.actor_with_delta[(r_idx, True)] = actor_positive
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         default_values = {
             "model_server_group_name": "ars_model_server",
             "model_server_members": "all",

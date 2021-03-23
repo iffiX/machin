@@ -7,7 +7,7 @@ import moviepy.editor as mpy
 import matplotlib.pyplot as plt
 
 
-def show_image(image: np.array,
+def show_image(image: np.ndarray,
                show_normalized: bool = True,
                pause_time: float = 0.01,
                title: str = ""):
@@ -49,7 +49,7 @@ def show_image(image: np.array,
         plt.pause(pause_time)
 
 
-def create_video(frames: List[np.array],
+def create_video(frames: List[np.ndarray],
                  path: str,
                  filename: str,
                  extension: str = ".gif",
@@ -84,7 +84,7 @@ def create_video(frames: List[np.array],
                                  fps=fps, verbose=False, logger=None)
 
 
-def create_video_subproc(frames: List[np.array],
+def create_video_subproc(frames: List[np.ndarray],
                          path: str,
                          filename: str,
                          extension: str = ".gif",
@@ -134,7 +134,19 @@ def create_video_subproc(frames: List[np.array],
     return wait
 
 
-def create_image(image: np.array,
+def numpy_array_to_pil_image(image: np.ndarray):
+    if np.issubdtype(image.dtype, np.integer):
+        image = image.astype(np.uint8)
+    elif np.issubdtype(image.dtype, np.floating):
+        image = (image * 255).astype(np.uint8)
+    if image.ndim == 2:
+        # consider as a grey scale image
+        image = np.repeat(image[:, :, np.newaxis], 3, axis=2)
+    image = Image.fromarray(image)
+    return image
+
+
+def create_image(image: np.ndarray,
                  path: str,
                  filename: str,
                  extension: str = ".png"):
@@ -148,14 +160,7 @@ def create_image(image: np.array,
         filename: File name.
         extension: File extension.
     """
-    if np.issubdtype(image.dtype, np.integer):
-        image = image.astype(np.uint8)
-    elif np.issubdtype(image.dtype, np.floating):
-        image = (image * 255).astype(np.uint8)
-    if image.ndim == 2:
-        # consider as a grey scale image
-        image = np.repeat(image[:, :, np.newaxis], 3, axis=2)
-    image = Image.fromarray(image)
+    image = numpy_array_to_pil_image(image)
     image.save(os.path.join(path, filename + extension))
 
 

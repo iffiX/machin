@@ -52,7 +52,7 @@ setuptools.setup(
         "gym",
         "psutil",
         "numpy",
-        "torch>=1.5.0",
+        "torch>=1.6.0",
         "pytorch-lightning>=1.0"
         "torchviz",
         "moviepy",

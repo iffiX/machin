@@ -128,7 +128,7 @@ class DDPG(TorchFramework):
         self.update_rate = update_rate
         self.update_steps = update_steps
         self.discount = discount
-        self.grad_max = gradient_max
+        self.gradient_max = gradient_max
         self.visualize = visualize
         self.visualize_dir = visualize_dir
         self._update_counter = 0
@@ -173,6 +173,20 @@ class DDPG(TorchFramework):
 
         self.criterion = criterion
         super(DDPG, self).__init__()
+
+    @property
+    def optimizers(self):
+        return [self.actor_optim, self.critic_optim]
+
+    @optimizers.setter
+    def optimizers(self, optimizers):
+        self.actor_optim, self.critic_optim = optimizers
+
+    @property
+    def lr_schedulers(self):
+        if hasattr(self, "actor_lr_sch") and hasattr(self, "critic_lr_sch"):
+            return [self.actor_lr_sch, self.critic_lr_sch]
+        return []
 
     def act(self,
             state: Dict[str, Any],
@@ -419,9 +433,9 @@ class DDPG(TorchFramework):
 
         if update_value:
             self.critic.zero_grad()
-            value_loss.backward()
+            self._backward(value_loss)
             nn.utils.clip_grad_norm_(
-                self.critic.parameters(), self.grad_max
+                self.critic.parameters(), self.gradient_max
             )
             self.critic_optim.step()
 
@@ -440,9 +454,9 @@ class DDPG(TorchFramework):
 
         if update_policy:
             self.actor.zero_grad()
-            act_policy_loss.backward()
+            self._backward(act_policy_loss)
             nn.utils.clip_grad_norm_(
-                self.actor.parameters(), self.grad_max
+                self.actor.parameters(), self.gradient_max
             )
             self.actor_optim.step()
 
@@ -505,8 +519,8 @@ class DDPG(TorchFramework):
         terminal = terminal.to(reward.device)
         return reward + discount * ~terminal * next_value
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         default_values = {
             "models": ["Actor", "Actor", "Critic", "Critic"],
             "model_args": ((), (), (), ()),

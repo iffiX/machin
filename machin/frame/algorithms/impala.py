@@ -169,6 +169,24 @@ class IMPALA(TorchFramework):
 
         super(IMPALA, self).__init__()
 
+    @property
+    def optimizers(self):
+        return [self.actor_optim, self.critic_optim]
+
+    @optimizers.setter
+    def optimizers(self, optimizers):
+        self.actor_optim, self.critic_optim = optimizers
+
+    @property
+    def lr_schedulers(self):
+        if hasattr(self, "actor_lr_sch") and hasattr(self, "critic_lr_sch"):
+            return [self.actor_lr_sch, self.critic_lr_sch]
+        return []
+
+    @classmethod
+    def is_distributed(cls):
+        return True
+
     def set_sync(self, is_syncing):
         self.is_syncing = is_syncing
 
@@ -382,7 +400,7 @@ class IMPALA(TorchFramework):
         # Update actor network
         if update_policy:
             self.actor.zero_grad()
-            act_policy_loss.backward()
+            self._backward(act_policy_loss)
             nn.utils.clip_grad_norm_(
                 self.actor.parameters(), self.grad_max
             )
@@ -391,7 +409,7 @@ class IMPALA(TorchFramework):
         # Update critic network
         if update_value:
             self.critic.zero_grad()
-            value_loss.backward()
+            self._backward(value_loss)
             nn.utils.clip_grad_norm_(
                 self.critic.parameters(), self.grad_max
             )
@@ -419,8 +437,8 @@ class IMPALA(TorchFramework):
         if hasattr(self, "critic_lr_sch"):
             self.critic_lr_sch.step()
 
-    @staticmethod
-    def generate_config(config: Dict[str, Any]):
+    @classmethod
+    def generate_config(cls, config: Dict[str, Any]):
         default_values = {
             "learner_process_ratio": 0.1,
             "model_server_group_name": "impala_model_server",
