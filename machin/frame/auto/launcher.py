@@ -5,7 +5,12 @@ from torch.utils.data import DataLoader
 from .config import init_algorithm_from_config, is_algorithm_distributed
 from .pl_plugin import DDPPlugin, DDPSpawnPlugin
 from .pl_logger import LocalMediaLogger
-from .dataset import *
+from .dataset import (
+    is_discrete_space,
+    is_continuous_space,
+    RLGymDiscActDataset,
+    RLGymContActDataset
+)
 
 
 class Launcher(pl.LightningModule):
