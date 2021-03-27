@@ -1,11 +1,12 @@
 from typing import Union, Dict, List, Tuple, Callable, Any
+from copy import deepcopy
 import torch as t
 import torch.nn as nn
 import numpy as np
 
 from machin.frame.buffers.buffer import Transition, Buffer
 from machin.model.nets.base import NeuralNetworkModule
-from .base import TorchFramework
+from .base import TorchFramework, Config
 from .utils import (
     hard_update,
     soft_update,
@@ -330,8 +331,8 @@ class SAC(TorchFramework):
 
         cur_value = self._criticize(state, action)
         cur_value2 = self._criticize2(state, action)
-        value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
-        value_loss2 = self.criterion(cur_value2, y_i.to(cur_value.device))
+        value_loss = self.criterion(cur_value, y_i.type_as(cur_value))
+        value_loss2 = self.criterion(cur_value2, y_i.type_as(cur_value))
 
         if self.visualize:
             self.visualize_model(value_loss, "critic", self.visualize_dir)
@@ -426,12 +427,12 @@ class SAC(TorchFramework):
 
     @staticmethod
     def reward_function(reward, discount, next_value, terminal, _):
-        next_value = next_value.to(reward.device)
-        terminal = terminal.to(reward.device)
+        next_value = next_value.type_as(reward)
+        terminal = terminal.type_as(reward)
         return reward + discount * ~terminal * next_value
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         default_values = {
             "models": ["Actor", "Critic", "Critic", "Critic", "Critic"],
             "model_args": ((), (), (), (), ()),
@@ -457,6 +458,7 @@ class SAC(TorchFramework):
             "visualize": False,
             "visualize_dir": "",
         }
+        config = deepcopy(config)
         config["frame"] = "SAC"
         if "frame_config" not in config:
             config["frame_config"] = default_values
@@ -466,7 +468,7 @@ class SAC(TorchFramework):
         return config
 
     @classmethod
-    def init_from_config(cls, config: Dict[str, Any]):
+    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
         f_config = config["frame_config"]
         models = assert_and_get_valid_models(f_config["models"])
         model_args = f_config["model_args"]
@@ -481,6 +483,8 @@ class SAC(TorchFramework):
                 f_config["lr_scheduler"]
                 and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
         )
-        frame = cls(*models, optimizer, criterion,
-                    lr_scheduler=lr_scheduler, **f_config)
+        f_config["optimizer"] = optimizer
+        f_config["criterion"] = criterion
+        f_config["lr_scheduler"] = lr_scheduler
+        frame = cls(*models, **f_config)
         return frame

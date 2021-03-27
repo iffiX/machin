@@ -193,6 +193,19 @@ class TestDQNApex(object):
     # Skipped, it is the same as DQN
 
     ########################################################################
+    # Test for DQNApex config & init
+    ########################################################################
+    @staticmethod
+    @run_multi(timeout=180)
+    @WorldTestBase.setup_world
+    def test_config_init(_):
+        config = DQNApex.generate_config({})
+        config["frame_config"]["models"] = ["QNet", "QNet"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_num": 2}] * 2
+        _dqn_apex = DQNApex.init_from_config(config)
+
+    ########################################################################
     # Test for DQNApex full training.
     ########################################################################
     @staticmethod
@@ -434,6 +447,23 @@ class TestDDPGApex(object):
     # Test for DDPGApex lr_scheduler
     ########################################################################
     # Skipped, it is the same as DDPG
+
+    ########################################################################
+    # Test for DDPGApex config & init
+    ########################################################################
+    @staticmethod
+    @run_multi(timeout=180)
+    @WorldTestBase.setup_world
+    def test_config_init(_):
+        config = DDPGApex.generate_config({})
+        config["frame_config"]["models"] = ["Actor", "Actor",
+                                            "Critic", "Critic"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_dim": 2,
+                                                   "action_range": 1}] * 2 + \
+                                                 [{"state_dim": 4,
+                                                   "action_dim": 2}] * 2
+        _ddpg_apex = DDPGApex.init_from_config(config)
 
     ########################################################################
     # Test for DDPGApex full training.

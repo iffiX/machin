@@ -121,7 +121,7 @@ class RAINBOW(DQN):
             .view(1, -1)
 
         # q value of each action, shape: [batch_size, action_num]
-        q_value = t.sum(q_dist_support.to(q_dist.device) * q_dist, dim=-1)
+        q_value = t.sum(q_dist_support.type_as(q_dist) * q_dist, dim=-1)
 
         result = t.argmax(q_value, dim=1).view(-1, 1)
         if len(others) == 0:
@@ -149,7 +149,7 @@ class RAINBOW(DQN):
             .view(1, -1)
 
         # q value of each action, shape: [batch_size, action_num]
-        q_value = t.sum(q_dist_support.to(q_dist.device) * q_dist, dim=-1)
+        q_value = t.sum(q_dist_support.type_as(q_dist) * q_dist, dim=-1)
 
         action_dim = q_value.shape[1]
         result = t.argmax(q_value, dim=1).view(-1, 1)
@@ -338,7 +338,7 @@ class RAINBOW(DQN):
         return value_loss.item()
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         config = DQN.generate_config(config)
         config["frame"] = "RAINBOW"
         config["frame_config"]["value_min"] = -1.0

@@ -7,8 +7,28 @@ from .helper_classes import Object
 
 
 class Config(Object):
+    """
+    A simple replacement for python dict.
+    """
     def __init__(self, **configs):
         super(Config, self).__init__(configs)
+
+    def __iter__(self):
+        for key in self.__dict__:
+            if not key.startswith("__"):
+                yield key
+
+    def __contains__(self, key):
+        assert not key.startswith("__")
+        return hasattr(self, key)
+
+    def __getitem__(self, key):
+        assert not key.startswith("__")
+        return getattr(self, key)
+
+    def __setitem__(self, key, value):
+        assert not key.startswith("__")
+        setattr(self, key, value)
 
 
 def load_config_cmd(merge_conf: Config = None) -> Config:

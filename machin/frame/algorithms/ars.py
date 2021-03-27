@@ -11,7 +11,7 @@ from machin.parallel.server import PushPullModelServer
 from machin.parallel.distributed import RpcGroup, get_world
 from machin.frame.helpers.servers import model_server_helper
 from machin.utils.logging import default_logger
-from .base import TorchFramework
+from .base import TorchFramework, Config
 from .utils import (
     safe_call,
     safe_return,
@@ -701,7 +701,7 @@ class ARS(TorchFramework):
             self.actor_with_delta[(r_idx, True)] = actor_positive
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         default_values = {
             "model_server_group_name": "ars_model_server",
             "model_server_members": "all",
@@ -724,6 +724,7 @@ class ARS(TorchFramework):
             "noise_seed": 12345,
             "sample_seed": 123
         }
+        config = copy.deepcopy(config)
         config["frame"] = "ARS"
         if "frame_config" not in config:
             config["frame_config"] = default_values
@@ -733,12 +734,14 @@ class ARS(TorchFramework):
         return config
 
     @classmethod
-    def init_from_config(cls, config: Dict[str, Any]):
+    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
         world = get_world()
-        f_config = config["frame_config"]
+        f_config = copy.deepcopy(config["frame_config"])
         ars_group = world.create_rpc_group(
             group_name=f_config["ars_group_name"],
-            members=f_config["ars_members"]
+            members=(world.get_members()
+                     if f_config["ars_members"] == "all"
+                     else f_config["ars_members"])
         )
 
         models = assert_and_get_valid_models(f_config["models"])
@@ -761,7 +764,8 @@ class ARS(TorchFramework):
                                       members=f_config[
                                           "model_server_members"
                                       ])
-
+        del f_config["optimizer"]
+        del f_config["lr_scheduler"]
         frame = cls(*models, optimizer, ars_group, servers,
                     lr_scheduler=lr_scheduler, **f_config)
         return frame

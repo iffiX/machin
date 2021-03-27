@@ -204,6 +204,19 @@ class TestARS(object):
         return True
 
     ########################################################################
+    # Test for ARS config & init
+    ########################################################################
+    @staticmethod
+    @run_multi(timeout=180)
+    @WorldTestBase.setup_world
+    def test_config_init(_):
+        config = ARS.generate_config({})
+        config["frame_config"]["models"] = ["ActorDiscrete"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_dim": 2}]
+        _ars = ARS.init_from_config(config)
+
+    ########################################################################
     # Test for ARS full training.
     ########################################################################
     @staticmethod

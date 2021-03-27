@@ -296,6 +296,21 @@ class TestSAC(object):
         sac_lr.update_lr_scheduler()
 
     ########################################################################
+    # Test for SAC config & init
+    ########################################################################
+    def test_config_init(self):
+        config = SAC.generate_config({})
+        config["frame_config"]["models"] = ["Actor",
+                                            "Critic", "Critic",
+                                            "Critic", "Critic"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_dim": 2,
+                                                   "action_range": 1}] + \
+                                                 [{"state_dim": 4,
+                                                   "action_dim": 2}] * 4
+        _a2c = SAC.init_from_config(config)
+
+    ########################################################################
     # Test for SAC full training.
     ########################################################################
     def test_full_train(self, train_config, sac_train):

@@ -262,6 +262,21 @@ class TestTD3(object):
         td3_lr.update_lr_scheduler()
 
     ########################################################################
+    # Test for TD3 config & init
+    ########################################################################
+    def test_config_init(self):
+        config = TD3.generate_config({})
+        config["frame_config"]["models"] = ["Actor", "Actor",
+                                            "Critic", "Critic",
+                                            "Critic", "Critic"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_dim": 2,
+                                                   "action_range": 1}] * 2 + \
+                                                 [{"state_dim": 4,
+                                                   "action_dim": 2}] * 4
+        _a2c = TD3.init_from_config(config)
+
+    ########################################################################
     # Test for TD3 full training.
     ########################################################################
     def test_full_train(self, train_config, td3_train):

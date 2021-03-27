@@ -262,6 +262,20 @@ class TestIMPALA(object):
         return True
 
     ########################################################################
+    # Test for IMPALA config & init
+    ########################################################################
+    @staticmethod
+    @run_multi(timeout=180)
+    @WorldTestBase.setup_world
+    def test_config_init(_):
+        config = IMPALA.generate_config({})
+        config["frame_config"]["models"] = ["Actor", "Critic"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_num": 2},
+                                                  {"state_dim": 4}]
+        _impala = IMPALA.init_from_config(config)
+
+    ########################################################################
     # Test for IMPALA full training.
     ########################################################################
     @staticmethod

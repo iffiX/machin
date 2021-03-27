@@ -1,4 +1,5 @@
 from typing import Union, Dict, List, Tuple, Callable, Any
+from copy import deepcopy
 import math
 import numpy as np
 import torch as t
@@ -9,7 +10,7 @@ from machin.frame.helpers.servers import model_server_helper
 from machin.model.nets.base import NeuralNetworkModule
 from machin.parallel.server import PushPullModelServer
 from machin.parallel.distributed import RpcGroup, get_world
-from .base import TorchFramework
+from .base import TorchFramework, Config
 from .utils import (
     safe_call,
     assert_and_get_valid_models,
@@ -395,7 +396,7 @@ class IMPALA(TorchFramework):
             act_policy_loss += self.entropy_weight * entropy
         act_policy_loss = act_policy_loss.sum()
 
-        value_loss = self.criterion(value, vs.to(value.device))
+        value_loss = self.criterion(value, vs.type_as(value))
 
         # Update actor network
         if update_policy:
@@ -438,7 +439,7 @@ class IMPALA(TorchFramework):
             self.critic_lr_sch.step()
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         default_values = {
             "learner_process_ratio": 0.1,
             "model_server_group_name": "impala_model_server",
@@ -463,6 +464,7 @@ class IMPALA(TorchFramework):
             "discount": 0.99,
             "replay_size": 500
         }
+        config = deepcopy(config)
         config["frame"] = "IMPALA"
         if "frame_config" not in config:
             config["frame_config"] = default_values
@@ -472,12 +474,14 @@ class IMPALA(TorchFramework):
         return config
 
     @classmethod
-    def init_from_config(cls, config: Dict[str, Any]):
+    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
         world = get_world()
-        f_config = config["frame_config"]
+        f_config = deepcopy(config["frame_config"])
         impala_group = world.create_rpc_group(
             group_name=f_config["impala_group_name"],
-            members=f_config["impala_members"]
+            members=(world.get_members()
+                     if f_config["impala_members"] == "all"
+                     else f_config["impala_members"])
         )
 
         models = assert_and_get_valid_models(f_config["models"])
@@ -489,12 +493,14 @@ class IMPALA(TorchFramework):
         ]
         # wrap models in DistributedDataParallel when running in learner mode
         max_learner_id = int(math.ceil(
-            f_config["learner_process_ratio"] * apex_group.size()
+            f_config["learner_process_ratio"] * impala_group.size()
         ))
+
+        learner_group = world.create_collective_group(
+            ranks=list(range(max_learner_id))
+        )
+
         if world.rank < max_learner_id:
-            learner_group = world.create_collective_group(
-                ranks=list(range(max_learner_id))
-            )
             models = [
                 DistributedDataParallel(module=m,
                                         process_group=learner_group.group)
@@ -514,7 +520,9 @@ class IMPALA(TorchFramework):
                                       members=f_config[
                                           "model_server_members"
                                       ])
-
+        del f_config["optimizer"]
+        del f_config["criterion"]
+        del f_config["lr_scheduler"]
         frame = cls(*models, optimizer, criterion, impala_group, servers,
                     lr_scheduler=lr_scheduler, **f_config)
         return frame

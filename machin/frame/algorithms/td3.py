@@ -198,8 +198,8 @@ class TD3(DDPG):
 
         cur_value = self._criticize(state, action)
         cur_value2 = self._criticize2(state, action)
-        value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
-        value_loss2 = self.criterion(cur_value2, y_i.to(cur_value.device))
+        value_loss = self.criterion(cur_value, y_i.type_as(cur_value))
+        value_loss2 = self.criterion(cur_value2, y_i.type_as(cur_value))
 
         if self.visualize:
             self.visualize_model(value_loss, "critic", self.visualize_dir)
@@ -283,9 +283,9 @@ class TD3(DDPG):
             hard_update(self.critic2, self.critic2_target)
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         config = DDPG.generate_config(config)
-        config["frame"] = "TD2"
+        config["frame"] = "TD3"
         config["frame_config"]["models"] = [
             "Actor", "Actor", "Critic", "Critic", "Critic", "Critic"
         ]

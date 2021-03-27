@@ -175,6 +175,17 @@ class TestPPO(object):
     # Skipped, it is the same as A2C
 
     ########################################################################
+    # Test for PPO config & init
+    ########################################################################
+    def test_config_init(self):
+        config = PPO.generate_config({})
+        config["frame_config"]["models"] = ["Actor", "Critic"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_num": 2},
+                                                  {"state_dim": 4}]
+        _ppo = PPO.init_from_config(config)
+
+    ########################################################################
     # Test for PPO full training.
     ########################################################################
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])

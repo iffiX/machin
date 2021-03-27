@@ -243,6 +243,17 @@ class TestA2C(object):
         a2c_lr.update_lr_scheduler()
 
     ########################################################################
+    # Test for A2C config & init
+    ########################################################################
+    def test_config_init(self):
+        config = A2C.generate_config({})
+        config["frame_config"]["models"] = ["Actor", "Critic"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_num": 2},
+                                                  {"state_dim": 4}]
+        _a2c = A2C.init_from_config(config)
+
+    ########################################################################
     # Test for A2C full training.
     ########################################################################
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])

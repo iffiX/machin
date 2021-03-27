@@ -155,9 +155,7 @@ class WorldTestBase(object):
         def wrapped(rank, *args, _world_port=9100, **kwargs):
             # election function for all tests
             world = World(world_size=3, rank=rank,
-                          name=str(rank), rpc_timeout=20,
-                          init_method="tcp://localhost:{}"
-                          .format(_world_port))
+                          name=str(rank))
             default_logger.info("World using port {}".format(_world_port))
             # set a temporary success attribute on world
             default_logger.info("World created on {}".format(rank))

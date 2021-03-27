@@ -269,6 +269,16 @@ class TestDQN(object):
         dqn_lr.update_lr_scheduler()
 
     ########################################################################
+    # Test for DQN config & init
+    ########################################################################
+    def test_config_init(self):
+        config = DQN.generate_config({})
+        config["frame_config"]["models"] = ["QNet", "QNet"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_num": 2}] * 2
+        _dqn = DQN.init_from_config(config)
+
+    ########################################################################
     # Test for DQN full training.
     ########################################################################
     @pytest.mark.parametrize("dqn_train",

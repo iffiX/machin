@@ -30,7 +30,7 @@ class LocalMediaLogger(LightningLoggerBase):
 
     @property
     def version(self):
-        return '0.1'
+        return "0.1"
 
     @rank_zero_only
     def log_hyperparams(self, params: Union[Dict[str, Any], Namespace]):
@@ -54,13 +54,16 @@ class LocalMediaLogger(LightningLoggerBase):
 
         Args:
             artifact: A path to the file in local filesystem.
-            destination: Optional. Default is ``None``. A destination path.
+            destination: Optional. Default is ``None``. A destination path
+                in the artifact directory.
                 If ``None`` is passed, an artifact file name will be used.
         """
-        destination = (destination or
-                       os.path.join(self.artifact_dir,
-                                    os.path.basename(destination)))
-        os.rename(artifact, destination)
+        if destination:
+            os.rename(artifact, os.path.join(self.artifact_dir,
+                                             destination))
+        else:
+            os.rename(artifact, os.path.join(self.artifact_dir,
+                                       os.path.basename(artifact)))
 
     @rank_zero_only
     def log_image(self,
@@ -82,10 +85,18 @@ class LocalMediaLogger(LightningLoggerBase):
         """
         if log_name not in self._counters:
             self._counters[log_name] = 0
-        log_name = log_name + "_{}.png".format(step or self._counters[log_name])
+
+        if not isinstance(image, str):
+            log_path = (log_name +
+                        "_{}.png".format(step or self._counters[log_name]))
+        else:
+            extension = os.path.splitext(image)[1]
+            log_path = (log_name +
+                        "_{}{}".format(step or self._counters[log_name],
+                                       extension))
         self._counters[log_name] += 1
 
-        path = os.path.join(self.image_dir, log_name)
+        path = os.path.join(self.image_dir, log_path)
         if isinstance(image, Image):
             image.save(path)
         elif isinstance(image, Figure):

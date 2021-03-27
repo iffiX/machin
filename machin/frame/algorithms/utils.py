@@ -160,15 +160,17 @@ def safe_return(result):
         return result
 
 
-asserted_output_is_probs = False
+def get_globals_from_stack():
+    frames = inspect.stack()
+    global_vars = {}
+    for frame in frames:
+        for k, v in frame[0].f_globals.items():
+            if not k.startswith('__'):
+                global_vars[k] = v
+    return global_vars
 
 
 def assert_output_is_probs(tensor):
-    global asserted_output_is_probs
-    if asserted_output_is_probs:
-        return
-    asserted_output_is_probs = True
-
     if tensor.dim() == 2 and \
             torch.all(torch.abs(torch.sum(tensor, dim=1) - 1.0) < 1e-5) and \
             torch.all(tensor > 0):
@@ -183,12 +185,13 @@ def assert_output_is_probs(tensor):
 
 def assert_and_get_valid_models(models):
     m = []
+    global_vars = get_globals_from_stack()
     for model in models:
-        if issubclass(model, nn.Module):
+        if inspect.isclass(model) and issubclass(model, nn.Module):
             m.append(model)
-        if isinstance(model, str) and model in globals() \
-                and issubclass(globals()[model], nn.Module):
-            m.append(globals()[model])
+        if isinstance(model, str) and model in global_vars \
+                and issubclass(global_vars[model], nn.Module):
+            m.append(global_vars[model])
         else:
             raise ValueError("Invalid model: {}, it needs to be an nn.Module "
                              "sub class, or a string name of a global of a "
@@ -198,56 +201,62 @@ def assert_and_get_valid_models(models):
 
 
 def assert_and_get_valid_optimizer(optimizer):
-    if issubclass(optimizer, torch.optim.Optimizer):
+    global_vars = get_globals_from_stack()
+    if inspect.isclass(optimizer) and \
+            issubclass(optimizer, torch.optim.Optimizer):
         return optimizer
     if isinstance(optimizer, str):
         if hasattr(torch.optim, optimizer):
             return getattr(torch.optim, optimizer)
-        if optimizer in globals() and \
-                issubclass(globals()[optimizer], torch.optim.Optimizer):
-            return globals()[optimizer]
+        if optimizer in global_vars and \
+                issubclass(global_vars[optimizer], torch.optim.Optimizer):
+            return global_vars[optimizer]
     else:
         raise ValueError("Invalid optimizer: {}, it needs to be an optimizer "
                          "class, or a string name of a valid optimizer class "
                          "in torch.optim, or a string name of a global "
-                         "variable."
+                         "variable in any frame of your call stack."
                          .format(optimizer))
 
 
 def assert_and_get_valid_lr_scheduler(lr_scheduler):
-    if issubclass(lr_scheduler, torch.optim.lr_scheduler._LRScheduler):
+    global_vars = get_globals_from_stack()
+    if inspect.isclass(lr_scheduler) and \
+            issubclass(lr_scheduler, torch.optim.lr_scheduler._LRScheduler):
         return lr_scheduler
     if isinstance(lr_scheduler, str):
         if hasattr(torch.optim.lr_scheduler, lr_scheduler):
             return getattr(torch.optim.lr_scheduler, lr_scheduler)
-        if lr_scheduler in globals() and \
-                issubclass(globals()[lr_scheduler],
+        if lr_scheduler in global_vars and \
+                issubclass(global_vars[lr_scheduler],
                            torch.optim.lr_scheduler._LRScheduler):
-            return globals()[lr_scheduler]
+            return global_vars[lr_scheduler]
     else:
         raise ValueError("Invalid lr_scheduler: {}, it needs to be a "
                          "lr_scheduler class, or a string name of a "
                          "valid lr_scheduler class in torch.optim.lr_scheduler"
-                         ", or a string name of a global variable."
+                         ", or a string name of a global variable in any frame "
+                         "of your call stack."
                          .format(lr_scheduler))
 
 
 def assert_and_get_valid_criterion(criterion):
-    if issubclass(criterion, nn.Module):
+    global_vars = get_globals_from_stack()
+    if inspect.isclass(criterion) and issubclass(criterion, nn.Module):
         return criterion
     if callable(criterion):
         return criterion
     if isinstance(criterion, str):
         if hasattr(torch.nn.modules.loss, criterion):
             return getattr(torch.nn.modules.loss, criterion)
-        if criterion in globals() and callable(globals()[criterion]):
-            return globals()[criterion]
+        if criterion in global_vars and callable(global_vars[criterion]):
+            return global_vars[criterion]
     else:
         raise ValueError("Invalid optimizer: {}, it needs to be a loss "
                          "class, callable loss function, "
                          "or a string name of a valid loss class in "
                          "torch.nn.modules.loss, or a string name of a global "
-                         "variable."
+                         "variable in any frame of your call stack."
                          .format(criterion))
 
 
@@ -255,5 +264,8 @@ class FakeOptimizer(torch.optim.Optimizer):
     """
     A fake optimizer which does not change model parameters.
     """
+    def __init__(self, params, *_, **__):
+        super(FakeOptimizer, self).__init__(params, {})
+
     def step(self, *args, **kwargs):
         pass

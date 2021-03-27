@@ -234,9 +234,9 @@ class World:
     def __init__(self,
                  name: str,
                  rank: int = -1,
+                 world_size: int = -1,
                  init_dist: bool = True,
                  init_rpc: bool = True,
-                 world_size: int = None,
                  dist_backend: str = "gloo",
                  dist_init_method: str = "tcp://localhost:9100",
                  rpc_init_method: str = "tcp://localhost:9101",
@@ -261,7 +261,7 @@ class World:
         if init_dist:
             dist.init_process_group(backend=dist_backend,
                                     init_method=dist_init_method,
-                                    timeout=dist_timeout,
+                                    timeout=timedelta(seconds=dist_timeout),
                                     rank=rank,
                                     world_size=world_size)
         if init_rpc:
@@ -316,7 +316,9 @@ class World:
         """
         ranks = sorted(ranks)
         group = CollectiveGroup(dist.new_group(ranks, timeout, backend),
-                                ranks.index(self.rank))
+                                ranks.index(self.rank)
+                                if self.rank in ranks
+                                else None)
         return group
 
     def create_rpc_group(self, group_name: str, members: List[str]):

@@ -8,8 +8,12 @@ from torch.utils.data import IterableDataset
 from pytorch_lightning.loggers.base import LoggerCollection
 from gym.spaces import Box, Discrete, MultiBinary, MultiDiscrete
 from machin.frame.algorithms import *
+from machin.env.utils.openai_gym import disable_view_window
 from machin.utils.media import create_video, numpy_array_to_pil_image
 Scalar = Any
+
+
+disable_view_window()
 
 
 def is_simple_space(space):
@@ -30,7 +34,7 @@ def determine_precision(models):
         for k, v in model.named_parameters():
             dtype.add(v.dtype)
     dtype = list(dtype)
-    if len(dtype) >= 0:
+    if len(dtype) > 1:
         raise RuntimeError("Multiple data types of parameters detected "
                            "in models: {}, this is currently not supported "
                            "since we need to determine the data type of your "
@@ -143,12 +147,11 @@ class RLGymDiscActDataset(RLDataset):
         assert is_simple_space(env.observation_space)
 
     def __next__(self):
-        self.counter += 1
         result = DatasetResult()
         terminal = False
         total_reward = 0
         state = t.tensor(self.env.reset(), dtype=self._precision)
-        state = state if state.shape[0] == 1 else state.unsqueeze(0)
+        state = state.flatten().unsqueeze(0)
 
         # manual sync and then disable syncing if framework is distributed.
         getattr(self.frame, "manual_sync", lambda: None)()
@@ -184,7 +187,8 @@ class RLGymDiscActDataset(RLDataset):
                     ))
                 state, reward, terminal, info = self.env.step(action.item())
                 state = t.tensor(state, dtype=self._precision)
-                state = state if state.shape[0] == 1 else state.unsqueeze(0)
+                state = state.flatten().unsqueeze(0)
+                reward = float(reward)
                 total_reward += reward
                 result.add_observation({
                     "state": {"state": old_state},
@@ -200,6 +204,7 @@ class RLGymDiscActDataset(RLDataset):
             result.add_log({"total_reward": total_reward})
 
         getattr(self.frame, "set_sync", lambda x: None)(True)
+        self.counter += 1
         return result
 
 
@@ -245,12 +250,11 @@ class RLGymContActDataset(RLDataset):
         assert is_simple_space(env.observation_space)
 
     def __next__(self):
-        self.counter += 1
         result = DatasetResult()
         terminal = False
         total_reward = 0
         state = t.tensor(self.env.reset(), dtype=self._precision)
-        state = state if state.shape[0] == 1 else state.unsqueeze(0)
+        state = state.flatten().unsqueeze(0)
 
         # manual sync and then disable syncing if framework is distributed.
         getattr(self.frame, "manual_sync", lambda: None)()
@@ -284,7 +288,8 @@ class RLGymContActDataset(RLDataset):
                 state, reward, terminal, info = \
                     self.env.step(action.detach().cpu().numpy())
                 state = t.tensor(state, dtype=self._precision)
-                state = state if state.shape[0] == 1 else state.unsqueeze(0)
+                state = state.flatten().unsqueeze(0)
+                reward = float(reward)
                 total_reward += reward
                 result.add_observation({
                     "state": {"state": old_state},
@@ -300,4 +305,5 @@ class RLGymContActDataset(RLDataset):
             result.add_log({"total_reward": total_reward})
 
         getattr(self.frame, "set_sync", lambda x: None)(True)
+        self.counter += 1
         return result

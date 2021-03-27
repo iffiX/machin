@@ -167,6 +167,7 @@ class DQNApex(DQNPer):
             "gradient_max": np.inf,
             "replay_size": 500000,
         }
+        config = deepcopy(config)
         config["frame"] = "DQNApex"
         if "frame_config" not in config:
             config["frame_config"] = default_values
@@ -178,10 +179,12 @@ class DQNApex(DQNPer):
     @classmethod
     def init_from_config(cls, config: Dict[str, Any]):
         world = get_world()
-        f_config = config["frame_config"]
+        f_config = deepcopy(config["frame_config"])
         apex_group = world.create_rpc_group(
             group_name=f_config["apex_group_name"],
-            members=f_config["apex_members"]
+            members=(world.get_members()
+                     if f_config["apex_members"] == "all"
+                     else f_config["apex_members"])
         )
 
         models = assert_and_get_valid_models(f_config["models"])
@@ -195,10 +198,12 @@ class DQNApex(DQNPer):
         max_learner_id = int(math.ceil(
             f_config["learner_process_ratio"] * apex_group.size()
         ))
+
+        learner_group = world.create_collective_group(
+            ranks=list(range(max_learner_id))
+        )
+
         if world.rank < max_learner_id:
-            learner_group = world.create_collective_group(
-                ranks=list(range(max_learner_id))
-            )
             models = [
                 DistributedDataParallel(module=m,
                                         process_group=learner_group.group)
@@ -207,6 +212,7 @@ class DQNApex(DQNPer):
 
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
         criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        criterion.reduction = "none"
         lr_scheduler = (
                 f_config["lr_scheduler"]
                 and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
@@ -218,7 +224,9 @@ class DQNApex(DQNPer):
                                       members=f_config[
                                           "model_server_members"
                                       ])
-
+        del f_config["optimizer"]
+        del f_config["criterion"]
+        del f_config["lr_scheduler"]
         frame = cls(*models, optimizer, criterion, apex_group, servers,
                     lr_scheduler=lr_scheduler, **f_config)
         return frame
@@ -391,7 +399,7 @@ class DDPGApex(DDPGPer):
         return result
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         default_values = {
             "learner_process_ratio": 0.1,
             "model_server_group_name": "ddpg_apex_model_server",
@@ -414,6 +422,7 @@ class DDPGApex(DDPGPer):
             "gradient_max": np.inf,
             "replay_size": 500000,
         }
+        config = deepcopy(config)
         config["frame"] = "DDPGApex"
         if "frame_config" not in config:
             config["frame_config"] = default_values
@@ -423,12 +432,14 @@ class DDPGApex(DDPGPer):
         return config
 
     @classmethod
-    def init_from_config(cls, config: Dict[str, Any]):
+    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
         world = get_world()
-        f_config = config["frame_config"]
+        f_config = deepcopy(config["frame_config"])
         apex_group = world.create_rpc_group(
             group_name=f_config["apex_group_name"],
-            members=f_config["apex_members"]
+            members=(world.get_members()
+                     if f_config["apex_members"] == "all"
+                     else f_config["apex_members"])
         )
 
         models = assert_and_get_valid_models(f_config["models"])
@@ -442,10 +453,12 @@ class DDPGApex(DDPGPer):
         max_learner_id = int(math.ceil(
             f_config["learner_process_ratio"] * apex_group.size()
         ))
+
+        learner_group = world.create_collective_group(
+            ranks=list(range(max_learner_id))
+        )
+
         if world.rank < max_learner_id:
-            learner_group = world.create_collective_group(
-                ranks=list(range(max_learner_id))
-            )
             models = [
                 DistributedDataParallel(module=m,
                                         process_group=learner_group.group)
@@ -454,6 +467,7 @@ class DDPGApex(DDPGPer):
 
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
         criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        criterion.reduction = "none"
         lr_scheduler = (
                 f_config["lr_scheduler"]
                 and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
@@ -465,7 +479,9 @@ class DDPGApex(DDPGPer):
                                       members=f_config[
                                           "model_server_members"
                                       ])
-
+        del f_config["optimizer"]
+        del f_config["criterion"]
+        del f_config["lr_scheduler"]
         frame = cls(*models, optimizer, criterion, apex_group, servers,
                     lr_scheduler=lr_scheduler, **f_config)
         return frame

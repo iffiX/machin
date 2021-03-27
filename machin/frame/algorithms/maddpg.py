@@ -965,7 +965,7 @@ class MADDPG(TorchFramework):
         return reward + discount * ~terminal * next_value
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         default_values = {
             "models": [["Actor"], ["Actor"], ["Critic"], ["Critic"]],
             "model_args": ([()], [()], [()], [()]),
@@ -993,6 +993,7 @@ class MADDPG(TorchFramework):
             "pool_type": "thread",
             "pool_size": None
         }
+        config = deepcopy(config)
         config["frame"] = "MADDPG"
         if "frame_config" not in config:
             config["frame_config"] = default_values
@@ -1002,8 +1003,8 @@ class MADDPG(TorchFramework):
         return config
 
     @classmethod
-    def init_from_config(cls, config: Dict[str, Any]):
-        f_config = config["frame_config"]
+    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
+        f_config = deepcopy(config["frame_config"])
         all_models = []
         for models, model_args, model_kwargs in zip(
                 f_config["models"],
@@ -1021,6 +1022,8 @@ class MADDPG(TorchFramework):
                 f_config["lr_scheduler"]
                 and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
         )
-        frame = cls(*all_models, optimizer, criterion,
-                    lr_scheduler=lr_scheduler, **f_config)
+        f_config["optimizer"] = optimizer
+        f_config["criterion"] = criterion
+        f_config["lr_scheduler"] = lr_scheduler
+        frame = cls(*all_models, **f_config)
         return frame

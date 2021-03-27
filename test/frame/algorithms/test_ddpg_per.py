@@ -201,6 +201,20 @@ class TestDDPGPer(object):
     # Skipped, it is the same as DDPG
 
     ########################################################################
+    # Test for DDPGPer config & init
+    ########################################################################
+    def test_config_init(self):
+        config = DDPGPer.generate_config({})
+        config["frame_config"]["models"] = ["Actor", "Actor",
+                                            "Critic", "Critic"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_dim": 2,
+                                                   "action_range": 1}] * 2 + \
+                                                 [{"state_dim": 4,
+                                                   "action_dim": 2}] * 2
+        _a2c = DDPGPer.init_from_config(config)
+
+    ########################################################################
     # Test for DDPGPer full training.
     ########################################################################
     def test_full_train(self, train_config, ddpg_per_train):

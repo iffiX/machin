@@ -1,8 +1,9 @@
 from os.path import join
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Union
 from torchviz import make_dot
 import torch as t
 
+from machin.utils.conf import Config
 from machin.utils.prepare import prep_load_model
 from machin.utils.logging import default_logger
 
@@ -166,9 +167,9 @@ class TorchFramework:
                      quiet=True)
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         raise NotImplementedError
 
     @classmethod
-    def init_from_config(cls, config: Dict[str, Any]):
+    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
         raise NotImplementedError

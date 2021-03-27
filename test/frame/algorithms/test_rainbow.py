@@ -199,6 +199,16 @@ class TestRAINBOW(object):
     # Skipped, it is the same as DQN
 
     ########################################################################
+    # Test for RAINBOW config & init
+    ########################################################################
+    def test_config_init(self):
+        config = RAINBOW.generate_config({})
+        config["frame_config"]["models"] = ["QNet", "QNet"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_num": 2}] * 2
+        _dqn = RAINBOW.init_from_config(config)
+
+    ########################################################################
     # Test for RAINBOW full training.
     ########################################################################
     def test_full_train(self, train_config, rainbow_train):

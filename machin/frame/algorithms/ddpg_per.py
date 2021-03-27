@@ -62,19 +62,19 @@ class DDPGPer(DDPG):
             visualize=visualize,
             visualize_dir=visualize_dir
         )
-        # reduction must be None
+        # Must have reduction attribute and value must be None
         if not hasattr(self.criterion, "reduction"):
             raise RuntimeError("Criterion does not have the "
-                               "'reduction' property")
+                               "'reduction' property, are you using a custom "
+                               "criterion?")
         else:
-            if hasattr(self.criterion, "reduction"):
-                # A loss defined in ``torch.nn.modules.loss``
-                if self.criterion.reduction != "none":
-                    default_logger.warning(
-                        "The reduction property of criterion is not 'none', "
-                        "automatically corrected."
-                    )
-                    self.criterion.reduction = "none"
+            # A loss defined in ``torch.nn.modules.loss``
+            if self.criterion.reduction != "none":
+                default_logger.warning(
+                    "The reduction property of criterion is not 'none', "
+                    "automatically corrected."
+                )
+                self.criterion.reduction = "none"
 
     def update(self,
                update_value=True,
@@ -111,10 +111,10 @@ class DDPGPer(DDPG):
 
         # critic loss
         cur_value = self._criticize(state, action)
-        value_loss = self.criterion(cur_value, y_i.to(cur_value.device))
+        value_loss = self.criterion(cur_value, y_i.type_as(cur_value))
         value_loss = (value_loss *
                       t.from_numpy(is_weight).view([batch_size, 1])
-                      .to(value_loss.device))
+                      .type_as(value_loss))
         value_loss = value_loss.mean()
 
         if self.visualize:
@@ -139,7 +139,7 @@ class DDPGPer(DDPG):
         act_policy_loss = -act_value.mean()
 
         # update priority
-        abs_error = (t.sum(t.abs(act_value - y_i.to(act_value.device)), dim=1)
+        abs_error = (t.sum(t.abs(act_value - y_i.type_as(act_value)), dim=1)
                      .flatten().detach().cpu().numpy())
         self.replay_buffer.update_priority(abs_error, index)
 
@@ -171,7 +171,30 @@ class DDPGPer(DDPG):
         return -act_policy_loss.item(), value_loss.item()
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         config = DDPG.generate_config(config)
         config["frame"] = "DDPGPer"
         return config
+
+    @classmethod
+    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
+        f_config = config["frame_config"]
+        models = assert_and_get_valid_models(f_config["models"])
+        model_args = f_config["model_args"]
+        model_kwargs = f_config["model_kwargs"]
+        models = [
+            m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        criterion.reduction = "none"
+        lr_scheduler = (
+                f_config["lr_scheduler"]
+                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+        f_config["optimizer"] = optimizer
+        f_config["criterion"] = criterion
+        f_config["lr_scheduler"] = lr_scheduler
+        frame = cls(*models, **f_config)
+        return frame

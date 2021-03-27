@@ -1,11 +1,12 @@
 from typing import Union, Dict, List, Tuple, Callable, Any
+from copy import deepcopy
 import torch as t
 import torch.nn as nn
 import numpy as np
 
 from machin.model.nets.base import NeuralNetworkModule
 from machin.frame.buffers.buffer import Transition, Buffer
-from .base import TorchFramework
+from .base import TorchFramework, Config
 from .utils import (
     safe_call,
     assert_and_get_valid_models,
@@ -363,7 +364,7 @@ class A2C(TorchFramework):
 
             # calculate policy loss
             act_policy_loss = -(action_log_prob *
-                                advantage.to(action_log_prob.device))
+                                advantage.type_as(action_log_prob))
 
             if new_action_entropy is not None:
                 act_policy_loss += (self.entropy_weight *
@@ -398,8 +399,7 @@ class A2C(TorchFramework):
                                                 ])
             # calculate value loss
             value = self._criticize(state)
-            value_loss = (self.criterion(target_value.to(value.device),
-                                         value) *
+            value_loss = (self.criterion(target_value.type_as(value), value) *
                           self.value_weight)
             sum_value_loss += value_loss.item()
 
@@ -432,7 +432,7 @@ class A2C(TorchFramework):
             self.critic_lr_sch.step()
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         default_values = {
             "models": ["Actor", "Critic"],
             "model_args": ((), ()),
@@ -459,6 +459,7 @@ class A2C(TorchFramework):
             "visualize": False,
             "visualize_dir": "",
         }
+        config = deepcopy(config)
         config["frame"] = "A2C"
         if "frame_config" not in config:
             config["frame_config"] = default_values
@@ -468,8 +469,8 @@ class A2C(TorchFramework):
         return config
 
     @classmethod
-    def init_from_config(cls, config: Dict[str, Any]):
-        f_config = config["frame_config"]
+    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
+        f_config = deepcopy(config["frame_config"])
         models = assert_and_get_valid_models(f_config["models"])
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
@@ -483,6 +484,9 @@ class A2C(TorchFramework):
                 f_config["lr_scheduler"]
                 and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
         )
-        frame = cls(*models, optimizer, criterion, lr_scheduler=lr_scheduler,
-                    **f_config)
+
+        f_config["optimizer"] = optimizer
+        f_config["criterion"] = criterion
+        f_config["lr_scheduler"] = lr_scheduler
+        frame = cls(*models, **f_config)
         return frame

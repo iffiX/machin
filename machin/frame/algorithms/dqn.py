@@ -1,12 +1,12 @@
 from typing import Union, Dict, List, Tuple, Callable, Any
-
+from copy import deepcopy
 import torch as t
 import torch.nn as nn
 import numpy as np
 
 from machin.frame.buffers.buffer import Transition, Buffer
 from machin.model.nets.base import NeuralNetworkModule
-from .base import TorchFramework
+from .base import TorchFramework, Config
 from .utils import (
     hard_update,
     soft_update,
@@ -384,7 +384,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                 reward, self.discount, target_next_q_value, terminal, others
             )
             value_loss = self.criterion(action_value,
-                                        y_i.to(action_value.device))
+                                        y_i.type_as(action_value))
 
             if self.visualize:
                 self.visualize_model(value_loss, "qnet", self.visualize_dir)
@@ -415,7 +415,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                 reward, self.discount, target_next_q_value, terminal, others
             )
             value_loss = self.criterion(action_value,
-                                        y_i.to(action_value.device))
+                                        y_i.type_as(action_value))
 
             if self.visualize:
                 self.visualize_model(value_loss, "qnet", self.visualize_dir)
@@ -456,7 +456,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                 reward, self.discount, target_next_q_value, terminal, others
             )
             value_loss = self.criterion(action_value,
-                                        y_i.to(action_value.device))
+                                        y_i.type_as(action_value))
 
             if self.visualize:
                 self.visualize_model(value_loss, "qnet", self.visualize_dir)
@@ -513,7 +513,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         return reward + discount * ~terminal * next_value
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         default_values = {
             "models": ["QNet", "QNet"],
             "model_args": ((), ()),
@@ -537,6 +537,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             "visualize": False,
             "visualize_dir": "",
         }
+        config = deepcopy(config)
         config["frame"] = "DQN"
         if "frame_config" not in config:
             config["frame_config"] = default_values
@@ -546,8 +547,8 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         return config
 
     @classmethod
-    def init_from_config(cls, config: Dict[str, Any]):
-        f_config = config["frame_config"]
+    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
+        f_config = deepcopy(config["frame_config"])
         models = assert_and_get_valid_models(f_config["models"])
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
@@ -561,6 +562,8 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                 f_config["lr_scheduler"]
                 and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
         )
-        frame = cls(*models, optimizer, criterion,
-                    lr_scheduler=lr_scheduler, **f_config)
+        f_config["optimizer"] = optimizer
+        f_config["criterion"] = criterion
+        f_config["lr_scheduler"] = lr_scheduler
+        frame = cls(*models, **f_config)
         return frame

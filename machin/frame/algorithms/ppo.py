@@ -150,7 +150,7 @@ class PPO(A2C):
             # Because in each update, the old policy distribution diverges
             # from the current distribution more and more.
             sim_ratio = t.exp(new_action_log_prob - action_log_prob)
-            advantage = advantage.to(sim_ratio.device)
+            advantage = advantage.type_as(sim_ratio)
             surr_loss_1 = sim_ratio * advantage
             surr_loss_2 = t.clamp(sim_ratio,
                                   1 - self.surr_clip,
@@ -192,8 +192,7 @@ class PPO(A2C):
                                                 ])
             # calculate value loss
             value = self._criticize(state)
-            value_loss = (self.criterion(target_value.to(value.device),
-                                         value) *
+            value_loss = (self.criterion(target_value.type_as(value), value) *
                           self.value_weight)
 
             if self.visualize:
@@ -217,7 +216,7 @@ class PPO(A2C):
                 sum_value_loss / self.critic_update_times)
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         config = A2C.generate_config(config)
         config["frame"] = "PPO"
         config["frame_config"]["surrogate_loss_clip"] = 0.2

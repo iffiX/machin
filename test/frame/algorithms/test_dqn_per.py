@@ -168,6 +168,16 @@ class TestDQNPer(object):
     # Skipped, it is the same as DQN
 
     ########################################################################
+    # Test for DQNPer config & init
+    ########################################################################
+    def test_config_init(self):
+        config = DQNPer.generate_config({})
+        config["frame_config"]["models"] = ["QNet", "QNet"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_num": 2}] * 2
+        _dqn_per = DQNPer.init_from_config(config)
+
+    ########################################################################
     # Test for DQNPer full training.
     ########################################################################
     def test_full_train(self, train_config, dqn_per_train):

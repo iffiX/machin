@@ -119,7 +119,7 @@ class HDDPG(DDPG):
             )
 
         cur_value = self._criticize(state, action)
-        value_diff = y_i.to(cur_value.device) - cur_value
+        value_diff = y_i.type_as(cur_value) - cur_value
         value_change = t.where(value_diff > 0,
                                value_diff * self.q_increase_rate,
                                value_diff * self.q_decrease_rate)
@@ -175,7 +175,7 @@ class HDDPG(DDPG):
         return -act_policy_loss.item(), value_loss.item()
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         config = DDPG.generate_config(config)
         config["frame"] = "HDDPG"
         config["frame_config"]["q_increase_rate"] = 1.0

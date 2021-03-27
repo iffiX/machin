@@ -65,16 +65,16 @@ class DQNPer(DQN):
         # reduction must be None
         if not hasattr(self.criterion, "reduction"):
             raise RuntimeError("Criterion does not have the "
-                               "'reduction' property")
+                               "'reduction' property, are you using a custom "
+                               "criterion?")
         else:
-            if hasattr(self.criterion, "reduction"):
-                # A loss defined in ``torch.nn.modules.loss``
-                if self.criterion.reduction != "none":
-                    default_logger.warning(
-                        "The reduction property of criterion is not 'none', "
-                        "automatically corrected."
-                    )
-                    self.criterion.reduction = "none"
+            # A loss defined in ``torch.nn.modules.loss``
+            if self.criterion.reduction != "none":
+                default_logger.warning(
+                    "The reduction property of criterion is not 'none', "
+                    "automatically corrected."
+                )
+                self.criterion.reduction = "none"
 
     def update(self,
                update_value=True,
@@ -149,7 +149,30 @@ class DQNPer(DQN):
         return value_loss.item()
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         config = DQN.generate_config(config)
         config["frame"] = "DQNPer"
         return config
+
+    @classmethod
+    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
+        f_config = deepcopy(config["frame_config"])
+        models = assert_and_get_valid_models(f_config["models"])
+        model_args = f_config["model_args"]
+        model_kwargs = f_config["model_kwargs"]
+        models = [
+            m(*arg, **kwarg)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+        ]
+        optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        criterion.reduction = "none"
+        lr_scheduler = (
+                f_config["lr_scheduler"]
+                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        )
+        f_config["optimizer"] = optimizer
+        f_config["criterion"] = criterion
+        f_config["lr_scheduler"] = lr_scheduler
+        frame = cls(*models, **f_config)
+        return frame

@@ -160,7 +160,7 @@ class A3C(A2C):
         self.critic_grad_server.push(self.critic)
 
     @classmethod
-    def generate_config(cls, config: Dict[str, Any]):
+    def generate_config(cls, config: Union[Dict[str, Any], Config]):
         default_values = {
             "grad_server_group_name": "a3c_grad_server",
             "grad_server_members": "all",
@@ -189,6 +189,7 @@ class A3C(A2C):
             "visualize": False,
             "visualize_dir": "",
         }
+        config = deepcopy(config)
         config["frame"] = "A3C"
         if "frame_config" not in config:
             config["frame_config"] = default_values
@@ -198,18 +199,18 @@ class A3C(A2C):
         return config
 
     @classmethod
-    def init_from_config(cls, config: Dict[str, Any]):
-        f_config = config["frame_config"]
-        models = assert_and_get_valid_models(f_config["models"])
+    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
+        f_config = deepcopy(config["frame_config"])
+        model_cls = assert_and_get_valid_models(f_config["models"])
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
             m(*arg, **kwarg)
-            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            for m, arg, kwarg in zip(model_cls, model_args, model_kwargs)
         ]
         model_creators = [
             lambda: m(*arg, **kwarg)
-            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            for m, arg, kwarg in zip(model_cls, model_args, model_kwargs)
         ]
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
         criterion = assert_and_get_valid_criterion(f_config["criterion"])
@@ -237,5 +238,6 @@ class A3C(A2C):
                                      lr_scheduler_kwargs=f_config[
                                          "lr_scheduler_kwargs"
                                      ] or ({}, {}))
+        del f_config["criterion"]
         frame = cls(*models, criterion, servers, **f_config)
         return frame

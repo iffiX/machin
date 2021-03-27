@@ -115,7 +115,6 @@ class TestMADDPG(object):
                         [deepcopy(actor) for _ in range(3)],
                         [deepcopy(critic) for _ in range(3)],
                         [deepcopy(critic) for _ in range(3)],
-                        [[0, 1, 2], [0, 1, 2], [0, 1, 2]],
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device="cpu",
@@ -136,7 +135,6 @@ class TestMADDPG(object):
                         [deepcopy(actor) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device="cpu",
@@ -157,7 +155,6 @@ class TestMADDPG(object):
                         [deepcopy(actor) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device="cpu",
@@ -179,7 +176,6 @@ class TestMADDPG(object):
                         [deepcopy(actor) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device="cpu",
@@ -204,7 +200,6 @@ class TestMADDPG(object):
                        [deepcopy(actor) for _ in range(c.test_agent_num)],
                        [deepcopy(critic) for _ in range(c.test_agent_num)],
                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                       [list(range(c.test_agent_num))] * c.test_agent_num,
                        t.optim.Adam,
                        nn.MSELoss(reduction='sum'),
                        replay_device="cpu",
@@ -220,7 +215,8 @@ class TestMADDPG(object):
                         replay_device="cpu",
                         replay_size=c.replay_size,
                         lr_scheduler=LambdaLR,
-                        lr_scheduler_args=((lr_func,), (lr_func,)))
+                        lr_scheduler_args=([(lr_func,)] * c.test_agent_num,
+                                           [(lr_func,)] * c.test_agent_num))
         return maddpg
 
     @pytest.fixture(scope="function")
@@ -237,7 +233,6 @@ class TestMADDPG(object):
                         [deepcopy(actor) for _ in range(3)],
                         [deepcopy(critic) for _ in range(3)],
                         [deepcopy(critic) for _ in range(3)],
-                        [[0, 1, 2], [0, 1, 2], [0, 1, 2]],
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device="cpu",
