@@ -188,15 +188,39 @@ class TestA3C(object):
     # Test for A3C config & init
     ########################################################################
     @staticmethod
-    @run_multi(timeout=180)
+    @run_multi(expected_results=[True, True, True],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_config_init(_):
+    def test_config_init(rank):
+        c = TestA3C.c
         config = A3C.generate_config({})
         config["frame_config"]["models"] = ["Actor", "Critic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_num": 2},
-                                                  {"state_dim": 4}]
-        _a3c = A3C.init_from_config(config)
+        config["frame_config"]["model_kwargs"] = [{"state_dim": c.observe_dim,
+                                                   "action_num": c.action_num},
+                                                  {"state_dim": c.observe_dim}]
+        a3c = A3C.init_from_config(config)
+
+        old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
+        action = t.zeros([1, 1], dtype=t.int)
+
+        begin = time()
+        while time() - begin < 5:
+            a3c.store_episode([
+                {"state": {"state": old_state},
+                 "action": {"action": action},
+                 "next_state": {"state": state},
+                 "reward": 0,
+                 "terminal": False}
+                for _ in range(3)
+            ])
+            a3c.update()
+            sleep(0.01)
+
+        if rank == 1:
+            # pull the newest model
+            a3c.manual_sync()
+
+        return True
 
     ########################################################################
     # Test for A3C full training.

@@ -111,10 +111,10 @@ class TestMADDPG(object):
                             c.action_num * c.agent_num)
                      .type(dtype).to(device), device, device)
         # set visible indexes to [[0], [1], [2]] is equivalent to using DDPG
-        maddpg = MADDPG([deepcopy(actor) for _ in range(3)],
-                        [deepcopy(actor) for _ in range(3)],
-                        [deepcopy(critic) for _ in range(3)],
-                        [deepcopy(critic) for _ in range(3)],
+        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device="cpu",
@@ -228,10 +228,10 @@ class TestMADDPG(object):
         critic = smw(Critic(c.observe_dim * c.agent_num,
                             c.action_num * c.agent_num), "cpu", "cpu")
         # set visible indexes to [[0], [1], [2]] is equivalent to using DDPG
-        maddpg = MADDPG([deepcopy(actor) for _ in range(3)],
-                        [deepcopy(actor) for _ in range(3)],
-                        [deepcopy(critic) for _ in range(3)],
-                        [deepcopy(critic) for _ in range(3)],
+        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(actor) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
+                        [deepcopy(critic) for _ in range(c.test_agent_num)],
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device="cpu",
@@ -360,6 +360,38 @@ class TestMADDPG(object):
     ########################################################################
     def test_lr_scheduler(self, train_config, maddpg_lr):
         maddpg_lr.update_lr_scheduler()
+
+    ########################################################################
+    # Test for MADDPG config & init
+    ########################################################################
+    def test_config_init(self, train_config):
+        c = train_config
+        config = MADDPG.generate_config({})
+        config["frame_config"]["models"] = [["Actor"] * c.test_agent_num,
+                                            ["Actor"] * c.test_agent_num,
+                                            ["Critic"] * c.test_agent_num,
+                                            ["Critic"] * c.test_agent_num]
+        config["frame_config"]["model_args"] = [[()] * c.test_agent_num] * 4
+        config["frame_config"]["model_kwargs"] = \
+            [[{"state_dim": c.test_observe_dim,
+               "action_dim": c.test_action_dim,
+               "action_range": c.test_action_range}] * c.test_agent_num] * 2 + \
+            [[{"state_dim": c.test_observe_dim * c.test_agent_num,
+               "action_dim": c.test_action_dim * c.test_agent_num}]
+             * c.test_agent_num] * 2
+
+        maddpg = MADDPG.init_from_config(config)
+
+        old_state = state = t.zeros([1, c.test_observe_dim], dtype=t.float32)
+        action = t.zeros([1, c.test_action_dim], dtype=t.float32)
+        maddpg.store_episodes([[{
+            "state": {"state": old_state},
+            "action": {"action": action},
+            "next_state": {"state": state},
+            "reward": 0,
+            "terminal": False
+        }]] * c.test_agent_num)
+        maddpg.update()
 
     ########################################################################
     # Test for MADDPG full training.

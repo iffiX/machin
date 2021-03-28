@@ -177,13 +177,26 @@ class TestPPO(object):
     ########################################################################
     # Test for PPO config & init
     ########################################################################
-    def test_config_init(self):
+    def test_config_init(self, train_config):
+        c = train_config
         config = PPO.generate_config({})
         config["frame_config"]["models"] = ["Actor", "Critic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_num": 2},
-                                                  {"state_dim": 4}]
-        _ppo = PPO.init_from_config(config)
+        config["frame_config"]["model_kwargs"] = [{"state_dim": c.observe_dim,
+                                                   "action_num": c.action_num},
+                                                  {"state_dim": c.observe_dim}]
+        ppo = PPO.init_from_config(config)
+
+        old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
+        action = t.zeros([1, 1], dtype=t.float32)
+        ppo.store_episode([
+            {"state": {"state": old_state},
+             "action": {"action": action},
+             "next_state": {"state": state},
+             "reward": 0,
+             "terminal": False}
+            for _ in range(3)
+        ])
+        ppo.update()
 
     ########################################################################
     # Test for PPO full training.

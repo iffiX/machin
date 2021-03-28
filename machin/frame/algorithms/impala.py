@@ -441,7 +441,7 @@ class IMPALA(TorchFramework):
     @classmethod
     def generate_config(cls, config: Union[Dict[str, Any], Config]):
         default_values = {
-            "learner_process_ratio": 0.1,
+            "learner_process_number": 1,
             "model_server_group_name": "impala_model_server",
             "model_server_members": "all",
             "impala_group_name": "impala",
@@ -451,6 +451,8 @@ class IMPALA(TorchFramework):
             "model_kwargs": ({}, {}),
             "optimizer": "Adam",
             "criterion": "MSELoss",
+            "criterion_args": (),
+            "criterion_kwargs": {},
             "lr_scheduler": None,
             "lr_scheduler_args": None,
             "lr_scheduler_kwargs": None,
@@ -492,9 +494,7 @@ class IMPALA(TorchFramework):
             for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         # wrap models in DistributedDataParallel when running in learner mode
-        max_learner_id = int(math.ceil(
-            f_config["learner_process_ratio"] * impala_group.size()
-        ))
+        max_learner_id = f_config["learner_process_number"]
 
         learner_group = world.create_collective_group(
             ranks=list(range(max_learner_id))
@@ -508,7 +508,9 @@ class IMPALA(TorchFramework):
             ]
 
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
-        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])(
+            *f_config["criterion_args"], **f_config["criterion_kwargs"]
+        )
         lr_scheduler = (
                 f_config["lr_scheduler"]
                 and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
@@ -525,4 +527,6 @@ class IMPALA(TorchFramework):
         del f_config["lr_scheduler"]
         frame = cls(*models, optimizer, criterion, impala_group, servers,
                     lr_scheduler=lr_scheduler, **f_config)
+        if world.rank >= max_learner_id:
+            frame.update = lambda *_, **__: None, None
         return frame

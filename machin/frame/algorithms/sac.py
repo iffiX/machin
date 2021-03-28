@@ -439,6 +439,8 @@ class SAC(TorchFramework):
             "model_kwargs": ({}, {}, {}, {}, {}),
             "optimizer": "Adam",
             "criterion": "MSELoss",
+            "criterion_args": (),
+            "criterion_kwargs": {},
             "lr_scheduler": None,
             "lr_scheduler_args": None,
             "lr_scheduler_kwargs": None,
@@ -478,7 +480,9 @@ class SAC(TorchFramework):
             for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
-        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])(
+            *f_config["criterion_args"], **f_config["criterion_kwargs"]
+        )
         lr_scheduler = (
                 f_config["lr_scheduler"]
                 and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])

@@ -177,9 +177,7 @@ class TestDQNApex(object):
             dqn_apex.manual_sync()
         if rank == 2:
             sleep(2)
-            dqn_apex.update(update_value=True,
-                            update_target=True,
-                            concatenate_samples=True)
+            dqn_apex.update()
         return True
 
     ########################################################################
@@ -196,14 +194,35 @@ class TestDQNApex(object):
     # Test for DQNApex config & init
     ########################################################################
     @staticmethod
-    @run_multi(timeout=180)
+    @run_multi(expected_results=[True, True, True],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_config_init(_):
+    def test_config_init(rank):
+        c = TestDQNApex.c
         config = DQNApex.generate_config({})
         config["frame_config"]["models"] = ["QNet", "QNet"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_num": 2}] * 2
-        _dqn_apex = DQNApex.init_from_config(config)
+        config["frame_config"]["model_kwargs"] = \
+            [{"state_dim": c.observe_dim, "action_num": c.action_num}] * 2
+        dqn_apex = DQNApex.init_from_config(config)
+
+        old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
+        action = t.zeros([1, 1], dtype=t.int)
+        if rank in (1, 2):
+            dqn_apex.store_episode([
+                {"state": {"state": old_state},
+                 "action": {"action": action},
+                 "next_state": {"state": state},
+                 "reward": 0,
+                 "terminal": False}
+                for _ in range(3)
+            ])
+            dqn_apex.manual_sync()
+        if rank == 0:
+            sleep(2)
+            dqn_apex.update(update_value=True,
+                            update_target=True,
+                            concatenate_samples=True)
+        return True
 
     ########################################################################
     # Test for DQNApex full training.
@@ -452,18 +471,39 @@ class TestDDPGApex(object):
     # Test for DDPGApex config & init
     ########################################################################
     @staticmethod
-    @run_multi(timeout=180)
+    @run_multi(expected_results=[True, True, True],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_config_init(_):
+    def test_config_init(rank):
+        c = TestDDPGApex.c
         config = DDPGApex.generate_config({})
         config["frame_config"]["models"] = ["Actor", "Actor",
                                             "Critic", "Critic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_dim": 2,
-                                                   "action_range": 1}] * 2 + \
-                                                 [{"state_dim": 4,
-                                                   "action_dim": 2}] * 2
-        _ddpg_apex = DDPGApex.init_from_config(config)
+        config["frame_config"]["model_kwargs"] = \
+            [{"state_dim": c.observe_dim,
+              "action_dim": c.action_dim,
+              "action_range": c.action_range}] * 2 + \
+            [{"state_dim": c.observe_dim,
+              "action_dim": c.action_dim}] * 2
+        ddpg_apex = DDPGApex.init_from_config(config)
+
+        old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
+        action = t.zeros([1, c.action_dim], dtype=t.float32)
+        if rank in (1, 2):
+            ddpg_apex.store_transition({
+                "state": {"state": old_state},
+                "action": {"action": action},
+                "next_state": {"state": state},
+                "reward": 0,
+                "terminal": False
+            })
+            sleep(5)
+            ddpg_apex.manual_sync()
+        if rank == 0:
+            sleep(2)
+            ddpg_apex.update()
+
+        return True
 
     ########################################################################
     # Test for DDPGApex full training.

@@ -298,17 +298,31 @@ class TestSAC(object):
     ########################################################################
     # Test for SAC config & init
     ########################################################################
-    def test_config_init(self):
+    def test_config_init(self, train_config):
+        c = train_config
         config = SAC.generate_config({})
         config["frame_config"]["models"] = ["Actor",
                                             "Critic", "Critic",
                                             "Critic", "Critic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_dim": 2,
-                                                   "action_range": 1}] + \
-                                                 [{"state_dim": 4,
-                                                   "action_dim": 2}] * 4
-        _a2c = SAC.init_from_config(config)
+        config["frame_config"]["model_kwargs"] = \
+            [{"state_dim": c.observe_dim,
+              "action_dim": c.action_dim,
+              "action_range": c.action_range}] + \
+            [{"state_dim": c.observe_dim, "action_dim": c.action_dim}] * 4
+        sac = SAC.init_from_config(config)
+
+        old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
+        action = t.zeros([1, c.action_dim], dtype=t.float32)
+        sac.store_transition({
+            "state": {"state": old_state},
+            "action": {"action": action},
+            "next_state": {"state": state},
+            "reward": 0,
+            "terminal": False
+        })
+        # heuristic entropy
+        sac.target_entropy = -c.action_dim
+        sac.update()
 
     ########################################################################
     # Test for SAC full training.

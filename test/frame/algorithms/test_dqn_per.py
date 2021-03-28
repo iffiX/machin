@@ -170,12 +170,25 @@ class TestDQNPer(object):
     ########################################################################
     # Test for DQNPer config & init
     ########################################################################
-    def test_config_init(self):
+    def test_config_init(self, train_config):
+        c = train_config
         config = DQNPer.generate_config({})
         config["frame_config"]["models"] = ["QNet", "QNet"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_num": 2}] * 2
-        _dqn_per = DQNPer.init_from_config(config)
+        config["frame_config"]["model_kwargs"] = \
+            [{"state_dim": c.observe_dim, "action_num": c.action_num}] * 2
+        dqn_per = DQNPer.init_from_config(config)
+
+        old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
+        action = t.zeros([1, 1], dtype=t.int)
+        dqn_per.store_episode([
+            {"state": {"state": old_state},
+             "action": {"action": action},
+             "next_state": {"state": state},
+             "reward": 0,
+             "terminal": False}
+            for _ in range(3)
+        ])
+        dqn_per.update()
 
     ########################################################################
     # Test for DQNPer full training.

@@ -207,14 +207,28 @@ class TestARS(object):
     # Test for ARS config & init
     ########################################################################
     @staticmethod
-    @run_multi(timeout=180)
+    @run_multi(expected_results=[True, True, True],
+               timeout=180)
     @WorldTestBase.setup_world
     def test_config_init(_):
+        c = TestARS.c
         config = ARS.generate_config({})
         config["frame_config"]["models"] = ["ActorDiscrete"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_dim": 2}]
-        _ars = ARS.init_from_config(config)
+        config["frame_config"]["model_kwargs"] = [{"state_dim": c.observe_dim,
+                                                   "action_dim": c.action_num}]
+        ars = ARS.init_from_config(config)
+
+        for at in ars.get_actor_types():
+            # get action will cause filters to initialize
+            _action = ars.act({
+                "state": t.zeros([1, c.observe_dim], dtype=t.float32)
+            }, at)
+            if at.startswith("neg"):
+                ars.store_reward(1.0, at)
+            else:
+                ars.store_reward(0.0, at)
+        ars.update()
+        return True
 
     ########################################################################
     # Test for ARS full training.

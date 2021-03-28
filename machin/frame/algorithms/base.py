@@ -31,7 +31,6 @@ class TorchFramework:
     def lr_schedulers(self):
         raise NotImplementedError
 
-
     @property
     def top_models(self):
         models = []
@@ -45,6 +44,10 @@ class TorchFramework:
         for m in self._is_restorable:
             models.append(getattr(self, m))
         return models
+
+    @property
+    def backward_function(self):
+        return self._backward
 
     @classmethod
     def get_top_model_names(cls):

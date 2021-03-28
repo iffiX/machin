@@ -310,7 +310,6 @@ def launch_gym(config):
         logger=[t_logger, lm_logger],
         limit_train_batches=config["episode_per_epoch"],
         max_steps=config["max_episodes"],
-        plugins=[DDPPlugin] if is_algorithm_distributed(config) else None,
         accelerator="ddp" if is_algorithm_distributed(config) else None,
     )
     model = Launcher(config, gym_env_dataset_creator)

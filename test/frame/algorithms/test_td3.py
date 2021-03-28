@@ -264,17 +264,30 @@ class TestTD3(object):
     ########################################################################
     # Test for TD3 config & init
     ########################################################################
-    def test_config_init(self):
+    def test_config_init(self, train_config):
+        c = train_config
         config = TD3.generate_config({})
         config["frame_config"]["models"] = ["Actor", "Actor",
                                             "Critic", "Critic",
                                             "Critic", "Critic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_dim": 2,
-                                                   "action_range": 1}] * 2 + \
-                                                 [{"state_dim": 4,
-                                                   "action_dim": 2}] * 4
-        _a2c = TD3.init_from_config(config)
+        config["frame_config"]["model_kwargs"] = \
+            [{"state_dim": c.observe_dim,
+              "action_dim": c.action_dim,
+              "action_range": c.action_range}] * 2 + \
+            [{"state_dim": c.observe_dim,
+              "action_dim": c.action_dim}] * 4
+        td3 = TD3.init_from_config(config)
+
+        old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
+        action = t.zeros([1, c.action_dim], dtype=t.float32)
+        td3.store_transition({
+            "state": {"state": old_state},
+            "action": {"action": action},
+            "next_state": {"state": state},
+            "reward": 0,
+            "terminal": False
+        })
+        td3.update()
 
     ########################################################################
     # Test for TD3 full training.

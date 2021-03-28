@@ -265,15 +265,48 @@ class TestIMPALA(object):
     # Test for IMPALA config & init
     ########################################################################
     @staticmethod
-    @run_multi(timeout=180)
+    @run_multi(expected_results=[True, True, True],
+               timeout=180)
     @WorldTestBase.setup_world
-    def test_config_init(_):
+    def test_config_init(rank):
+        c = TestIMPALA.c
         config = IMPALA.generate_config({})
         config["frame_config"]["models"] = ["Actor", "Critic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_num": 2},
-                                                  {"state_dim": 4}]
-        _impala = IMPALA.init_from_config(config)
+        config["frame_config"]["model_kwargs"] = [{"state_dim": c.observe_dim,
+                                                   "action_num": c.action_num},
+                                                  {"state_dim": c.observe_dim}]
+        impala = IMPALA.init_from_config(config)
+
+        old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
+        action = t.zeros([1, 1], dtype=t.int)
+        if rank == 0:
+            # episode length = 3
+            impala.store_episode([
+                {"state": {"state": old_state},
+                 "action": {"action": action},
+                 "next_state": {"state": state},
+                 "reward": 0,
+                 "action_log_prob": 0.1,
+                 "terminal": False}
+                for _ in range(3)
+            ])
+        elif rank == 1:
+            # episode length = 2
+            impala.store_episode([
+                {"state": {"state": old_state},
+                 "action": {"action": action},
+                 "next_state": {"state": state},
+                 "reward": 0,
+                 "action_log_prob": 0.1,
+                 "terminal": False}
+                for _ in range(2)
+            ])
+        if rank == 2:
+            sleep(2)
+            impala.update(update_value=True,
+                          update_target=True,
+                          concatenate_samples=True)
+        return True
 
     ########################################################################
     # Test for IMPALA full training.

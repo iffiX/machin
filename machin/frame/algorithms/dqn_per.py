@@ -165,7 +165,9 @@ class DQNPer(DQN):
             for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
-        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])(
+            *f_config["criterion_args"], **f_config["criterion_kwargs"]
+        )
         criterion.reduction = "none"
         lr_scheduler = (
                 f_config["lr_scheduler"]

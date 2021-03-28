@@ -79,7 +79,8 @@ class MADDPG(TorchFramework):
                  visualize_dir: str = "",
                  use_jit: bool = True,
                  pool_type: str = "thread",
-                 pool_size: int = None):
+                 pool_size: int = None,
+                 **__):
         """
         See Also:
             :class:`.DDPG`
@@ -972,6 +973,8 @@ class MADDPG(TorchFramework):
             "model_kwargs": ([{}], [{}], [{}], [{}]),
             "optimizer": "Adam",
             "criterion": "MSELoss",
+            "criterion_args": (),
+            "criterion_kwargs": {},
             "critic_visible_actors": None,
             "sub_policy_num": 0,
             "lr_scheduler": None,
@@ -1017,7 +1020,9 @@ class MADDPG(TorchFramework):
             ]
             all_models.append(models)
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
-        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])(
+            *f_config["criterion_args"], **f_config["criterion_kwargs"]
+        )
         lr_scheduler = (
                 f_config["lr_scheduler"]
                 and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])

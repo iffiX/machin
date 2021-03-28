@@ -203,16 +203,29 @@ class TestDDPGPer(object):
     ########################################################################
     # Test for DDPGPer config & init
     ########################################################################
-    def test_config_init(self):
+    def test_config_init(self, train_config):
+        c = train_config
         config = DDPGPer.generate_config({})
         config["frame_config"]["models"] = ["Actor", "Actor",
                                             "Critic", "Critic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_dim": 2,
-                                                   "action_range": 1}] * 2 + \
-                                                 [{"state_dim": 4,
-                                                   "action_dim": 2}] * 2
-        _a2c = DDPGPer.init_from_config(config)
+        config["frame_config"]["model_kwargs"] = \
+            [{"state_dim": c.observe_dim,
+              "action_dim": c.action_dim,
+              "action_range": c.action_range}] * 2 + \
+            [{"state_dim": c.observe_dim,
+              "action_dim": c.action_dim}] * 2
+        ddpg_per = DDPGPer.init_from_config(config)
+
+        old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
+        action = t.zeros([1, c.action_dim], dtype=t.float32)
+        ddpg_per.store_transition({
+            "state": {"state": old_state},
+            "action": {"action": action},
+            "next_state": {"state": state},
+            "reward": 0,
+            "terminal": False
+        })
+        ddpg_per.update()
 
     ########################################################################
     # Test for DDPGPer full training.

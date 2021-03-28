@@ -145,7 +145,7 @@ class DQNApex(DQNPer):
     @classmethod
     def generate_config(cls, config: Dict[str, Any]):
         default_values = {
-            "learner_process_ratio": 0.1,
+            "learner_process_number": 1,
             "model_server_group_name": "dqn_apex_model_server",
             "model_server_members": "all",
             "apex_group_name": "dqn_apex",
@@ -155,6 +155,8 @@ class DQNApex(DQNPer):
             "model_kwargs": ({}, {}),
             "optimizer": "Adam",
             "criterion": "MSELoss",
+            "criterion_args": (),
+            "criterion_kwargs": {},
             "lr_scheduler": None,
             "lr_scheduler_args": None,
             "lr_scheduler_kwargs": None,
@@ -195,9 +197,7 @@ class DQNApex(DQNPer):
             for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         # wrap models in DistributedDataParallel when running in learner mode
-        max_learner_id = int(math.ceil(
-            f_config["learner_process_ratio"] * apex_group.size()
-        ))
+        max_learner_id = f_config["learner_process_number"]
 
         learner_group = world.create_collective_group(
             ranks=list(range(max_learner_id))
@@ -211,7 +211,9 @@ class DQNApex(DQNPer):
             ]
 
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
-        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])(
+            *f_config["criterion_args"], **f_config["criterion_kwargs"]
+        )
         criterion.reduction = "none"
         lr_scheduler = (
                 f_config["lr_scheduler"]
@@ -229,6 +231,8 @@ class DQNApex(DQNPer):
         del f_config["lr_scheduler"]
         frame = cls(*models, optimizer, criterion, apex_group, servers,
                     lr_scheduler=lr_scheduler, **f_config)
+        if world.rank >= max_learner_id:
+            frame.update = lambda *_, **__: None, None
         return frame
 
 
@@ -401,7 +405,7 @@ class DDPGApex(DDPGPer):
     @classmethod
     def generate_config(cls, config: Union[Dict[str, Any], Config]):
         default_values = {
-            "learner_process_ratio": 0.1,
+            "learner_process_number": 1,
             "model_server_group_name": "ddpg_apex_model_server",
             "model_server_members": "all",
             "apex_group_name": "ddpg_apex",
@@ -411,6 +415,8 @@ class DDPGApex(DDPGPer):
             "model_kwargs": ({}, {}, {}, {}),
             "optimizer": "Adam",
             "criterion": "MSELoss",
+            "criterion_args": (),
+            "criterion_kwargs": {},
             "lr_scheduler": None,
             "lr_scheduler_args": None,
             "lr_scheduler_kwargs": None,
@@ -450,9 +456,7 @@ class DDPGApex(DDPGPer):
             for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         # wrap models in DistributedDataParallel when running in learner mode
-        max_learner_id = int(math.ceil(
-            f_config["learner_process_ratio"] * apex_group.size()
-        ))
+        max_learner_id = f_config["learner_process_number"]
 
         learner_group = world.create_collective_group(
             ranks=list(range(max_learner_id))
@@ -466,7 +470,9 @@ class DDPGApex(DDPGPer):
             ]
 
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
-        criterion = assert_and_get_valid_criterion(f_config["criterion"])
+        criterion = assert_and_get_valid_criterion(f_config["criterion"])(
+            *f_config["criterion_args"], **f_config["criterion_kwargs"]
+        )
         criterion.reduction = "none"
         lr_scheduler = (
                 f_config["lr_scheduler"]
@@ -484,4 +490,6 @@ class DDPGApex(DDPGPer):
         del f_config["lr_scheduler"]
         frame = cls(*models, optimizer, criterion, apex_group, servers,
                     lr_scheduler=lr_scheduler, **f_config)
+        if world.rank >= max_learner_id:
+            frame.update = lambda *_, **__: None, None
         return frame

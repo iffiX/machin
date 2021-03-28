@@ -6,6 +6,7 @@ import pickle
 import torch as t
 import torch.nn as nn
 import pytorch_lightning as pl
+# necessary to patch PL DDP plugins
 import machin.auto
 
 
