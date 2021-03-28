@@ -26,7 +26,7 @@ class TestDDPPlugin:
         else:
             with open(test_save_path, "rb") as f:
                 flags = pickle.load(f)
-                assert flags == [True, True], \
+                assert flags == [True], \
                     "Not properly_inited, flags are: {}".format(flags)
 
 
@@ -51,6 +51,6 @@ class TestDDPSpawnPlugin:
         else:
             with open(test_save_path, "rb") as f:
                 flags = pickle.load(f)
-                assert flags == [True, True], \
+                assert flags == [True], \
                     "Not properly_inited, flags are: {}".format(flags)
 

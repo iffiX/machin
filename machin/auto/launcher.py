@@ -1,16 +1,8 @@
-import gym
 import pytorch_lightning as pl
 from torch import distributed as dist
 from torch.utils.data import DataLoader
-from .config import init_algorithm_from_config, is_algorithm_distributed
+from .config import init_algorithm_from_config
 from .pl_plugin import DDPPlugin, DDPSpawnPlugin
-from .pl_logger import LocalMediaLogger
-from .dataset import (
-    is_discrete_space,
-    is_continuous_space,
-    RLGymDiscActDataset,
-    RLGymContActDataset
-)
 
 
 class Launcher(pl.LightningModule):
@@ -88,58 +80,3 @@ class Launcher(pl.LightningModule):
                 is_dist_initialized = dist.is_available() and \
                                       dist.is_initialized()
                 self.log(log_key, log_val, sync_dist=is_dist_initialized)
-
-
-def gym_env_dataset_creator(frame, env_config):
-    env = gym.make(env_config["env_name"])
-    if is_discrete_space(env.action_space):
-        return RLGymDiscActDataset(
-            frame, env,
-            render_every_episode=env_config["render_every_episode"],
-            act_kwargs=env_config["act_kwargs"]
-        )
-    elif is_continuous_space(env.action_space):
-        return RLGymContActDataset(
-            frame, env,
-            render_every_episode=env_config["render_every_episode"],
-            act_kwargs=env_config["act_kwargs"]
-        )
-    else:
-        raise ValueError("Gym environment {} has action space of type {}, "
-                         "which is not supported."
-                         .format(env_config["env_name"],
-                                 type(env.action_space)))
-
-
-def launch_gym(config):
-    from machin.utils.save_env import SaveEnv
-    from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-    from pytorch_lightning.loggers import TensorBoardLogger
-
-    s_env = SaveEnv(config["trials_dir"])
-
-    checkpoint_callback = ModelCheckpoint(
-        dirpath=s_env.get_trial_model_dir(),
-        filename="{epoch:02d}-{total_reward:.2f}",
-        save_top_k=1,
-        monitor="total_reward", mode="max",
-        period=1, verbose=True
-    )
-    early_stopping = EarlyStopping(
-        monitor="total_reward", mode="max"
-    )
-    t_logger = TensorBoardLogger(s_env.get_trial_train_log_dir())
-    lm_logger = LocalMediaLogger(s_env.get_trial_image_dir(),
-                                 s_env.get_trial_image_dir())
-    trainer = pl.Trainer(
-        gpus=config["gpus"],
-        callbacks=[checkpoint_callback, early_stopping],
-        logger=[t_logger, lm_logger],
-        limit_train_batches=config["episode_per_epoch"],
-        max_steps=config["max_episodes"],
-        plugins=[DDPPlugin] if is_algorithm_distributed(config) else None,
-        accelerator="ddp" if is_algorithm_distributed(config) else None,
-    )
-    model = Launcher(config, gym_env_dataset_creator)
-
-    trainer.fit(model)

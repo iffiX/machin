@@ -1,4 +1,4 @@
-from machin.frame.auto.pl_logger import LocalMediaLogger
+from machin.auto.pl_logger import LocalMediaLogger
 from pytorch_lightning.loggers.base import DummyExperiment
 from PIL import Image
 import os

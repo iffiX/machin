@@ -1,109 +1,57 @@
-import os
-import tempfile
-import torch as t
-import numpy as np
-import pytorch_lightning as pl
-from typing import Iterable, List, Dict, Union, Any, Tuple, Callable
-from torch.utils.data import IterableDataset
-from pytorch_lightning.loggers.base import LoggerCollection
-from gym.spaces import Box, Discrete, MultiBinary, MultiDiscrete
+from copy import deepcopy
+from typing import Dict, Any, Union
+from ..config import fill_default, is_algorithm_distributed
+from ..pl_logger import LocalMediaLogger
+from ..dataset import DatasetResult, RLDataset, log_video, determine_precision
+from ..pl_plugin import DDPPlugin
+from ..launcher import Launcher
+from machin.utils.conf import Config
 from machin.frame.algorithms import *
 from machin.env.utils.openai_gym import disable_view_window
-from machin.utils.media import create_video, numpy_array_to_pil_image
-Scalar = Any
+from gym.spaces import Box, Discrete, MultiBinary, MultiDiscrete
+import gym
+import torch as t
+import pytorch_lightning as pl
 
 
 disable_view_window()
 
 
-def is_simple_space(space):
+def _is_simple_space(space):
     return type(space) in (Box, Discrete, MultiBinary, MultiDiscrete)
 
 
-def is_discrete_space(space):
+def _is_discrete_space(space):
     return type(space) in (Discrete, MultiDiscrete)
 
 
-def is_continuous_space(space):
+def _is_continuous_space(space):
     return type(space) in (Box, MultiBinary)
 
 
-def determine_precision(models):
-    dtype = set()
-    for model in models:
-        for k, v in model.named_parameters():
-            dtype.add(v.dtype)
-    dtype = list(dtype)
-    if len(dtype) > 1:
-        raise RuntimeError("Multiple data types of parameters detected "
-                           "in models: {}, this is currently not supported "
-                           "since we need to determine the data type of your "
-                           "model input from your model parameter data type."
-                           .format(dtype))
-    return dtype[0]
-
-
-def get_loggers_as_list(module: pl.LightningModule):
-    if isinstance(module.logger, LoggerCollection):
-        return module.logger._logger_iterable
-    else:
-        return [module.logger]
-
-
-def log_image(module, name, image: np.ndarray):
-    for logger in get_loggers_as_list(module):
-        if hasattr(logger, "log_image") and callable(logger.log_image):
-            logger.log_image(name, numpy_array_to_pil_image(image))
-
-
-def log_video(module, name, video_frames: List[np.ndarray]):
-    # create video temp file
-    _fd, path = tempfile.mkstemp(suffix=".gif")
-    try:
-        create_video(video_frames,
-                     os.path.dirname(path),
-                     os.path.basename(path))
-    except Exception as e:
-        print(e)
-        os.remove(path)
-        return
-
-    for logger in get_loggers_as_list(module):
-        if hasattr(logger, "log_artifact") and callable(logger.log_artifact):
-            logger.log_artifact(path, name)
-    os.remove(path)
-
-
-class DatasetResult:
-    def __init__(self,
-                 observations: List[Dict[str, Any]] = None,
-                 logs: List[Dict[str, Union[Scalar, Tuple[Scalar, str]]]]
-                 = None):
-        self.observations = observations or []
-        self.logs = logs or []
-
-    def add_observation(self, obs: Dict[str, Any]):
-        self.observations.append(obs)
-
-    def add_log(self, log: Dict[str, Union[Scalar, Tuple[Any, Callable]]]):
-        self.logs.append(log)
-
-    def __len__(self):
-        return len(self.observations)
-
-
-class RLDataset(IterableDataset):
+def generate_gym_env_config(env_name: str = None,
+                            config: Union[Dict[str, Any], Config] = None):
     """
-    Base class for all RL Datasets.
+    Generate example OpenAI gym config.
     """
-    def __init__(self, **_kwargs):
-        super(RLDataset, self).__init__()
-
-    def __iter__(self) -> Iterable:
-        return self
-
-    def __next__(self):
-        raise StopIteration()
+    config = deepcopy(config) or {}
+    return fill_default(
+        {"trials_dir": "trials",
+         "gpus": 0,
+         "episode_per_epoch": 100,
+         "max_episodes": 1000000,
+         "train_env_config": {
+             "env_name": env_name or "CartPole-v1",
+             "render_every_episode": 100,
+             "act_kwargs": {}
+         },
+         "test_env_config": {
+             "env_name": env_name or "CartPole-v1",
+             "render_every_episode": 100,
+             "act_kwargs": {}
+         }},
+        config
+    )
 
 
 class RLGymDiscActDataset(RLDataset):
@@ -133,7 +81,10 @@ class RLGymDiscActDataset(RLDataset):
         act_kwargs: Additional keyword arguments passed to act functions
             of different frameworks.
     """
-    def __init__(self, frame, env, render_every_episode=100, act_kwargs=None):
+    def __init__(self,
+                 frame, env,
+                 render_every_episode: int = 100,
+                 act_kwargs: Dict[str, Any] = None):
         super(RLGymDiscActDataset, self).__init__()
         self.frame = frame
         self.env = env
@@ -144,7 +95,7 @@ class RLGymDiscActDataset(RLDataset):
         )
         self.counter = 0
         assert type(env.action_space) == Discrete
-        assert is_simple_space(env.observation_space)
+        assert _is_simple_space(env.observation_space)
 
     def __next__(self):
         result = DatasetResult()
@@ -236,7 +187,10 @@ class RLGymContActDataset(RLDataset):
             of different frameworks.
     """
 
-    def __init__(self, frame, env, render_every_episode=100, act_kwargs=None):
+    def __init__(self,
+                 frame, env,
+                 render_every_episode: int = 100,
+                 act_kwargs: Dict[str, Any] = None):
         super(RLGymContActDataset, self).__init__()
         self.frame = frame
         self.env = env
@@ -247,7 +201,7 @@ class RLGymContActDataset(RLDataset):
         )
         self.counter = 0
         assert type(env.action_space) == Box
-        assert is_simple_space(env.observation_space)
+        assert _is_simple_space(env.observation_space)
 
     def __next__(self):
         result = DatasetResult()
@@ -307,3 +261,58 @@ class RLGymContActDataset(RLDataset):
         getattr(self.frame, "set_sync", lambda x: None)(True)
         self.counter += 1
         return result
+
+
+def gym_env_dataset_creator(frame, env_config):
+    env = gym.make(env_config["env_name"])
+    if _is_discrete_space(env.action_space):
+        return RLGymDiscActDataset(
+            frame, env,
+            render_every_episode=env_config["render_every_episode"],
+            act_kwargs=env_config["act_kwargs"]
+        )
+    elif _is_continuous_space(env.action_space):
+        return RLGymContActDataset(
+            frame, env,
+            render_every_episode=env_config["render_every_episode"],
+            act_kwargs=env_config["act_kwargs"]
+        )
+    else:
+        raise ValueError("Gym environment {} has action space of type {}, "
+                         "which is not supported."
+                         .format(env_config["env_name"],
+                                 type(env.action_space)))
+
+
+def launch_gym(config):
+    from machin.utils.save_env import SaveEnv
+    from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+    from pytorch_lightning.loggers import TensorBoardLogger
+
+    s_env = SaveEnv(config["trials_dir"])
+
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=s_env.get_trial_model_dir(),
+        filename="{epoch:02d}-{total_reward:.2f}",
+        save_top_k=1,
+        monitor="total_reward", mode="max",
+        period=1, verbose=True
+    )
+    early_stopping = EarlyStopping(
+        monitor="total_reward", mode="max"
+    )
+    t_logger = TensorBoardLogger(s_env.get_trial_train_log_dir())
+    lm_logger = LocalMediaLogger(s_env.get_trial_image_dir(),
+                                 s_env.get_trial_image_dir())
+    trainer = pl.Trainer(
+        gpus=config["gpus"],
+        callbacks=[checkpoint_callback, early_stopping],
+        logger=[t_logger, lm_logger],
+        limit_train_batches=config["episode_per_epoch"],
+        max_steps=config["max_episodes"],
+        plugins=[DDPPlugin] if is_algorithm_distributed(config) else None,
+        accelerator="ddp" if is_algorithm_distributed(config) else None,
+    )
+    model = Launcher(config, gym_env_dataset_creator)
+
+    trainer.fit(model)

@@ -1,13 +1,7 @@
 from machin.frame.algorithms import A2C, DDPG, DQN
-from machin.frame.auto.dataset import (
-    determine_precision,
-    DatasetResult,
-    RLGymDiscActDataset,
-    RLGymContActDataset
-)
+from machin.auto.env.openai_gym import RLGymDiscActDataset, RLGymContActDataset
 from torch.distributions import Categorical, Normal
 import gym
-import pytest
 import torch as t
 import torch.nn as nn
 import torch.nn.functional as F
@@ -132,27 +126,6 @@ class DDPGCritic(nn.Module):
         q = t.relu(self.fc2(q))
         q = self.fc3(q)
         return q
-
-
-def test_determine_precision():
-    assert determine_precision([QNet(10, 2)]) == t.float32
-    mixed_qnet = QNet(10, 2)
-    mixed_qnet.fc2 = mixed_qnet.fc2.type(t.float64)
-    with pytest.raises(RuntimeError, match="Multiple data types of parameters"):
-        determine_precision([mixed_qnet])
-
-
-class TestDatasetResult:
-    def test_add_observation(self):
-        dr = DatasetResult()
-        dr.add_observation({})
-        assert len(dr.observations) == 1
-        assert len(dr) == 1
-
-    def test_add_log(self):
-        dr = DatasetResult()
-        dr.add_log({})
-        assert len(dr.logs) == 1
 
 
 class TestRLGymDiscActDataset:

@@ -209,7 +209,6 @@ class TestMADDPG(object):
                         [deepcopy(actor) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
                         [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        [list(range(c.test_agent_num))] * c.test_agent_num,
                         t.optim.Adam,
                         nn.MSELoss(reduction='sum'),
                         replay_device="cpu",

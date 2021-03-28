@@ -120,3 +120,4 @@ class DDPSpawnPlugin(DDPS):
 # before the trainer is initialized.
 pl.trainer.connectors.accelerator_connector.DDPPlugin = DDPPlugin
 pl.trainer.connectors.accelerator_connector.DDPSpawnPlugin = DDPSpawnPlugin
+pl_logger.info("DDP plugin patched.")

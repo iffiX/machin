@@ -5,7 +5,7 @@ from machin.utils.conf import Config
 import machin.frame.algorithms as algorithms
 
 
-def _fill_default(default: Union[Dict[str, Any], Config],
+def fill_default(default: Union[Dict[str, Any], Config],
                   config: Union[Dict[str, Any], Config]):
     for key in default:
         if key not in config:
@@ -31,31 +31,6 @@ def generate_algorithm_config(algorithm: str,
             return algo_obj.generate_config(config)
     raise ValueError("Invalid algorithm: {}, valid ones are: {}"
                      .format(algorithm, _get_available_algorithms()))
-
-
-def generate_gym_env_config(env_name: str = None,
-                            config: Union[Dict[str, Any], Config] = None):
-    """
-    Generate example OpenAI gym config.
-    """
-    config = deepcopy(config) or {}
-    return _fill_default(
-        {"trials_dir": "trials",
-         "gpus": 0,
-         "episode_per_epoch": 100,
-         "max_episodes": 1000000,
-         "train_env_config": {
-             "env_name": env_name or "CartPole-v1",
-             "render_every_episode": 100,
-             "act_kwargs": {}
-         },
-         "test_env_config": {
-             "env_name": env_name or "CartPole-v1",
-             "render_every_episode": 100,
-             "act_kwargs": {}
-         }},
-        config
-    )
 
 
 def init_algorithm_from_config(config: Union[Dict[str, Any], Config]):

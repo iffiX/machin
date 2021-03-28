@@ -6,6 +6,7 @@ import pickle
 import torch as t
 import torch.nn as nn
 import pytorch_lightning as pl
+import machin.auto
 
 
 class NNModule(nn.Module):
@@ -29,12 +30,14 @@ class ParallelModule(pl.LightningModule):
         )
 
     def training_step(self, batch, _batch_idx):
-        model_properly_inited = isinstance(self.nn_model, NNModule)
-        properly_inited = get_world() is not None
+        world_inited = get_world() is not None
+        model_inited = isinstance(self.nn_model, NNModule)
 
-        if properly_inited and get_cur_rank() == 0:
+        if world_inited and get_cur_rank() == 0:
             with open(os.environ["TEST_SAVE_PATH"], "wb") as f:
-                pickle.dump([model_properly_inited, properly_inited], f)
+                pickle.dump([model_inited], f)
+        if not world_inited:
+            raise RuntimeError("World not initialized.")
         return None
 
     def configure_optimizers(self):
@@ -43,6 +46,7 @@ class ParallelModule(pl.LightningModule):
 
 if __name__ == "__main__":
     os.environ["WORLD_SIZE"] = "3"
+    print(os.environ["TEST_SAVE_PATH"])
     trainer = pl.Trainer(
         gpus=0,
         num_nodes=1,
