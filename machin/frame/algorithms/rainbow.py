@@ -1,4 +1,5 @@
 from machin.frame.buffers.prioritized_buffer import PrioritizedBuffer
+
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .dqn import *
 
@@ -8,30 +9,32 @@ class RAINBOW(DQN):
     RAINBOW DQN framework.
     """
 
-    def __init__(self,
-                 qnet: Union[NeuralNetworkModule, nn.Module],
-                 qnet_target: Union[NeuralNetworkModule, nn.Module],
-                 optimizer,
-                 value_min,
-                 value_max,
-                 *_,
-                 lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple] = None,
-                 lr_scheduler_kwargs: Tuple[Dict] = None,
-                 batch_size: int = 100,
-                 epsilon_decay: float = 0.9999,
-                 update_rate: float = 0.001,
-                 update_steps: Union[int, None] = None,
-                 learning_rate: float = 0.001,
-                 discount: float = 0.99,
-                 gradient_max: float = np.inf,
-                 reward_future_steps: int = 3,
-                 replay_size: int = 500000,
-                 replay_device: Union[str, t.device] = "cpu",
-                 replay_buffer: Buffer = None,
-                 visualize: bool = False,
-                 visualize_dir: str = "",
-                 **__):
+    def __init__(
+        self,
+        qnet: Union[NeuralNetworkModule, nn.Module],
+        qnet_target: Union[NeuralNetworkModule, nn.Module],
+        optimizer,
+        value_min,
+        value_max,
+        *_,
+        lr_scheduler: Callable = None,
+        lr_scheduler_args: Tuple[Tuple] = None,
+        lr_scheduler_kwargs: Tuple[Dict] = None,
+        batch_size: int = 100,
+        epsilon_decay: float = 0.9999,
+        update_rate: float = 0.001,
+        update_steps: Union[int, None] = None,
+        learning_rate: float = 0.001,
+        discount: float = 0.99,
+        gradient_max: float = np.inf,
+        reward_future_steps: int = 3,
+        replay_size: int = 500000,
+        replay_device: Union[str, t.device] = "cpu",
+        replay_buffer: Buffer = None,
+        visualize: bool = False,
+        visualize_dir: str = "",
+        **__
+    ):
         """
         RAINBOW framework is described in
         `this <https://arxiv.org/abs/1710.02298>`__ essay.
@@ -79,7 +82,10 @@ class RAINBOW(DQN):
             visualize: Whether visualize the network flow in the first pass.
         """
         super(RAINBOW, self).__init__(
-            qnet, qnet_target, optimizer, lambda: None,
+            qnet,
+            qnet_target,
+            optimizer,
+            lambda: None,
             learning_rate=learning_rate,
             lr_scheduler=lr_scheduler,
             lr_scheduler_args=lr_scheduler_args,
@@ -92,20 +98,19 @@ class RAINBOW(DQN):
             gradient_max=gradient_max,
             replay_size=replay_size,
             replay_device=replay_device,
-            replay_buffer=(PrioritizedBuffer(replay_size, replay_device)
-                           if replay_buffer is None
-                           else replay_buffer),
+            replay_buffer=(
+                PrioritizedBuffer(replay_size, replay_device)
+                if replay_buffer is None
+                else replay_buffer
+            ),
             visualize=visualize,
-            visualize_dir=visualize_dir
+            visualize_dir=visualize_dir,
         )
         self.v_min = value_min
         self.v_max = value_max
         self.reward_future_steps = reward_future_steps
 
-    def act_discrete(self,
-                     state: Dict[str, Any],
-                     use_target: bool = False,
-                     **__):
+    def act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
         # q value distribution of each action
         # shape: [batch_size, action_num, atom_num]
@@ -117,8 +122,7 @@ class RAINBOW(DQN):
         atom_num = q_dist.shape[-1]
 
         # support vector, shape: [1, atom_num]
-        q_dist_support = t.linspace(self.v_min, self.v_max, atom_num) \
-            .view(1, -1)
+        q_dist_support = t.linspace(self.v_min, self.v_max, atom_num).view(1, -1)
 
         # q value of each action, shape: [batch_size, action_num]
         q_value = t.sum(q_dist_support.type_as(q_dist) * q_dist, dim=-1)
@@ -129,11 +133,13 @@ class RAINBOW(DQN):
         else:
             return (result, *others)
 
-    def act_discrete_with_noise(self,
-                                state: Dict[str, Any],
-                                use_target: bool = False,
-                                decay_epsilon: bool = True,
-                                **__):
+    def act_discrete_with_noise(
+        self,
+        state: Dict[str, Any],
+        use_target: bool = False,
+        decay_epsilon: bool = True,
+        **__
+    ):
         # DOC INHERITED
         # q value distribution of each action
         # shape: [batch_size, action_num, atom_num]
@@ -145,8 +151,7 @@ class RAINBOW(DQN):
         atom_num = q_dist.shape[-1]
 
         # support vector, shape: [1, atom_num]
-        q_dist_support = t.linspace(self.v_min, self.v_max, atom_num) \
-            .view(1, -1)
+        q_dist_support = t.linspace(self.v_min, self.v_max, atom_num).view(1, -1)
 
         # q value of each action, shape: [batch_size, action_num]
         q_value = t.sum(q_dist_support.type_as(q_dist) * q_dist, dim=-1)
@@ -172,9 +177,17 @@ class RAINBOW(DQN):
         Not suggested, since you will have to calculate "value"
         by yourself.
         """
-        self.replay_buffer.append(transition, required_attrs=(
-            "state", "action", "next_state", "reward", "value", "terminal"
-        ))
+        self.replay_buffer.append(
+            transition,
+            required_attrs=(
+                "state",
+                "action",
+                "next_state",
+                "reward",
+                "value",
+                "terminal",
+            ),
+        )
 
     def store_episode(self, episode: List[Union[Transition, Dict]]):
         """
@@ -190,46 +203,48 @@ class RAINBOW(DQN):
             # for (virtual) transitions beyond the terminal transition,
             # using "min" to ignore them is equivalent to setting their
             # rewards as zero
-            for j in reversed(range(min(
-                    self.reward_future_steps, len(episode) - i
-            ))):
-                value_sum = (value_sum * self.discount +
-                             episode[i + j]["reward"])
+            for j in reversed(range(min(self.reward_future_steps, len(episode) - i))):
+                value_sum = value_sum * self.discount + episode[i + j]["reward"]
             episode[i]["value"] = value_sum
 
         for trans in episode:
-            self.replay_buffer.append(trans, required_attrs=(
-                "state", "action", "next_state", "reward", "value", "terminal"
-            ))
+            self.replay_buffer.append(
+                trans,
+                required_attrs=(
+                    "state",
+                    "action",
+                    "next_state",
+                    "reward",
+                    "value",
+                    "terminal",
+                ),
+            )
 
-    def update(self,
-               update_value=True,
-               update_target=True,
-               concatenate_samples=True,
-               **__):
+    def update(
+        self, update_value=True, update_target=True, concatenate_samples=True, **__
+    ):
         # DOC INHERITED
         # pylint: disable=invalid-name
         self.qnet.train()
-        (batch_size,
-         (state, action, value, next_state, terminal, others),
-         index, is_weight) = \
-            self.replay_buffer.sample_batch(self.batch_size,
-                                            concatenate_samples,
-                                            sample_attrs=[
-                                                "state", "action",
-                                                "value", "next_state",
-                                                "terminal", "*"
-                                            ],
-                                            additional_concat_attrs=[
-                                                "value"
-                                            ])
+        (
+            batch_size,
+            (state, action, value, next_state, terminal, others),
+            index,
+            is_weight,
+        ) = self.replay_buffer.sample_batch(
+            self.batch_size,
+            concatenate_samples,
+            sample_attrs=["state", "action", "value", "next_state", "terminal", "*"],
+            additional_concat_attrs=["value"],
+        )
 
         # q_dist is the distribution of q values
         q_dist = self._criticize(state).cpu()
         atom_num = q_dist.shape[-1]
 
-        action = self.action_get_function(action).to(device="cpu",
-                                                     dtype=t.long).flatten()
+        action = (
+            self.action_get_function(action).to(device="cpu", dtype=t.long).flatten()
+        )
         # shape: [batch_size, atom_num]
         q_dist = q_dist[range(batch_size), action]
 
@@ -238,12 +253,12 @@ class RAINBOW(DQN):
 
         with t.no_grad():
             target_next_q_dist = self._criticize(next_state, True).cpu()
-            next_action = (self.act_discrete(next_state).flatten()
-                           .to(device="cpu", dtype=t.long))
+            next_action = (
+                self.act_discrete(next_state).flatten().to(device="cpu", dtype=t.long)
+            )
 
             # shape: [batch_size, atom_num]
-            target_next_q_dist = target_next_q_dist[range(batch_size),
-                                                    next_action]
+            target_next_q_dist = target_next_q_dist[range(batch_size), next_action]
 
             # shape: [1, atom_num]
             q_dist_support = q_dist_support.unsqueeze(dim=0)
@@ -255,7 +270,7 @@ class RAINBOW(DQN):
                 self.discount ** self.reward_future_steps,
                 q_dist_support,
                 terminal.cpu(),
-                others
+                others,
             )
 
             # 1e-6 is used to make sure that l != u when T_z == v_min or v_max
@@ -281,10 +296,12 @@ class RAINBOW(DQN):
             # offset is used to perform row-wise index add, since we can only
             # perform index add on one dimension, we must flatten the whole
             # distribution and then add.
-            offset = (t.arange(0, batch_size * atom_num, atom_num)
-                      .view(-1, 1)
-                      .expand(batch_size, atom_num)
-                      .flatten())
+            offset = (
+                t.arange(0, batch_size * atom_num, atom_num)
+                .view(-1, 1)
+                .expand(batch_size, atom_num)
+                .flatten()
+            )
 
             # distribute T_z probability to its nearest upper
             # and lower atom neighbors, using its distance to them.
@@ -292,10 +309,8 @@ class RAINBOW(DQN):
             # Note: index_add_ on CUDA uses atomicAdd, will cause
             # rounding errors and be a source of noise.
             target_dist = t.zeros([batch_size * atom_num], dtype=l_weight.dtype)
-            target_dist.index_add_(dim=0, index=l_idx + offset,
-                                   source=l_weight)
-            target_dist.index_add_(dim=0, index=u_idx + offset,
-                                   source=u_weight)
+            target_dist.index_add_(dim=0, index=l_idx + offset, source=l_weight)
+            target_dist.index_add_(dim=0, index=u_idx + offset, source=u_weight)
             target_dist = target_dist.view(batch_size, atom_num)
 
         # target_dist is equivalent to y_i in original dqn
@@ -310,8 +325,7 @@ class RAINBOW(DQN):
         abs_error = (t.abs(value_loss) + 1e-6).flatten().detach().numpy()
         self.replay_buffer.update_priority(abs_error, index)
 
-        value_loss = (value_loss *
-                      t.from_numpy(is_weight).view([batch_size, 1])).mean()
+        value_loss = (value_loss * t.from_numpy(is_weight).view([batch_size, 1])).mean()
 
         if self.visualize:
             self.visualize_model(value_loss, "qnet", self.visualize_dir)
@@ -319,9 +333,7 @@ class RAINBOW(DQN):
         if update_value:
             self.qnet.zero_grad()
             self._backward(value_loss)
-            nn.utils.clip_grad_norm_(
-                self.qnet.parameters(), self.grad_max
-            )
+            nn.utils.clip_grad_norm_(self.qnet.parameters(), self.grad_max)
             self.qnet_optim.step()
 
         # Update target Q network

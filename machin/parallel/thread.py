@@ -10,12 +10,27 @@ class Thread(threading.Thread):
     """
     Enhanced thread with exception tracing.
     """
-    def __init__(self, group=None, target=None, name=None,
-                 args=(), kwargs={}, cleaner=None, *, daemon=None):
-        threading.Thread.__init__(self,
-                                  group=group, target=target,
-                                  name=name, args=args, kwargs=kwargs,
-                                  daemon=daemon)
+
+    def __init__(
+        self,
+        group=None,
+        target=None,
+        name=None,
+        args=(),
+        kwargs={},
+        cleaner=None,
+        *,
+        daemon=None
+    ):
+        threading.Thread.__init__(
+            self,
+            group=group,
+            target=target,
+            name=name,
+            args=args,
+            kwargs=kwargs,
+            daemon=daemon,
+        )
         self._cleaner = cleaner
         self._exception_str = ""
         self._has_exception = False

@@ -2,7 +2,7 @@ from machin.utils.prepare import (
     prep_clear_dirs,
     prep_create_dirs,
     prep_load_state_dict,
-    prep_load_model
+    prep_load_model,
 )
 from os.path import join
 import os
@@ -21,8 +21,7 @@ def test_prep_clear_dirs(tmpdir):
     tmp_dir = str(tmpdir.make_numbered_dir())
     create_file(join(tmp_dir, "some_dir", "some_file"))
     create_file(join(tmp_dir, "some_file2"))
-    os.symlink(join(tmp_dir, "some_dir", "some_file"),
-               join(tmp_dir, "some_file3"))
+    os.symlink(join(tmp_dir, "some_dir", "some_file"), join(tmp_dir, "some_file3"))
     prep_clear_dirs([tmp_dir])
     assert not os.path.exists(join(tmp_dir, "some_dir", "some_file"))
     assert not os.path.exists(join(tmp_dir, "some_file2"))
@@ -31,17 +30,15 @@ def test_prep_clear_dirs(tmpdir):
 
 def test_prep_create_dirs(tmpdir):
     tmp_dir = str(tmpdir.make_numbered_dir())
-    prep_create_dirs([
+    prep_create_dirs([join(tmp_dir, "some_dir")])
+    assert os.path.exists(join(tmp_dir, "some_dir")) and os.path.isdir(
         join(tmp_dir, "some_dir")
-    ])
-    assert (os.path.exists(join(tmp_dir, "some_dir")) and
-            os.path.isdir(join(tmp_dir, "some_dir")))
+    )
 
 
 def test_prep_load_state_dict(pytestconfig):
     model = t.nn.Linear(100, 100)
-    model2 = t.nn.Linear(100, 100) \
-        .to(pytestconfig.getoption("gpu_device"))
+    model2 = t.nn.Linear(100, 100).to(pytestconfig.getoption("gpu_device"))
     state_dict = model2.state_dict()
     prep_load_state_dict(model, state_dict)
     assert t.all(model.weight == model2.weight.to("cpu"))

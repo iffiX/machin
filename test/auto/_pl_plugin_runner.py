@@ -6,6 +6,7 @@ import pickle
 import torch as t
 import torch.nn as nn
 import pytorch_lightning as pl
+
 # necessary to patch PL DDP plugins
 import machin.auto
 
@@ -26,8 +27,7 @@ class ParallelModule(pl.LightningModule):
 
     def train_dataloader(self):
         return DataLoader(
-            dataset=TensorDataset(t.ones([5, 10])),
-            collate_fn=lambda x: x
+            dataset=TensorDataset(t.ones([5, 10])), collate_fn=lambda x: x
         )
 
     def training_step(self, batch, _batch_idx):
@@ -54,7 +54,7 @@ if __name__ == "__main__":
         num_processes=3,
         limit_train_batches=1,
         max_steps=1,
-        accelerator="ddp" if sys.argv[1] == "ddp" else "ddp_spawn"
+        accelerator="ddp" if sys.argv[1] == "ddp" else "ddp_spawn",
     )
     model = ParallelModule()
     trainer.fit(model)

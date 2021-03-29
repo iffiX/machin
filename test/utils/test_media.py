@@ -1,6 +1,9 @@
 from machin.utils.media import (
-    show_image, create_video, create_video_subproc,
-    create_image, create_image_subproc
+    show_image,
+    create_video,
+    create_video_subproc,
+    create_image,
+    create_image_subproc,
 )
 from os.path import join
 import os
@@ -11,18 +14,14 @@ import numpy as np
 @pytest.fixture(scope="function")
 def images():
     images = [
-        np.random.randint(0, 255, size=[128, 128], dtype=np.uint8)
-        for _ in range(120)
+        np.random.randint(0, 255, size=[128, 128], dtype=np.uint8) for _ in range(120)
     ]
     return images
 
 
 @pytest.fixture(scope="function")
 def images_f():
-    images = [
-        np.random.rand(128, 128)
-        for _ in range(120)
-    ]
+    images = [np.random.rand(128, 128) for _ in range(120)]
     return images
 
 

@@ -9,9 +9,9 @@ DEFAULT_OU_GEN = None
 NoiseParam = Union[Iterable[Tuple], Tuple]
 
 
-def add_uniform_noise_to_action(action: t.Tensor,
-                                noise_param: NoiseParam = (0.0, 1.0),
-                                ratio: float = 1.0):
+def add_uniform_noise_to_action(
+    action: t.Tensor, noise_param: NoiseParam = (0.0, 1.0), ratio: float = 1.0
+):
     """
     Add uniform noise to action tensor.
 
@@ -35,8 +35,9 @@ def add_uniform_noise_to_action(action: t.Tensor,
     """
     if isinstance(noise_param[0], tuple):
         if len(noise_param) != action.shape[-1]:
-            raise ValueError("Noise param length doesn't match "
-                             "the last dimension of action")
+            raise ValueError(
+                "Noise param length doesn't match " "the last dimension of action"
+            )
         noise = t.rand(action.shape, device=action.device)
         for i in range(action.shape[-1]):
             noi_p = noise_param[i]
@@ -44,14 +45,17 @@ def add_uniform_noise_to_action(action: t.Tensor,
             noise.view(-1, noise.shape[-1])[:, i] += noi_p[0]
     else:
         noise_param = noise_param  # type: Tuple[float, float]
-        noise = t.rand(action.shape, device=action.device) \
-            * (noise_param[1] - noise_param[0]) + noise_param[0]
+        noise = (
+            t.rand(action.shape, device=action.device)
+            * (noise_param[1] - noise_param[0])
+            + noise_param[0]
+        )
     return action + noise * ratio
 
 
 def add_clipped_normal_noise_to_action(
-        action: t.Tensor, noise_param: NoiseParam = (0.0, 1.0, -1.0, 1.0),
-        ratio=1.0):
+    action: t.Tensor, noise_param: NoiseParam = (0.0, 1.0, -1.0, 1.0), ratio=1.0
+):
     """
     Add clipped normal noise to action tensor.
 
@@ -76,8 +80,9 @@ def add_clipped_normal_noise_to_action(
     """
     if isinstance(noise_param[0], tuple):
         if len(noise_param) != action.shape[-1]:
-            raise ValueError("Noise param length doesn't match "
-                             "the last dimension of action")
+            raise ValueError(
+                "Noise param length doesn't match " "the last dimension of action"
+            )
         noise = t.rand(action.shape, device=action.device)
         for i in range(action.shape[-1]):
             noi_p = noise_param[i]
@@ -86,14 +91,16 @@ def add_clipped_normal_noise_to_action(
             noise.view(-1, noise.shape[-1])[:, i].clamp(noi_p[2], noi_p[3])
     else:
         noise_param = noise_param  # type: Tuple[float, float, float, float]
-        noise = t.rand(action.shape, device=action.device) \
-            * (noise_param[1] - noise_param[0]) + noise_param[0]
+        noise = (
+            t.rand(action.shape, device=action.device)
+            * (noise_param[1] - noise_param[0])
+            + noise_param[0]
+        )
         noise.clamp(noise_param[2], noise_param[3])
     return action + noise * ratio
 
 
-def add_normal_noise_to_action(action: t.Tensor, noise_param=(0.0, 1.0),
-                               ratio=1.0):
+def add_normal_noise_to_action(action: t.Tensor, noise_param=(0.0, 1.0), ratio=1.0):
     """
     Add normal noise to action tensor.
 
@@ -118,21 +125,24 @@ def add_normal_noise_to_action(action: t.Tensor, noise_param=(0.0, 1.0),
     """
     if isinstance(noise_param[0], tuple):
         if len(noise_param) != action.shape[-1]:
-            raise ValueError("Noise param length doesn't match "
-                             "the last dimension of action")
+            raise ValueError(
+                "Noise param length doesn't match " "the last dimension of action"
+            )
         noise = t.randn(action.shape, device=action.device)
         for i in range(action.shape[-1]):
             noi_p = noise_param[i]
             noise.view(-1, noise.shape[-1])[:, i] *= noi_p[1]
             noise.view(-1, noise.shape[-1])[:, i] += noi_p[0]
     else:
-        noise = t.rand(action.shape, device=action.device) \
-                * noise_param[1] + noise_param[0]
+        noise = (
+            t.rand(action.shape, device=action.device) * noise_param[1] + noise_param[0]
+        )
     return action + noise * ratio
 
 
-def add_ou_noise_to_action(action: t.Tensor, noise_param: Dict[str, Any] = None,
-                           ratio=1.0, reset=False):
+def add_ou_noise_to_action(
+    action: t.Tensor, noise_param: Dict[str, Any] = None, ratio=1.0, reset=False
+):
     """
     Add Ornstein-Uhlenbeck noise to action tensor.
 
@@ -156,7 +166,6 @@ def add_ou_noise_to_action(action: t.Tensor, noise_param: Dict[str, Any] = None,
     if reset:
         DEFAULT_OU_GEN = None
     if DEFAULT_OU_GEN is None:
-        DEFAULT_OU_GEN = OrnsteinUhlenbeckNoiseGen(action.shape,
-                                                   **noise_param)
+        DEFAULT_OU_GEN = OrnsteinUhlenbeckNoiseGen(action.shape, **noise_param)
         DEFAULT_OU_GEN.reset()
     return action + DEFAULT_OU_GEN(action.device) * ratio

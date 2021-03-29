@@ -37,8 +37,7 @@ def prep_create_dirs(dirs: Iterable[str]):
             os.makedirs(dir_)
 
 
-def prep_load_state_dict(model: nn.Module,
-                         state_dict: Any):
+def prep_load_state_dict(model: nn.Module, state_dict: Any):
     """
     Automatically load a **loaded state dictionary**
 
@@ -50,11 +49,13 @@ def prep_load_state_dict(model: nn.Module,
     model.load_state_dict(state_dict)
 
 
-def prep_load_model(model_dir: str,
-                    model_map: Dict[str, t.nn.Module],
-                    version: int = None,
-                    quiet: bool = False,
-                    logger: Any = None):
+def prep_load_model(
+    model_dir: str,
+    model_map: Dict[str, t.nn.Module],
+    version: int = None,
+    quiet: bool = False,
+    logger: Any = None,
+):
     """
     Automatically find and load models.
 
@@ -83,16 +84,14 @@ def prep_load_model(model_dir: str,
             if n in model_map:
                 version_map[n].add(v)
     if version is not None:
-        is_version_found = [version in version_map[name]
-                            for name in model_map.keys()]
+        is_version_found = [version in version_map[name] for name in model_map.keys()]
         if all(is_version_found):
-            logger.info("Specified version found, using version: {}"
-                        .format(version))
+            logger.info("Specified version found, using version: {}".format(version))
             for net_name, net in model_map.items():
                 net = net  # type: nn.Module
-                state_dict = t.load(join(
-                    model_dir, "{}_{}.pt".format(net_name, version)),
-                    map_location="cpu"
+                state_dict = t.load(
+                    join(model_dir, "{}_{}.pt".format(net_name, version)),
+                    map_location="cpu",
                 ).state_dict()
                 prep_load_state_dict(net, state_dict)
             return
@@ -100,8 +99,9 @@ def prep_load_model(model_dir: str,
             for ivf, net_name in zip(is_version_found, model_map.keys()):
                 if not ivf:
                     logger.warning(
-                        "Specified version {} for network {} is invalid"
-                        .format(version, net_name)
+                        "Specified version {} for network {} is invalid".format(
+                            version, net_name
+                        )
                     )
 
     logger.info("Begin auto find")
@@ -115,8 +115,7 @@ def prep_load_model(model_dir: str,
     version = max(common)
     logger.info("Using version: {}".format(version))
     for net_name, net in model_map.items():
-        state_dict = t.load(join(
-            model_dir, "{}_{}.pt".format(net_name, version)),
-            map_location="cpu"
+        state_dict = t.load(
+            join(model_dir, "{}_{}.pt".format(net_name, version)), map_location="cpu"
         ).state_dict()
         prep_load_state_dict(net, state_dict)

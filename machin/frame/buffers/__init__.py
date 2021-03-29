@@ -6,8 +6,9 @@ try:
     from .buffer_d import DistributedBuffer
     from .prioritized_buffer_d import DistributedPrioritizedBuffer
 except ImportError as _:
-    warnings.warn("Failed to import buffers relying on torch.distributed."
-                  " Set them to None.")
+    warnings.warn(
+        "Failed to import buffers relying on torch.distributed." " Set them to None."
+    )
     DistributedBuffer = None
     DistributedPrioritizedBuffer = None
 
@@ -16,5 +17,5 @@ __all__ = [
     "DistributedBuffer",
     "PrioritizedBuffer",
     "DistributedPrioritizedBuffer",
-    "WeightTree"
+    "WeightTree",
 ]

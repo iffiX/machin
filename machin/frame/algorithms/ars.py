@@ -17,7 +17,7 @@ from .utils import (
     safe_return,
     assert_and_get_valid_models,
     assert_and_get_valid_optimizer,
-    assert_and_get_valid_lr_scheduler
+    assert_and_get_valid_lr_scheduler,
 )
 
 
@@ -26,6 +26,7 @@ class RunningStat(object):
     Running status estimator method by B. P. Welford
     described in http://www.johndcook.com/blog/standard_deviation/
     """
+
     def __init__(self, shape):
         """
         Create a running status (mean, var, std) estimator.
@@ -99,7 +100,7 @@ class RunningStat(object):
         self._S = S
 
     def __repr__(self):
-        return 'RunningStat(shape={}, n={}, mean_mean={}, mean_std={})'.format(
+        return "RunningStat(shape={}, n={}, mean_mean={}, mean_std={})".format(
             self._M.shape, self.n, t.mean(self.mean), t.mean(self.std)
         )
 
@@ -251,7 +252,7 @@ class SharedNoiseSampler(object):
         assert self.noise.dtype == t.float64
 
     def get(self, idx, size):
-        return self.noise[idx:idx + size]
+        return self.noise[idx : idx + size]
 
     def sample(self, size):
         """
@@ -262,7 +263,7 @@ class SharedNoiseSampler(object):
             Noise begin index, noise tensor.
         """
         idx = self.rg.randint(0, len(self.noise) - size + 1)
-        return idx, self.noise[idx:idx + size]
+        return idx, self.noise[idx : idx + size]
 
 
 class ARS(TorchFramework):
@@ -273,25 +274,27 @@ class ARS(TorchFramework):
     _is_top = ["actor"]
     _is_restorable = ["actor"]
 
-    def __init__(self,
-                 actor: Union[NeuralNetworkModule, nn.Module],
-                 optimizer: Callable,
-                 ars_group: RpcGroup,
-                 model_server: Tuple[PushPullModelServer],
-                 *_,
-                 lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple] = None,
-                 lr_scheduler_kwargs: Tuple[Dict] = None,
-                 learning_rate: float = 0.01,
-                 gradient_max: float = np.inf,
-                 noise_std_dev: float = 0.02,
-                 noise_size: int = 250000000,
-                 rollout_num: int = 32,
-                 used_rollout_num: int = 32,
-                 normalize_state: bool = True,
-                 noise_seed: int = 12345,
-                 sample_seed: int = 123,
-                 **__):
+    def __init__(
+        self,
+        actor: Union[NeuralNetworkModule, nn.Module],
+        optimizer: Callable,
+        ars_group: RpcGroup,
+        model_server: Tuple[PushPullModelServer],
+        *_,
+        lr_scheduler: Callable = None,
+        lr_scheduler_args: Tuple[Tuple] = None,
+        lr_scheduler_kwargs: Tuple[Dict] = None,
+        learning_rate: float = 0.01,
+        gradient_max: float = np.inf,
+        noise_std_dev: float = 0.02,
+        noise_size: int = 250000000,
+        rollout_num: int = 32,
+        used_rollout_num: int = 32,
+        normalize_state: bool = True,
+        noise_seed: int = 12345,
+        sample_seed: int = 123,
+        **__
+    ):
         """
 
         Note:
@@ -330,31 +333,31 @@ class ARS(TorchFramework):
         w_index = ars_group.get_group_members().index(ars_group.get_cur_name())
         segment_length = int(np.ceil(rollout_num / w_num))
         self.local_rollout_min = w_index * segment_length
-        self.local_rollout_num = min(segment_length,
-                                     rollout_num - self.local_rollout_min)
+        self.local_rollout_num = min(
+            segment_length, rollout_num - self.local_rollout_min
+        )
 
         self.actor = actor
         # `actor_with_delta` use rollout index and delta sign as key.
         # where rollout index is the absolute global index of rollout
         # and delta sign is true for positive, false for negative
         self.actor_with_delta = {}  # type: Dict[Tuple[int, bool], t.nn.Module]
-        self.actor_optim = optimizer(self.actor.parameters(),
-                                     lr=learning_rate)
+        self.actor_optim = optimizer(self.actor.parameters(), lr=learning_rate)
         self.actor_model_server = model_server[0]
 
         # `filter` use state name as key
         # eg: "state_1"
-        self.filter = {}   # type: Dict[str, MeanStdFilter]
+        self.filter = {}  # type: Dict[str, MeanStdFilter]
 
         # `delta_idx` use rollout index as key
         # The inner dict use model parameter name as key, and starting
         # noise index in the noise array as value.
-        self.delta_idx = {}    # type: Dict[int, Dict[str, int]]
+        self.delta_idx = {}  # type: Dict[int, Dict[str, int]]
 
         # `reward` use rollout index as key, the first list stores
         # rewards of model with negative noise delta, the second list
         # stores rewards of model with positive noise delta.
-        self.reward = {}    # type: Dict[int, Tuple[List, List]]
+        self.reward = {}  # type: Dict[int, Tuple[List, List]]
 
         if lr_scheduler is not None:
             if lr_scheduler_args is None:
@@ -373,24 +376,28 @@ class ARS(TorchFramework):
         for param in actor.parameters():
             param_max_num = max(np.prod(np.array(param.shape)), param_max_num)
         if param_max_num * 10 > noise_size:
-            default_logger.warning("Maximum parameter size of your model is "
-                                   "{}, which is more than 1/10 of your noise"
-                                   "size {}, consider increasing noise_size."
-                                   .format(param_max_num, noise_size))
+            default_logger.warning(
+                "Maximum parameter size of your model is "
+                "{}, which is more than 1/10 of your noise"
+                "size {}, consider increasing noise_size.".format(
+                    param_max_num, noise_size
+                )
+            )
         elif param_max_num >= noise_size:
-            raise ValueError("Noise size {} is too small compared to"
-                             "maximum parameter size {}!"
-                             .format(noise_size, param_max_num))
+            raise ValueError(
+                "Noise size {} is too small compared to"
+                "maximum parameter size {}!".format(noise_size, param_max_num)
+            )
 
         # create shared noise array
-        self.noise_array = t.tensor(np.random.RandomState(noise_seed)
-                                    .randn(noise_size).astype(np.float64)
-                                    * noise_std_dev)
+        self.noise_array = t.tensor(
+            np.random.RandomState(noise_seed).randn(noise_size).astype(np.float64)
+            * noise_std_dev
+        )
 
         # create a sampler for each parameter in each rollout model
         # key is model parameter name
-        self.noise_sampler \
-            = {}  # type: Dict[int, Dict[str, SharedNoiseSampler]]
+        self.noise_sampler = {}  # type: Dict[int, Dict[str, SharedNoiseSampler]]
         param_num = len(list(actor.parameters()))
         for lrn in range(self.local_rollout_num):
             r_idx = lrn + self.local_rollout_min
@@ -399,8 +406,7 @@ class ARS(TorchFramework):
                 # each model and its inner parameters use a different
                 # sampling stream of the same noise array.
                 sampler[name] = SharedNoiseSampler(
-                    self.noise_array,
-                    sample_seed + r_idx * param_num + p_idx
+                    self.noise_array, sample_seed + r_idx * param_num + p_idx
                 )
             self.noise_sampler[r_idx] = sampler
 
@@ -434,16 +440,13 @@ class ARS(TorchFramework):
             A list of actor types needed to be evaluated by current worker
             process.
         """
-        names = ["positive_" + str(k[0])
-                 if k[1]
-                 else "negative_" + str(k[0])
-                 for k in self.actor_with_delta.keys()]
+        names = [
+            "positive_" + str(k[0]) if k[1] else "negative_" + str(k[0])
+            for k in self.actor_with_delta.keys()
+        ]
         return names
 
-    def act(self,
-            state: Dict[str, Any],
-            actor_type: str,
-            *_, **__):
+    def act(self, state: Dict[str, Any], actor_type: str, *_, **__):
         """
         Use actor network to give a policy to the current state.
 
@@ -460,30 +463,29 @@ class ARS(TorchFramework):
             for k, v in state.items():
                 if k not in self.filter:
                     self.filter[k] = MeanStdFilter(v.shape)
-                state[k] = (self.filter[k]
-                            .filter(v.to(dtype=t.float64, device="cpu"))
-                            .to(dtype=v.dtype, device=v.device))
+                state[k] = (
+                    self.filter[k]
+                    .filter(v.to(dtype=t.float64, device="cpu"))
+                    .to(dtype=v.dtype, device=v.device)
+                )
         if actor_type == "original":
             return safe_return(safe_call(self.actor, state))
-        elif actor_type.startswith("positive_") \
-                or actor_type.startswith("negative_"):
+        elif actor_type.startswith("positive_") or actor_type.startswith("negative_"):
             rollout_idx = int(actor_type.split("_")[1])
-            is_positive = actor_type[0] == 'p'
-            return safe_return(safe_call(
-                self.actor_with_delta[(rollout_idx, is_positive)],
-                state
-            ))
+            is_positive = actor_type[0] == "p"
+            return safe_return(
+                safe_call(self.actor_with_delta[(rollout_idx, is_positive)], state)
+            )
         else:
-            raise ValueError('Invalid parameter type: {}, '
-                             'available options are: '
-                             '"original", "{}"'
-                             .format(actor_type,
-                                     '", "'.join(self.get_actor_types())))
+            raise ValueError(
+                "Invalid parameter type: {}, "
+                "available options are: "
+                '"original", "{}"'.format(
+                    actor_type, '", "'.join(self.get_actor_types())
+                )
+            )
 
-    def store_reward(self,
-                     reward: float,
-                     actor_type: str,
-                     *_, **__):
+    def store_reward(self, reward: float, actor_type: str, *_, **__):
         """
         Store rollout reward (usually value of the whole rollout episode) for
         each actor type.
@@ -492,17 +494,16 @@ class ARS(TorchFramework):
             reward: Rollout reward.
             actor_type: Actor type.
         """
-        if actor_type.startswith("positive_") \
-                or actor_type.startswith("negative_"):
+        if actor_type.startswith("positive_") or actor_type.startswith("negative_"):
             rollout_idx = int(actor_type.split("_")[1])
-            is_positive = actor_type[0] == 'p'
+            is_positive = actor_type[0] == "p"
             self.reward[rollout_idx][is_positive].append(reward)
         else:
-            raise ValueError('Invalid parameter type: {}, '
-                             'available options are: '
-                             '"{}"'
-                             .format(actor_type,
-                                     '", "'.join(self.get_actor_types())))
+            raise ValueError(
+                "Invalid parameter type: {}, "
+                "available options are: "
+                '"{}"'.format(actor_type, '", "'.join(self.get_actor_types()))
+            )
 
     def update(self):
         """
@@ -511,29 +512,31 @@ class ARS(TorchFramework):
         Note:
             All processes in the ARS group must enter this function.
         """
-        is_manager = (self.ars_group.get_group_members()[0] ==
-                      self.ars_group.get_cur_name())
+        is_manager = (
+            self.ars_group.get_group_members()[0] == self.ars_group.get_cur_name()
+        )
         # calculate average reward of collected episodes
         pos_reward, neg_reward, delta_idx = self._get_reward_and_delta()
 
         # collect result in manager process
-        self.ars_group.pair("ars/rollout_result/{}"
-                            .format(self.ars_group.get_cur_name()),
-                            [pos_reward, neg_reward, delta_idx])
+        self.ars_group.pair(
+            "ars/rollout_result/{}".format(self.ars_group.get_cur_name()),
+            [pos_reward, neg_reward, delta_idx],
+        )
         if self.normalize_state:
-            self.ars_group.pair("ars/filter/{}"
-                                .format(self.ars_group.get_cur_name()),
-                                self.filter)
+            self.ars_group.pair(
+                "ars/filter/{}".format(self.ars_group.get_cur_name()), self.filter
+            )
         self.ars_group.barrier()
 
         if is_manager:
             delta_idxs = []  # type: List[Dict[str, int]]
-            pos_rewards = []   # type: List[int]
-            neg_rewards = []   # type: List[int]
+            pos_rewards = []  # type: List[int]
+            neg_rewards = []  # type: List[int]
             for m in self.ars_group.get_group_members():
-                pos_reward, neg_reward,  delta_idx = \
-                    self.ars_group.get_paired("ars/rollout_result/" + m)\
-                        .to_here()
+                pos_reward, neg_reward, delta_idx = self.ars_group.get_paired(
+                    "ars/rollout_result/" + m
+                ).to_here()
 
                 delta_idxs += delta_idx
                 pos_rewards += pos_reward
@@ -546,9 +549,9 @@ class ARS(TorchFramework):
             # select top performing directions if
             # used_rollout_num < rollout_num
             idx = np.arange(max_rewards.size)[
-                max_rewards >= np.percentile(
-                    max_rewards,
-                    100 * (1 - (self.used_rollout_num / self.rollout_num))
+                max_rewards
+                >= np.percentile(
+                    max_rewards, 100 * (1 - (self.used_rollout_num / self.rollout_num))
                 )
             ]
             delta_idxs = [delta_idxs[i] for i in idx]
@@ -563,8 +566,7 @@ class ARS(TorchFramework):
             # use neg_rollout_rewards - pos_rollout_rewards
             # because -alpha * gradient is added to
             # parameters in SGD
-            self._cal_gradient(rollout_rewards[1] - rollout_rewards[0],
-                               delta_idxs)
+            self._cal_gradient(rollout_rewards[1] - rollout_rewards[0], delta_idxs)
             # nn.utils.clip_grad_norm_(
             #     self.actor.parameters(), self.grad_max
             # )
@@ -575,8 +577,9 @@ class ARS(TorchFramework):
             if self.normalize_state:
                 filters = []  # type: List[Dict[str, MeanStdFilter]]
                 for m in self.ars_group.get_group_members():
-                    filters.append(self.ars_group.get_paired("ars/filter/" + m)
-                                   .to_here())
+                    filters.append(
+                        self.ars_group.get_paired("ars/filter/" + m).to_here()
+                    )
                 for k, f in self.filter.items():
                     for ff in filters:
                         self.filter[k].collect(ff[k])
@@ -584,11 +587,11 @@ class ARS(TorchFramework):
                     self.filter[k].clear_local()
 
         self.ars_group.barrier()
-        self.ars_group.unpair("ars/rollout_result/{}"
-                              .format(self.ars_group.get_cur_name()))
+        self.ars_group.unpair(
+            "ars/rollout_result/{}".format(self.ars_group.get_cur_name())
+        )
         if self.normalize_state:
-            self.ars_group.unpair("ars/filter/{}"
-                                  .format(self.ars_group.get_cur_name()))
+            self.ars_group.unpair("ars/filter/{}".format(self.ars_group.get_cur_name()))
         self.ars_group.barrier()
 
         # synchronize filter states across all workers (and the manager)
@@ -611,45 +614,44 @@ class ARS(TorchFramework):
             self.actor_lr_sch.step()
 
     def _get_reward_and_delta(self):
-        r_range = [i + self.local_rollout_min
-                   for i in range(self.local_rollout_num)]
+        r_range = [i + self.local_rollout_min for i in range(self.local_rollout_num)]
         pos_reward = []
         neg_reward = []
         delta_idx = []
         for i in r_range:
-            assert self.reward[i][0] and self.reward[i][1], \
-                "You must store rewards for parameters with positive " \
+            assert self.reward[i][0] and self.reward[i][1], (
+                "You must store rewards for parameters with positive "
                 "noise delta and negative noise delta!"
+            )
             pos_reward.append(np.mean(self.reward[i][1]))
             neg_reward.append(np.mean(self.reward[i][0]))
             delta_idx.append(self.delta_idx[i])
         return pos_reward, neg_reward, delta_idx
 
-    def _cal_gradient(self,
-                      reward_diff: np.array,
-                      delta_idxs: List[Dict[str, int]]):
+    def _cal_gradient(self, reward_diff: np.array, delta_idxs: List[Dict[str, int]]):
         sampler = SharedNoiseSampler(self.noise_array, 0)
         for name, param in self.actor.named_parameters():
-            deltas = [sampler
-                      .get(delta_idx[name], param.nelement())
-                      .reshape(param.shape) * r_diff
-                      for r_diff, delta_idx in zip(reward_diff, delta_idxs)]
-            delta = t.mean(t.stack(deltas)
-                           .to(dtype=param.dtype, device=param.device), dim=0)
+            deltas = [
+                sampler.get(delta_idx[name], param.nelement()).reshape(param.shape)
+                * r_diff
+                for r_diff, delta_idx in zip(reward_diff, delta_idxs)
+            ]
+            delta = t.mean(
+                t.stack(deltas).to(dtype=param.dtype, device=param.device), dim=0
+            )
 
             with t.no_grad():
                 param.grad = delta
 
     def _sync_filter(self):
-        is_manager = (self.ars_group.get_group_members()[0] ==
-                      self.ars_group.get_cur_name())
+        is_manager = (
+            self.ars_group.get_group_members()[0] == self.ars_group.get_cur_name()
+        )
         if is_manager:
             self.ars_group.pair("ars/filter_m", self.filter)
         self.ars_group.barrier()
         if not is_manager:
-            manager_filter = (self.ars_group
-                                  .get_paired("ars/filter_m")
-                                  .to_here())
+            manager_filter = self.ars_group.get_paired("ars/filter_m").to_here()
             for k, f in self.filter.items():
                 f.sync(manager_filter[k])
                 f.apply_stats()
@@ -659,8 +661,9 @@ class ARS(TorchFramework):
         self.ars_group.barrier()
 
     def _sync_actor(self):
-        is_manager = self.ars_group.get_group_members()[0] == \
-                     self.ars_group.get_cur_name()
+        is_manager = (
+            self.ars_group.get_group_members()[0] == self.ars_group.get_cur_name()
+        )
         if is_manager:
             assert self.actor_model_server.push(self.actor), "Push failed"
         self.ars_group.barrier()
@@ -684,15 +687,17 @@ class ARS(TorchFramework):
             actor_positive = copy.deepcopy(self.actor)
             actor_negative = copy.deepcopy(self.actor)
             self.delta_idx[r_idx] = {}  # type: Dict[str, int]
-            for (name, param), param_p, param_n in \
-                zip(self.actor.named_parameters(),
-                    actor_positive.parameters(),
-                    actor_negative.parameters()):
+            for (name, param), param_p, param_n in zip(
+                self.actor.named_parameters(),
+                actor_positive.parameters(),
+                actor_negative.parameters(),
+            ):
                 param_size = param.nelement()
                 param_sampler = self.noise_sampler[r_idx][name]
                 idx, delta = param_sampler.sample(param_size)
-                delta = (delta.reshape(param.shape)
-                         .to(dtype=param.dtype, device=param.device))
+                delta = delta.reshape(param.shape).to(
+                    dtype=param.dtype, device=param.device
+                )
                 self.delta_idx[r_idx][name] = idx
                 with t.no_grad():
                     param_p.data.copy_(param.data + delta)
@@ -722,15 +727,14 @@ class ARS(TorchFramework):
             "used_rollout_num": 32,
             "normalize_state": True,
             "noise_seed": 12345,
-            "sample_seed": 123
+            "sample_seed": 123,
         }
         config = copy.deepcopy(config)
         config["frame"] = "ARS"
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:
-            config["frame_config"] = {**config["frame_config"],
-                                      **default_values}
+            config["frame_config"] = {**config["frame_config"], **default_values}
         return config
 
     @classmethod
@@ -739,33 +743,37 @@ class ARS(TorchFramework):
         f_config = copy.deepcopy(config["frame_config"])
         ars_group = world.create_rpc_group(
             group_name=f_config["ars_group_name"],
-            members=(world.get_members()
-                     if f_config["ars_members"] == "all"
-                     else f_config["ars_members"])
+            members=(
+                world.get_members()
+                if f_config["ars_members"] == "all"
+                else f_config["ars_members"]
+            ),
         )
 
         models = assert_and_get_valid_models(f_config["models"])
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
-            m(*arg, **kwarg)
-            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            m(*arg, **kwarg) for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
 
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
-        lr_scheduler = (
-                f_config["lr_scheduler"]
-                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        lr_scheduler = f_config["lr_scheduler"] and assert_and_get_valid_lr_scheduler(
+            f_config["lr_scheduler"]
         )
-        servers = model_server_helper(model_num=1,
-                                      group_name=f_config[
-                                          "model_server_group_name"
-                                      ],
-                                      members=f_config[
-                                          "model_server_members"
-                                      ])
+        servers = model_server_helper(
+            model_num=1,
+            group_name=f_config["model_server_group_name"],
+            members=f_config["model_server_members"],
+        )
         del f_config["optimizer"]
         del f_config["lr_scheduler"]
-        frame = cls(*models, optimizer, ars_group, servers,
-                    lr_scheduler=lr_scheduler, **f_config)
+        frame = cls(
+            *models,
+            optimizer,
+            ars_group,
+            servers,
+            lr_scheduler=lr_scheduler,
+            **f_config,
+        )
         return frame

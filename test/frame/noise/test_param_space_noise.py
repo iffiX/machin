@@ -1,8 +1,5 @@
 from machin.frame.noise.generator import NormalNoiseGen
-from machin.frame.noise.param_space_noise import (
-    AdaptiveParamNoise,
-    perturb_model
-)
+from machin.frame.noise.param_space_noise import AdaptiveParamNoise, perturb_model
 from machin.utils.helper_classes import Switch
 
 import torch as t
@@ -31,9 +28,11 @@ class TestAdaptiveParamNoise(object):
 # Test for perturb_model
 ############################################################################
 def _t_eq_eps(tensor_a, tensor_b, epsilon=1e-10):
-    if (not t.is_tensor(tensor_a) or
-            not t.is_tensor(tensor_b) or
-            tensor_a.shape != tensor_b.shape):
+    if (
+        not t.is_tensor(tensor_a)
+        or not t.is_tensor(tensor_b)
+        or tensor_a.shape != tensor_b.shape
+    ):
         return False
     return t.all(t.abs(tensor_a - tensor_b.to(tensor_a.device)) < epsilon)
 
@@ -45,8 +44,9 @@ def test_perturb_model():
         optim = t.optim.Adam(model.parameters(), 1e-3)
         model.weight.fill_(1)
         weight_no_noise = t.ones([2, 2])
-        weight_stepped = t.tensor([[1.1530995369, 0.9696571231],
-                                   [0.7811210752, 1.0558431149]])
+        weight_stepped = t.tensor(
+            [[1.1530995369, 0.9696571231], [0.7811210752, 1.0558431149]]
+        )
         model_input = t.ones([1, 2])
         output_no_noise = t.full([1, 2], 2.0)
         output_with_noise = t.tensor([[2.1247568130, 1.8389642239]])
@@ -56,8 +56,7 @@ def test_perturb_model():
     r_switch = Switch()
     t.manual_seed(seed)
 
-    cancel = perturb_model(model, p_switch, r_switch,
-                           debug_backward=True)
+    cancel = perturb_model(model, p_switch, r_switch, debug_backward=True)
 
     p_switch.on()
     r_switch.on()
@@ -97,8 +96,9 @@ def test_perturb_model2():
         optim = t.optim.Adam(model.parameters(), 1e-3)
         model.weight.fill_(1)
         weight_no_noise = t.ones([2, 2])
-        weight_stepped = t.tensor([[1.1530995369, 0.9696571231],
-                                   [0.7811210752, 1.0558431149]])
+        weight_stepped = t.tensor(
+            [[1.1530995369, 0.9696571231], [0.7811210752, 1.0558431149]]
+        )
         model_input = t.ones([1, 2])
         output_no_noise = t.full([1, 2], 2.0)
         output_with_noise = t.tensor([[2.1247568130, 1.8389642239]])
@@ -112,9 +112,9 @@ def test_perturb_model2():
         gen = NormalNoiseGen(shape)
         return gen(device) * std_dev
 
-    cancel = perturb_model(model, p_switch, r_switch,
-                           noise_generate_function=gen_func,
-                           debug_backward=True)
+    cancel = perturb_model(
+        model, p_switch, r_switch, noise_generate_function=gen_func, debug_backward=True
+    )
 
     p_switch.on()
     r_switch.on()

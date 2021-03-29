@@ -11,8 +11,7 @@ def subproc_test_dumps_copy_tensor(pipe):
 def test_dumps_copy_tensor():
     pipe_0, pipe_1 = Pipe(duplex=True)
     ctx = get_context("spawn")
-    process_0 = Process(target=subproc_test_dumps_copy_tensor,
-                        args=(pipe_0,), ctx=ctx)
+    process_0 = Process(target=subproc_test_dumps_copy_tensor, args=(pipe_0,), ctx=ctx)
     process_0.start()
     while process_0.is_alive():
         process_0.watch()
@@ -29,8 +28,9 @@ def subproc_test_dumps_not_copy_tensor(pipe):
 def test_dumps_not_copy_tensor():
     pipe_0, pipe_1 = Pipe(duplex=True)
     ctx = get_context("fork")
-    process_0 = Process(target=subproc_test_dumps_not_copy_tensor,
-                        args=(pipe_0,), ctx=ctx)
+    process_0 = Process(
+        target=subproc_test_dumps_not_copy_tensor, args=(pipe_0,), ctx=ctx
+    )
     process_0.start()
     while process_0.is_alive():
         process_0.watch()
@@ -52,8 +52,7 @@ def subproc_test_dumps_local_func(pipe):
 def test_dumps_local_func():
     pipe_0, pipe_1 = Pipe(duplex=True)
     ctx = get_context("fork")
-    process_0 = Process(target=subproc_test_dumps_local_func,
-                        args=(pipe_0,), ctx=ctx)
+    process_0 = Process(target=subproc_test_dumps_local_func, args=(pipe_0,), ctx=ctx)
     process_0.start()
     while process_0.is_alive():
         process_0.watch()

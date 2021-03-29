@@ -10,7 +10,7 @@ from machin.frame.noise.action_space_noise import (
     add_normal_noise_to_action,
     add_clipped_normal_noise_to_action,
     add_uniform_noise_to_action,
-    add_ou_noise_to_action
+    add_ou_noise_to_action,
 )
 from machin.model.nets.base import NeuralNetworkModule
 from .base import TorchFramework, Config
@@ -23,7 +23,7 @@ from .utils import (
     assert_and_get_valid_models,
     assert_and_get_valid_optimizer,
     assert_and_get_valid_criterion,
-    assert_and_get_valid_lr_scheduler
+    assert_and_get_valid_lr_scheduler,
 )
 
 
@@ -35,30 +35,32 @@ class DDPG(TorchFramework):
     _is_top = ["actor", "critic", "actor_target", "critic_target"]
     _is_restorable = ["actor_target", "critic_target"]
 
-    def __init__(self,
-                 actor: Union[NeuralNetworkModule, nn.Module],
-                 actor_target: Union[NeuralNetworkModule, nn.Module],
-                 critic: Union[NeuralNetworkModule, nn.Module],
-                 critic_target: Union[NeuralNetworkModule, nn.Module],
-                 optimizer: Callable,
-                 criterion: Callable,
-                 *_,
-                 lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = None,
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
-                 batch_size: int = 100,
-                 update_rate: float = 0.001,
-                 update_steps: Union[int, None] = None,
-                 actor_learning_rate: float = 0.0005,
-                 critic_learning_rate: float = 0.001,
-                 discount: float = 0.99,
-                 gradient_max: float = np.inf,
-                 replay_size: int = 500000,
-                 replay_device: Union[str, t.device] = "cpu",
-                 replay_buffer: Buffer = None,
-                 visualize: bool = False,
-                 visualize_dir: str = "",
-                 **__):
+    def __init__(
+        self,
+        actor: Union[NeuralNetworkModule, nn.Module],
+        actor_target: Union[NeuralNetworkModule, nn.Module],
+        critic: Union[NeuralNetworkModule, nn.Module],
+        critic_target: Union[NeuralNetworkModule, nn.Module],
+        optimizer: Callable,
+        criterion: Callable,
+        *_,
+        lr_scheduler: Callable = None,
+        lr_scheduler_args: Tuple[Tuple, Tuple] = None,
+        lr_scheduler_kwargs: Tuple[Dict, Dict] = None,
+        batch_size: int = 100,
+        update_rate: float = 0.001,
+        update_steps: Union[int, None] = None,
+        actor_learning_rate: float = 0.0005,
+        critic_learning_rate: float = 0.001,
+        discount: float = 0.99,
+        gradient_max: float = np.inf,
+        replay_size: int = 500000,
+        replay_device: Union[str, t.device] = "cpu",
+        replay_buffer: Buffer = None,
+        visualize: bool = False,
+        visualize_dir: str = "",
+        **__
+    ):
         """
         Note:
             Your optimizer will be called as::
@@ -135,21 +137,23 @@ class DDPG(TorchFramework):
         self._update_counter = 0
 
         if update_rate is not None and update_steps is not None:
-            raise ValueError("You can only specify one target network update"
-                             " scheme, either by update_rate or update_steps,"
-                             " but not both.")
+            raise ValueError(
+                "You can only specify one target network update"
+                " scheme, either by update_rate or update_steps,"
+                " but not both."
+            )
 
         self.actor = actor
         self.actor_target = actor_target
         self.critic = critic
         self.critic_target = critic_target
-        self.actor_optim = optimizer(self.actor.parameters(),
-                                     lr=actor_learning_rate)
-        self.critic_optim = optimizer(self.critic.parameters(),
-                                      lr=critic_learning_rate)
-        self.replay_buffer = (Buffer(replay_size, replay_device)
-                              if replay_buffer is None
-                              else replay_buffer)
+        self.actor_optim = optimizer(self.actor.parameters(), lr=actor_learning_rate)
+        self.critic_optim = optimizer(self.critic.parameters(), lr=critic_learning_rate)
+        self.replay_buffer = (
+            Buffer(replay_size, replay_device)
+            if replay_buffer is None
+            else replay_buffer
+        )
 
         # Make sure target and online networks have the same weight
         with t.no_grad():
@@ -162,14 +166,10 @@ class DDPG(TorchFramework):
             if lr_scheduler_kwargs is None:
                 lr_scheduler_kwargs = ({}, {})
             self.actor_lr_sch = lr_scheduler(
-                self.actor_optim,
-                *lr_scheduler_args[0],
-                **lr_scheduler_kwargs[0]
+                self.actor_optim, *lr_scheduler_args[0], **lr_scheduler_kwargs[0]
             )
             self.critic_lr_sch = lr_scheduler(
-                self.critic_optim,
-                *lr_scheduler_args[1],
-                **lr_scheduler_kwargs[1]
+                self.critic_optim, *lr_scheduler_args[1], **lr_scheduler_kwargs[1]
             )
 
         self.criterion = criterion
@@ -189,10 +189,7 @@ class DDPG(TorchFramework):
             return [self.actor_lr_sch, self.critic_lr_sch]
         return []
 
-    def act(self,
-            state: Dict[str, Any],
-            use_target: bool = False,
-            **__):
+    def act(self, state: Dict[str, Any], use_target: bool = False, **__):
         """
         Use actor network to produce an action for the current state.
 
@@ -208,13 +205,15 @@ class DDPG(TorchFramework):
         else:
             return safe_return(safe_call(self.actor, state))
 
-    def act_with_noise(self,
-                       state: Dict[str, Any],
-                       noise_param: Any = (0.0, 1.0),
-                       ratio: float = 1.0,
-                       mode: str = "uniform",
-                       use_target: bool = False,
-                       **__):
+    def act_with_noise(
+        self,
+        state: Dict[str, Any],
+        noise_param: Any = (0.0, 1.0),
+        ratio: float = 1.0,
+        mode: str = "uniform",
+        use_target: bool = False,
+        **__
+    ):
         """
         Use actor network to produce a noisy action for the current state.
 
@@ -238,21 +237,15 @@ class DDPG(TorchFramework):
         else:
             action, *others = safe_call(self.actor, state)
         if mode == "uniform":
-            noisy_action = add_uniform_noise_to_action(
-                action, noise_param, ratio
-            )
+            noisy_action = add_uniform_noise_to_action(action, noise_param, ratio)
         elif mode == "normal":
-            noisy_action = add_normal_noise_to_action(
-                action, noise_param, ratio
-            )
+            noisy_action = add_normal_noise_to_action(action, noise_param, ratio)
         elif mode == "clipped_normal":
             noisy_action = add_clipped_normal_noise_to_action(
                 action, noise_param, ratio
             )
         elif mode == "ou":
-            noisy_action = add_ou_noise_to_action(
-                action, noise_param, ratio
-            )
+            noisy_action = add_ou_noise_to_action(action, noise_param, ratio)
         else:
             raise ValueError("Unknown noise type: " + str(mode))
 
@@ -261,10 +254,7 @@ class DDPG(TorchFramework):
         else:
             return (noisy_action, *others)
 
-    def act_discrete(self,
-                     state: Dict[str, Any],
-                     use_target: bool = False,
-                     **__):
+    def act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         """
         Use actor network to produce a discrete action for the current state.
 
@@ -293,10 +283,9 @@ class DDPG(TorchFramework):
         result = t.argmax(action, dim=1).view(batch_size, 1)
         return (result, action, *others)
 
-    def act_discrete_with_noise(self,
-                                state: Dict[str, Any],
-                                use_target: bool = False,
-                                **__):
+    def act_discrete_with_noise(
+        self, state: Dict[str, Any], use_target: bool = False, **__
+    ):
         """
         Use actor network to produce a noisy discrete action for
         the current state.
@@ -323,13 +312,9 @@ class DDPG(TorchFramework):
         assert_output_is_probs(action)
         dist = Categorical(action)
         batch_size = action.shape[0]
-        return (dist.sample([batch_size, 1]).view(batch_size, 1),
-                *others)
+        return (dist.sample([batch_size, 1]).view(batch_size, 1), *others)
 
-    def _act(self,
-             state: Dict[str, Any],
-             use_target: bool = False,
-             **__):
+    def _act(self, state: Dict[str, Any], use_target: bool = False, **__):
         """
         Use actor network to produce an action for the current state.
 
@@ -345,11 +330,13 @@ class DDPG(TorchFramework):
         else:
             return safe_call(self.actor, state)[0]
 
-    def _criticize(self,
-                   state: Dict[str, Any],
-                   action: Dict[str, Any],
-                   use_target: bool = False,
-                   **__):
+    def _criticize(
+        self,
+        state: Dict[str, Any],
+        action: Dict[str, Any],
+        use_target: bool = False,
+        **__
+    ):
         """
         Use critic network to evaluate current value.
 
@@ -370,25 +357,29 @@ class DDPG(TorchFramework):
         """
         Add a transition sample to the replay buffer.
         """
-        self.replay_buffer.append(transition, required_attrs=(
-            "state", "action", "reward", "next_state", "terminal"
-        ))
+        self.replay_buffer.append(
+            transition,
+            required_attrs=("state", "action", "reward", "next_state", "terminal"),
+        )
 
     def store_episode(self, episode: List[Union[Transition, Dict]]):
         """
         Add a full episode of transition samples to the replay buffer.
         """
         for trans in episode:
-            self.replay_buffer.append(trans, required_attrs=(
-                "state", "action", "reward", "next_state", "terminal"
-            ))
+            self.replay_buffer.append(
+                trans,
+                required_attrs=("state", "action", "reward", "next_state", "terminal"),
+            )
 
-    def update(self,
-               update_value=True,
-               update_policy=True,
-               update_target=True,
-               concatenate_samples=True,
-               **__):
+    def update(
+        self,
+        update_value=True,
+        update_policy=True,
+        update_target=True,
+        concatenate_samples=True,
+        **__
+    ):
         """
         Update network weights by sampling from replay buffer.
 
@@ -403,15 +394,19 @@ class DDPG(TorchFramework):
         """
         self.actor.train()
         self.critic.train()
-        batch_size, (state, action, reward, next_state, terminal, others) = \
-            self.replay_buffer.sample_batch(self.batch_size,
-                                            concatenate_samples,
-                                            sample_method="random_unique",
-                                            sample_attrs=[
-                                                "state", "action",
-                                                "reward", "next_state",
-                                                "terminal", "*"
-                                            ])
+        batch_size, (
+            state,
+            action,
+            reward,
+            next_state,
+            terminal,
+            others,
+        ) = self.replay_buffer.sample_batch(
+            self.batch_size,
+            concatenate_samples,
+            sample_method="random_unique",
+            sample_attrs=["state", "action", "reward", "next_state", "terminal", "*"],
+        )
 
         # Update critic network first.
         # Generate value reference :math: `y_i` using target actor and
@@ -435,15 +430,11 @@ class DDPG(TorchFramework):
         if update_value:
             self.critic.zero_grad()
             self._backward(value_loss)
-            nn.utils.clip_grad_norm_(
-                self.critic.parameters(), self.gradient_max
-            )
+            nn.utils.clip_grad_norm_(self.critic.parameters(), self.gradient_max)
             self.critic_optim.step()
 
         # Update actor network
-        cur_action = self.action_transform_function(
-            self._act(state), state, others
-        )
+        cur_action = self.action_transform_function(self._act(state), state, others)
         act_value, *_ = self._criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),
@@ -456,9 +447,7 @@ class DDPG(TorchFramework):
         if update_policy:
             self.actor.zero_grad()
             self._backward(act_policy_loss)
-            nn.utils.clip_grad_norm_(
-                self.actor.parameters(), self.gradient_max
-            )
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.gradient_max)
             self.actor_optim.step()
 
         # Update target networks
@@ -486,8 +475,9 @@ class DDPG(TorchFramework):
         if hasattr(self, "critic_lr_sch"):
             self.critic_lr_sch.step()
 
-    def load(self, model_dir: str, network_map: Dict[str, str] = None,
-             version: int = -1):
+    def load(
+        self, model_dir: str, network_map: Dict[str, str] = None, version: int = -1
+    ):
         # DOC INHERITED
         super(DDPG, self).load(model_dir, network_map, version)
         with t.no_grad():
@@ -551,8 +541,7 @@ class DDPG(TorchFramework):
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:
-            config["frame_config"] = {**config["frame_config"],
-                                      **default_values}
+            config["frame_config"] = {**config["frame_config"], **default_values}
         return config
 
     @classmethod
@@ -562,16 +551,14 @@ class DDPG(TorchFramework):
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
-            m(*arg, **kwarg)
-            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            m(*arg, **kwarg) for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
         criterion = assert_and_get_valid_criterion(f_config["criterion"])(
             *f_config["criterion_args"], **f_config["criterion_kwargs"]
         )
-        lr_scheduler = (
-                f_config["lr_scheduler"]
-                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        lr_scheduler = f_config["lr_scheduler"] and assert_and_get_valid_lr_scheduler(
+            f_config["lr_scheduler"]
         )
         f_config["optimizer"] = optimizer
         f_config["criterion"] = criterion

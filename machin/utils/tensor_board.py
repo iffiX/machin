@@ -13,6 +13,7 @@ class TensorBoard:
     Attributes:
         writer: ``SummaryWriter`` of package ``tensorboardX``.
     """
+
     def __init__(self):
         self.writer = None
 

@@ -1,5 +1,10 @@
 from typing import Union, Dict, List, Tuple, Any, Callable
-from ..transition import Transition, Scalar, TransitionStorageSmart, TransitionStorageBasic
+from ..transition import (
+    Transition,
+    Scalar,
+    TransitionStorageSmart,
+    TransitionStorageBasic,
+)
 import torch as t
 import random
 
@@ -30,9 +35,11 @@ class Buffer(object):
         self.buffer = TransitionStorageSmart(buffer_size)
         self.index = 0
 
-    def append(self, transition: Union[Transition, Dict],
-               required_attrs=("state", "action", "next_state",
-                               "reward", "terminal")):
+    def append(
+        self,
+        transition: Union[Transition, Dict],
+        required_attrs=("state", "action", "next_state", "reward", "terminal"),
+    ):
         """
         Store a transition object to buffer.
 
@@ -51,12 +58,15 @@ class Buffer(object):
         elif isinstance(transition, Transition):
             pass
         else:  # pragma: no cover
-            raise RuntimeError("Transition object must be a dict or an instance"
-                               " of the Transition class")
+            raise RuntimeError(
+                "Transition object must be a dict or an instance"
+                " of the Transition class"
+            )
         if not transition.has_keys(required_attrs):
             missing_keys = set(required_attrs) - set(transition.keys())
-            raise ValueError("Transition object missing attributes: {}"
-                             .format(missing_keys))
+            raise ValueError(
+                "Transition object missing attributes: {}".format(missing_keys)
+            )
         transition.to(self.buffer_device)
 
         if self.size() != 0 and self.buffer[0].keys() != transition.keys():
@@ -78,8 +88,9 @@ class Buffer(object):
         self.buffer.clear()
 
     @staticmethod
-    def sample_method_random_unique(buffer: List[Transition], batch_size: int) \
-            -> Tuple[int, List[Transition]]:
+    def sample_method_random_unique(
+        buffer: List[Transition], batch_size: int
+    ) -> Tuple[int, List[Transition]]:
         """
         Sample unique random samples from buffer.
 
@@ -95,36 +106,38 @@ class Buffer(object):
         return real_num, batch
 
     @staticmethod
-    def sample_method_random(buffer: List[Transition], batch_size: int) \
-            -> Tuple[int, List[Transition]]:
+    def sample_method_random(
+        buffer: List[Transition], batch_size: int
+    ) -> Tuple[int, List[Transition]]:
         """
         Sample random samples from buffer.
 
         Note:
             Sampled size could be any value from 0 to ``batch_size``.
         """
-        indexes = [random.randint(0, len(buffer) - 1)
-                   for _ in range(batch_size)]
+        indexes = [random.randint(0, len(buffer) - 1) for _ in range(batch_size)]
         batch = [buffer[i] for i in indexes]
         return batch_size, batch
 
     @staticmethod
-    def sample_method_all(buffer: List[Transition], _) \
-            -> Tuple[int, List[Transition]]:
+    def sample_method_all(buffer: List[Transition], _) -> Tuple[int, List[Transition]]:
         """
         Sample all samples from buffer. Always return the whole buffer,
         will ignore the ``batch_size`` parameter.
         """
         return len(buffer), buffer
 
-    def sample_batch(self,
-                     batch_size: int,
-                     concatenate: bool = True,
-                     device: Union[str, t.device] = None,
-                     sample_method: Union[Callable, str] = "random_unique",
-                     sample_attrs: List[str] = None,
-                     additional_concat_attrs: List[str] = None,
-                     *_, **__) -> Any:
+    def sample_batch(
+        self,
+        batch_size: int,
+        concatenate: bool = True,
+        device: Union[str, t.device] = None,
+        sample_method: Union[Callable, str] = "random_unique",
+        sample_attrs: List[str] = None,
+        additional_concat_attrs: List[str] = None,
+        *_,
+        **__
+    ) -> Any:
         """
         Sample a random batch from buffer.
 
@@ -190,26 +203,28 @@ class Buffer(object):
         """
         if isinstance(sample_method, str):
             if not hasattr(self, "sample_method_" + sample_method):
-                raise RuntimeError("Cannot find specified sample method: {}"
-                                   .format(sample_method))
+                raise RuntimeError(
+                    "Cannot find specified sample method: {}".format(sample_method)
+                )
             sample_method = getattr(self, "sample_method_" + sample_method)
         batch_size, batch = sample_method(self.buffer, batch_size)
 
         if device is None:
             device = self.buffer_device
 
-        return \
-            batch_size, \
-            self.post_process_batch(batch, device, concatenate,
-                                    sample_attrs, additional_concat_attrs)
+        return batch_size, self.post_process_batch(
+            batch, device, concatenate, sample_attrs, additional_concat_attrs
+        )
 
     @classmethod
-    def post_process_batch(cls,
-                           batch: List[Transition],
-                           device: Union[str, t.device],
-                           concatenate: bool,
-                           sample_attrs: List[str],
-                           additional_concat_attrs: List[str]):
+    def post_process_batch(
+        cls,
+        batch: List[Transition],
+        device: Union[str, t.device],
+        concatenate: bool,
+        sample_attrs: List[str],
+        additional_concat_attrs: List[str],
+    ):
         """
         Post-process (concatenate) sampled batch.
         """
@@ -232,42 +247,50 @@ class Buffer(object):
                 for sub_k in batch[0][attr].keys():
                     tmp_dict[sub_k] = cls.make_tensor_from_batch(
                         [item[attr][sub_k].to(device) for item in batch],
-                        device, concatenate
+                        device,
+                        concatenate,
                     )
                 result.append(tmp_dict)
                 used_keys.append(attr)
             elif attr in sub_attr:
-                result.append(cls.make_tensor_from_batch(
-                    [item[attr] for item in batch],
-                    device, concatenate
-                ))
+                result.append(
+                    cls.make_tensor_from_batch(
+                        [item[attr] for item in batch], device, concatenate
+                    )
+                )
                 used_keys.append(attr)
             elif attr == "*":
                 # select custom keys
                 tmp_dict = {}
                 for remain_k in batch[0].keys():
-                    if (remain_k not in major_attr and
-                            remain_k not in sub_attr and
-                            remain_k not in used_keys):
+                    if (
+                        remain_k not in major_attr
+                        and remain_k not in sub_attr
+                        and remain_k not in used_keys
+                    ):
                         tmp_dict[remain_k] = cls.make_tensor_from_batch(
                             [item[remain_k] for item in batch],
                             device,
-                            concatenate and remain_k in additional_concat_attrs
+                            concatenate and remain_k in additional_concat_attrs,
                         )
                 result.append(tmp_dict)
             elif attr in custom_attr:
-                result.append(cls.make_tensor_from_batch(
-                    [item[attr] for item in batch],
-                    device,
-                    concatenate and attr in additional_concat_attrs
-                ))
+                result.append(
+                    cls.make_tensor_from_batch(
+                        [item[attr] for item in batch],
+                        device,
+                        concatenate and attr in additional_concat_attrs,
+                    )
+                )
                 used_keys.append(attr)
         return tuple(result)
 
     @staticmethod
-    def make_tensor_from_batch(batch: List[Union[Scalar, t.Tensor]],
-                               device: Union[str, t.device],
-                               concatenate: bool):
+    def make_tensor_from_batch(
+        batch: List[Union[Scalar, t.Tensor]],
+        device: Union[str, t.device],
+        concatenate: bool,
+    ):
         """
         Make a tensor from a batch of data.
         Will concatenate input tensors in dimension 0.
@@ -293,8 +316,7 @@ class Buffer(object):
                 try:
                     return t.tensor(batch, device=device).view(batch_size, -1)
                 except Exception:
-                    raise ValueError("Batch not concatenable: {}"
-                                     .format(batch))
+                    raise ValueError("Batch not concatenable: {}".format(batch))
         else:
             return batch
 

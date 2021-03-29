@@ -15,7 +15,7 @@ from .utils import (
     assert_and_get_valid_models,
     assert_and_get_valid_optimizer,
     assert_and_get_valid_criterion,
-    assert_and_get_valid_lr_scheduler
+    assert_and_get_valid_lr_scheduler,
 )
 
 
@@ -27,34 +27,36 @@ class SAC(TorchFramework):
     _is_top = ["actor", "critic", "critic2", "critic_target", "critic2_target"]
     _is_restorable = ["actor", "critic_target", "critic2_target"]
 
-    def __init__(self,
-                 actor: Union[NeuralNetworkModule, nn.Module],
-                 critic: Union[NeuralNetworkModule, nn.Module],
-                 critic_target: Union[NeuralNetworkModule, nn.Module],
-                 critic2: Union[NeuralNetworkModule, nn.Module],
-                 critic2_target: Union[NeuralNetworkModule, nn.Module],
-                 optimizer: Callable,
-                 criterion: Callable,
-                 *_,
-                 lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple, Tuple] = None,
-                 lr_scheduler_kwargs: Tuple[Dict, Dict, Dict] = None,
-                 target_entropy: float = None,
-                 initial_entropy_alpha: float = 1.0,
-                 batch_size: int = 100,
-                 update_rate: float = 0.005,
-                 update_steps: Union[int, None] = None,
-                 actor_learning_rate: float = 0.0005,
-                 critic_learning_rate: float = 0.001,
-                 alpha_learning_rate: float = 0.001,
-                 discount: float = 0.99,
-                 gradient_max: float = np.inf,
-                 replay_size: int = 500000,
-                 replay_device: Union[str, t.device] = "cpu",
-                 replay_buffer: Buffer = None,
-                 visualize: bool = False,
-                 visualize_dir: str = "",
-                 **__):
+    def __init__(
+        self,
+        actor: Union[NeuralNetworkModule, nn.Module],
+        critic: Union[NeuralNetworkModule, nn.Module],
+        critic_target: Union[NeuralNetworkModule, nn.Module],
+        critic2: Union[NeuralNetworkModule, nn.Module],
+        critic2_target: Union[NeuralNetworkModule, nn.Module],
+        optimizer: Callable,
+        criterion: Callable,
+        *_,
+        lr_scheduler: Callable = None,
+        lr_scheduler_args: Tuple[Tuple, Tuple, Tuple] = None,
+        lr_scheduler_kwargs: Tuple[Dict, Dict, Dict] = None,
+        target_entropy: float = None,
+        initial_entropy_alpha: float = 1.0,
+        batch_size: int = 100,
+        update_rate: float = 0.005,
+        update_steps: Union[int, None] = None,
+        actor_learning_rate: float = 0.0005,
+        critic_learning_rate: float = 0.001,
+        alpha_learning_rate: float = 0.001,
+        discount: float = 0.99,
+        gradient_max: float = np.inf,
+        replay_size: int = 500000,
+        replay_device: Union[str, t.device] = "cpu",
+        replay_buffer: Buffer = None,
+        visualize: bool = False,
+        visualize_dir: str = "",
+        **__
+    ):
         """
         See Also:
             :class:`.A2C`
@@ -124,33 +126,34 @@ class SAC(TorchFramework):
         self.discount = discount
         self.visualize = visualize
         self.visualize_dir = visualize_dir
-        self.entropy_alpha = t.tensor([initial_entropy_alpha],
-                                      requires_grad=True)
+        self.entropy_alpha = t.tensor([initial_entropy_alpha], requires_grad=True)
         self.grad_max = gradient_max
         self.target_entropy = target_entropy
         self._update_counter = 0
 
         if update_rate is not None and update_steps is not None:
-            raise ValueError("You can only specify one target network update"
-                             " scheme, either by update_rate or update_steps,"
-                             " but not both.")
+            raise ValueError(
+                "You can only specify one target network update"
+                " scheme, either by update_rate or update_steps,"
+                " but not both."
+            )
 
         self.actor = actor
         self.critic = critic
         self.critic_target = critic_target
         self.critic2 = critic2
         self.critic2_target = critic2_target
-        self.actor_optim = optimizer(self.actor.parameters(),
-                                     lr=actor_learning_rate)
-        self.critic_optim = optimizer(self.critic.parameters(),
-                                      lr=critic_learning_rate)
-        self.critic2_optim = optimizer(self.critic2.parameters(),
-                                       lr=critic_learning_rate)
-        self.alpha_optim = optimizer([self.entropy_alpha],
-                                     lr=alpha_learning_rate)
-        self.replay_buffer = (Buffer(replay_size, replay_device)
-                              if replay_buffer is None
-                              else replay_buffer)
+        self.actor_optim = optimizer(self.actor.parameters(), lr=actor_learning_rate)
+        self.critic_optim = optimizer(self.critic.parameters(), lr=critic_learning_rate)
+        self.critic2_optim = optimizer(
+            self.critic2.parameters(), lr=critic_learning_rate
+        )
+        self.alpha_optim = optimizer([self.entropy_alpha], lr=alpha_learning_rate)
+        self.replay_buffer = (
+            Buffer(replay_size, replay_device)
+            if replay_buffer is None
+            else replay_buffer
+        )
 
         # Make sure target and online networks have the same weight
         with t.no_grad():
@@ -168,19 +171,13 @@ class SAC(TorchFramework):
                 **lr_scheduler_kwargs[0],
             )
             self.critic_lr_sch = lr_scheduler(
-                self.critic_optim,
-                *lr_scheduler_args[1],
-                **lr_scheduler_kwargs[1]
+                self.critic_optim, *lr_scheduler_args[1], **lr_scheduler_kwargs[1]
             )
             self.critic2_lr_sch = lr_scheduler(
-                self.critic2_optim,
-                *lr_scheduler_args[1],
-                **lr_scheduler_kwargs[1]
+                self.critic2_optim, *lr_scheduler_args[1], **lr_scheduler_kwargs[1]
             )
             self.alpha_lr_sch = lr_scheduler(
-                self.alpha_optim,
-                *lr_scheduler_args[2],
-                **lr_scheduler_kwargs[2]
+                self.alpha_optim, *lr_scheduler_args[2], **lr_scheduler_kwargs[2]
             )
 
         self.criterion = criterion
@@ -188,28 +185,36 @@ class SAC(TorchFramework):
 
     @property
     def optimizers(self):
-        return [self.actor_optim,
-                self.critic_optim,
-                self.critic2_optim,
-                self.alpha_optim]
+        return [
+            self.actor_optim,
+            self.critic_optim,
+            self.critic2_optim,
+            self.alpha_optim,
+        ]
 
     @optimizers.setter
     def optimizers(self, optimizers):
-        self.actor_optim, \
-        self.critic_optim, \
-        self.critic2_optim, \
-        self.alpha_optim = optimizers
+        (
+            self.actor_optim,
+            self.critic_optim,
+            self.critic2_optim,
+            self.alpha_optim,
+        ) = optimizers
 
     @property
     def lr_schedulers(self):
-        if hasattr(self, "actor_lr_sch") \
-                and hasattr(self, "critic_lr_sch") \
-                and hasattr(self, "critic2_lr_sch") \
-                and hasattr(self, "alpha_lr_sch"):
-            return [self.actor_lr_sch,
-                    self.critic_lr_sch,
-                    self.critic2_lr_sch,
-                    self.alpha_lr_sch]
+        if (
+            hasattr(self, "actor_lr_sch")
+            and hasattr(self, "critic_lr_sch")
+            and hasattr(self, "critic2_lr_sch")
+            and hasattr(self, "alpha_lr_sch")
+        ):
+            return [
+                self.actor_lr_sch,
+                self.critic_lr_sch,
+                self.critic2_lr_sch,
+                self.alpha_lr_sch,
+            ]
         return []
 
     def act(self, state: Dict[str, Any], **__):
@@ -221,11 +226,13 @@ class SAC(TorchFramework):
         """
         return safe_return(safe_call(self.actor, state))
 
-    def _criticize(self,
-                   state: Dict[str, Any],
-                   action: Dict[str, Any],
-                   use_target: bool = False,
-                   **__):
+    def _criticize(
+        self,
+        state: Dict[str, Any],
+        action: Dict[str, Any],
+        use_target: bool = False,
+        **__
+    ):
         """
         Use critic network to evaluate current value.
 
@@ -242,11 +249,9 @@ class SAC(TorchFramework):
         else:
             return safe_call(self.critic, state, action)[0]
 
-    def _criticize2(self,
-                    state: Dict[str, Any],
-                    action: Dict[str, Any],
-                    use_target=False,
-                    **__):
+    def _criticize2(
+        self, state: Dict[str, Any], action: Dict[str, Any], use_target=False, **__
+    ):
         """
         Use the second critic network to evaluate current value.
 
@@ -267,26 +272,30 @@ class SAC(TorchFramework):
         """
         Add a transition sample to the replay buffer.
         """
-        self.replay_buffer.append(transition, required_attrs=(
-            "state", "action", "next_state", "reward", "terminal"
-        ))
+        self.replay_buffer.append(
+            transition,
+            required_attrs=("state", "action", "next_state", "reward", "terminal"),
+        )
 
     def store_episode(self, episode: List[Union[Transition, Dict]]):
         """
         Add a full episode of transition samples to the replay buffer.
         """
         for trans in episode:
-            self.replay_buffer.append(trans, required_attrs=(
-                "state", "action", "next_state", "reward", "terminal"
-            ))
+            self.replay_buffer.append(
+                trans,
+                required_attrs=("state", "action", "next_state", "reward", "terminal"),
+            )
 
-    def update(self,
-               update_value=True,
-               update_policy=True,
-               update_target=True,
-               update_entropy_alpha=True,
-               concatenate_samples=True,
-               **__):
+    def update(
+        self,
+        update_value=True,
+        update_policy=True,
+        update_target=True,
+        update_entropy_alpha=True,
+        concatenate_samples=True,
+        **__
+    ):
         """
         Update network weights by sampling from replay buffer.
 
@@ -303,15 +312,19 @@ class SAC(TorchFramework):
         self.actor.train()
         self.critic.train()
         self.critic2.train()
-        batch_size, (state, action, reward, next_state, terminal, others) = \
-            self.replay_buffer.sample_batch(self.batch_size,
-                                            concatenate_samples,
-                                            sample_method="random_unique",
-                                            sample_attrs=[
-                                                "state", "action",
-                                                "reward", "next_state",
-                                                "terminal", "*"
-                                            ])
+        batch_size, (
+            state,
+            action,
+            reward,
+            next_state,
+            terminal,
+            others,
+        ) = self.replay_buffer.sample_batch(
+            self.batch_size,
+            concatenate_samples,
+            sample_method="random_unique",
+            sample_attrs=["state", "action", "reward", "next_state", "terminal", "*"],
+        )
 
         # Update critic network first
         with t.no_grad():
@@ -322,9 +335,9 @@ class SAC(TorchFramework):
             next_value = self._criticize(next_state, next_action, True)
             next_value2 = self._criticize2(next_state, next_action, True)
             next_value = t.min(next_value, next_value2)
-            next_value = (next_value.view(batch_size, -1) -
-                          self.entropy_alpha.item()
-                          * next_action_log_prob.view(batch_size, -1))
+            next_value = next_value.view(
+                batch_size, -1
+            ) - self.entropy_alpha.item() * next_action_log_prob.view(batch_size, -1)
             y_i = self.reward_function(
                 reward, self.discount, next_value, terminal, others
             )
@@ -340,29 +353,24 @@ class SAC(TorchFramework):
         if update_value:
             self.critic.zero_grad()
             value_loss.backward()
-            nn.utils.clip_grad_norm_(
-                self.critic.parameters(), self.grad_max
-            )
+            nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_max)
             self.critic_optim.step()
 
             self.critic2.zero_grad()
             value_loss2.backward()
-            nn.utils.clip_grad_norm_(
-                self.critic2.parameters(), self.grad_max
-            )
+            nn.utils.clip_grad_norm_(self.critic2.parameters(), self.grad_max)
             self.critic2_optim.step()
 
         # Update actor network
         cur_action, cur_action_log_prob, *_ = self.act(state)
-        cur_action = self.action_transform_function(
-            cur_action, state, others
-        )
+        cur_action = self.action_transform_function(cur_action, state, others)
         act_value = self._criticize(state, cur_action)
         act_value2 = self._criticize2(state, cur_action)
         act_value = t.min(act_value, act_value2)
 
-        act_policy_loss = (self.entropy_alpha.item() * cur_action_log_prob -
-                           act_value).mean()
+        act_policy_loss = (
+            self.entropy_alpha.item() * cur_action_log_prob - act_value
+        ).mean()
 
         if self.visualize:
             self.visualize_model(act_policy_loss, "actor", self.visualize_dir)
@@ -370,9 +378,7 @@ class SAC(TorchFramework):
         if update_policy:
             self.actor.zero_grad()
             act_policy_loss.backward()
-            nn.utils.clip_grad_norm_(
-                self.actor.parameters(), self.grad_max
-            )
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.grad_max)
             self.actor_optim.step()
 
         # Update target networks
@@ -387,10 +393,10 @@ class SAC(TorchFramework):
                     hard_update(self.critic2_target, self.critic2)
 
         if update_entropy_alpha and self.target_entropy is not None:
-            alpha_loss = -(t.log(self.entropy_alpha) *
-                           (cur_action_log_prob + self.target_entropy).cpu()
-                           .detach()
-                           ).mean()
+            alpha_loss = -(
+                t.log(self.entropy_alpha)
+                * (cur_action_log_prob + self.target_entropy).cpu().detach()
+            ).mean()
             self.alpha_optim.zero_grad()
             alpha_loss.backward()
             self.alpha_optim.step()
@@ -402,8 +408,7 @@ class SAC(TorchFramework):
         self.critic.eval()
         self.critic2.eval()
         # use .item() to prevent memory leakage
-        return (-act_policy_loss.item(),
-                (value_loss.item() + value_loss2.item()) / 2)
+        return (-act_policy_loss.item(), (value_loss.item() + value_loss2.item()) / 2)
 
     def update_lr_scheduler(self):
         """
@@ -465,8 +470,7 @@ class SAC(TorchFramework):
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:
-            config["frame_config"] = {**config["frame_config"],
-                                      **default_values}
+            config["frame_config"] = {**config["frame_config"], **default_values}
         return config
 
     @classmethod
@@ -476,16 +480,14 @@ class SAC(TorchFramework):
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
-            m(*arg, **kwarg)
-            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            m(*arg, **kwarg) for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
         criterion = assert_and_get_valid_criterion(f_config["criterion"])(
             *f_config["criterion_args"], **f_config["criterion_kwargs"]
         )
-        lr_scheduler = (
-                f_config["lr_scheduler"]
-                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        lr_scheduler = f_config["lr_scheduler"] and assert_and_get_valid_lr_scheduler(
+            f_config["lr_scheduler"]
         )
         f_config["optimizer"] = optimizer
         f_config["criterion"] = criterion

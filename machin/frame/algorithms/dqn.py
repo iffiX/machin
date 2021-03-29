@@ -14,7 +14,7 @@ from .utils import (
     assert_and_get_valid_models,
     assert_and_get_valid_optimizer,
     assert_and_get_valid_criterion,
-    assert_and_get_valid_lr_scheduler
+    assert_and_get_valid_lr_scheduler,
 )
 
 
@@ -26,29 +26,31 @@ class DQN(TorchFramework):
     _is_top = ["qnet", "qnet_target"]
     _is_restorable = ["qnet_target"]
 
-    def __init__(self,
-                 qnet: Union[NeuralNetworkModule, nn.Module],
-                 qnet_target: Union[NeuralNetworkModule, nn.Module],
-                 optimizer: Callable,
-                 criterion: Callable,
-                 *_,
-                 lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple] = None,
-                 lr_scheduler_kwargs: Tuple[Dict] = None,
-                 batch_size: int = 100,
-                 epsilon_decay: float = 0.9999,
-                 update_rate: Union[float, None] = 0.005,
-                 update_steps: Union[int, None] = None,
-                 learning_rate: float = 0.001,
-                 discount: float = 0.99,
-                 gradient_max: float = np.inf,
-                 replay_size: int = 500000,
-                 replay_device: Union[str, t.device] = "cpu",
-                 replay_buffer: Buffer = None,
-                 mode: str = "double",
-                 visualize: bool = False,
-                 visualize_dir: str = "",
-                 **__):
+    def __init__(
+        self,
+        qnet: Union[NeuralNetworkModule, nn.Module],
+        qnet_target: Union[NeuralNetworkModule, nn.Module],
+        optimizer: Callable,
+        criterion: Callable,
+        *_,
+        lr_scheduler: Callable = None,
+        lr_scheduler_args: Tuple[Tuple] = None,
+        lr_scheduler_kwargs: Tuple[Dict] = None,
+        batch_size: int = 100,
+        epsilon_decay: float = 0.9999,
+        update_rate: Union[float, None] = 0.005,
+        update_steps: Union[int, None] = None,
+        learning_rate: float = 0.001,
+        discount: float = 0.99,
+        gradient_max: float = np.inf,
+        replay_size: int = 500000,
+        replay_device: Union[str, t.device] = "cpu",
+        replay_buffer: Buffer = None,
+        mode: str = "double",
+        visualize: bool = False,
+        visualize_dir: str = "",
+        **__
+    ):
         """
         Note:
             DQN is only available for discrete environments.
@@ -174,20 +176,23 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             raise ValueError("Unknown DQN mode: {}".format(mode))
 
         if update_rate is not None and update_steps is not None:
-            raise ValueError("You can only specify one target network update"
-                             " scheme, either by update_rate or update_steps,"
-                             " but not both.")
+            raise ValueError(
+                "You can only specify one target network update"
+                " scheme, either by update_rate or update_steps,"
+                " but not both."
+            )
 
         self.qnet = qnet
         if self.mode == "vanilla":
             self.qnet_target = qnet
         else:
             self.qnet_target = qnet_target
-        self.qnet_optim = optimizer(self.qnet.parameters(),
-                                    lr=learning_rate)
-        self.replay_buffer = (Buffer(replay_size, replay_device)
-                              if replay_buffer is None
-                              else replay_buffer)
+        self.qnet_optim = optimizer(self.qnet.parameters(), lr=learning_rate)
+        self.replay_buffer = (
+            Buffer(replay_size, replay_device)
+            if replay_buffer is None
+            else replay_buffer
+        )
 
         # Make sure target and online networks have the same weight
         with t.no_grad():
@@ -199,9 +204,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             if lr_scheduler_kwargs is None:
                 lr_scheduler_kwargs = ({},)
             self.qnet_lr_sch = lr_scheduler(
-                self.qnet_optim,
-                *lr_scheduler_args[0],
-                **lr_scheduler_kwargs[0]
+                self.qnet_optim, *lr_scheduler_args[0], **lr_scheduler_kwargs[0]
             )
 
         self.criterion = criterion
@@ -222,10 +225,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             return [self.qnet_lr_sch]
         return []
 
-    def act_discrete(self,
-                     state: Dict[str, Any],
-                     use_target: bool = False,
-                     **__):
+    def act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         """
         Use Q network to produce a discrete action for
         the current state.
@@ -249,11 +249,13 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         else:
             return (result, *others)
 
-    def act_discrete_with_noise(self,
-                                state: Dict[str, Any],
-                                use_target: bool = False,
-                                decay_epsilon: bool = True,
-                                **__):
+    def act_discrete_with_noise(
+        self,
+        state: Dict[str, Any],
+        use_target: bool = False,
+        decay_epsilon: bool = True,
+        **__
+    ):
         """
         Randomly selects an action from the action space according
         to a uniform distribution, with regard to the epsilon decay
@@ -287,10 +289,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         else:
             return (result, *others)
 
-    def _act_discrete(self,
-                      state: Dict[str, Any],
-                      use_target: bool = False,
-                      **__):
+    def _act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         """
         Use Q network to produce a discrete action for
         the current state.
@@ -308,10 +307,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             result, *others = safe_call(self.qnet, state)
         return t.argmax(result, dim=1).view(-1, 1)
 
-    def _criticize(self,
-                   state: Dict[str, Any],
-                   use_target: bool = False,
-                   **__):
+    def _criticize(self, state: Dict[str, Any], use_target: bool = False, **__):
         """
         Use Q network to evaluate current value.
 
@@ -328,24 +324,24 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         """
         Add a transition sample to the replay buffer.
         """
-        self.replay_buffer.append(transition, required_attrs=(
-            "state", "action", "reward", "next_state", "terminal"
-        ))
+        self.replay_buffer.append(
+            transition,
+            required_attrs=("state", "action", "reward", "next_state", "terminal"),
+        )
 
     def store_episode(self, episode: List[Union[Transition, Dict]]):
         """
         Add a full episode of transition samples to the replay buffer.
         """
         for trans in episode:
-            self.replay_buffer.append(trans, required_attrs=(
-                "state", "action", "reward", "next_state", "terminal"
-            ))
+            self.replay_buffer.append(
+                trans,
+                required_attrs=("state", "action", "reward", "next_state", "terminal"),
+            )
 
-    def update(self,
-               update_value=True,
-               update_target=True,
-               concatenate_samples=True,
-               **__):
+    def update(
+        self, update_value=True, update_target=True, concatenate_samples=True, **__
+    ):
         """
         Update network weights by sampling from replay buffer.
 
@@ -357,15 +353,19 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         Returns:
             mean value of estimated policy value, value loss
         """
-        batch_size, (state, action, reward, next_state, terminal, others) = \
-            self.replay_buffer.sample_batch(self.batch_size,
-                                            concatenate_samples,
-                                            sample_method="random_unique",
-                                            sample_attrs=[
-                                                "state", "action",
-                                                "reward", "next_state",
-                                                "terminal", "*"
-                                            ])
+        batch_size, (
+            state,
+            action,
+            reward,
+            next_state,
+            terminal,
+            others,
+        ) = self.replay_buffer.sample_batch(
+            self.batch_size,
+            concatenate_samples,
+            sample_method="random_unique",
+            sample_attrs=["state", "action", "reward", "next_state", "terminal", "*"],
+        )
         self.qnet.train()
         if self.mode == "vanilla":
             # Vanilla DQN, directly optimize q network.
@@ -373,18 +373,20 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             q_value = self._criticize(state)
 
             # gather requires long tensor, int32 is not accepted
-            action_value = q_value.gather(dim=1,
-                                          index=self.action_get_function(action)
-                                          .to(device=q_value.device,
-                                              dtype=t.long))
+            action_value = q_value.gather(
+                dim=1,
+                index=self.action_get_function(action).to(
+                    device=q_value.device, dtype=t.long
+                ),
+            )
 
-            target_next_q_value = t.max(self._criticize(next_state), dim=1)[0]\
-                                   .unsqueeze(1).detach()
+            target_next_q_value = (
+                t.max(self._criticize(next_state), dim=1)[0].unsqueeze(1).detach()
+            )
             y_i = self.reward_function(
                 reward, self.discount, target_next_q_value, terminal, others
             )
-            value_loss = self.criterion(action_value,
-                                        y_i.type_as(action_value))
+            value_loss = self.criterion(action_value, y_i.type_as(action_value))
 
             if self.visualize:
                 self.visualize_model(value_loss, "qnet", self.visualize_dir)
@@ -392,9 +394,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             if update_value:
                 self.qnet.zero_grad()
                 value_loss.backward()
-                nn.utils.clip_grad_norm_(
-                    self.qnet.parameters(), self.grad_max
-                )
+                nn.utils.clip_grad_norm_(self.qnet.parameters(), self.grad_max)
                 self.qnet_optim.step()
 
         elif self.mode == "fixed_target":
@@ -403,19 +403,21 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             q_value = self._criticize(state)
 
             # gather requires long tensor, int32 is not accepted
-            action_value = q_value.gather(dim=1,
-                                          index=self.action_get_function(action)
-                                          .to(device=q_value.device,
-                                              dtype=t.long))
+            action_value = q_value.gather(
+                dim=1,
+                index=self.action_get_function(action).to(
+                    device=q_value.device, dtype=t.long
+                ),
+            )
 
-            target_next_q_value = t.max(self._criticize(next_state, True),
-                                        dim=1)[0].unsqueeze(1).detach()
+            target_next_q_value = (
+                t.max(self._criticize(next_state, True), dim=1)[0].unsqueeze(1).detach()
+            )
 
             y_i = self.reward_function(
                 reward, self.discount, target_next_q_value, terminal, others
             )
-            value_loss = self.criterion(action_value,
-                                        y_i.type_as(action_value))
+            value_loss = self.criterion(action_value, y_i.type_as(action_value))
 
             if self.visualize:
                 self.visualize_model(value_loss, "qnet", self.visualize_dir)
@@ -423,9 +425,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             if update_value:
                 self.qnet.zero_grad()
                 self._backward(value_loss)
-                nn.utils.clip_grad_norm_(
-                    self.qnet.parameters(), self.grad_max
-                )
+                nn.utils.clip_grad_norm_(self.qnet.parameters(), self.grad_max)
                 self.qnet_optim.step()
 
             # Update target Q network
@@ -440,23 +440,26 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             q_value = self._criticize(state)
 
             # gather requires long tensor, int32 is not accepted
-            action_value = q_value.gather(dim=1,
-                                          index=self.action_get_function(action)
-                                          .to(device=q_value.device,
-                                              dtype=t.long))
+            action_value = q_value.gather(
+                dim=1,
+                index=self.action_get_function(action).to(
+                    device=q_value.device, dtype=t.long
+                ),
+            )
 
             with t.no_grad():
                 target_next_q_value = self._criticize(next_state, True)
-                next_action = (self._act_discrete(next_state)
-                               .to(device=q_value.device, dtype=t.long))
+                next_action = self._act_discrete(next_state).to(
+                    device=q_value.device, dtype=t.long
+                )
                 target_next_q_value = target_next_q_value.gather(
-                    dim=1, index=next_action)
+                    dim=1, index=next_action
+                )
 
             y_i = self.reward_function(
                 reward, self.discount, target_next_q_value, terminal, others
             )
-            value_loss = self.criterion(action_value,
-                                        y_i.type_as(action_value))
+            value_loss = self.criterion(action_value, y_i.type_as(action_value))
 
             if self.visualize:
                 self.visualize_model(value_loss, "qnet", self.visualize_dir)
@@ -464,9 +467,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
             if update_value:
                 self.qnet.zero_grad()
                 self._backward(value_loss)
-                nn.utils.clip_grad_norm_(
-                    self.qnet.parameters(), self.grad_max
-                )
+                nn.utils.clip_grad_norm_(self.qnet.parameters(), self.grad_max)
                 self.qnet_optim.step()
 
             # Update target Q network
@@ -544,8 +545,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:
-            config["frame_config"] = {**config["frame_config"],
-                                      **default_values}
+            config["frame_config"] = {**config["frame_config"], **default_values}
         return config
 
     @classmethod
@@ -555,16 +555,14 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
-            m(*arg, **kwarg)
-            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            m(*arg, **kwarg) for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
         criterion = assert_and_get_valid_criterion(f_config["criterion"])(
             *f_config["criterion_args"], **f_config["criterion_kwargs"]
         )
-        lr_scheduler = (
-                f_config["lr_scheduler"]
-                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        lr_scheduler = f_config["lr_scheduler"] and assert_and_get_valid_lr_scheduler(
+            f_config["lr_scheduler"]
         )
         f_config["optimizer"] = optimizer
         f_config["criterion"] = criterion

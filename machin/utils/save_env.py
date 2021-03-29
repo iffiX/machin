@@ -6,15 +6,16 @@ import os
 import shutil
 
 from machin.utils.logging import default_logger
-from machin.utils.prepare import \
-    prep_clear_dirs, prep_create_dirs
+from machin.utils.prepare import prep_clear_dirs, prep_create_dirs
 
 
 class SaveEnv:
-    def __init__(self,
-                 env_root: str,
-                 restart_from_trial: Union[str, None] = None,
-                 time_format="%Y_%m_%d_%H_%M_%S"):
+    def __init__(
+        self,
+        env_root: str,
+        restart_from_trial: Union[str, None] = None,
+        time_format="%Y_%m_%d_%H_%M_%S",
+    ):
         """
         Create the default environment for saving. creates something like::
 
@@ -37,8 +38,9 @@ class SaveEnv:
         if restart_from_trial is None:
             self.env_create_time = datetime.now()
         else:
-            self.env_create_time = datetime.strptime(restart_from_trial,
-                                                     self.time_format)
+            self.env_create_time = datetime.strptime(
+                restart_from_trial, self.time_format
+            )
         self._check_dirs()
         self._prep_dirs()
 
@@ -49,40 +51,46 @@ class SaveEnv:
         Args:
             dirs: Directories.
         """
-        prep_create_dirs([join(
-            self.env_root,
-            self.env_create_time.strftime(self.time_format),
-            d
-        ) for d in dirs])
+        prep_create_dirs(
+            [
+                join(self.env_root, self.env_create_time.strftime(self.time_format), d)
+                for d in dirs
+            ]
+        )
 
     def get_trial_root(self):
         # pylint: disable=missing-docstring
-        return join(self.env_root,
-                    self.env_create_time.strftime(self.time_format))
+        return join(self.env_root, self.env_create_time.strftime(self.time_format))
 
     def get_trial_config_dir(self):
         # pylint: disable=missing-docstring
-        return join(self.env_root,
-                    self.env_create_time.strftime(self.time_format),
-                    "config")
+        return join(
+            self.env_root, self.env_create_time.strftime(self.time_format), "config"
+        )
 
     def get_trial_model_dir(self):
         # pylint: disable=missing-docstring
-        return join(self.env_root,
-                    self.env_create_time.strftime(self.time_format),
-                    "model")
+        return join(
+            self.env_root, self.env_create_time.strftime(self.time_format), "model"
+        )
 
     def get_trial_image_dir(self):
         # pylint: disable=missing-docstring
-        return join(self.env_root,
-                    self.env_create_time.strftime(self.time_format),
-                    "log", "images")
+        return join(
+            self.env_root,
+            self.env_create_time.strftime(self.time_format),
+            "log",
+            "images",
+        )
 
     def get_trial_train_log_dir(self):
         # pylint: disable=missing-docstring
-        return join(self.env_root,
-                    self.env_create_time.strftime(self.time_format),
-                    "log", "train_log")
+        return join(
+            self.env_root,
+            self.env_create_time.strftime(self.time_format),
+            "log",
+            "train_log",
+        )
 
     def get_trial_time(self):
         # pylint: disable=missing-docstring
@@ -90,41 +98,61 @@ class SaveEnv:
 
     def clear_trial_config_dir(self):
         # pylint: disable=missing-docstring
-        prep_clear_dirs([
-            join(self.env_root,
-                 self.env_create_time.strftime(self.time_format),
-                 "config")
-        ])
+        prep_clear_dirs(
+            [
+                join(
+                    self.env_root,
+                    self.env_create_time.strftime(self.time_format),
+                    "config",
+                )
+            ]
+        )
 
     def clear_trial_model_dir(self):
         # pylint: disable=missing-docstring
-        prep_clear_dirs([
-            join(self.env_root,
-                 self.env_create_time.strftime(self.time_format),
-                 "model")
-        ])
+        prep_clear_dirs(
+            [
+                join(
+                    self.env_root,
+                    self.env_create_time.strftime(self.time_format),
+                    "model",
+                )
+            ]
+        )
 
     def clear_trial_image_dir(self):
         # pylint: disable=missing-docstring
-        prep_clear_dirs([
-            join(self.env_root,
-                 self.env_create_time.strftime(self.time_format),
-                 "log", "images")
-        ])
+        prep_clear_dirs(
+            [
+                join(
+                    self.env_root,
+                    self.env_create_time.strftime(self.time_format),
+                    "log",
+                    "images",
+                )
+            ]
+        )
 
     def clear_trial_train_log_dir(self):
         # pylint: disable=missing-docstring
-        prep_clear_dirs([
-            join(self.env_root,
-                 self.env_create_time.strftime(self.time_format),
-                 "log", "train_log")
-        ])
+        prep_clear_dirs(
+            [
+                join(
+                    self.env_root,
+                    self.env_create_time.strftime(self.time_format),
+                    "log",
+                    "train_log",
+                )
+            ]
+        )
 
-    def remove_trials_older_than(self,
-                                 diff_day: int = 0,
-                                 diff_hour: int = 1,
-                                 diff_minute: int = 0,
-                                 diff_second: int = 0):
+    def remove_trials_older_than(
+        self,
+        diff_day: int = 0,
+        diff_hour: int = 1,
+        diff_minute: int = 0,
+        diff_second: int = 0,
+    ):
         """
         By default this function removes all trials started one hour earlier
         than current time.
@@ -137,8 +165,9 @@ class SaveEnv:
         """
         trial_list = [f for f in os.listdir(self.env_root)]
         current_time = datetime.now()
-        diff_threshold = timedelta(days=diff_day, hours=diff_hour,
-                                   minutes=diff_minute, seconds=diff_second)
+        diff_threshold = timedelta(
+            days=diff_day, hours=diff_hour, minutes=diff_minute, seconds=diff_second
+        )
         for file in trial_list:
             try:
                 time = datetime.strptime(file, self.time_format)
@@ -149,17 +178,19 @@ class SaveEnv:
                 diff_time = current_time - time
                 if diff_time > diff_threshold:
                     rm_path = join(self.env_root, file)
-                    default_logger.info("Removing trial directory: {}"
-                                        .format(rm_path))
+                    default_logger.info("Removing trial directory: {}".format(rm_path))
                     shutil.rmtree(rm_path)
 
     def _prep_dirs(self):
-        root_dir = join(self.env_root,
-                        self.env_create_time.strftime(self.time_format))
-        prep_create_dirs((join(root_dir, "model"),
-                          join(root_dir, "config"),
-                          join(root_dir, "log", "images"),
-                          join(root_dir, "log", "train_log")))
+        root_dir = join(self.env_root, self.env_create_time.strftime(self.time_format))
+        prep_create_dirs(
+            (
+                join(root_dir, "model"),
+                join(root_dir, "config"),
+                join(root_dir, "log", "images"),
+                join(root_dir, "log", "train_log"),
+            )
+        )
 
     def _check_dirs(self):
         """

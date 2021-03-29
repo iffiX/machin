@@ -29,9 +29,7 @@ class Actor(nn.Module):
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
         dist = Categorical(probs=probs)
-        act = (action
-               if action is not None
-               else dist.sample())
+        act = action if action is not None else dist.sample()
         act_entropy = dist.entropy()
         act_log_prob = dist.log_prob(act.flatten())
         return act, act_log_prob, act_entropy
@@ -72,30 +70,34 @@ class TestA3C(object):
     @staticmethod
     def a3c(device, dtype):
         c = TestA3C.c
-        actor = smw(Actor(c.observe_dim, c.action_num)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim)
-                     .type(dtype).to(device), device, device)
+        actor = smw(
+            Actor(c.observe_dim, c.action_num).type(dtype).to(device), device, device
+        )
+        critic = smw(Critic(c.observe_dim).type(dtype).to(device), device, device)
         # in all test scenarios, all processes will be used as reducers
         servers = grad_server_helper(
-            [lambda: Actor(c.observe_dim, c.action_num),
-             lambda: Critic(c.observe_dim)],
-            learning_rate=5e-3
+            [lambda: Actor(c.observe_dim, c.action_num), lambda: Critic(c.observe_dim)],
+            learning_rate=5e-3,
         )
-        a3c = A3C(actor, critic,
-                  nn.MSELoss(reduction='sum'),
-                  servers,
-                  replay_device="cpu",
-                  replay_size=c.replay_size)
+        a3c = A3C(
+            actor,
+            critic,
+            nn.MSELoss(reduction="sum"),
+            servers,
+            replay_device="cpu",
+            replay_size=c.replay_size,
+        )
         return a3c
 
     ########################################################################
     # Test for A3C acting
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["device", "dtype"],
-               timeout=180)
+    @run_multi(
+        expected_results=[True, True, True],
+        pass_through=["device", "dtype"],
+        timeout=180,
+    )
     @WorldTestBase.setup_world
     def test_act(_, device, dtype):
         c = TestA3C.c
@@ -108,9 +110,11 @@ class TestA3C(object):
     # Test for A3C action evaluation
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["device", "dtype"],
-               timeout=180)
+    @run_multi(
+        expected_results=[True, True, True],
+        pass_through=["device", "dtype"],
+        timeout=180,
+    )
     @WorldTestBase.setup_world
     def test_eval_action(_, device, dtype):
         c = TestA3C.c
@@ -124,9 +128,11 @@ class TestA3C(object):
     # Test for A3C criticizing
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["device", "dtype"],
-               timeout=180)
+    @run_multi(
+        expected_results=[True, True, True],
+        pass_through=["device", "dtype"],
+        timeout=180,
+    )
     @WorldTestBase.setup_world
     def test__criticize(_, device, dtype):
         c = TestA3C.c
@@ -144,9 +150,11 @@ class TestA3C(object):
     # Test for A3C update
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["device", "dtype"],
-               timeout=180)
+    @run_multi(
+        expected_results=[True, True, True],
+        pass_through=["device", "dtype"],
+        timeout=180,
+    )
     @WorldTestBase.setup_world
     def test_update(rank, device, dtype):
         c = TestA3C.c
@@ -157,16 +165,24 @@ class TestA3C(object):
 
         begin = time()
         while time() - begin < 5:
-            a3c.store_episode([
-                {"state": {"state": old_state},
-                 "action": {"action": action},
-                 "next_state": {"state": state},
-                 "reward": 0,
-                 "terminal": False}
-                for _ in range(3)
-            ])
-            a3c.update(update_value=True, update_policy=True,
-                       update_target=True, concatenate_samples=True)
+            a3c.store_episode(
+                [
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": 0,
+                        "terminal": False,
+                    }
+                    for _ in range(3)
+                ]
+            )
+            a3c.update(
+                update_value=True,
+                update_policy=True,
+                update_target=True,
+                concatenate_samples=True,
+            )
             sleep(0.01)
 
         if rank == 1:
@@ -188,16 +204,16 @@ class TestA3C(object):
     # Test for A3C config & init
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               timeout=180)
+    @run_multi(expected_results=[True, True, True], timeout=180)
     @WorldTestBase.setup_world
     def test_config_init(rank):
         c = TestA3C.c
         config = A3C.generate_config({})
         config["frame_config"]["models"] = ["Actor", "Critic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": c.observe_dim,
-                                                   "action_num": c.action_num},
-                                                  {"state_dim": c.observe_dim}]
+        config["frame_config"]["model_kwargs"] = [
+            {"state_dim": c.observe_dim, "action_num": c.action_num},
+            {"state_dim": c.observe_dim},
+        ]
         a3c = A3C.init_from_config(config)
 
         old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
@@ -205,14 +221,18 @@ class TestA3C(object):
 
         begin = time()
         while time() - begin < 5:
-            a3c.store_episode([
-                {"state": {"state": old_state},
-                 "action": {"action": action},
-                 "next_state": {"state": state},
-                 "reward": 0,
-                 "terminal": False}
-                for _ in range(3)
-            ])
+            a3c.store_episode(
+                [
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": 0,
+                        "terminal": False,
+                    }
+                    for _ in range(3)
+                ]
+            )
             a3c.update()
             sleep(0.01)
 
@@ -227,9 +247,9 @@ class TestA3C(object):
     ########################################################################
     @staticmethod
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["gae_lambda"],
-               timeout=1800)
+    @run_multi(
+        expected_results=[True, True, True], pass_through=["gae_lambda"], timeout=1800
+    )
     @WorldTestBase.setup_world
     def test_full_train(rank, gae_lambda):
         c = TestA3C.c
@@ -264,13 +284,15 @@ class TestA3C(object):
                     state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    tmp_observations.append({
-                        "state": {"state": old_state.unsqueeze(0)},
-                        "action": {"action": action},
-                        "next_state": {"state": state.unsqueeze(0)},
-                        "reward": float(reward),
-                        "terminal": terminal or step == c.max_steps
-                    })
+                    tmp_observations.append(
+                        {
+                            "state": {"state": old_state.unsqueeze(0)},
+                            "action": {"action": action},
+                            "next_state": {"state": state.unsqueeze(0)},
+                            "reward": float(reward),
+                            "terminal": terminal or step == c.max_steps,
+                        }
+                    )
 
             # update
             a3c.store_episode(tmp_observations)
@@ -280,8 +302,11 @@ class TestA3C(object):
             step.reset()
             terminal = False
 
-            default_logger.info("Process {} Episode {} total reward={:.2f}"
-                                .format(rank, episode, smoother.value))
+            default_logger.info(
+                "Process {} Episode {} total reward={:.2f}".format(
+                    rank, episode, smoother.value
+                )
+            )
 
             if smoother.value > c.solved_reward:
                 reward_fulfilled.count()

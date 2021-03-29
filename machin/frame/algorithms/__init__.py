@@ -16,13 +16,15 @@ from .ppo import PPO
 from .sac import SAC
 
 from .maddpg import MADDPG
+
 try:
     from .apex import DQNApex, DDPGApex
     from .impala import IMPALA
     from .ars import ARS
 except ImportError as _:
-    warnings.warn("Failed to import algorithms relying on torch.distributed."
-                  " Set them to None.")
+    warnings.warn(
+        "Failed to import algorithms relying on torch.distributed." " Set them to None."
+    )
     DQNApex = None
     DDPGApex = None
     IMPALA = None
@@ -31,9 +33,20 @@ except ImportError as _:
 
 __all__ = [
     "TorchFramework",
-    "DQN", "DQNPer", "RAINBOW",
-    "DDPG", "HDDPG", "TD3", "DDPGPer",
-    "A2C", "A3C", "PPO", "SAC",
-    "DQNApex", "DDPGApex", "IMPALA", "ARS",
+    "DQN",
+    "DQNPer",
+    "RAINBOW",
+    "DDPG",
+    "HDDPG",
+    "TD3",
+    "DDPGPer",
+    "A2C",
+    "A3C",
+    "PPO",
+    "SAC",
+    "DQNApex",
+    "DDPGApex",
+    "IMPALA",
+    "ARS",
     "MADDPG",
 ]

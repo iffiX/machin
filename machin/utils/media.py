@@ -7,10 +7,12 @@ import moviepy.editor as mpy
 import matplotlib.pyplot as plt
 
 
-def show_image(image: np.ndarray,
-               show_normalized: bool = True,
-               pause_time: float = 0.01,
-               title: str = ""):
+def show_image(
+    image: np.ndarray,
+    show_normalized: bool = True,
+    pause_time: float = 0.01,
+    title: str = "",
+):
     """
     Use matplotlib to show a single image. You may repeatedly call this method
     with the same ``title`` argument to show a video or a dynamically changing
@@ -49,11 +51,13 @@ def show_image(image: np.ndarray,
         plt.pause(pause_time)
 
 
-def create_video(frames: List[np.ndarray],
-                 path: str,
-                 filename: str,
-                 extension: str = ".gif",
-                 fps: int = 15):
+def create_video(
+    frames: List[np.ndarray],
+    path: str,
+    filename: str,
+    extension: str = ".gif",
+    fps: int = 15,
+):
     """
     Args:
         frames: A list of numpy arrays of shape (H, W, C) or (H, W), and with
@@ -77,19 +81,29 @@ def create_video(frames: List[np.ndarray],
 
         clip = mpy.ImageSequenceClip(frames, fps=fps)
         if extension.lower() == ".gif":
-            clip.write_gif(os.path.join(path, filename + extension),
-                           fps=fps, verbose=False, logger=None)
+            clip.write_gif(
+                os.path.join(path, filename + extension),
+                fps=fps,
+                verbose=False,
+                logger=None,
+            )
         else:
-            clip.write_videofile(os.path.join(path, filename + extension),
-                                 fps=fps, verbose=False, logger=None)
+            clip.write_videofile(
+                os.path.join(path, filename + extension),
+                fps=fps,
+                verbose=False,
+                logger=None,
+            )
 
 
-def create_video_subproc(frames: List[np.ndarray],
-                         path: str,
-                         filename: str,
-                         extension: str = ".gif",
-                         fps: int = 15,
-                         daemon: bool = True):
+def create_video_subproc(
+    frames: List[np.ndarray],
+    path: str,
+    filename: str,
+    extension: str = ".gif",
+    fps: int = 15,
+    daemon: bool = True,
+):
     """
     Create video with a subprocess, since it takes a lot of time for ``moviepy``
     to encode the video file.
@@ -115,16 +129,14 @@ def create_video_subproc(frames: List[np.ndarray],
     Returns:
         A wait function, once called, block until creation has finished.
     """
+
     def wait():
         pass
 
     if frames:
-        p = get_context("spawn").Process(target=create_video,
-                                         args=(frames,
-                                               path,
-                                               filename,
-                                               extension,
-                                               fps))
+        p = get_context("spawn").Process(
+            target=create_video, args=(frames, path, filename, extension, fps)
+        )
         p.daemon = daemon
         p.start()
 
@@ -146,10 +158,7 @@ def numpy_array_to_pil_image(image: np.ndarray):
     return image
 
 
-def create_image(image: np.ndarray,
-                 path: str,
-                 filename: str,
-                 extension: str = ".png"):
+def create_image(image: np.ndarray, path: str, filename: str, extension: str = ".png"):
     """
     Args:
         image: A numpy array of shape (H, W, C) or (H, W), and with
@@ -164,11 +173,13 @@ def create_image(image: np.ndarray,
     image.save(os.path.join(path, filename + extension))
 
 
-def create_image_subproc(image: np.array,
-                         path: str,
-                         filename: str,
-                         extension: str = ".png",
-                         daemon: bool = True):
+def create_image_subproc(
+    image: np.array,
+    path: str,
+    filename: str,
+    extension: str = ".png",
+    daemon: bool = True,
+):
     """
     Create image with a subprocess.
 
@@ -192,11 +203,9 @@ def create_image_subproc(image: np.array,
     Returns:
         A wait function, once called, block until creation has finished.
     """
-    p = get_context("spawn").Process(target=create_image,
-                                     args=(image,
-                                           path,
-                                           filename,
-                                           extension))
+    p = get_context("spawn").Process(
+        target=create_image, args=(image, path, filename, extension)
+    )
     p.daemon = daemon
     p.start()
 

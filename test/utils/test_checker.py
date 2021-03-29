@@ -6,7 +6,7 @@ from machin.utils.checker import (
     mark_as_atom_module,
     mark_module_output,
     p_chk_nan,
-    p_chk_range
+    p_chk_range,
 )
 from machin.utils.tensor_board import TensorBoard
 import pytest
@@ -22,7 +22,7 @@ def test_check_shape():
 
 def test_check_nan():
     with pytest.raises(CheckError, match="contains nan"):
-        tensor = t.full([10, 10], float('NaN'))
+        tensor = t.full([10, 10], float("NaN"))
         check_nan(tensor)
 
 
@@ -70,13 +70,13 @@ def test_check_model():
     board = TensorBoard()
     board.init()
     model = CheckedModel()
-    cancel = check_model(board.writer,
-                         model,
-                         param_check_interval=1,
-                         param_check_hooks=(param_check_hook,
-                                            p_chk_nan,
-                                            p_chk_range),
-                         name="checked_model")
+    cancel = check_model(
+        board.writer,
+        model,
+        param_check_interval=1,
+        param_check_hooks=(param_check_hook, p_chk_nan, p_chk_range),
+        name="checked_model",
+    )
     output = model(t.ones([1, 5]))
     output.sum().backward()
     cancel()

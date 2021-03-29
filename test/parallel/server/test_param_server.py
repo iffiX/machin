@@ -1,7 +1,4 @@
-from machin.parallel.server import (
-    PushPullGradServerImpl,
-    PushPullModelServerImpl
-)
+from machin.parallel.server import PushPullGradServerImpl, PushPullModelServerImpl
 from test.util_run_multi import *
 import random
 import torch as t
@@ -34,7 +31,7 @@ class Model(nn.Module):
             self.fc3.weight.item(),
             self.fc1.weight.grad.item(),
             self.fc2.weight.grad.item(),
-            self.fc3.weight.grad.item()
+            self.fc3.weight.grad.item(),
         )
 
 
@@ -79,11 +76,14 @@ class TestPushPullModelServer(WorldTestBase):
                 else:
                     _log(rank, "push {} failed".format(i))
                 model.pp_version = i + 1
-                _log(rank, "model: {}, {}, {}".format(
-                    model.fc1.weight.item(),
-                    model.fc2.weight.item(),
-                    model.fc3.weight.item()
-                ))
+                _log(
+                    rank,
+                    "model: {}, {}, {}".format(
+                        model.fc1.weight.item(),
+                        model.fc2.weight.item(),
+                        model.fc3.weight.item(),
+                    ),
+                )
                 sleep(random.random() * 0.2)
             server.pull(pull_model)
             assert pull_model.fc1.weight.item() == 11
@@ -95,22 +95,27 @@ class TestPushPullModelServer(WorldTestBase):
 
 class TestPushPullGradServer(WorldTestBase):
     @staticmethod
-    @pytest.mark.parametrize("reduce_method,new_weight",
-                             [("mean", (-5, -1, 1)),
-                              ("sum", (-23, -10, -5))])
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["reduce_method", "new_weight"])
+    @pytest.mark.parametrize(
+        "reduce_method,new_weight", [("mean", (-5, -1, 1)), ("sum", (-23, -10, -5))]
+    )
+    @run_multi(
+        expected_results=[True, True, True],
+        pass_through=["reduce_method", "new_weight"],
+    )
     @WorldTestBase.setup_world
     def test_push_pull(rank, reduce_method, new_weight):
         world = get_world()
         if rank == 0:
             # only one reduce slave, so result is controllable
             group = world.create_rpc_group("group", ["0", "1", "2"])
-            server = PushPullGradServerImpl("server", group,
-                                            primary_reducer="0",
-                                            secondary_reducers=["0"],
-                                            reduce_method=reduce_method,
-                                            reduce_batch_size=2)
+            server = PushPullGradServerImpl(
+                "server",
+                group,
+                primary_reducer="0",
+                secondary_reducers=["0"],
+                reduce_method=reduce_method,
+                reduce_batch_size=2,
+            )
             group.barrier()
             model = Model()
             server.manage_model(model, Optimizer(model.parameters()))

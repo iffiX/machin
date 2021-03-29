@@ -8,28 +8,30 @@ class A3C(A2C):
     """
     A3C framework.
     """
-    def __init__(self,
-                 actor: Union[NeuralNetworkModule, nn.Module],
-                 critic: Union[NeuralNetworkModule, nn.Module],
-                 criterion: Callable,
-                 grad_server: Tuple[PushPullGradServer,
-                                    PushPullGradServer],
-                 *_,
-                 batch_size: int = 100,
-                 actor_update_times: int = 5,
-                 critic_update_times: int = 10,
-                 entropy_weight: float = None,
-                 value_weight: float = 0.5,
-                 gradient_max: float = np.inf,
-                 gae_lambda: float = 1.0,
-                 discount: float = 0.99,
-                 normalize_advantage: bool = True,
-                 replay_size: int = 500000,
-                 replay_device: Union[str, t.device] = "cpu",
-                 replay_buffer: Buffer = None,
-                 visualize: bool = False,
-                 visualize_dir: str = "",
-                 **__):
+
+    def __init__(
+        self,
+        actor: Union[NeuralNetworkModule, nn.Module],
+        critic: Union[NeuralNetworkModule, nn.Module],
+        criterion: Callable,
+        grad_server: Tuple[PushPullGradServer, PushPullGradServer],
+        *_,
+        batch_size: int = 100,
+        actor_update_times: int = 5,
+        critic_update_times: int = 10,
+        entropy_weight: float = None,
+        value_weight: float = 0.5,
+        gradient_max: float = np.inf,
+        gae_lambda: float = 1.0,
+        discount: float = 0.99,
+        normalize_advantage: bool = True,
+        replay_size: int = 500000,
+        replay_device: Union[str, t.device] = "cpu",
+        replay_buffer: Buffer = None,
+        visualize: bool = False,
+        visualize_dir: str = "",
+        **__
+    ):
         """
         See Also:
             :class:`.A2C`
@@ -83,26 +85,30 @@ class A3C(A2C):
         """
         # Adam is just a placeholder here, the actual optimizer is
         # set in parameter servers
-        super(A3C, self).__init__(actor, critic, FakeOptimizer, criterion,
-                                  batch_size=batch_size,
-                                  actor_update_times=actor_update_times,
-                                  critic_update_times=critic_update_times,
-                                  entropy_weight=entropy_weight,
-                                  value_weight=value_weight,
-                                  gradient_max=gradient_max,
-                                  gae_lambda=gae_lambda,
-                                  discount=discount,
-                                  normalize_advantage=normalize_advantage,
-                                  replay_size=replay_size,
-                                  replay_device=replay_device,
-                                  replay_buffer=replay_buffer,
-                                  visualize=visualize,
-                                  visualize_dir=visualize_dir)
+        super(A3C, self).__init__(
+            actor,
+            critic,
+            FakeOptimizer,
+            criterion,
+            batch_size=batch_size,
+            actor_update_times=actor_update_times,
+            critic_update_times=critic_update_times,
+            entropy_weight=entropy_weight,
+            value_weight=value_weight,
+            gradient_max=gradient_max,
+            gae_lambda=gae_lambda,
+            discount=discount,
+            normalize_advantage=normalize_advantage,
+            replay_size=replay_size,
+            replay_device=replay_device,
+            replay_buffer=replay_buffer,
+            visualize=visualize,
+            visualize_dir=visualize_dir,
+        )
         # disable local stepping
         self.actor_optim.step = lambda: None
         self.critic_optim.step = lambda: None
-        self.actor_grad_server, self.critic_grad_server = \
-            grad_server[0], grad_server[1]
+        self.actor_grad_server, self.critic_grad_server = grad_server[0], grad_server[1]
         self.is_syncing = True
 
     @property
@@ -130,10 +136,7 @@ class A3C(A2C):
             self.actor_grad_server.pull(self.actor)
         return super(A3C, self).act(state)
 
-    def _eval_act(self,
-                  state: Dict[str, Any],
-                  action: Dict[str, Any],
-                  **__):
+    def _eval_act(self, state: Dict[str, Any], action: Dict[str, Any], **__):
         # DOC INHERITED
         if self.is_syncing:
             self.actor_grad_server.pull(self.actor)
@@ -145,16 +148,13 @@ class A3C(A2C):
             self.critic_grad_server.pull(self.critic)
         return super(A3C, self)._criticize(state)
 
-    def update(self,
-               update_value=True,
-               update_policy=True,
-               concatenate_samples=True,
-               **__):
+    def update(
+        self, update_value=True, update_policy=True, concatenate_samples=True, **__
+    ):
         # DOC INHERITED
         org_sync = self.is_syncing
         self.is_syncing = False
-        super(A3C, self).update(update_value, update_policy,
-                                concatenate_samples)
+        super(A3C, self).update(update_value, update_policy, concatenate_samples)
         self.is_syncing = org_sync
         self.actor_grad_server.push(self.actor)
         self.critic_grad_server.push(self.critic)
@@ -196,8 +196,7 @@ class A3C(A2C):
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:
-            config["frame_config"] = {**config["frame_config"],
-                                      **default_values}
+            config["frame_config"] = {**config["frame_config"], **default_values}
         return config
 
     @classmethod
@@ -218,30 +217,23 @@ class A3C(A2C):
         criterion = assert_and_get_valid_criterion(f_config["criterion"])(
             *f_config["criterion_args"], **f_config["criterion_kwargs"]
         )
-        lr_scheduler = (
+        lr_scheduler = f_config["lr_scheduler"] and assert_and_get_valid_lr_scheduler(
             f_config["lr_scheduler"]
-            and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
         )
 
-        servers = grad_server_helper(model_creators,
-                                     group_name=f_config[
-                                         "grad_server_group_name"
-                                     ],
-                                     members=f_config[
-                                         "grad_server_members"
-                                     ],
-                                     optimizer=optimizer,
-                                     learning_rate=[
-                                         f_config["actor_learning_rate"],
-                                         f_config["critic_learning_rate"]
-                                     ],
-                                     lr_scheduler=lr_scheduler,
-                                     lr_scheduler_args=f_config[
-                                         "lr_scheduler_args"
-                                     ] or ((), ()),
-                                     lr_scheduler_kwargs=f_config[
-                                         "lr_scheduler_kwargs"
-                                     ] or ({}, {}))
+        servers = grad_server_helper(
+            model_creators,
+            group_name=f_config["grad_server_group_name"],
+            members=f_config["grad_server_members"],
+            optimizer=optimizer,
+            learning_rate=[
+                f_config["actor_learning_rate"],
+                f_config["critic_learning_rate"],
+            ],
+            lr_scheduler=lr_scheduler,
+            lr_scheduler_args=f_config["lr_scheduler_args"] or ((), ()),
+            lr_scheduler_kwargs=f_config["lr_scheduler_kwargs"] or ({}, {}),
+        )
         del f_config["criterion"]
         frame = cls(*models, criterion, servers, **f_config)
         return frame
