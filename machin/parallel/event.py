@@ -37,9 +37,8 @@ class MultiEvent(Event):
                         init_or_register(le, self)
                 else:
                     raise ValueError(
-                        "Type {} is not a valid event type,"
-                        "requires threading.Event or a instance"
-                        " of MultiEvent.".format(type(event))
+                        f"Type {type(event)} is not a valid event type, "
+                        "requires threading.Event or an instance of MultiEvent."
                     )
         self._events = events
 

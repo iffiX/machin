@@ -80,32 +80,29 @@ def safe_call(model, *named_args):
         device = determine_device(model)
         if len(device) > 1:
             raise RuntimeError(
-                "Failed to automatically determine i/o device "
-                "of your model: {}\n"
-                "Detected multiple devices: {}\n"
-                "You need to manually specify i/o device of "
-                "your model.\n"
-                "Wrap your model of type nn.Module with one "
-                "of: \n"
-                "1. static_module_wrapper "
-                "from machin.model.nets.base \n"
-                "1. dynamic_module_wrapper "
-                "from machin.model.nets.base \n"
-                "Or construct your own module & model with: \n"
-                "NeuralNetworkModule from machin.model.nets.base".format(
-                    model_type, device
-                )
+                f"""\
+                Failed to automatically determine i/o device of your model: {model_type}
+                Detected multiple devices: {device}
+
+                You need to manually specify i/o device of your model.
+
+                Either Wrap your model of type nn.Module with one of:
+                1. static_module_wrapper from machin.model.nets.base
+                2. dynamic_module_wrapper from machin.model.nets.base 
+                
+                Or construct your own module & model with: 
+                NeuralNetworkModule from machin.model.nets.base"""
             )
         else:
             # assume that i/o devices are the same as parameter device
             # print a warning
             default_logger.warning(
-                "You have not specified the i/o device of "
-                "your model {}, automatically determined and"
-                " set to: {}\n"
-                "The framework is not responsible for any "
-                "un-matching device issues caused by this "
-                "operation.".format(model_type, device[0])
+                f"""\
+                You have not specified the i/o device of your model {model_type}
+                Automatically determined and set to: {device[0]}
+
+                The framework is not responsible for any un-matching device issues 
+                caused by this operation."""
             )
             model = static_module_wrapper(model, device[0], device[0])
 
@@ -141,11 +138,12 @@ def safe_call(model, *named_args):
     missing = required_args - set(args_dict.keys())
     if len(missing) > 0:
         raise RuntimeError(
-            "\n"
-            "The signature of the forward function of Model {} "
-            "is {}\n"
-            "Missing required arguments: {}, "
-            "check your storage functions.".format(type(model), required_args, missing)
+            f"""\
+            Required arguments of the forward function of Model {type(model)} 
+            is {required_args}, missing required arguments: {missing}
+
+            Check your storage functions.
+            """
         )
 
     if org_model is not None:
@@ -207,9 +205,9 @@ def assert_and_get_valid_models(models):
             m.append(global_vars[model])
         else:
             raise ValueError(
-                "Invalid model: {}, it needs to be an nn.Module "
+                f"Invalid model: {model}, it needs to be an nn.Module "
                 "sub class, or a string name of a global of a "
-                "variable.".format(model)
+                "variable."
             )
     return m
 
@@ -227,10 +225,12 @@ def assert_and_get_valid_optimizer(optimizer):
             return global_vars[optimizer]
     else:
         raise ValueError(
-            "Invalid optimizer: {}, it needs to be an optimizer "
-            "class, or a string name of a valid optimizer class "
-            "in torch.optim, or a string name of a global "
-            "variable in any frame of your call stack.".format(optimizer)
+            f"""\
+            Invalid optimizer: {optimizer}, it needs to be one of:"
+            1. An optimizer class
+            2. A string name of a valid optimizer class in torch.optim
+            3. A string name of a global defined optimizer class in any frame 
+               of your call stack."""
         )
 
 
@@ -249,11 +249,12 @@ def assert_and_get_valid_lr_scheduler(lr_scheduler):
             return global_vars[lr_scheduler]
     else:
         raise ValueError(
-            "Invalid lr_scheduler: {}, it needs to be a "
-            "lr_scheduler class, or a string name of a "
-            "valid lr_scheduler class in torch.optim.lr_scheduler"
-            ", or a string name of a global variable in any frame "
-            "of your call stack.".format(lr_scheduler)
+            f"""\
+            Invalid lr_scheduler: {lr_scheduler}, it needs to be one of:
+            1. An lr_scheduler class
+            2. A string name of a valid lr_scheduler class in torch.optim.lr_scheduler
+            3. A string name of a global defined lr_scheduler class in any frame 
+               of your call stack."""
         )
 
 
@@ -270,11 +271,13 @@ def assert_and_get_valid_criterion(criterion):
             return global_vars[criterion]
     else:
         raise ValueError(
-            "Invalid optimizer: {}, it needs to be a loss "
-            "class, callable loss function, "
-            "or a string name of a valid loss class in "
-            "torch.nn.modules.loss, or a string name of a global "
-            "variable in any frame of your call stack.".format(criterion)
+            f"""\
+            Invalid lr_scheduler: {criterion}, it needs to be one of:
+            1. A loss class which inherits from torch.nn.Module
+            2. A callable loss function
+            3. A string name of a valid loss class in torch.nn.modules.loss
+            4. A string name of a global defined callable in any frame 
+               of your call stack."""
         )
 
 

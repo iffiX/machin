@@ -219,11 +219,9 @@ class ModelAssigner:
 
         if np.sum(np.array(sizes)) > np.sum(device_size_capacity):
             raise RuntimeError(
-                "Estimated model will use {:.2f} MB, "
-                "but only have {:.2f} MB allowed memory "
-                "in total.".format(
-                    np.sum(np.array(sizes)), np.sum(device_size_capacity)
-                )
+                f"Estimated model will use {np.sum(np.array(sizes)):.2f} MB, "
+                f"but only have {np.sum(device_size_capacity):.2f} MB allowed memory "
+                "in total."
             )
 
         # assign model to devices

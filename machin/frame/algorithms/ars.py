@@ -100,8 +100,9 @@ class RunningStat:
         self._S = S
 
     def __repr__(self):
-        return "RunningStat(shape={}, n={}, mean_mean={}, mean_std={})".format(
-            self._M.shape, self.n, t.mean(self.mean), t.mean(self.std)
+        return (
+            f"RunningStat(shape={self._M.shape}, n={self.n}, "
+            f"mean_mean={t.mean(self.mean)}, mean_std={t.mean(self.std)})"
         )
 
     @property
@@ -235,8 +236,9 @@ class MeanStdFilter:
         return x
 
     def __repr__(self):
-        return "MeanStdFilter(shape={}, rs={}, rs_local={})".format(
-            self.shape, self.rs, self.rs_local
+        return (
+            f"MeanStdFilter(shape={self.shape}, rs={self.rs}, "
+            f"rs_local={self.rs_local})"
         )
 
 
@@ -376,15 +378,13 @@ class ARS(TorchFramework):
         if param_max_num * 10 > noise_size:
             default_logger.warning(
                 "Maximum parameter size of your model is "
-                "{}, which is more than 1/10 of your noise"
-                "size {}, consider increasing noise_size.".format(
-                    param_max_num, noise_size
-                )
+                f"{param_max_num}, which is more than 1/10 of your noise"
+                f"size {noise_size}, consider increasing noise_size."
             )
         elif param_max_num >= noise_size:
             raise ValueError(
-                "Noise size {} is too small compared to"
-                "maximum parameter size {}!".format(noise_size, param_max_num)
+                f"Noise size {noise_size} is too small compared to"
+                f"maximum parameter size {param_max_num}!"
             )
 
         # create shared noise array
@@ -475,12 +475,10 @@ class ARS(TorchFramework):
                 safe_call(self.actor_with_delta[(rollout_idx, is_positive)], state)
             )
         else:
+            avail_actor_types = '", "'.join(self.get_actor_types())
             raise ValueError(
-                "Invalid parameter type: {}, "
-                "available options are: "
-                '"original", "{}"'.format(
-                    actor_type, '", "'.join(self.get_actor_types())
-                )
+                f"Invalid parameter type: {actor_type}, "
+                f'available options are: "original", "{avail_actor_types}"'
             )
 
     def store_reward(self, reward: float, actor_type: str, *_, **__):
@@ -497,10 +495,10 @@ class ARS(TorchFramework):
             is_positive = actor_type[0] == "p"
             self.reward[rollout_idx][is_positive].append(reward)
         else:
+            avail_actor_types = '", "'.join(self.get_actor_types())
             raise ValueError(
-                "Invalid parameter type: {}, "
-                "available options are: "
-                '"{}"'.format(actor_type, '", "'.join(self.get_actor_types()))
+                f"Invalid parameter type: {actor_type}, "
+                f'available options are: "original", "{avail_actor_types}"'
             )
 
     def update(self):

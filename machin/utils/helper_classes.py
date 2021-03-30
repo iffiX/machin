@@ -171,9 +171,9 @@ class Object:
                 raise ValueError("The data attribute must be a dictionary.")
         else:
             raise RuntimeError(
-                "You should not set the {} property of an "
+                f"You should not set the {key} property of an "
                 "Object. You can only set non-const keys "
-                "in data and .data and .call attributes.".format(key)
+                "in data and .data and .call attributes."
             )
 
     def __setitem__(self, key, value):

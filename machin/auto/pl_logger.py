@@ -100,7 +100,7 @@ class LocalMediaLogger(LightningLoggerBase):
         elif isinstance(image, str):
             os.rename(image, path)
         else:
-            raise ValueError("Unsupported image type: {}".format(type(image)))
+            raise ValueError(f"Unsupported image type: {type(image)}")
 
     @rank_zero_only
     def save(self):

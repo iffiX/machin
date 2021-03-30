@@ -20,9 +20,9 @@ def determine_precision(models):
     if len(dtype) > 1:
         raise RuntimeError(
             "Multiple data types of parameters detected "
-            "in models: {}, this is currently not supported "
+            f"in models: {dtype}, this is currently not supported "
             "since we need to determine the data type of your "
-            "model input from your model parameter data type.".format(dtype)
+            "model input from your model parameter data type."
         )
     return dtype[0]
 

@@ -183,17 +183,16 @@ class TransitionBase:
             for k, v in ma_data.items():
                 if not t.is_tensor(v) or v.dim() < 1:
                     raise ValueError(
-                        'Key "{}" of transition major attribute '
-                        '"{}" is a invalid tensor'.format(k, ma)
+                        f'Key "{k}" of transition major attribute "{ma}" '
+                        "is an invalid tensor"
                     )
                 if batch_size is None:
                     batch_size = v.shape[0]
                 else:
                     if batch_size != v.shape[0]:
                         raise ValueError(
-                            'Key "{}" of transition major '
-                            'attribute "{}" has invalid '
-                            "batch size {}.".format(k, ma, v.shape[0])
+                            f'Key "{k}" of transition major attribute "{ma}" '
+                            f"has invalid batch size {v.shape[0]}."
                         )
         for sa in self._sub_attr:
             sa_data = getattr(self, sa)
@@ -203,22 +202,22 @@ class TransitionBase:
                 if batch_size != 1:
                     raise ValueError(
                         "Transition sub attribute "
-                        '"{}" is a scalar, but batch size is {}.'.format(sa, batch_size)
+                        f'"{sa}" is a scalar, but batch size is {batch_size}.'
                     )
             elif t.is_tensor(sa_data):
                 if sa_data.dim() < 1:
                     raise ValueError(
-                        "Transition sub attribute " '"{}" is a invalid tensor.'
+                        f'Transition sub attribute "{sa}" is an invalid tensor.'
                     )
                 elif sa_data.shape[0] != batch_size:
                     raise ValueError(
                         "Transition sub attribute "
-                        '"{}" has invalid batch size {}.'.format(sa, sa_data.shape[0])
+                        f'"{sa}" has invalid batch size {sa_data.shape[0]}.'
                     )
             else:
                 raise ValueError(
-                    'Transition sub attribute "{}" has invalid '
-                    "value {}, requires scalar or tensor.".format(sa, sa_data)
+                    f'Transition sub attribute "{sa}" has invalid '
+                    f"value {sa_data}, requires scalar or tensor."
                 )
         object.__setattr__(self, "_batch_size", batch_size)
 
@@ -247,7 +246,7 @@ class Transition(TransitionBase):
         next_state: Dict[str, t.Tensor],
         reward: Union[float, t.Tensor],
         terminal: bool,
-        **kwargs
+        **kwargs,
     ):
         """
         Args:
@@ -282,7 +281,7 @@ class Transition(TransitionBase):
         if self._batch_size != 1:
             raise ValueError(
                 "Batch size of the default transition "
-                "implementation must be 1, is {}".format(self._batch_size)
+                f"implementation must be 1, is {self._batch_size}"
             )
 
 

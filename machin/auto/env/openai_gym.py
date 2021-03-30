@@ -110,9 +110,7 @@ class RLGymDiscActDataset(RLDataset):
                 elif type(self.frame) in (ARS,):
                     action = self.frame.act({"state": old_state}, **self.act_kwargs)
                 else:
-                    raise RuntimeError(
-                        "Unsupported framework: {}".format(type(self.frame))
-                    )
+                    raise RuntimeError(f"Unsupported framework: {type(self.frame)}")
                 state, reward, terminal, info = self.env.step(action.item())
                 state = t.tensor(state, dtype=self._precision)
                 state = state.flatten().unsqueeze(0)
@@ -214,9 +212,7 @@ class RLGymContActDataset(RLDataset):
                 elif type(self.frame) in (ARS,):
                     action = self.frame.act({"state": old_state}, **self.act_kwargs)
                 else:
-                    raise RuntimeError(
-                        "Unsupported framework: {}".format(type(self.frame))
-                    )
+                    raise RuntimeError(f"Unsupported framework: {type(self.frame)}")
                 state, reward, terminal, info = self.env.step(
                     action.detach().cpu().numpy()
                 )
@@ -290,10 +286,8 @@ def gym_env_dataset_creator(frame, env_config):
         )
     else:
         raise ValueError(
-            "Gym environment {} has action space of type {}, "
-            "which is not supported.".format(
-                env_config["env_name"], type(env.action_space)
-            )
+            f"Gym environment {env_config['env_name']} has action space "
+            f"of type {env.action_space}, which is not supported."
         )
 
 

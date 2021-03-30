@@ -1,8 +1,9 @@
-from machin.parallel.distributed import World, get_world as gw
-from machin.parallel.process import Process, ProcessException
 from time import sleep, time
 from decorator import FunctionMaker
 from logging.handlers import QueueHandler, QueueListener
+from typing import List, Tuple, Dict, Any
+from machin.parallel.distributed import World, get_world as gw
+from machin.parallel.process import Process, ProcessException
 import dill
 import pytest
 import itertools
@@ -115,11 +116,11 @@ def exec_with_process(
 
 
 def run_multi(
-    args_list=None,
-    kwargs_list=None,
-    expected_results=None,
-    pass_through=None,
-    timeout=60,
+    args_list: List[Tuple[Any]] = None,
+    kwargs_list: List[Dict[str, Any]] = None,
+    expected_results: List[Any] = None,
+    pass_through: List[str] = None,
+    timeout: int = 60,
 ):
     # pass_through allows you to pass through pytest parameters and fixtures
     # to the sub processes, these pass through parameters must be placed

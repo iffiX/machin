@@ -319,7 +319,9 @@ class TestLaunchGym:
         assert cb.max_total_reward >= 150
 
     @staticmethod
-    @run_multi(expected_results=[True, True, True], pass_through="tmpdir", timeout=1800)
+    @run_multi(
+        expected_results=[True, True, True], pass_through=["tmpdir"], timeout=1800
+    )
     @WorldTestBase.setup_world
     def test_dqn_apex(_, tmpdir):
         config = generate_gym_env_config("CartPole-v0", {})
@@ -336,3 +338,5 @@ class TestLaunchGym:
         cb = InspectCallback()
         launch_gym(config, pl_callbacks=[cb])
         assert cb.max_total_reward >= 150
+
+        return True

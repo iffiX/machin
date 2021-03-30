@@ -112,9 +112,8 @@ def _rpc_call_service(group_name, key, args, kwargs):  # pragma: no cover
             args=(group_name, key, get_cur_name(), LUTType.VALUE),
         )
         raise KeyError(
-            "Service [{}] not found on Group [{}], Process [{}]".format(
-                key, group_name, get_cur_name()
-            )
+            f"Service [{key}] not found on Group [{group_name}], "
+            f"Process [{get_cur_name()}]"
         )
 
 
@@ -145,8 +144,8 @@ def _rpc_get_paired_value(group_name, key):  # pragma: no cover
             args=(group_name, key, get_cur_name(), LUTType.VALUE),
         )
         raise KeyError(
-            "Value with key [{}] not found on Group [{}], "
-            "Process [{}]".format(key, group_name, get_cur_name())
+            f"Value with key [{key}] not found on Group [{group_name}], "
+            f"Process [{get_cur_name()}]"
         )
 
 
@@ -208,9 +207,8 @@ def _check_executor(func):
     def wrapped(self, *args, **kwargs):
         if get_cur_name() not in self.group_members:
             raise RuntimeError(
-                "You should not execute function {} when "
-                "current process is not a member of the "
-                "group".format(func.__qualname__)
+                f"You should not execute function {func.__qualname__} when "
+                "current process is not a member of the group"
             )
         return func(self, *args, **kwargs)
 
@@ -349,9 +347,7 @@ class World:
         """
         if get_cur_name() not in members:  # pragma: no cover
             raise RuntimeError(
-                "Creator Process [{}] not in Group [{}]".format(
-                    get_cur_name(), group_name
-                )
+                f"Creator Process [{get_cur_name()}] not in Group [{group_name}]"
             )
         if group_name in self.groups:  # pragma: no cover
             raise RuntimeError(f"Group {group_name} already exists!")
@@ -648,8 +644,8 @@ class RpcGroup:
         """
         if key not in self.group_value_lut:
             raise KeyError(
-                'Value with key "{}" not paired to Group [{}] '
-                "on Process[{}]".format(key, self.group_name, get_cur_name())
+                f'Value with key "{key}" not paired to Group [{self.group_name}] '
+                f"on Process[{get_cur_name()}]"
             )
         # announce the unpairing
         status = rpc.rpc_sync(
@@ -662,10 +658,8 @@ class RpcGroup:
         else:  # pragma: no cover
             # should never happen
             raise RuntimeError(
-                'Failed to unpair value with key "{}" '
-                "from Group [{}], executor is Process[{}]".format(
-                    key, self.group_name, get_cur_name()
-                )
+                f'Failed to unpair value with key "{key}" from '
+                f"Group [{self.group_name}], executor is Process[{get_cur_name()}]"
             )
 
     def is_paired(self, key: Any):
@@ -724,8 +718,8 @@ class RpcGroup:
         """
         if key in self.group_service_lut:
             raise KeyError(
-                'Service with key "{}" already registered in '
-                "Group [{}]".format(key, self.group_name)
+                f'Service with key "{key}" already registered '
+                f"in Group [{self.group_name}]"
             )
         # announce the pairing
         status = rpc.rpc_sync(
@@ -737,8 +731,8 @@ class RpcGroup:
             self.group_service_lut[key] = service
         else:
             raise KeyError(
-                'Service with key "{}" already registered in '
-                "Group [{}]".format(key, self.group_name)
+                f'Service with key "{key}" already registered '
+                f"in Group [{self.group_name}]"
             )
 
     @_check_executor
@@ -756,8 +750,9 @@ class RpcGroup:
         """
         if key not in self.group_service_lut:
             raise KeyError(
-                'Service with key "{}" not registered in Group [{}] '
-                "on Process[{}]".format(key, self.group_name, get_cur_name())
+                f'Service with key "{key}" not registered '
+                f"in Group [{self.group_name}] "
+                f"on Process[{get_cur_name()}]"
             )
         # announce the deregistration
         status = rpc.rpc_sync(
@@ -770,10 +765,9 @@ class RpcGroup:
         else:  # pragma: no cover
             # should never happen
             raise RuntimeError(
-                'Failed to deregister service with key "{}" '
-                "from Group [{}], executor is Process[{}]".format(
-                    key, self.group_name, get_cur_name()
-                )
+                f'Failed to deregister service with key "{key}" '
+                f"from Group [{self.group_name}], "
+                f"executor is Process[{get_cur_name()}]"
             )
 
     def is_registered(self, key: Any):

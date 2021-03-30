@@ -688,36 +688,33 @@ class MADDPG(TorchFramework):
         if not hasattr(model, "input_device") or not hasattr(model, "output_device"):
             # try to automatically determine the input & output
             # device of the model
-            model_type = type(model)
+            mt = type(model)
             device = determine_device(model)
             if len(device) > 1:
                 raise RuntimeError(
-                    "Failed to automatically determine i/o device "
-                    "of your model: {}\n"
-                    "Detected multiple devices: {}\n"
-                    "You need to manually specify i/o device of "
-                    "your model.\n"
-                    "Wrap your model of type nn.Module with one "
-                    "of: \n"
-                    "1. static_module_wrapper "
-                    "from machin.model.nets.base \n"
-                    "1. dynamic_module_wrapper "
-                    "from machin.model.nets.base \n"
-                    "Or construct your own module & model with: \n"
-                    "NeuralNetworkModule from machin.model.nets.base".format(
-                        model_type, device
-                    )
+                    f"""\
+                    Failed to automatically determine i/o device of your model: {mt}
+                    Detected multiple devices: {device}
+    
+                    You need to manually specify i/o device of your model.
+    
+                    Either Wrap your model of type nn.Module with one of:
+                    1. static_module_wrapper from machin.model.nets.base
+                    2. dynamic_module_wrapper from machin.model.nets.base 
+                    
+                    Or construct your own module & model with: 
+                    NeuralNetworkModule from machin.model.nets.base"""
                 )
             else:
                 # assume that i/o devices are the same as parameter device
                 # print a warning
                 default_logger.warning(
-                    "You have not specified the i/o device of"
-                    "your model {}, automatically determined and"
-                    " set to: {}\n"
-                    "The framework is not responsible for any "
-                    "un-matching device issues caused by this"
-                    "operation.".format(model_type, device[0])
+                    f"""\
+                    You have not specified the i/o device of your model {mt}
+                    Automatically determined and set to: {device[0]}
+    
+                    The framework is not responsible for any un-matching device issues 
+                    caused by this operation."""
                 )
                 model = static_module_wrapper(model, device[0], device[0])
         input_device = model.input_device
@@ -755,16 +752,15 @@ class MADDPG(TorchFramework):
 
         if not all(args_filled):
             not_filled = [arg for filled, arg in zip(args_filled, args) if not filled]
-            required_not_filled = set(not_filled).intersection(required_args)
-            if len(required_not_filled) > 0:
+            req_not_filled = set(not_filled).intersection(required_args)
+            if len(req_not_filled) > 0:
                 raise RuntimeError(
-                    "\n"
-                    "The signature of the forward function "
-                    "of Model {} is {}\n"
-                    "Missing required arguments: {}, "
-                    "check your storage functions.".format(
-                        model_type, required_args, required_not_filled
-                    )
+                    f"""\
+                    Required arguments of the forward function of Model {model_type} 
+                    is {required_args}, missing required arguments: {req_not_filled}
+        
+                    Check your storage functions.
+                    """
                 )
 
         return t.jit._fork(model, *args_list)

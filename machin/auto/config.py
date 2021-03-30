@@ -28,10 +28,12 @@ def _get_available_algorithms():
     return algos
 
 
-def generate_training_config(trials_dir: str = "./trials",
-                             episode_per_epoch: int = 10,
-                             max_episodes: int = 10000,
-                             config: Union[Dict[str, Any], Config] = None):
+def generate_training_config(
+    trials_dir: str = "./trials",
+    episode_per_epoch: int = 10,
+    max_episodes: int = 10000,
+    config: Union[Dict[str, Any], Config] = None,
+):
     config = deepcopy(config) or {}
     config["trials_dir"] = trials_dir
     config["episode_per_epoch"] = episode_per_epoch
@@ -49,9 +51,7 @@ def generate_algorithm_config(
         if issubclass(algo_obj, TorchFramework):
             return algo_obj.generate_config(config)
     raise ValueError(
-        "Invalid algorithm: {}, valid ones are: {}".format(
-            algorithm, _get_available_algorithms()
-        )
+        f"Invalid algorithm: {algorithm}, valid ones are: {_get_available_algorithms()}"
     )
 
 
@@ -60,9 +60,8 @@ def init_algorithm_from_config(config: Union[Dict[str, Any], Config]):
     frame = getattr(algorithms, config["frame"], None)
     if not inspect.isclass(frame) or not issubclass(frame, TorchFramework):
         raise ValueError(
-            "Invalid algorithm: {}, valid ones are: {}".format(
-                config["frame"], _get_available_algorithms()
-            )
+            f"Invalid algorithm: {config['frame']}, "
+            f"valid ones are: {_get_available_algorithms()}"
         )
     return frame.init_from_config(config)
 
@@ -72,9 +71,8 @@ def is_algorithm_distributed(config: Union[Dict[str, Any], Config]):
     frame = getattr(algorithms, config["frame"], None)
     if not inspect.isclass(frame) or not issubclass(frame, TorchFramework):
         raise ValueError(
-            "Invalid algorithm: {}, valid ones are: {}".format(
-                config["frame"], _get_available_algorithms()
-            )
+            f"Invalid algorithm: {config['frame']}, "
+            f"valid ones are: {_get_available_algorithms()}"
         )
     return frame.is_distributed()
 

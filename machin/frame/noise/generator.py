@@ -98,8 +98,9 @@ class ClippedNormalNoiseGen(NoiseGen):
             return self.dist.sample(self.shape)
 
     def __repr__(self):
-        return "ClippedNormalNoise(mu={}, sigma={}, min={}, max={})".format(
-            self.mu, self.sigma, self.min, self.max
+        return (
+            f"ClippedNormalNoise(mu={self.mu}, sigma={self.sigma},"
+            f" min={self.min}, max={self.max})"
         )
 
 

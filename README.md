@@ -108,7 +108,7 @@ See [here](https://machin.readthedocs.io/). Examples are located in [examples](h
 
 ### Installation
 ---
-Machin is hosted on [PyPI](https://pypi.org/project/machin/). Python >= 3.5 and PyTorch >= 1.6.0 is required. You may install the Machin library by simply typing:
+Machin is hosted on [PyPI](https://pypi.org/project/machin/). Python >= 3.6 and PyTorch >= 1.6.0 is required. You may install the Machin library by simply typing:
 ```
 pip install machin
 ```

@@ -114,8 +114,7 @@ class TorchFramework:
                 restore_map[network_map[r]] = getattr(self, r)
             else:
                 default_logger.warning(
-                    'Load path for module "{}" is not specified, '
-                    "module name is used.".format(r)
+                    f'Load path for module "{r}" is not specified, module name is used.'
                 )
                 restore_map[r] = getattr(self, r)
         prep_load_model(model_dir, restore_map, version)
@@ -152,8 +151,7 @@ class TorchFramework:
                 )
             else:
                 default_logger.warning(
-                    'Save name for module "{}" is not '
-                    "specified, module name is used.".format(r)
+                    'Save name for module "{r}" is not specified, module name is used.'
                 )
                 t.save(getattr(self, r), join(model_dir, f"{r}_{version}.pt"))
 

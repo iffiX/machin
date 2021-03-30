@@ -26,9 +26,8 @@ def check_shape(tensor: t.Tensor, required_shape: List[int], name=""):
     shape = list(tensor.shape)
     if shape != required_shape:
         raise CheckError(
-            "Tensor {} has invalid shape, required shape {}, is {}".format(
-                name, required_shape, shape
-            )
+            f"Tensor {name} has invalid shape, "
+            f"required shape {required_shape}, actual is {shape}"
         )
 
 

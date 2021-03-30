@@ -12,17 +12,17 @@ def assert_world_config(cluster_env, master_addr, master_port, world_size):
     assert master_addr is not None, (
         "Master address not set, please set environment "
         "variable MASTER_ADDR or refer to the cluster environment "
-        "instructions you are using, current cluster env is {}.".format(cluster_env)
+        f"instructions you are using, current cluster env is {cluster_env}."
     )
     assert master_port is not None, (
         "Master port not set, please set environment "
         "variable MASTER_PORT or refer to the cluster environment "
-        "instructions you are using, current cluster env is {}.".format(cluster_env)
+        f"instructions you are using, current cluster env is {cluster_env}."
     )
     assert world_size is not None, (
         "World size not set, please set environment "
         "variable WORLD_SIZE or refer to the cluster environment "
-        "instructions you are using, current cluster env is {}.".format(cluster_env)
+        f"instructions you are using, current cluster env is {cluster_env}."
     )
 
 
@@ -42,9 +42,8 @@ class DDPPlugin(DDP):
 
         if not is_world_initialized():
             pl_logger.info(
-                "initializing world: GLOBAL_RANK: {}, MEMBER: {}/{}".format(
-                    global_rank, int(global_rank) + 1, world_size
-                )
+                f"initializing world: GLOBAL_RANK: {global_rank}, "
+                f"MEMBER: {int(global_rank) + 1}/{world_size}"
             )
             _w = World(
                 name=str(global_rank),
@@ -87,9 +86,8 @@ class DDPSpawnPlugin(DDPS):
 
         if not is_world_initialized():
             pl_logger.info(
-                "initializing world: GLOBAL_RANK: {}, MEMBER: {}/{}".format(
-                    global_rank, int(global_rank) + 1, world_size
-                )
+                f"initializing world: GLOBAL_RANK: {global_rank}, "
+                f"MEMBER: {int(global_rank) + 1}/{world_size}"
             )
             _w = World(
                 name=str(global_rank),

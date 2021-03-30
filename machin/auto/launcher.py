@@ -75,9 +75,8 @@ class Launcher(pl.LightningModule):
             acc_con = self.trainer.accelerator_connector
             if not self.frame.is_distributed() and acc_con.use_ddp:
                 raise RuntimeError(
-                    "Current framework: {} is not a distributed "
-                    "framework, you should not use an "
-                    "accelerator.".format(self.config["frame"])
+                    f"Current framework: {self.config['frame']} is not a distributed "
+                    "framework, you should not use an accelerator."
                 )
 
             if self.frame.is_distributed() and (
@@ -85,11 +84,11 @@ class Launcher(pl.LightningModule):
                 or type(acc_con.training_type_plugin) not in (DDPPlugin, DDPSpawnPlugin)
             ):
                 raise RuntimeError(
-                    "Current framework: {} is a distributed "
+                    f"Current framework: {self.config['frame']} is a distributed "
                     "framework, you should initialize the "
                     "trainer with a ddp type accelerator, and "
                     "must import machin.auto package to patch"
-                    "the default DDP plugin.".format(self.config["frame"])
+                    "the default DDP plugin."
                 )
             self.frame.set_backward_function(self.manual_backward)
             self.frame.optimizers = (
