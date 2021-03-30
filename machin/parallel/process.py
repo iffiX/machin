@@ -9,12 +9,27 @@ class ProcessException(Exception):
 
 
 class Process(BaseProcess):
-    def __init__(self, group=None, target=None, name=None, args=(), kwargs={},
-                 cleaner=None, ctx=_default_context, *, daemon=None):
+    def __init__(
+        self,
+        group=None,
+        target=None,
+        name=None,
+        args=(),
+        kwargs={},
+        cleaner=None,
+        ctx=_default_context,
+        *,
+        daemon=None
+    ):
         self._exc_pipe = Pipe()
-        super(Process, self).__init__(group=group, target=target,
-                                      name=name, args=args, kwargs=kwargs,
-                                      daemon=daemon)
+        super(Process, self).__init__(
+            group=group,
+            target=target,
+            name=name,
+            args=args,
+            kwargs=kwargs,
+            daemon=daemon,
+        )
         self._cleaner = cleaner
         self._ctx = ctx
         self._start_method = ctx.Process._start_method

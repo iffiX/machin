@@ -8,36 +8,44 @@ class TD3(DDPG):
     network to DDPG.
     """
 
-    _is_top = ["actor", "critic", "critic2",
-               "actor_target", "critic_target", "critic2_target"]
+    _is_top = [
+        "actor",
+        "critic",
+        "critic2",
+        "actor_target",
+        "critic_target",
+        "critic2_target",
+    ]
     _is_restorable = ["actor_target", "critic_target", "critic2_target"]
 
-    def __init__(self,
-                 actor: Union[NeuralNetworkModule, nn.Module],
-                 actor_target: Union[NeuralNetworkModule, nn.Module],
-                 critic: Union[NeuralNetworkModule, nn.Module],
-                 critic_target: Union[NeuralNetworkModule, nn.Module],
-                 critic2: Union[NeuralNetworkModule, nn.Module],
-                 critic2_target: Union[NeuralNetworkModule, nn.Module],
-                 optimizer: Callable,
-                 criterion: Callable,
-                 *_,
-                 lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple, Tuple] = None,
-                 lr_scheduler_kwargs: Tuple[Dict, Dict, Dict] = None,
-                 batch_size: int = 100,
-                 update_rate: float = 0.001,
-                 update_steps: Union[int, None] = None,
-                 actor_learning_rate: float = 0.0005,
-                 critic_learning_rate: float = 0.001,
-                 discount: float = 0.99,
-                 gradient_max: float = np.inf,
-                 replay_size: int = 500000,
-                 replay_device: Union[str, t.device] = "cpu",
-                 replay_buffer: Buffer = None,
-                 visualize: bool = False,
-                 visualize_dir: str = "",
-                 **__):
+    def __init__(
+        self,
+        actor: Union[NeuralNetworkModule, nn.Module],
+        actor_target: Union[NeuralNetworkModule, nn.Module],
+        critic: Union[NeuralNetworkModule, nn.Module],
+        critic_target: Union[NeuralNetworkModule, nn.Module],
+        critic2: Union[NeuralNetworkModule, nn.Module],
+        critic2_target: Union[NeuralNetworkModule, nn.Module],
+        optimizer: Callable,
+        criterion: Callable,
+        *_,
+        lr_scheduler: Callable = None,
+        lr_scheduler_args: Tuple[Tuple, Tuple, Tuple] = None,
+        lr_scheduler_kwargs: Tuple[Dict, Dict, Dict] = None,
+        batch_size: int = 100,
+        update_rate: float = 0.001,
+        update_steps: Union[int, None] = None,
+        actor_learning_rate: float = 0.0005,
+        critic_learning_rate: float = 0.001,
+        discount: float = 0.99,
+        gradient_max: float = np.inf,
+        replay_size: int = 500000,
+        replay_device: Union[str, t.device] = "cpu",
+        replay_buffer: Buffer = None,
+        visualize: bool = False,
+        visualize_dir: str = "",
+        **__
+    ):
         """
         See Also:
             :class:`.DDPG`
@@ -80,14 +88,19 @@ class TD3(DDPG):
             lr_scheduler_kwargs = ({}, {}, {})
 
         super(TD3, self).__init__(
-            actor, actor_target, critic, critic_target, optimizer, criterion,
+            actor,
+            actor_target,
+            critic,
+            critic_target,
+            optimizer,
+            criterion,
             lr_scheduler=lr_scheduler,
-            lr_scheduler_args=(lr_scheduler_args[:2]
-                               if lr_scheduler_args is not None
-                               else None),
-            lr_scheduler_kwargs=(lr_scheduler_kwargs[:2]
-                                 if lr_scheduler_kwargs is not None
-                                 else None),
+            lr_scheduler_args=(
+                lr_scheduler_args[:2] if lr_scheduler_args is not None else None
+            ),
+            lr_scheduler_kwargs=(
+                lr_scheduler_kwargs[:2] if lr_scheduler_kwargs is not None else None
+            ),
             batch_size=batch_size,
             update_rate=update_rate,
             update_steps=update_steps,
@@ -99,12 +112,13 @@ class TD3(DDPG):
             replay_device=replay_device,
             replay_buffer=replay_buffer,
             visualize=visualize,
-            visualize_dir=visualize_dir
+            visualize_dir=visualize_dir,
         )
         self.critic2 = critic2
         self.critic2_target = critic2_target
-        self.critic2_optim = optimizer(self.critic2.parameters(),
-                                       lr=critic_learning_rate)
+        self.critic2_optim = optimizer(
+            self.critic2.parameters(), lr=critic_learning_rate
+        )
 
         # Make sure target and online networks have the same weight
         with t.no_grad():
@@ -112,38 +126,30 @@ class TD3(DDPG):
 
         if lr_scheduler is not None:
             self.critic2_lr_sch = lr_scheduler(
-                self.critic2_optim,
-                *lr_scheduler_args[2],
-                **lr_scheduler_kwargs[2]
+                self.critic2_optim, *lr_scheduler_args[2], **lr_scheduler_kwargs[2]
             )
 
     @property
     def optimizers(self):
-        return [self.actor_optim,
-                self.critic_optim,
-                self.critic2_optim]
+        return [self.actor_optim, self.critic_optim, self.critic2_optim]
 
     @optimizers.setter
     def optimizers(self, optimizers):
-        self.actor_optim, \
-        self.critic_optim, \
-        self.critic2_optim = optimizers
+        self.actor_optim, self.critic_optim, self.critic2_optim = optimizers
 
     @property
     def lr_schedulers(self):
-        if hasattr(self, "actor_lr_sch") \
-                and hasattr(self, "critic_lr_sch") \
-                and hasattr(self, "critic2_lr_sch"):
-            return [self.actor_lr_sch,
-                    self.critic_lr_sch,
-                    self.critic2_lr_sch]
+        if (
+            hasattr(self, "actor_lr_sch")
+            and hasattr(self, "critic_lr_sch")
+            and hasattr(self, "critic2_lr_sch")
+        ):
+            return [self.actor_lr_sch, self.critic_lr_sch, self.critic2_lr_sch]
         return []
 
-    def _criticize2(self,
-                    state: Dict[str, Any],
-                    action: Dict[str, Any],
-                    use_target=False,
-                    **__):
+    def _criticize2(
+        self, state: Dict[str, Any], action: Dict[str, Any], use_target=False, **__
+    ):
         """
         Use the second critic network to evaluate current value.
 
@@ -160,25 +166,31 @@ class TD3(DDPG):
         else:
             return safe_call(self.critic2, state, action)[0]
 
-    def update(self,
-               update_value=True,
-               update_policy=True,
-               update_target=True,
-               concatenate_samples=True,
-               **__):
+    def update(
+        self,
+        update_value=True,
+        update_policy=True,
+        update_target=True,
+        concatenate_samples=True,
+        **__
+    ):
         # DOC INHERITED
         self.actor.train()
         self.critic.train()
         self.critic2.train()
-        batch_size, (state, action, reward, next_state, terminal, others) = \
-            self.replay_buffer.sample_batch(self.batch_size,
-                                            concatenate_samples,
-                                            sample_method="random_unique",
-                                            sample_attrs=[
-                                                "state", "action",
-                                                "reward", "next_state",
-                                                "terminal", "*"
-                                            ])
+        batch_size, (
+            state,
+            action,
+            reward,
+            next_state,
+            terminal,
+            others,
+        ) = self.replay_buffer.sample_batch(
+            self.batch_size,
+            concatenate_samples,
+            sample_method="random_unique",
+            sample_attrs=["state", "action", "reward", "next_state", "terminal", "*"],
+        )
 
         # Update critic network first.
         # Generate value reference :math: `y_i` using target actor and
@@ -186,7 +198,8 @@ class TD3(DDPG):
         with t.no_grad():
             next_action = self.action_transform_function(
                 self.policy_noise_function(self._act(next_state, True)),
-                next_state, others
+                next_state,
+                others,
             )
             next_value = self._criticize(next_state, next_action, True)
             next_value2 = self._criticize2(next_state, next_action, True)
@@ -207,21 +220,15 @@ class TD3(DDPG):
         if update_value:
             self.critic.zero_grad()
             value_loss.backward()
-            nn.utils.clip_grad_norm_(
-                self.critic.parameters(), self.gradient_max
-            )
+            nn.utils.clip_grad_norm_(self.critic.parameters(), self.gradient_max)
             self.critic_optim.step()
             self.critic2.zero_grad()
             value_loss2.backward()
-            nn.utils.clip_grad_norm_(
-                self.critic2.parameters(), self.gradient_max
-            )
+            nn.utils.clip_grad_norm_(self.critic2.parameters(), self.gradient_max)
             self.critic2_optim.step()
 
         # Update actor network
-        cur_action = self.action_transform_function(
-            self._act(state), state, others
-        )
+        cur_action = self.action_transform_function(self._act(state), state, others)
         act_value = self._criticize(state, cur_action)
 
         # "-" is applied because we want to maximize J_b(u),
@@ -234,9 +241,7 @@ class TD3(DDPG):
         if update_policy:
             self.actor.zero_grad()
             act_policy_loss.backward()
-            nn.utils.clip_grad_norm_(
-                self.actor.parameters(), self.gradient_max
-            )
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.gradient_max)
             self.actor_optim.step()
 
         # Update target networks
@@ -256,8 +261,7 @@ class TD3(DDPG):
         self.critic.eval()
         self.critic2.eval()
         # use .item() to prevent memory leakage
-        return (-act_policy_loss.item(),
-                (value_loss.item() + value_loss2.item()) / 2)
+        return (-act_policy_loss.item(), (value_loss.item() + value_loss2.item()) / 2)
 
     @staticmethod
     def policy_noise_function(actions, *_):
@@ -273,8 +277,9 @@ class TD3(DDPG):
             self.critic2_lr_sch.step()
         super(TD3, self).update_lr_scheduler()
 
-    def load(self, model_dir: str, network_map: Dict[str, str] = None,
-             version: int = -1):
+    def load(
+        self, model_dir: str, network_map: Dict[str, str] = None, version: int = -1
+    ):
         # DOC INHERITED
         TorchFramework.load(self, model_dir, network_map, version)
         with t.no_grad():
@@ -287,7 +292,12 @@ class TD3(DDPG):
         config = DDPG.generate_config(config)
         config["frame"] = "TD3"
         config["frame_config"]["models"] = [
-            "Actor", "Actor", "Critic", "Critic", "Critic", "Critic"
+            "Actor",
+            "Actor",
+            "Critic",
+            "Critic",
+            "Critic",
+            "Critic",
         ]
         config["frame_config"]["model_args"] = ((), (), (), (), (), ())
         config["frame_config"]["model_kwargs"] = ({}, {}, {}, {}, {}, {})

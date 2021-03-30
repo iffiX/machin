@@ -87,23 +87,40 @@ class TestTD3(object):
     @pytest.fixture(scope="function")
     def td3(self, train_config, device, dtype):
         c = train_config
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .type(dtype).to(device), device, device)
-        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                      .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .type(dtype).to(device), device, device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .type(dtype).to(device), device, device)
-        critic2 = smw(Critic(c.observe_dim, c.action_dim)
-                      .type(dtype).to(device), device, device)
-        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
-                        .type(dtype).to(device), device, device)
-        td3 = TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size)
+        actor = smw(
+            Actor(c.observe_dim, c.action_dim, c.action_range).type(dtype).to(device),
+            device,
+            device,
+        )
+        actor_t = smw(
+            Actor(c.observe_dim, c.action_dim, c.action_range).type(dtype).to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2 = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        td3 = TD3(
+            actor,
+            actor_t,
+            critic,
+            critic_t,
+            critic2,
+            critic2_t,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+        )
         return td3
 
     @pytest.fixture(scope="function")
@@ -111,82 +128,123 @@ class TestTD3(object):
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .type(dtype).to(device), device, device)
-        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                      .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .type(dtype).to(device), device, device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .type(dtype).to(device), device, device)
-        critic2 = smw(Critic(c.observe_dim, c.action_dim)
-                      .type(dtype).to(device), device, device)
-        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
-                        .type(dtype).to(device), device, device)
-        td3 = TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size,
-                  visualize=True,
-                  visualize_dir=str(tmp_dir))
+        actor = smw(
+            Actor(c.observe_dim, c.action_dim, c.action_range).type(dtype).to(device),
+            device,
+            device,
+        )
+        actor_t = smw(
+            Actor(c.observe_dim, c.action_dim, c.action_range).type(dtype).to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2 = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        td3 = TD3(
+            actor,
+            actor_t,
+            critic,
+            critic_t,
+            critic2,
+            critic2_t,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            visualize=True,
+            visualize_dir=str(tmp_dir),
+        )
         return td3
 
     @pytest.fixture(scope="function")
     def td3_lr(self, train_config, device, dtype):
         # not used for training, only used for testing apis
         c = train_config
-        actor = smw(ActorDiscrete(c.observe_dim, c.action_dim)
-                    .type(dtype).to(device), device, device)
-        actor_t = smw(ActorDiscrete(c.observe_dim, c.action_dim)
-                      .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .type(dtype).to(device), device, device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .type(dtype).to(device), device, device)
-        critic2 = smw(Critic(c.observe_dim, c.action_dim)
-                      .type(dtype).to(device), device, device)
-        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
-                        .type(dtype).to(device), device, device)
-        lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
-                                         logger=logger)
+        actor = smw(
+            ActorDiscrete(c.observe_dim, c.action_dim).type(dtype).to(device),
+            device,
+            device,
+        )
+        actor_t = smw(
+            ActorDiscrete(c.observe_dim, c.action_dim).type(dtype).to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2 = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)], logger=logger)
         with pytest.raises(TypeError, match="missing .+ positional argument"):
-            _ = TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device="cpu",
-                    replay_size=c.replay_size,
-                    lr_scheduler=LambdaLR)
-        td3 = TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size,
-                  lr_scheduler=LambdaLR,
-                  lr_scheduler_args=((lr_func,), (lr_func,), (lr_func,)))
+            _ = TD3(
+                actor,
+                actor_t,
+                critic,
+                critic_t,
+                critic2,
+                critic2_t,
+                t.optim.Adam,
+                nn.MSELoss(reduction="sum"),
+                replay_device="cpu",
+                replay_size=c.replay_size,
+                lr_scheduler=LambdaLR,
+            )
+        td3 = TD3(
+            actor,
+            actor_t,
+            critic,
+            critic_t,
+            critic2,
+            critic2_t,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            lr_scheduler=LambdaLR,
+            lr_scheduler_args=((lr_func,), (lr_func,), (lr_func,)),
+        )
         return td3
 
     @pytest.fixture(scope="function")
     def td3_train(self, train_config):
         c = train_config
         # cpu is faster for testing full training.
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range),
-                    "cpu", "cpu")
-        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range),
-                      "cpu", "cpu")
-        critic = smw(Critic(c.observe_dim, c.action_dim),
-                     "cpu", "cpu")
-        critic_t = smw(Critic(c.observe_dim, c.action_dim),
-                       "cpu", "cpu")
-        critic2 = smw(Critic(c.observe_dim, c.action_dim),
-                      "cpu", "cpu")
-        critic2_t = smw(Critic(c.observe_dim, c.action_dim),
-                        "cpu", "cpu")
-        td3 = TD3(actor, actor_t, critic, critic_t, critic2, critic2_t,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size)
+        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range), "cpu", "cpu")
+        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range), "cpu", "cpu")
+        critic = smw(Critic(c.observe_dim, c.action_dim), "cpu", "cpu")
+        critic_t = smw(Critic(c.observe_dim, c.action_dim), "cpu", "cpu")
+        critic2 = smw(Critic(c.observe_dim, c.action_dim), "cpu", "cpu")
+        critic2_t = smw(Critic(c.observe_dim, c.action_dim), "cpu", "cpu")
+        td3 = TD3(
+            actor,
+            actor_t,
+            critic,
+            critic_t,
+            critic2,
+            critic2_t,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+        )
         return td3
 
     ########################################################################
@@ -223,37 +281,51 @@ class TestTD3(object):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, c.action_dim], dtype=dtype)
-        td3_vis.store_transition({
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        })
-        td3_vis.update(update_value=True, update_policy=True,
-                       update_target=True, concatenate_samples=True)
-        td3_vis.update(update_value=False, update_policy=False,
-                       update_target=False, concatenate_samples=True)
+        td3_vis.store_transition(
+            {
+                "state": {"state": old_state},
+                "action": {"action": action},
+                "next_state": {"state": state},
+                "reward": 0,
+                "terminal": False,
+            }
+        )
+        td3_vis.update(
+            update_value=True,
+            update_policy=True,
+            update_target=True,
+            concatenate_samples=True,
+        )
+        td3_vis.update(
+            update_value=False,
+            update_policy=False,
+            update_target=False,
+            concatenate_samples=True,
+        )
 
     ########################################################################
     # Test for TD3 save & load
     ########################################################################
     def test_save_load(self, train_config, td3, tmpdir):
         save_dir = tmpdir.make_numbered_dir()
-        td3.save(model_dir=str(save_dir),
-                 network_map={
-                     "critic_target": "critic_t",
-                     "critic2_target": "critic2_t",
-                     "actor_target": "actor_t"
-                 },
-                 version=1000)
-        td3.load(model_dir=str(save_dir),
-                 network_map={
-                     "critic_target": "critic_t",
-                     "critic2_target": "critic2_t",
-                     "actor_target": "actor_t"
-                 },
-                 version=1000)
+        td3.save(
+            model_dir=str(save_dir),
+            network_map={
+                "critic_target": "critic_t",
+                "critic2_target": "critic2_t",
+                "actor_target": "actor_t",
+            },
+            version=1000,
+        )
+        td3.load(
+            model_dir=str(save_dir),
+            network_map={
+                "critic_target": "critic_t",
+                "critic2_target": "critic2_t",
+                "actor_target": "actor_t",
+            },
+            version=1000,
+        )
 
     ########################################################################
     # Test for TD3 lr_scheduler
@@ -267,26 +339,34 @@ class TestTD3(object):
     def test_config_init(self, train_config):
         c = train_config
         config = TD3.generate_config({})
-        config["frame_config"]["models"] = ["Actor", "Actor",
-                                            "Critic", "Critic",
-                                            "Critic", "Critic"]
-        config["frame_config"]["model_kwargs"] = \
-            [{"state_dim": c.observe_dim,
-              "action_dim": c.action_dim,
-              "action_range": c.action_range}] * 2 + \
-            [{"state_dim": c.observe_dim,
-              "action_dim": c.action_dim}] * 4
+        config["frame_config"]["models"] = [
+            "Actor",
+            "Actor",
+            "Critic",
+            "Critic",
+            "Critic",
+            "Critic",
+        ]
+        config["frame_config"]["model_kwargs"] = [
+            {
+                "state_dim": c.observe_dim,
+                "action_dim": c.action_dim,
+                "action_range": c.action_range,
+            }
+        ] * 2 + [{"state_dim": c.observe_dim, "action_dim": c.action_dim}] * 4
         td3 = TD3.init_from_config(config)
 
         old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
         action = t.zeros([1, c.action_dim], dtype=t.float32)
-        td3.store_transition({
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        })
+        td3.store_transition(
+            {
+                "state": {"state": old_state},
+                "action": {"action": action},
+                "next_state": {"state": state},
+                "reward": 0,
+                "terminal": False,
+            }
+        )
         td3.update()
 
     ########################################################################
@@ -319,24 +399,26 @@ class TestTD3(object):
                         action = td3_train.act_with_noise(
                             {"state": old_state.unsqueeze(0)},
                             noise_param=c.noise_param,
-                            mode=c.noise_mode
+                            mode=c.noise_mode,
                         )
                     else:
-                        action = td3_train.act(
-                            {"state": old_state.unsqueeze(0)}
-                        ).clamp(-c.action_range, c.action_range)
+                        action = td3_train.act({"state": old_state.unsqueeze(0)}).clamp(
+                            -c.action_range, c.action_range
+                        )
 
                     state, reward, terminal, _ = env.step(action.cpu().numpy())
                     state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    td3_train.store_transition({
-                        "state": {"state": old_state.unsqueeze(0)},
-                        "action": {"action": action},
-                        "next_state": {"state": state.unsqueeze(0)},
-                        "reward": float(reward),
-                        "terminal": terminal or step == c.max_steps
-                    })
+                    td3_train.store_transition(
+                        {
+                            "state": {"state": old_state.unsqueeze(0)},
+                            "action": {"action": action},
+                            "next_state": {"state": state.unsqueeze(0)},
+                            "reward": float(reward),
+                            "terminal": terminal or step == c.max_steps,
+                        }
+                    )
             # update
             if episode > 100:
                 for i in range(step.get()):
@@ -348,8 +430,9 @@ class TestTD3(object):
 
             if episode.get() % c.noise_interval != 0:
                 # only log result without noise
-                logger.info("Episode {} total reward={:.2f}"
-                            .format(episode, smoother.value))
+                logger.info(
+                    "Episode {} total reward={:.2f}".format(episode, smoother.value)
+                )
 
             if smoother.value > c.solved_reward:
                 reward_fulfilled.count()

@@ -14,43 +14,67 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     # Test for DistributedPrioritizedBuffer.append and sample
     ########################################################################
     full_trans_list = [
-        ({"state": {"state_1": t.zeros([1, 2])},
-          "action": {"action_1": t.zeros([1, 3])},
-          "next_state": {"next_state_1": t.zeros([1, 2])},
-          "reward": 1,
-          "terminal": True,
-          "index": 0}, 1),
-        ({"state": {"state_1": t.zeros([1, 2])},
-          "action": {"action_1": t.zeros([1, 3])},
-          "next_state": {"next_state_1": t.zeros([1, 2])},
-          "reward": 2,
-          "terminal": True,
-          "index": 1}, 1),
-        ({"state": {"state_1": t.zeros([1, 2])},
-          "action": {"action_1": t.zeros([1, 3])},
-          "next_state": {"next_state_1": t.zeros([1, 2])},
-          "reward": 3,
-          "terminal": True,
-          "index": 2}, 1),
-        ({"state": {"state_1": t.zeros([1, 2])},
-          "action": {"action_1": t.zeros([1, 3])},
-          "next_state": {"next_state_1": t.zeros([1, 2])},
-          "reward": 4,
-          "terminal": True,
-          "index": 3}, 0.3),
-        ({"state": {"state_1": t.zeros([1, 2])},
-          "action": {"action_1": t.zeros([1, 3])},
-          "next_state": {"next_state_1": t.zeros([1, 2])},
-          "reward": 5,
-          "terminal": True,
-          "index": 4}, 0.3)
+        (
+            {
+                "state": {"state_1": t.zeros([1, 2])},
+                "action": {"action_1": t.zeros([1, 3])},
+                "next_state": {"next_state_1": t.zeros([1, 2])},
+                "reward": 1,
+                "terminal": True,
+                "index": 0,
+            },
+            1,
+        ),
+        (
+            {
+                "state": {"state_1": t.zeros([1, 2])},
+                "action": {"action_1": t.zeros([1, 3])},
+                "next_state": {"next_state_1": t.zeros([1, 2])},
+                "reward": 2,
+                "terminal": True,
+                "index": 1,
+            },
+            1,
+        ),
+        (
+            {
+                "state": {"state_1": t.zeros([1, 2])},
+                "action": {"action_1": t.zeros([1, 3])},
+                "next_state": {"next_state_1": t.zeros([1, 2])},
+                "reward": 3,
+                "terminal": True,
+                "index": 2,
+            },
+            1,
+        ),
+        (
+            {
+                "state": {"state_1": t.zeros([1, 2])},
+                "action": {"action_1": t.zeros([1, 3])},
+                "next_state": {"next_state_1": t.zeros([1, 2])},
+                "reward": 4,
+                "terminal": True,
+                "index": 3,
+            },
+            0.3,
+        ),
+        (
+            {
+                "state": {"state_1": t.zeros([1, 2])},
+                "action": {"action_1": t.zeros([1, 3])},
+                "next_state": {"next_state_1": t.zeros([1, 2])},
+                "reward": 5,
+                "terminal": True,
+                "index": 4,
+            },
+            0.3,
+        ),
     ]
 
     # test a normal sampling process, where p0 and p1 append to the buffer
     # periodically, and p2 sample from the buffer periodically.
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               args_list=[(full_trans_list,)] * 3)
+    @run_multi(expected_results=[True, True, True], args_list=[(full_trans_list,)] * 3)
     @WorldTestBase.setup_world
     def test_append_sample_random(rank, trans_list):
         world = get_world()
@@ -70,19 +94,15 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
             sleep(5)
             begin = time()
             while time() - begin < 5:
-                batch_size, sample, indexes, priorities = \
-                    buffer.sample_batch(10)
+                batch_size, sample, indexes, priorities = buffer.sample_batch(10)
                 default_logger.info("sampled batch size: {}".format(batch_size))
                 assert batch_size > 0
                 # state
-                assert (list(sample[0]["state_1"].shape) ==
-                        [batch_size, 2])
+                assert list(sample[0]["state_1"].shape) == [batch_size, 2]
                 # action
-                assert (list(sample[1]["action_1"].shape) ==
-                        [batch_size, 3])
+                assert list(sample[1]["action_1"].shape) == [batch_size, 3]
                 # next state
-                assert (list(sample[2]["next_state_1"].shape) ==
-                        [batch_size, 2])
+                assert list(sample[2]["next_state_1"].shape) == [batch_size, 2]
                 # reward
                 assert list(sample[3].shape) == [batch_size, 1]
                 # terminal
@@ -101,8 +121,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     # periodically, and p2 sample from the buffer periodically. however, p0 and
     # p1 will finish appending before p2, so the test result is always the same.
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               args_list=[(full_trans_list,)] * 3)
+    @run_multi(expected_results=[True, True, True], args_list=[(full_trans_list,)] * 3)
     @WorldTestBase.setup_world
     def test_append_sample_controlled(rank, trans_list):
         world = get_world()
@@ -117,8 +136,9 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
             sleep(5)
         else:
             sleep(2)
-            batch_size, sample, indexes, priorities = \
-                buffer.sample_batch(10, sample_attrs=["index"])
+            batch_size, sample, indexes, priorities = buffer.sample_batch(
+                10, sample_attrs=["index"]
+            )
             default_logger.info("sampled batch size: {}".format(batch_size))
             default_logger.info(sample)
             default_logger.info(indexes)
@@ -126,10 +146,24 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
             assert batch_size == 10
             assert sample[0] == [0, 1, 2, 2, 4, 0, 1, 2, 2, 4]
             assert list(indexes.keys()) == ["0", "1"]
-            assert np.all(np.abs(priorities -
-                                 [0.75316421, 0.75316421, 0.75316421,
-                                  0.75316421, 1.0, 0.75316421, 0.75316421,
-                                  0.75316421, 0.75316421, 1.0]) < 1e-6)
+            assert np.all(
+                np.abs(
+                    priorities
+                    - [
+                        0.75316421,
+                        0.75316421,
+                        0.75316421,
+                        0.75316421,
+                        1.0,
+                        0.75316421,
+                        0.75316421,
+                        0.75316421,
+                        0.75316421,
+                        1.0,
+                    ]
+                )
+                < 1e-6
+            )
             buffer.update_priority(priorities, indexes)
         return True
 
@@ -147,8 +181,9 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
             sleep(5)
         else:
             sleep(2)
-            batch_size, sample, indexes, priorities = \
-                buffer.sample_batch(10, sample_attrs=["index"])
+            batch_size, sample, indexes, priorities = buffer.sample_batch(
+                10, sample_attrs=["index"]
+            )
             assert batch_size == 0
             assert sample is None
             assert indexes is None
@@ -156,8 +191,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
         return True
 
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               args_list=[(full_trans_list,)] * 3)
+    @run_multi(expected_results=[True, True, True], args_list=[(full_trans_list,)] * 3)
     @WorldTestBase.setup_world
     def test_append_sample_empty(rank, trans_list):
         world = get_world()
@@ -183,8 +217,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     # Test for DistributedPrioritizedBuffer.size and all_size
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               args_list=[(full_trans_list,)] * 3)
+    @run_multi(expected_results=[True, True, True], args_list=[(full_trans_list,)] * 3)
     @WorldTestBase.setup_world
     def test_append_size(rank, trans_list):
         world = get_world()
@@ -211,8 +244,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     # Test for DistributedPrioritizedBuffer.clear
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               args_list=[(full_trans_list,)] * 3)
+    @run_multi(expected_results=[True, True, True], args_list=[(full_trans_list,)] * 3)
     @WorldTestBase.setup_world
     def test_append_clear(rank, trans_list):
         world = get_world()

@@ -1,6 +1,8 @@
 from machin.frame.noise.generator import (
-    NormalNoiseGen, UniformNoiseGen, ClippedNormalNoiseGen,
-    OrnsteinUhlenbeckNoiseGen
+    NormalNoiseGen,
+    UniformNoiseGen,
+    ClippedNormalNoiseGen,
+    OrnsteinUhlenbeckNoiseGen,
 )
 
 import torch as t

@@ -28,9 +28,11 @@ class TestRunningStat(object):
             vals.append(val)
             m = t.mean(t.stack(vals), dim=0)
             assert t.allclose(rs.mean, m)
-            v = (t.square(m)
-                 if (len(vals) == 1)
-                 else t.var(t.stack(vals), dim=0, unbiased=True))
+            v = (
+                t.square(m)
+                if (len(vals) == 1)
+                else t.var(t.stack(vals), dim=0, unbiased=True)
+            )
             assert t.allclose(rs.var, v)
 
     @pytest.mark.parametrize("shape", ((), (3,), (3, 4)))
@@ -62,6 +64,7 @@ class TestRunningStat(object):
 #         a = self.fc1(state)
 #         a = t.argmax(self.fc2(a), dim=1).item()
 #         return a
+
 
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
@@ -99,43 +102,62 @@ class TestARS(object):
     @staticmethod
     def ars(device, dtype):
         c = TestARS.c
-        actor = smw(ActorDiscrete(c.observe_dim, c.action_num)
-                    .type(dtype).to(device), device, device)
+        actor = smw(
+            ActorDiscrete(c.observe_dim, c.action_num).type(dtype).to(device),
+            device,
+            device,
+        )
         servers = model_server_helper(model_num=1)
         world = get_world()
         ars_group = world.create_rpc_group("ars", ["0", "1", "2"])
-        ars = ARS(actor, t.optim.SGD, ars_group, servers,
-                  noise_std_dev=0.1,
-                  learning_rate=0.1,
-                  noise_size=1000000,
-                  rollout_num=6,
-                  used_rollout_num=6,
-                  normalize_state=True)
+        ars = ARS(
+            actor,
+            t.optim.SGD,
+            ars_group,
+            servers,
+            noise_std_dev=0.1,
+            learning_rate=0.1,
+            noise_size=1000000,
+            rollout_num=6,
+            used_rollout_num=6,
+            normalize_state=True,
+        )
         return ars
 
     @staticmethod
     def ars_lr(device, dtype):
         c = TestARS.c
-        actor = smw(ActorDiscrete(c.observe_dim, c.action_num)
-                    .type(dtype).to(device), device, device)
-        lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
-                                         logger=default_logger)
+        actor = smw(
+            ActorDiscrete(c.observe_dim, c.action_num).type(dtype).to(device),
+            device,
+            device,
+        )
+        lr_func = gen_learning_rate_func(
+            [(0, 1e-3), (200000, 3e-4)], logger=default_logger
+        )
         servers = model_server_helper(model_num=1)
         world = get_world()
         ars_group = world.create_rpc_group("ars", ["0", "1", "2"])
-        ars = ARS(actor, t.optim.SGD, ars_group, servers,
-                  noise_size=1000000,
-                  lr_scheduler=LambdaLR,
-                  lr_scheduler_args=((lr_func,),))
+        ars = ARS(
+            actor,
+            t.optim.SGD,
+            ars_group,
+            servers,
+            noise_size=1000000,
+            lr_scheduler=LambdaLR,
+            lr_scheduler_args=((lr_func,),),
+        )
         return ars
 
     ########################################################################
     # Test for ARS acting
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["device", "dtype"],
-               timeout=180)
+    @run_multi(
+        expected_results=[True, True, True],
+        pass_through=["device", "dtype"],
+        timeout=180,
+    )
     @WorldTestBase.setup_world
     def test_act(_, device, dtype):
         c = TestARS.c
@@ -151,9 +173,11 @@ class TestARS(object):
     # Test for ARS storage
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["device", "dtype"],
-               timeout=180)
+    @run_multi(
+        expected_results=[True, True, True],
+        pass_through=["device", "dtype"],
+        timeout=180,
+    )
     @WorldTestBase.setup_world
     def test_store_reward(_, device, dtype):
         ars = TestARS.ars(device, dtype)
@@ -166,18 +190,18 @@ class TestARS(object):
     # Test for ARS update
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["device", "dtype"],
-               timeout=180)
+    @run_multi(
+        expected_results=[True, True, True],
+        pass_through=["device", "dtype"],
+        timeout=180,
+    )
     @WorldTestBase.setup_world
     def test_update(_, device, dtype):
         c = TestARS.c
         ars = TestARS.ars(device, dtype)
         for at in ars.get_actor_types():
             # get action will cause filters to initialize
-            _action = ars.act({
-                "state": t.zeros([1, c.observe_dim], dtype=dtype)
-            }, at)
+            _action = ars.act({"state": t.zeros([1, c.observe_dim], dtype=dtype)}, at)
             if at.startswith("neg"):
                 ars.store_reward(1.0, at)
             else:
@@ -194,9 +218,11 @@ class TestARS(object):
     # Test for ARS lr_scheduler
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["device", "dtype"],
-               timeout=180)
+    @run_multi(
+        expected_results=[True, True, True],
+        pass_through=["device", "dtype"],
+        timeout=180,
+    )
     @WorldTestBase.setup_world
     def test_lr_scheduler(_, device, dtype):
         ars = TestARS.ars_lr(device, dtype)
@@ -207,22 +233,22 @@ class TestARS(object):
     # Test for ARS config & init
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               timeout=180)
+    @run_multi(expected_results=[True, True, True], timeout=180)
     @WorldTestBase.setup_world
     def test_config_init(_):
         c = TestARS.c
         config = ARS.generate_config({})
         config["frame_config"]["models"] = ["ActorDiscrete"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": c.observe_dim,
-                                                   "action_dim": c.action_num}]
+        config["frame_config"]["model_kwargs"] = [
+            {"state_dim": c.observe_dim, "action_dim": c.action_num}
+        ]
         ars = ARS.init_from_config(config)
 
         for at in ars.get_actor_types():
             # get action will cause filters to initialize
-            _action = ars.act({
-                "state": t.zeros([1, c.observe_dim], dtype=t.float32)
-            }, at)
+            _action = ars.act(
+                {"state": t.zeros([1, c.observe_dim], dtype=t.float32)}, at
+            )
             if at.startswith("neg"):
                 ars.store_reward(1.0, at)
             else:
@@ -234,8 +260,7 @@ class TestARS(object):
     # Test for ARS full training.
     ########################################################################
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               timeout=1800)
+    @run_multi(expected_results=[True, True, True], timeout=1800)
     @WorldTestBase.setup_world
     def test_full_train(rank):
         c = TestARS.c
@@ -275,8 +300,11 @@ class TestARS(object):
             # update
             ars.update()
             smoother.update(all_reward / len(ars.get_actor_types()))
-            default_logger.info("Process {} Episode {} total reward={:.2f}"
-                                .format(rank, episode, smoother.value))
+            default_logger.info(
+                "Process {} Episode {} total reward={:.2f}".format(
+                    rank, episode, smoother.value
+                )
+            )
 
             if smoother.value > c.solved_reward:
                 reward_fulfilled.count()

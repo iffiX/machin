@@ -38,9 +38,9 @@ class Actor(nn.Module):
         mu = self.mu_head(a)
         sigma = softplus(self.sigma_head(a))
         dist = Normal(mu, sigma)
-        act = (atanh(action / self.action_range)
-               if action is not None
-               else dist.rsample())
+        act = (
+            atanh(action / self.action_range) if action is not None else dist.rsample()
+        )
         act_entropy = dist.entropy()
 
         # the suggested way to confine your actions within a valid range
@@ -50,9 +50,7 @@ class Actor(nn.Module):
         act = act_tanh * self.action_range
 
         # the distribution remapping process used in the original essay.
-        act_log_prob -= t.log(self.action_range *
-                              (1 - act_tanh.pow(2)) +
-                              1e-6)
+        act_log_prob -= t.log(self.action_range * (1 - act_tanh.pow(2)) + 1e-6)
         act_log_prob = act_log_prob.sum(1, keepdim=True)
 
         # If your distribution is different from "Normal" then you may either:
@@ -111,21 +109,34 @@ class TestSAC(object):
     @pytest.fixture(scope="function")
     def sac(self, train_config, device, dtype):
         c = train_config
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .type(dtype).to(device), device, device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .type(dtype).to(device), device, device)
-        critic2 = smw(Critic(c.observe_dim, c.action_dim)
-                      .type(dtype).to(device), device, device)
-        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
-                        .type(dtype).to(device), device, device)
-        sac = SAC(actor, critic, critic_t, critic2, critic2_t,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size)
+        actor = smw(
+            Actor(c.observe_dim, c.action_dim, c.action_range).type(dtype).to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2 = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        sac = SAC(
+            actor,
+            critic,
+            critic_t,
+            critic2,
+            critic2_t,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+        )
         return sac
 
     @pytest.fixture(scope="function")
@@ -133,75 +144,107 @@ class TestSAC(object):
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .type(dtype).to(device), device, device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .type(dtype).to(device), device, device)
-        critic2 = smw(Critic(c.observe_dim, c.action_dim)
-                      .type(dtype).to(device), device, device)
-        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
-                        .type(dtype).to(device), device, device)
-        sac = SAC(actor, critic, critic_t, critic2, critic2_t,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size,
-                  visualize=True,
-                  visualize_dir=str(tmp_dir))
+        actor = smw(
+            Actor(c.observe_dim, c.action_dim, c.action_range).type(dtype).to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2 = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        sac = SAC(
+            actor,
+            critic,
+            critic_t,
+            critic2,
+            critic2_t,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            visualize=True,
+            visualize_dir=str(tmp_dir),
+        )
         return sac
 
     @pytest.fixture(scope="function")
     def sac_lr(self, train_config, device, dtype):
         # not used for training, only used for testing apis
         c = train_config
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .type(dtype).to(device), device, device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .type(dtype).to(device), device, device)
-        critic2 = smw(Critic(c.observe_dim, c.action_dim)
-                      .type(dtype).to(device), device, device)
-        critic2_t = smw(Critic(c.observe_dim, c.action_dim)
-                        .type(dtype).to(device), device, device)
-        lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
-                                         logger=logger)
+        actor = smw(
+            Actor(c.observe_dim, c.action_dim, c.action_range).type(dtype).to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2 = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic2_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)], logger=logger)
         with pytest.raises(TypeError, match="missing .+ positional argument"):
-            _ = SAC(actor, critic, critic_t, critic2, critic2_t,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device="cpu",
-                    replay_size=c.replay_size,
-                    lr_scheduler=LambdaLR)
-        sac = SAC(actor, critic, critic_t, critic2, critic2_t,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size,
-                  lr_scheduler=LambdaLR,
-                  lr_scheduler_args=((lr_func,), (lr_func,), (lr_func,)))
+            _ = SAC(
+                actor,
+                critic,
+                critic_t,
+                critic2,
+                critic2_t,
+                t.optim.Adam,
+                nn.MSELoss(reduction="sum"),
+                replay_device="cpu",
+                replay_size=c.replay_size,
+                lr_scheduler=LambdaLR,
+            )
+        sac = SAC(
+            actor,
+            critic,
+            critic_t,
+            critic2,
+            critic2_t,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            lr_scheduler=LambdaLR,
+            lr_scheduler_args=((lr_func,), (lr_func,), (lr_func,)),
+        )
         return sac
 
     @pytest.fixture(scope="function")
     def sac_train(self, train_config):
         c = train_config
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range),
-                    "cpu", "cpu")
-        critic = smw(Critic(c.observe_dim, c.action_dim),
-                     "cpu", "cpu")
-        critic_t = smw(Critic(c.observe_dim, c.action_dim),
-                       "cpu", "cpu")
-        critic2 = smw(Critic(c.observe_dim, c.action_dim),
-                      "cpu", "cpu")
-        critic2_t = smw(Critic(c.observe_dim, c.action_dim),
-                        "cpu", "cpu")
-        sac = SAC(actor, critic, critic_t, critic2, critic2_t,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size)
+        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range), "cpu", "cpu")
+        critic = smw(Critic(c.observe_dim, c.action_dim), "cpu", "cpu")
+        critic_t = smw(Critic(c.observe_dim, c.action_dim), "cpu", "cpu")
+        critic2 = smw(Critic(c.observe_dim, c.action_dim), "cpu", "cpu")
+        critic2_t = smw(Critic(c.observe_dim, c.action_dim), "cpu", "cpu")
+        sac = SAC(
+            actor,
+            critic,
+            critic_t,
+            critic2,
+            critic2_t,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+        )
         return sac
 
     ########################################################################
@@ -231,20 +274,26 @@ class TestSAC(object):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, c.action_dim], dtype=dtype)
-        sac.store_transition({
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        })
-        sac.store_episode([{
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        }])
+        sac.store_transition(
+            {
+                "state": {"state": old_state},
+                "action": {"action": action},
+                "next_state": {"state": state},
+                "reward": 0,
+                "terminal": False,
+            }
+        )
+        sac.store_episode(
+            [
+                {
+                    "state": {"state": old_state},
+                    "action": {"action": action},
+                    "next_state": {"state": state},
+                    "reward": 0,
+                    "terminal": False,
+                }
+            ]
+        )
 
     ########################################################################
     # Test for SAC update
@@ -253,41 +302,55 @@ class TestSAC(object):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, c.action_dim], dtype=dtype)
-        sac_vis.store_transition({
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        })
+        sac_vis.store_transition(
+            {
+                "state": {"state": old_state},
+                "action": {"action": action},
+                "next_state": {"state": state},
+                "reward": 0,
+                "terminal": False,
+            }
+        )
         # heuristic entropy
         sac_vis.target_entropy = -c.action_dim
-        sac_vis.update(update_value=True, update_policy=True,
-                       update_target=True, update_entropy_alpha=True,
-                       concatenate_samples=True)
-        sac_vis.update(update_value=False, update_policy=False,
-                       update_target=False, update_entropy_alpha=False,
-                       concatenate_samples=True)
+        sac_vis.update(
+            update_value=True,
+            update_policy=True,
+            update_target=True,
+            update_entropy_alpha=True,
+            concatenate_samples=True,
+        )
+        sac_vis.update(
+            update_value=False,
+            update_policy=False,
+            update_target=False,
+            update_entropy_alpha=False,
+            concatenate_samples=True,
+        )
 
     ########################################################################
     # Test for SAC save & load
     ########################################################################
     def test_save_load(self, train_config, sac, tmpdir):
         save_dir = tmpdir.make_numbered_dir()
-        sac.save(model_dir=str(save_dir),
-                 network_map={
-                     "critic_target": "critic_t",
-                     "critic2_target": "critic2_t",
-                     "actor": "actor"
-                 },
-                 version=1000)
-        sac.load(model_dir=str(save_dir),
-                 network_map={
-                     "critic_target": "critic_t",
-                     "critic2_target": "critic2_t",
-                     "actor": "actor"
-                 },
-                 version=1000)
+        sac.save(
+            model_dir=str(save_dir),
+            network_map={
+                "critic_target": "critic_t",
+                "critic2_target": "critic2_t",
+                "actor": "actor",
+            },
+            version=1000,
+        )
+        sac.load(
+            model_dir=str(save_dir),
+            network_map={
+                "critic_target": "critic_t",
+                "critic2_target": "critic2_t",
+                "actor": "actor",
+            },
+            version=1000,
+        )
 
     ########################################################################
     # Test for SAC lr_scheduler
@@ -301,25 +364,33 @@ class TestSAC(object):
     def test_config_init(self, train_config):
         c = train_config
         config = SAC.generate_config({})
-        config["frame_config"]["models"] = ["Actor",
-                                            "Critic", "Critic",
-                                            "Critic", "Critic"]
-        config["frame_config"]["model_kwargs"] = \
-            [{"state_dim": c.observe_dim,
-              "action_dim": c.action_dim,
-              "action_range": c.action_range}] + \
-            [{"state_dim": c.observe_dim, "action_dim": c.action_dim}] * 4
+        config["frame_config"]["models"] = [
+            "Actor",
+            "Critic",
+            "Critic",
+            "Critic",
+            "Critic",
+        ]
+        config["frame_config"]["model_kwargs"] = [
+            {
+                "state_dim": c.observe_dim,
+                "action_dim": c.action_dim,
+                "action_range": c.action_range,
+            }
+        ] + [{"state_dim": c.observe_dim, "action_dim": c.action_dim}] * 4
         sac = SAC.init_from_config(config)
 
         old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
         action = t.zeros([1, c.action_dim], dtype=t.float32)
-        sac.store_transition({
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        })
+        sac.store_transition(
+            {
+                "state": {"state": old_state},
+                "action": {"action": action},
+                "next_state": {"state": state},
+                "reward": 0,
+                "terminal": False,
+            }
+        )
         # heuristic entropy
         sac.target_entropy = -c.action_dim
         sac.update()
@@ -351,36 +422,36 @@ class TestSAC(object):
                     old_state = state
 
                     # agent model inference
-                    action = sac_train.act(
-                        {"state": old_state.unsqueeze(0)}
-                    )[0]
+                    action = sac_train.act({"state": old_state.unsqueeze(0)})[0]
 
-                    state, reward, terminal, _ = env.step(
-                        action.cpu().numpy()
-                    )
+                    state, reward, terminal, _ = env.step(action.cpu().numpy())
                     state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    sac_train.store_transition({
-                        "state": {"state": old_state.unsqueeze(0)},
-                        "action": {"action": action},
-                        "next_state": {"state": state.unsqueeze(0)},
-                        "reward": float(reward),
-                        "terminal": terminal or step == c.max_steps
-                    })
+                    sac_train.store_transition(
+                        {
+                            "state": {"state": old_state.unsqueeze(0)},
+                            "action": {"action": action},
+                            "next_state": {"state": state.unsqueeze(0)},
+                            "reward": float(reward),
+                            "terminal": terminal or step == c.max_steps,
+                        }
+                    )
             # update
             if episode > 100:
                 for i in range(step.get()):
                     sac_train.update()
-                logger.info("new entropy alpha: {}"
-                            .format(sac_train.entropy_alpha.item()))
+                logger.info(
+                    "new entropy alpha: {}".format(sac_train.entropy_alpha.item())
+                )
 
             smoother.update(total_reward)
             step.reset()
             terminal = False
 
-            logger.info("Episode {} total reward={:.2f}"
-                        .format(episode, smoother.value))
+            logger.info(
+                "Episode {} total reward={:.2f}".format(episode, smoother.value)
+            )
 
             if smoother.value > c.solved_reward:
                 reward_fulfilled.count()

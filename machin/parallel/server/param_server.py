@@ -14,14 +14,12 @@ from machin.utils.prepare import prep_load_state_dict
 from .ordered_server import (
     OrderedServerBase,
     OrderedServerSimple,
-    OrderedServerSimpleImpl
+    OrderedServerSimpleImpl,
 )
 
 
 class PushPullModelServer:
-    def __init__(self,
-                 model_name: str,
-                 o_server: OrderedServerBase = None):
+    def __init__(self, model_name: str, o_server: OrderedServerBase = None):
         """
         Create an accessor to the services provided by
         :class:`PushPullModelServerImpl`
@@ -52,8 +50,10 @@ class PushPullModelServer:
         for k, v in copied_model_params.items():
             copied_model_params[k] = v.to("cpu")
         if not self.o_server.push(
-                self.model_name, copied_model_params,
-                version=model.pp_version + 1, prev_version=model.pp_version
+            self.model_name,
+            copied_model_params,
+            version=model.pp_version + 1,
+            prev_version=model.pp_version,
         ):
             if pull_on_fail:
                 result = self.o_server.pull(self.model_name)
@@ -95,11 +95,13 @@ class PushPullModelServerImpl:
         Only one model is supported.
     """
 
-    def __init__(self,
-                 server_name: str,
-                 group: RpcGroup,
-                 model_name: str = "model",
-                 o_server: OrderedServerBase = None):
+    def __init__(
+        self,
+        server_name: str,
+        group: RpcGroup,
+        model_name: str = "model",
+        o_server: OrderedServerBase = None,
+    ):
         """
         This init function must be only invoked on the runner process,
         and the runner process must be a member process of ``group``.
@@ -123,13 +125,13 @@ class PushPullModelServerImpl:
             self._o_server_impl = OrderedServerSimpleImpl(
                 server_name + "_o_server", group
             )
-            self.o_server = group.get_paired(server_name + "_o_server")\
-                                 .to_here()
+            self.o_server = group.get_paired(server_name + "_o_server").to_here()
         else:  # pragma: no cover
             self.o_server = o_server
         # pair an accessor to group
-        self.group.pair(server_name,
-                        PushPullModelServer(self.model_name, self.o_server))
+        self.group.pair(
+            server_name, PushPullModelServer(self.model_name, self.o_server)
+        )
 
 
 class ReduceType(enum.Enum):
@@ -138,18 +140,20 @@ class ReduceType(enum.Enum):
 
 
 class PushPullGradServer:
-    def __init__(self,
-                 server_name: str,
-                 group: RpcGroup,
-                 model_name: str,
-                 secondary_reducers: List[str],
-                 o_server: OrderedServerBase):
+    def __init__(
+        self,
+        server_name: str,
+        group: RpcGroup,
+        model_name: str,
+        secondary_reducers: List[str],
+        o_server: OrderedServerBase,
+    ):
         self.group = group
         self.model_name = model_name
         self.o_server = o_server
-        self.secondary_services = [server_name +
-                                   "/" + m + "/_push_service"
-                                   for m in secondary_reducers]
+        self.secondary_services = [
+            server_name + "/" + m + "/_push_service" for m in secondary_reducers
+        ]
 
     def push(self, model: nn.Module):
         """
@@ -162,14 +166,14 @@ class PushPullGradServer:
         # extract gradients from the model
         grad_dict = {}
         for k, v in model.named_parameters():
-            if not hasattr(v, "grad") or \
-                    not t.is_tensor(v.grad):  # pragma: no cover
-                raise RuntimeError("Parameter {} doesn't have gradient "
-                                   "to push!".format(k))
+            if not hasattr(v, "grad") or not t.is_tensor(v.grad):  # pragma: no cover
+                raise RuntimeError(
+                    "Parameter {} doesn't have gradient " "to push!".format(k)
+                )
             grad_dict[k] = deepcopy(v.grad).to("cpu")
         self.group.registered_sync(
             choice(self.secondary_services),
-            args=(grad_dict, ReduceType.REDUCE_SECONDARY)
+            args=(grad_dict, ReduceType.REDUCE_SECONDARY),
         )
         self.pull(model)
 
@@ -198,20 +202,23 @@ class PushPullGradServerImpl:
         ``DistributedDataParallel`` is not supported. since we cannot
         load state dictionary after creation.
     """
+
     REDUCE_MASTER = 0
     REDUCE_SLAVE = 1
 
-    def __init__(self,
-                 server_name: str,
-                 group: RpcGroup,
-                 model_name: str = "model",
-                 primary_reducer: str = None,
-                 secondary_reducers: List[str] = None,
-                 o_server: OrderedServerBase = None,
-                 reduce_method: str = "sum",
-                 reduce_device: Union[t.device, str] = "cpu",
-                 reduce_batch_size: int = 4,
-                 max_queue_size: int = 64):
+    def __init__(
+        self,
+        server_name: str,
+        group: RpcGroup,
+        model_name: str = "model",
+        primary_reducer: str = None,
+        secondary_reducers: List[str] = None,
+        o_server: OrderedServerBase = None,
+        reduce_method: str = "sum",
+        reduce_device: Union[t.device, str] = "cpu",
+        reduce_batch_size: int = 4,
+        max_queue_size: int = 64,
+    ):
         """
         Note:
             You should initialize ``PushPullGradServer`` on all members of
@@ -277,8 +284,7 @@ class PushPullGradServerImpl:
                 self._o_server_impl = OrderedServerSimpleImpl(
                     server_name + "_o_server", group
                 )
-            self.o_server = OrderedServerSimple(server_name + "_o_server",
-                                                group)
+            self.o_server = OrderedServerSimple(server_name + "_o_server", group)
         else:  # pragma: no cover
             self.o_server = o_server
 
@@ -286,25 +292,28 @@ class PushPullGradServerImpl:
             secondary_reducers = group.get_group_members()
 
         self.primary_reducer = primary_reducer
-        self.primary_service = (server_name +
-                                "/" + primary_reducer +
-                                "/_push_service")
+        self.primary_service = server_name + "/" + primary_reducer + "/_push_service"
         self.secondary_reducers = secondary_reducers
-        self.secondary_services = [server_name +
-                                   "/" + m + "/_push_service"
-                                   for m in secondary_reducers]
+        self.secondary_services = [
+            server_name + "/" + m + "/_push_service" for m in secondary_reducers
+        ]
         # register secondary reducer service
-        self.group.register(server_name + "/" + group.get_cur_name() +
-                            "/_push_service", self._push_service)
+        self.group.register(
+            server_name + "/" + group.get_cur_name() + "/_push_service",
+            self._push_service,
+        )
 
         # pair an accessor to group
         if self.group.get_cur_name() == self.primary_reducer:
             self.group.pair(
                 self.server_name,
-                PushPullGradServer(self.server_name, self.group,
-                                   self.model_name,
-                                   self.secondary_reducers,
-                                   self.o_server)
+                PushPullGradServer(
+                    self.server_name,
+                    self.group,
+                    self.model_name,
+                    self.secondary_reducers,
+                    self.o_server,
+                ),
             )
 
         # prepare to start the reduction sub-thread
@@ -342,10 +351,7 @@ class PushPullGradServerImpl:
     def watch(self):
         self.reduce_task.watch()
 
-    def manage_model(self,
-                     model: nn.Module,
-                     optimizer: Any,
-                     lr_scheduler: Any = None):
+    def manage_model(self, model: nn.Module, optimizer: Any, lr_scheduler: Any = None):
         """
         Let the main reducer manage your model. Must be called before start.
 
@@ -371,8 +377,10 @@ class PushPullGradServerImpl:
             self.lr_scheduler = lr_scheduler
             self.model.pp_version = 0
         else:  # pragma: no cover
-            raise RuntimeError("Current worker is not the reduce master, and"
-                               "cannot manage the model.")
+            raise RuntimeError(
+                "Current worker is not the reduce master, and"
+                "cannot manage the model."
+            )
 
     def _push_service(self, grad_dict, level):  # pragma: no cover
         # Append reduce requests to queue.
@@ -390,8 +398,10 @@ class PushPullGradServerImpl:
     def _task_reduce_grad(self):
         while True:
             # Wait until one queue has reached target batch size
-            while (self.master_queue.qsize() < self.reduce_batch_size and
-                   self.secondary_queue.qsize() < self.reduce_batch_size):
+            while (
+                self.master_queue.qsize() < self.reduce_batch_size
+                and self.secondary_queue.qsize() < self.reduce_batch_size
+            ):
                 self.work_event.wait(timeout=1e-1)
                 if self.stop_event.is_set():
                     return
@@ -404,10 +414,12 @@ class PushPullGradServerImpl:
             if self.master_queue.qsize() >= self.reduce_batch_size:
                 # Perform reduction on the master reduction queue
                 # Only the master reducer will execute this branch
-                grad_dict = self._reduce_batch(self.master_queue,
-                                               self.reduce_batch_size,
-                                               self.reduce_method,
-                                               self.reduce_device)
+                grad_dict = self._reduce_batch(
+                    self.master_queue,
+                    self.reduce_batch_size,
+                    self.reduce_method,
+                    self.reduce_device,
+                )
                 # Assign gradients to the managed model and
                 # perform optimization.
                 if self.model is not None and self.optimizer is not None:
@@ -416,24 +428,27 @@ class PushPullGradServerImpl:
                         for k, v in self.model.named_parameters():
                             v.grad = grad_dict[k].to(v.device)
                     self.optimizer.step()
-                    self.o_server.push(self.model_name,
-                                       self.model.to("cpu").state_dict(),
-                                       self.model.pp_version + 1,
-                                       self.model.pp_version)
+                    self.o_server.push(
+                        self.model_name,
+                        self.model.to("cpu").state_dict(),
+                        self.model.pp_version + 1,
+                        self.model.pp_version,
+                    )
                     self.model.pp_version += 1
 
             if self.secondary_queue.qsize() >= self.reduce_batch_size:
                 # Perform reduction on the secondary reduction queue
                 # All processes(including master) in the reduction
                 # group will execute this branch.
-                grad_dict = self._reduce_batch(self.secondary_queue,
-                                               self.reduce_batch_size,
-                                               self.reduce_method,
-                                               self.reduce_device)
+                grad_dict = self._reduce_batch(
+                    self.secondary_queue,
+                    self.reduce_batch_size,
+                    self.reduce_method,
+                    self.reduce_device,
+                )
                 # Push reduced results to the master queue.
                 self.group.registered_sync(
-                    self.primary_service,
-                    args=(grad_dict, ReduceType.REDUCE_PRIMARY)
+                    self.primary_service, args=(grad_dict, ReduceType.REDUCE_PRIMARY)
                 )
 
     @staticmethod

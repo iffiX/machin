@@ -17,26 +17,29 @@ class DQNApex(DQNPer):
 
     The push function is invoked after ``update``.
     """
-    def __init__(self,
-                 qnet: Union[NeuralNetworkModule, nn.Module],
-                 qnet_target: Union[NeuralNetworkModule, nn.Module],
-                 optimizer: Callable,
-                 criterion: Callable,
-                 apex_group: RpcGroup,
-                 model_server: Tuple[PushPullModelServer],
-                 *_,
-                 lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict] = (),
-                 batch_size: int = 100,
-                 epsilon_decay: float = 0.9999,
-                 update_rate: float = 0.005,
-                 update_steps: Union[int, None] = None,
-                 learning_rate: float = 0.001,
-                 discount: float = 0.99,
-                 gradient_max: float = np.inf,
-                 replay_size: int = 500000,
-                 **__):
+
+    def __init__(
+        self,
+        qnet: Union[NeuralNetworkModule, nn.Module],
+        qnet_target: Union[NeuralNetworkModule, nn.Module],
+        optimizer: Callable,
+        criterion: Callable,
+        apex_group: RpcGroup,
+        model_server: Tuple[PushPullModelServer],
+        *_,
+        lr_scheduler: Callable = None,
+        lr_scheduler_args: Tuple[Tuple] = (),
+        lr_scheduler_kwargs: Tuple[Dict] = (),
+        batch_size: int = 100,
+        epsilon_decay: float = 0.9999,
+        update_rate: float = 0.005,
+        update_steps: Union[int, None] = None,
+        learning_rate: float = 0.001,
+        discount: float = 0.99,
+        gradient_max: float = np.inf,
+        replay_size: int = 500000,
+        **__
+    ):
         """
         See Also:
             :class:`.DQNPer`
@@ -74,23 +77,27 @@ class DQNApex(DQNPer):
             gradient_max: Maximum gradient.
             replay_size: Local replay buffer size of a single worker.
         """
-        super(DQNApex, self).__init__(qnet, qnet_target, optimizer, criterion,
-                                      lr_scheduler=lr_scheduler,
-                                      lr_scheduler_args=lr_scheduler_args,
-                                      lr_scheduler_kwargs=lr_scheduler_kwargs,
-                                      batch_size=batch_size,
-                                      epsilon_decay=epsilon_decay,
-                                      update_rate=update_rate,
-                                      update_steps=update_steps,
-                                      learning_rate=learning_rate,
-                                      discount=discount,
-                                      gradient_max=gradient_max)
+        super(DQNApex, self).__init__(
+            qnet,
+            qnet_target,
+            optimizer,
+            criterion,
+            lr_scheduler=lr_scheduler,
+            lr_scheduler_args=lr_scheduler_args,
+            lr_scheduler_kwargs=lr_scheduler_kwargs,
+            batch_size=batch_size,
+            epsilon_decay=epsilon_decay,
+            update_rate=update_rate,
+            update_steps=update_steps,
+            learning_rate=learning_rate,
+            discount=discount,
+            gradient_max=gradient_max,
+        )
 
         # will not support sharing rpc group,
         # use static buffer_name is ok here.
         self.replay_buffer = DistributedPrioritizedBuffer(
-            buffer_name="buffer", group=apex_group,
-            buffer_size=replay_size
+            buffer_name="buffer", group=apex_group, buffer_size=replay_size
         )
         self.qnet_model_server = model_server[0]
         self.is_syncing = True
@@ -105,39 +112,37 @@ class DQNApex(DQNPer):
     def manual_sync(self):
         self.qnet_model_server.pull(self.qnet)
 
-    def act_discrete(self,
-                     state: Dict[str, Any],
-                     use_target: bool = False,
-                     **__):
+    def act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.qnet_model_server.pull(self.qnet)
         return super(DQNApex, self).act_discrete(state, use_target)
 
-    def act_discrete_with_noise(self,
-                                state: Dict[str, Any],
-                                use_target: bool = False,
-                                decay_epsilon: bool = True,
-                                **__):
+    def act_discrete_with_noise(
+        self,
+        state: Dict[str, Any],
+        use_target: bool = False,
+        decay_epsilon: bool = True,
+        **__
+    ):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.qnet_model_server.pull(self.qnet)
-        return super(DQNApex, self)\
-            .act_discrete_with_noise(state, use_target, decay_epsilon)
+        return super(DQNApex, self).act_discrete_with_noise(
+            state, use_target, decay_epsilon
+        )
 
-    def update(self,
-               update_value=True,
-               update_target=True,
-               concatenate_samples=True,
-               **__):
+    def update(
+        self, update_value=True, update_target=True, concatenate_samples=True, **__
+    ):
         # DOC INHERITED
-        result = super(DQNApex, self).update(update_value, update_target,
-                                             concatenate_samples)
-        if isinstance(self.qnet,
-                      (nn.parallel.DataParallel,
-                       nn.parallel.DistributedDataParallel)):
-            self.qnet_model_server.push(self.qnet.module,
-                                        pull_on_fail=False)
+        result = super(DQNApex, self).update(
+            update_value, update_target, concatenate_samples
+        )
+        if isinstance(
+            self.qnet, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
+        ):
+            self.qnet_model_server.push(self.qnet.module, pull_on_fail=False)
         else:
             self.qnet_model_server.push(self.qnet)
         return result
@@ -174,8 +179,7 @@ class DQNApex(DQNPer):
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:
-            config["frame_config"] = {**config["frame_config"],
-                                      **default_values}
+            config["frame_config"] = {**config["frame_config"], **default_values}
         return config
 
     @classmethod
@@ -184,29 +188,27 @@ class DQNApex(DQNPer):
         f_config = deepcopy(config["frame_config"])
         apex_group = world.create_rpc_group(
             group_name=f_config["apex_group_name"],
-            members=(world.get_members()
-                     if f_config["apex_members"] == "all"
-                     else f_config["apex_members"])
+            members=(
+                world.get_members()
+                if f_config["apex_members"] == "all"
+                else f_config["apex_members"]
+            ),
         )
 
         models = assert_and_get_valid_models(f_config["models"])
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
-            m(*arg, **kwarg)
-            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            m(*arg, **kwarg) for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         # wrap models in DistributedDataParallel when running in learner mode
         max_learner_id = f_config["learner_process_number"]
 
-        learner_group = world.create_collective_group(
-            ranks=list(range(max_learner_id))
-        )
+        learner_group = world.create_collective_group(ranks=list(range(max_learner_id)))
 
         if world.rank < max_learner_id:
             models = [
-                DistributedDataParallel(module=m,
-                                        process_group=learner_group.group)
+                DistributedDataParallel(module=m, process_group=learner_group.group)
                 for m in models
             ]
 
@@ -215,22 +217,26 @@ class DQNApex(DQNPer):
             *f_config["criterion_args"], **f_config["criterion_kwargs"]
         )
         criterion.reduction = "none"
-        lr_scheduler = (
-                f_config["lr_scheduler"]
-                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        lr_scheduler = f_config["lr_scheduler"] and assert_and_get_valid_lr_scheduler(
+            f_config["lr_scheduler"]
         )
-        servers = model_server_helper(model_num=1,
-                                      group_name=f_config[
-                                          "model_server_group_name"
-                                      ],
-                                      members=f_config[
-                                          "model_server_members"
-                                      ])
+        servers = model_server_helper(
+            model_num=1,
+            group_name=f_config["model_server_group_name"],
+            members=f_config["model_server_members"],
+        )
         del f_config["optimizer"]
         del f_config["criterion"]
         del f_config["lr_scheduler"]
-        frame = cls(*models, optimizer, criterion, apex_group, servers,
-                    lr_scheduler=lr_scheduler, **f_config)
+        frame = cls(
+            *models,
+            optimizer,
+            criterion,
+            apex_group,
+            servers,
+            lr_scheduler=lr_scheduler,
+            **f_config
+        )
         if world.rank >= max_learner_id:
             frame.update = lambda *_, **__: (None, None)
         return frame
@@ -246,27 +252,30 @@ class DDPGApex(DDPGPer):
 
     The push function is invoked after ``update``.
     """
-    def __init__(self,
-                 actor: Union[NeuralNetworkModule, nn.Module],
-                 actor_target: Union[NeuralNetworkModule, nn.Module],
-                 critic: Union[NeuralNetworkModule, nn.Module],
-                 critic_target: Union[NeuralNetworkModule, nn.Module],
-                 optimizer: Callable,
-                 criterion: Callable,
-                 apex_group: RpcGroup,
-                 model_server: Tuple[PushPullModelServer],
-                 *_,
-                 lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
-                 batch_size: int = 100,
-                 update_rate: float = 0.005,
-                 update_steps: Union[int, None] = None,
-                 learning_rate: float = 0.001,
-                 discount: float = 0.99,
-                 gradient_max: float = np.inf,
-                 replay_size: int = 500000,
-                 **__):
+
+    def __init__(
+        self,
+        actor: Union[NeuralNetworkModule, nn.Module],
+        actor_target: Union[NeuralNetworkModule, nn.Module],
+        critic: Union[NeuralNetworkModule, nn.Module],
+        critic_target: Union[NeuralNetworkModule, nn.Module],
+        optimizer: Callable,
+        criterion: Callable,
+        apex_group: RpcGroup,
+        model_server: Tuple[PushPullModelServer],
+        *_,
+        lr_scheduler: Callable = None,
+        lr_scheduler_args: Tuple[Tuple, Tuple] = (),
+        lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
+        batch_size: int = 100,
+        update_rate: float = 0.005,
+        update_steps: Union[int, None] = None,
+        learning_rate: float = 0.001,
+        discount: float = 0.99,
+        gradient_max: float = np.inf,
+        replay_size: int = 500000,
+        **__
+    ):
         """
         See Also:
             :class:`.DDPGPer`
@@ -307,24 +316,28 @@ class DDPGApex(DDPGPer):
             gradient_max: Maximum gradient.
             replay_size: Local replay buffer size of a single worker.
         """
-        super(DDPGApex, self).__init__(actor, actor_target,
-                                       critic, critic_target,
-                                       optimizer, criterion,
-                                       lr_scheduler=lr_scheduler,
-                                       lr_scheduler_args=lr_scheduler_args,
-                                       lr_scheduler_kwargs=lr_scheduler_kwargs,
-                                       batch_size=batch_size,
-                                       update_rate=update_rate,
-                                       update_steps=update_steps,
-                                       learning_rate=learning_rate,
-                                       discount=discount,
-                                       gradient_max=gradient_max)
+        super(DDPGApex, self).__init__(
+            actor,
+            actor_target,
+            critic,
+            critic_target,
+            optimizer,
+            criterion,
+            lr_scheduler=lr_scheduler,
+            lr_scheduler_args=lr_scheduler_args,
+            lr_scheduler_kwargs=lr_scheduler_kwargs,
+            batch_size=batch_size,
+            update_rate=update_rate,
+            update_steps=update_steps,
+            learning_rate=learning_rate,
+            discount=discount,
+            gradient_max=gradient_max,
+        )
 
         # will not support sharing rpc group,
         # use static buffer_name is ok here.
         self.replay_buffer = DistributedPrioritizedBuffer(
-            buffer_name="buffer", group=apex_group,
-            buffer_size=replay_size
+            buffer_name="buffer", group=apex_group, buffer_size=replay_size
         )
         self.apex_group = apex_group
         self.actor_model_server = model_server[0]
@@ -340,64 +353,62 @@ class DDPGApex(DDPGPer):
     def manual_sync(self):
         self.actor_model_server.pull(self.actor)
 
-    def act(self,
-            state: Dict[str, Any],
-            use_target: bool = False,
-            **__):
+    def act(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act(state, use_target)
 
-    def act_with_noise(self,
-                       state: Dict[str, Any],
-                       noise_param: Tuple = (0.0, 1.0),
-                       ratio: float = 1.0,
-                       mode: str = "uniform",
-                       use_target: bool = False,
-                       **__):
+    def act_with_noise(
+        self,
+        state: Dict[str, Any],
+        noise_param: Tuple = (0.0, 1.0),
+        ratio: float = 1.0,
+        mode: str = "uniform",
+        use_target: bool = False,
+        **__
+    ):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
-        return super(DDPGApex, self).act_with_noise(state,
-                                                    noise_param=noise_param,
-                                                    ratio=ratio,
-                                                    mode=mode,
-                                                    use_target=use_target)
+        return super(DDPGApex, self).act_with_noise(
+            state,
+            noise_param=noise_param,
+            ratio=ratio,
+            mode=mode,
+            use_target=use_target,
+        )
 
-    def act_discrete(self,
-                     state: Dict[str, Any],
-                     use_target: bool = False,
-                     **__):
+    def act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act_discrete(state, use_target)
 
-    def act_discrete_with_noise(self,
-                                state: Dict[str, Any],
-                                use_target: bool = False,
-                                **__):
+    def act_discrete_with_noise(
+        self, state: Dict[str, Any], use_target: bool = False, **__
+    ):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
         return super(DDPGApex, self).act_discrete_with_noise(state, use_target)
 
-    def update(self,
-               update_value=True,
-               update_policy=True,
-               update_target=True,
-               concatenate_samples=True,
-               **__):
+    def update(
+        self,
+        update_value=True,
+        update_policy=True,
+        update_target=True,
+        concatenate_samples=True,
+        **__
+    ):
         # DOC INHERITED
-        result = super(DDPGApex, self).update(update_value, update_policy,
-                                              update_target,
-                                              concatenate_samples)
-        if isinstance(self.actor,
-                      (nn.parallel.DataParallel,
-                       nn.parallel.DistributedDataParallel)):
-            self.actor_model_server.push(self.actor.module,
-                                         pull_on_fail=False)
+        result = super(DDPGApex, self).update(
+            update_value, update_policy, update_target, concatenate_samples
+        )
+        if isinstance(
+            self.actor, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
+        ):
+            self.actor_model_server.push(self.actor.module, pull_on_fail=False)
         else:
             self.actor_model_server.push(self.actor)
         return result
@@ -433,8 +444,7 @@ class DDPGApex(DDPGPer):
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:
-            config["frame_config"] = {**config["frame_config"],
-                                      **default_values}
+            config["frame_config"] = {**config["frame_config"], **default_values}
         return config
 
     @classmethod
@@ -443,29 +453,27 @@ class DDPGApex(DDPGPer):
         f_config = deepcopy(config["frame_config"])
         apex_group = world.create_rpc_group(
             group_name=f_config["apex_group_name"],
-            members=(world.get_members()
-                     if f_config["apex_members"] == "all"
-                     else f_config["apex_members"])
+            members=(
+                world.get_members()
+                if f_config["apex_members"] == "all"
+                else f_config["apex_members"]
+            ),
         )
 
         models = assert_and_get_valid_models(f_config["models"])
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
-            m(*arg, **kwarg)
-            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            m(*arg, **kwarg) for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         # wrap models in DistributedDataParallel when running in learner mode
         max_learner_id = f_config["learner_process_number"]
 
-        learner_group = world.create_collective_group(
-            ranks=list(range(max_learner_id))
-        )
+        learner_group = world.create_collective_group(ranks=list(range(max_learner_id)))
 
         if world.rank < max_learner_id:
             models = [
-                DistributedDataParallel(module=m,
-                                        process_group=learner_group.group)
+                DistributedDataParallel(module=m, process_group=learner_group.group)
                 for m in models
             ]
 
@@ -474,22 +482,26 @@ class DDPGApex(DDPGPer):
             *f_config["criterion_args"], **f_config["criterion_kwargs"]
         )
         criterion.reduction = "none"
-        lr_scheduler = (
-                f_config["lr_scheduler"]
-                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        lr_scheduler = f_config["lr_scheduler"] and assert_and_get_valid_lr_scheduler(
+            f_config["lr_scheduler"]
         )
-        servers = model_server_helper(model_num=1,
-                                      group_name=f_config[
-                                          "model_server_group_name"
-                                      ],
-                                      members=f_config[
-                                          "model_server_members"
-                                      ])
+        servers = model_server_helper(
+            model_num=1,
+            group_name=f_config["model_server_group_name"],
+            members=f_config["model_server_members"],
+        )
         del f_config["optimizer"]
         del f_config["criterion"]
         del f_config["lr_scheduler"]
-        frame = cls(*models, optimizer, criterion, apex_group, servers,
-                    lr_scheduler=lr_scheduler, **f_config)
+        frame = cls(
+            *models,
+            optimizer,
+            criterion,
+            apex_group,
+            servers,
+            lr_scheduler=lr_scheduler,
+            **f_config
+        )
         if world.rank >= max_learner_id:
             frame.update = lambda *_, **__: (None, None)
         return frame

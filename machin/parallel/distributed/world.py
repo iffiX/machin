@@ -26,7 +26,7 @@ def _copy_doc(from_func):
     import sys
 
     def _decorator(func):
-        if 'sphinx' in sys.modules:  # pragma: no cover
+        if "sphinx" in sys.modules:  # pragma: no cover
             src_doc = from_func.__doc__
             lines = io.StringIO(src_doc)
             # remove the group line
@@ -37,11 +37,8 @@ def _copy_doc(from_func):
     return _decorator
 
 
-def _rpc_set_lut_entry(group_name, key,
-                       proc_name, lut_type):  # pragma: no cover
-    table = (WORLD.value_lut
-             if lut_type == LUTType.VALUE
-             else WORLD.service_lut)
+def _rpc_set_lut_entry(group_name, key, proc_name, lut_type):  # pragma: no cover
+    table = WORLD.value_lut if lut_type == LUTType.VALUE else WORLD.service_lut
     with WORLD.lut_lock:
         if (group_name, key) in table:
             return False
@@ -50,11 +47,8 @@ def _rpc_set_lut_entry(group_name, key,
             return True
 
 
-def _rpc_unset_lut_entry(group_name, key,
-                         proc_name, lut_type):  # pragma: no cover
-    table = (WORLD.value_lut
-             if lut_type == LUTType.VALUE
-             else WORLD.service_lut)
+def _rpc_unset_lut_entry(group_name, key, proc_name, lut_type):  # pragma: no cover
+    table = WORLD.value_lut if lut_type == LUTType.VALUE else WORLD.service_lut
     with WORLD.lut_lock:
         if (group_name, key) in table:
             if table[(group_name, key)] == proc_name:
@@ -64,9 +58,7 @@ def _rpc_unset_lut_entry(group_name, key,
 
 
 def _rpc_get_lut_entry(group_name, key, lut_type):  # pragma: no cover
-    table = (WORLD.value_lut
-             if lut_type == LUTType.VALUE
-             else WORLD.service_lut)
+    table = WORLD.value_lut if lut_type == LUTType.VALUE else WORLD.service_lut
     with WORLD.lut_lock:
         if (group_name, key) in table:
             return True, table[(group_name, key)]
@@ -75,9 +67,7 @@ def _rpc_get_lut_entry(group_name, key, lut_type):  # pragma: no cover
 
 
 def _rpc_has_lut_entry(group_name, key, lut_type):  # pragma: no cover
-    table = (WORLD.value_lut
-             if lut_type == LUTType.VALUE
-             else WORLD.service_lut)
+    table = WORLD.value_lut if lut_type == LUTType.VALUE else WORLD.service_lut
     with WORLD.lut_lock:
         if (group_name, key) in table:
             return True
@@ -99,10 +89,14 @@ def _rpc_call_service(group_name, key, args, kwargs):  # pragma: no cover
     if group_name not in world.groups:
         # could happen if group has been destroyed on this process
         # deregister the entry from lut manager
-        rpc.rpc_sync(world.lut_manager, _rpc_unset_lut_entry,
-                     args=(group_name, key, get_cur_name(), LUTType.SERVICE))
-        raise KeyError("Group [{}], not found on Process [{}]"
-                       .format(group_name, get_cur_name()))
+        rpc.rpc_sync(
+            world.lut_manager,
+            _rpc_unset_lut_entry,
+            args=(group_name, key, get_cur_name(), LUTType.SERVICE),
+        )
+        raise KeyError(
+            "Group [{}], not found on Process [{}]".format(group_name, get_cur_name())
+        )
     lut = WORLD.groups[group_name].group_service_lut
 
     if key in lut:
@@ -114,10 +108,16 @@ def _rpc_call_service(group_name, key, args, kwargs):  # pragma: no cover
         # could happen if local map is not synchronized with the
         # global map
         # deregister the entry from lut manager
-        rpc.rpc_sync(world.lut_manager, _rpc_unset_lut_entry,
-                     args=(group_name, key, get_cur_name(), LUTType.VALUE))
-        raise KeyError("Service [{}] not found on Group [{}], Process [{}]"
-                       .format(key, group_name, get_cur_name()))
+        rpc.rpc_sync(
+            world.lut_manager,
+            _rpc_unset_lut_entry,
+            args=(group_name, key, get_cur_name(), LUTType.VALUE),
+        )
+        raise KeyError(
+            "Service [{}] not found on Group [{}], Process [{}]".format(
+                key, group_name, get_cur_name()
+            )
+        )
 
 
 def _rpc_get_paired_value(group_name, key):  # pragma: no cover
@@ -126,10 +126,14 @@ def _rpc_get_paired_value(group_name, key):  # pragma: no cover
     if group_name not in world.groups:
         # could happen if group has been destroyed on this process
         # deregister the entry from lut manager
-        rpc.rpc_sync(world.lut_manager, _rpc_unset_lut_entry,
-                     args=(group_name, key, get_cur_name(), LUTType.VALUE))
-        raise KeyError("Group [{}], not found on Process [{}]"
-                       .format(group_name, get_cur_name()))
+        rpc.rpc_sync(
+            world.lut_manager,
+            _rpc_unset_lut_entry,
+            args=(group_name, key, get_cur_name(), LUTType.VALUE),
+        )
+        raise KeyError(
+            "Group [{}], not found on Process [{}]".format(group_name, get_cur_name())
+        )
 
     paired_map = WORLD.groups[group_name].group_value_lut
 
@@ -139,11 +143,15 @@ def _rpc_get_paired_value(group_name, key):  # pragma: no cover
         # could happen if local map is not synchronized with the
         # global map
         # deregister the entry from lut manager
-        rpc.rpc_sync(world.lut_manager, _rpc_unset_lut_entry,
-                     args=(group_name, key, get_cur_name(), LUTType.VALUE))
-        raise KeyError("Value with key [{}] not found on Group [{}], "
-                       "Process [{}]"
-                       .format(key, group_name, get_cur_name()))
+        rpc.rpc_sync(
+            world.lut_manager,
+            _rpc_unset_lut_entry,
+            args=(group_name, key, get_cur_name(), LUTType.VALUE),
+        )
+        raise KeyError(
+            "Value with key [{}] not found on Group [{}], "
+            "Process [{}]".format(key, group_name, get_cur_name())
+        )
 
 
 def _world_singleton(cls):
@@ -188,7 +196,7 @@ def get_world():  # pragma: no cover
     return WORLD
 
 
-def is_world_initialized(): # pragma: no cover
+def is_world_initialized():  # pragma: no cover
     return WORLD is not None
 
 
@@ -203,11 +211,13 @@ def _unlock_group(group_name):  # pragma: no cover
 def _check_executor(func):
     def wrapped(self, *args, **kwargs):
         if get_cur_name() not in self.group_members:
-            raise RuntimeError("You should not execute function {} when "
-                               "current process is not a member of the "
-                               "group"
-                               .format(func.__qualname__))
+            raise RuntimeError(
+                "You should not execute function {} when "
+                "current process is not a member of the "
+                "group".format(func.__qualname__)
+            )
         return func(self, *args, **kwargs)
+
     return wrapped
 
 
@@ -231,17 +241,19 @@ class World:
     The distributed world.
     """
 
-    def __init__(self,
-                 name: str,
-                 rank: int = -1,
-                 world_size: int = -1,
-                 init_dist: bool = True,
-                 init_rpc: bool = True,
-                 dist_backend: str = "gloo",
-                 dist_init_method: str = "tcp://localhost:9100",
-                 rpc_init_method: str = "tcp://localhost:9101",
-                 dist_timeout: float = 60,
-                 rpc_timeout: float = 60):
+    def __init__(
+        self,
+        name: str,
+        rank: int = -1,
+        world_size: int = -1,
+        init_dist: bool = True,
+        init_rpc: bool = True,
+        dist_backend: str = "gloo",
+        dist_init_method: str = "tcp://localhost:9100",
+        rpc_init_method: str = "tcp://localhost:9101",
+        dist_timeout: float = 60,
+        rpc_timeout: float = 60,
+    ):
         """
         Args:
             name: A unique name to identify current process.
@@ -259,19 +271,22 @@ class World:
         self.group_create_signals = {}
 
         if init_dist:
-            dist.init_process_group(backend=dist_backend,
-                                    init_method=dist_init_method,
-                                    timeout=timedelta(seconds=dist_timeout),
-                                    rank=rank,
-                                    world_size=world_size)
+            dist.init_process_group(
+                backend=dist_backend,
+                init_method=dist_init_method,
+                timeout=timedelta(seconds=dist_timeout),
+                rank=rank,
+                world_size=world_size,
+            )
         if init_rpc:
-            rpc.init_rpc(self.name,
-                         rank=rank,
-                         world_size=world_size,
-                         rpc_backend_options=rpc.TensorPipeRpcBackendOptions(
-                             init_method=rpc_init_method,
-                             rpc_timeout=rpc_timeout
-                         ))
+            rpc.init_rpc(
+                self.name,
+                rank=rank,
+                world_size=world_size,
+                rpc_backend_options=rpc.TensorPipeRpcBackendOptions(
+                    init_method=rpc_init_method, rpc_timeout=rpc_timeout
+                ),
+            )
 
         # get rank-name mapping
         self.rank_name_map = {}
@@ -294,10 +309,12 @@ class World:
         else:
             rpc.shutdown()
 
-    def create_collective_group(self,
-                                ranks: List[int],
-                                timeout: Any = dist.default_pg_timeout,
-                                backend: Any = None):
+    def create_collective_group(
+        self,
+        ranks: List[int],
+        timeout: Any = dist.default_pg_timeout,
+        backend: Any = None,
+    ):
         """
         Create a sub process group for collective communications. This function
         is blocking and requires that all processes in ``ranks`` to
@@ -315,10 +332,10 @@ class World:
             A ``Group`` with type ``Group.COLLECTIVE``
         """
         ranks = sorted(ranks)
-        group = CollectiveGroup(dist.new_group(ranks, timeout, backend),
-                                ranks.index(self.rank)
-                                if self.rank in ranks
-                                else None)
+        group = CollectiveGroup(
+            dist.new_group(ranks, timeout, backend),
+            ranks.index(self.rank) if self.rank in ranks else None,
+        )
         return group
 
     def create_rpc_group(self, group_name: str, members: List[str]):
@@ -335,8 +352,11 @@ class World:
             A rpc group.
         """
         if get_cur_name() not in members:  # pragma: no cover
-            raise RuntimeError("Creator Process [{}] not in Group [{}]"
-                               .format(get_cur_name(), group_name))
+            raise RuntimeError(
+                "Creator Process [{}] not in Group [{}]".format(
+                    get_cur_name(), group_name
+                )
+            )
         if group_name in self.groups:  # pragma: no cover
             raise RuntimeError("Group {} already exists!".format(group_name))
         group = RpcGroup(group_name, members)
@@ -423,6 +443,7 @@ class CollectiveGroup:
         # the same except recv have a wait() call
         dist_c10d._check_single_tensor(tensor, "tensor")
         if dist_c10d._rank_not_in_group(self.group):
+
             class Waiter:
                 def wait(self):
                     return -1
@@ -438,6 +459,7 @@ class CollectiveGroup:
         if src is None:
             work = pg.recv_anysource([tensor], tag)
             if self.group == dist_c10d.GroupMember.WORLD:
+
                 class Waiter:
                     def wait(self):
                         nonlocal work
@@ -446,6 +468,7 @@ class CollectiveGroup:
 
                 return Waiter()
             else:
+
                 class Waiter:
                     def wait(self):
                         nonlocal work, pg
@@ -498,28 +521,30 @@ class CollectiveGroup:
         return dist.barrier(self.group, async_op)
 
     @_copy_doc(dist.broadcast_multigpu)
-    def broadcast_multigpu(self, tensor_list, src, async_op=False,
-                           src_tensor=0):
-        return dist.broadcast_multigpu(tensor_list, src, self.group,
-                                       async_op, src_tensor)
+    def broadcast_multigpu(self, tensor_list, src, async_op=False, src_tensor=0):
+        return dist.broadcast_multigpu(
+            tensor_list, src, self.group, async_op, src_tensor
+        )
 
     @_copy_doc(dist.all_reduce_multigpu)
-    def all_reduce_multigpu(self, tensor_list, op=dist.ReduceOp.SUM,
-                            async_op=False):
-        return dist.all_reduce_multigpu(tensor_list, op,
-                                        self.group, async_op)
+    def all_reduce_multigpu(self, tensor_list, op=dist.ReduceOp.SUM, async_op=False):
+        return dist.all_reduce_multigpu(tensor_list, op, self.group, async_op)
 
     @_copy_doc(dist.reduce_multigpu)
-    def reduce_multigpu(self, tensor_list, dst, op=dist.ReduceOp.SUM,
-                        async_op=False, dst_tensor=0):  # pragma: no cover
-        return dist.reduce_multigpu(tensor_list, dst, op, self.group,
-                                    async_op, dst_tensor)
+    def reduce_multigpu(
+        self, tensor_list, dst, op=dist.ReduceOp.SUM, async_op=False, dst_tensor=0
+    ):  # pragma: no cover
+        return dist.reduce_multigpu(
+            tensor_list, dst, op, self.group, async_op, dst_tensor
+        )
 
     @_copy_doc(dist.all_gather_multigpu)
-    def all_gather_multigpu(self, output_tensor_lists, input_tensor_list,
-                            async_op=False):  # pragma: no cover
-        return dist.all_gather_multigpu(output_tensor_lists, input_tensor_list,
-                                        self.group, async_op)
+    def all_gather_multigpu(
+        self, output_tensor_lists, input_tensor_list, async_op=False
+    ):  # pragma: no cover
+        return dist.all_gather_multigpu(
+            output_tensor_lists, input_tensor_list, self.group, async_op
+        )
 
     def destroy(self):
         """
@@ -546,6 +571,7 @@ class CollectiveGroup:
 # TODO:
 # add the heartbeat mechanism to the lut_manager, to increase robustness
 
+
 class RpcGroup:
     def __init__(self, group_name, group_members, first_create=True):
         self.group_name = group_name
@@ -556,34 +582,31 @@ class RpcGroup:
         self._barrier_event = Event()
         self._barrier_status = False
         if first_create and self.is_member(get_cur_name()):
-            self.register("_rpc_entered_barrier_{}".format(get_cur_name()),
-                          self._rpc_entered_barrier)
-            self.register("_rpc_exit_barrier_{}".format(get_cur_name()),
-                          self._rpc_exit_barrier)
+            self.register(
+                "_rpc_entered_barrier_{}".format(get_cur_name()),
+                self._rpc_entered_barrier,
+            )
+            self.register(
+                "_rpc_exit_barrier_{}".format(get_cur_name()), self._rpc_exit_barrier
+            )
 
     @_copy_doc(rpc.rpc_sync)
-    def rpc_sync(self, to: str, func: Callable,
-                 timeout=-1, args=(), kwargs=None):
+    def rpc_sync(self, to: str, func: Callable, timeout=-1, args=(), kwargs=None):
         if kwargs is None:
             kwargs = {}
-        return self._rpc_normal_call(rpc.rpc_sync, to, func,
-                                     timeout, args, kwargs)
+        return self._rpc_normal_call(rpc.rpc_sync, to, func, timeout, args, kwargs)
 
     @_copy_doc(rpc.rpc_async)
-    def rpc_async(self, to: str, func: Callable,
-                  timeout=-1, args=(), kwargs=None):
+    def rpc_async(self, to: str, func: Callable, timeout=-1, args=(), kwargs=None):
         if kwargs is None:
             kwargs = {}
-        return self._rpc_normal_call(rpc.rpc_async, to, func,
-                                     timeout, args, kwargs)
+        return self._rpc_normal_call(rpc.rpc_async, to, func, timeout, args, kwargs)
 
     @_copy_doc(rpc.remote)
-    def remote(self, to: str, func: Callable,
-               timeout=-1, args=(), kwargs=None):
+    def remote(self, to: str, func: Callable, timeout=-1, args=(), kwargs=None):
         if kwargs is None:
             kwargs = {}
-        return self._rpc_normal_call(rpc.remote, to, func,
-                                     timeout, args, kwargs)
+        return self._rpc_normal_call(rpc.remote, to, func, timeout, args, kwargs)
 
     @_check_executor
     def pair(self, key: Any, value: Any):
@@ -601,17 +624,25 @@ class RpcGroup:
             ``KeyError`` if value has already been paired.
         """
         if key in self.group_value_lut:
-            raise KeyError('Value with key "{}" already paired to Group [{}]'
-                           .format(key, self.group_name))
+            raise KeyError(
+                'Value with key "{}" already paired to Group [{}]'.format(
+                    key, self.group_name
+                )
+            )
         # announce the pairing
-        status = rpc.rpc_sync(get_world().lut_manager, _rpc_set_lut_entry,
-                              args=(self.group_name, key,
-                                    get_cur_name(), LUTType.VALUE))
+        status = rpc.rpc_sync(
+            get_world().lut_manager,
+            _rpc_set_lut_entry,
+            args=(self.group_name, key, get_cur_name(), LUTType.VALUE),
+        )
         if status:
             self.group_value_lut[key] = value
         else:
-            raise KeyError('Value with key "{}" already paired to Group [{}]'
-                           .format(key, self.group_name))
+            raise KeyError(
+                'Value with key "{}" already paired to Group [{}]'.format(
+                    key, self.group_name
+                )
+            )
 
     @_check_executor
     def unpair(self, key: Any):
@@ -627,20 +658,26 @@ class RpcGroup:
             ``KeyError`` if value has not been paired.
         """
         if key not in self.group_value_lut:
-            raise KeyError('Value with key "{}" not paired to Group [{}] '
-                           'on Process[{}]'
-                           .format(key, self.group_name, get_cur_name()))
+            raise KeyError(
+                'Value with key "{}" not paired to Group [{}] '
+                "on Process[{}]".format(key, self.group_name, get_cur_name())
+            )
         # announce the unpairing
-        status = rpc.rpc_sync(get_world().lut_manager, _rpc_unset_lut_entry,
-                              args=(self.group_name, key,
-                                    get_cur_name(), LUTType.VALUE))
+        status = rpc.rpc_sync(
+            get_world().lut_manager,
+            _rpc_unset_lut_entry,
+            args=(self.group_name, key, get_cur_name(), LUTType.VALUE),
+        )
         if status:
             self.group_value_lut.pop(key)
         else:  # pragma: no cover
             # should never happen
-            raise RuntimeError('Failed to unpair value with key "{}" '
-                               'from Group [{}], executor is Process[{}]'
-                               .format(key, self.group_name, get_cur_name()))
+            raise RuntimeError(
+                'Failed to unpair value with key "{}" '
+                "from Group [{}], executor is Process[{}]".format(
+                    key, self.group_name, get_cur_name()
+                )
+            )
 
     def is_paired(self, key: Any):
         """
@@ -651,8 +688,11 @@ class RpcGroup:
                  The name only needs to be unique for this value in this
                  group.
         """
-        return rpc.rpc_sync(get_world().lut_manager, _rpc_has_lut_entry,
-                            args=(self.group_name, key, LUTType.VALUE))
+        return rpc.rpc_sync(
+            get_world().lut_manager,
+            _rpc_has_lut_entry,
+            args=(self.group_name, key, LUTType.VALUE),
+        )
 
     def get_paired(self, key: Any):
         """
@@ -668,15 +708,18 @@ class RpcGroup:
         if key in self.group_value_lut:
             holder = get_cur_name()
         else:
-            status, holder = rpc.rpc_sync(get_world().lut_manager,
-                                          _rpc_get_lut_entry,
-                                          args=(self.group_name, key,
-                                                LUTType.VALUE))
+            status, holder = rpc.rpc_sync(
+                get_world().lut_manager,
+                _rpc_get_lut_entry,
+                args=(self.group_name, key, LUTType.VALUE),
+            )
             if not status:
-                raise KeyError("Value with key [{}] not found on Group [{}], "
-                               .format(key, self.group_name))
-        return rpc.remote(holder, _rpc_get_paired_value,
-                          args=(self.group_name, key))
+                raise KeyError(
+                    "Value with key [{}] not found on Group [{}], ".format(
+                        key, self.group_name
+                    )
+                )
+        return rpc.remote(holder, _rpc_get_paired_value, args=(self.group_name, key))
 
     @_check_executor
     def register(self, key: Any, service: Any):
@@ -693,19 +736,23 @@ class RpcGroup:
             ``KeyError`` if service has already been registered.
         """
         if key in self.group_service_lut:
-            raise KeyError('Service with key "{}" already registered in '
-                           'Group [{}]'
-                           .format(key, self.group_name))
+            raise KeyError(
+                'Service with key "{}" already registered in '
+                "Group [{}]".format(key, self.group_name)
+            )
         # announce the pairing
-        status = rpc.rpc_sync(get_world().lut_manager, _rpc_set_lut_entry,
-                              args=(self.group_name, key,
-                                    get_cur_name(), LUTType.SERVICE))
+        status = rpc.rpc_sync(
+            get_world().lut_manager,
+            _rpc_set_lut_entry,
+            args=(self.group_name, key, get_cur_name(), LUTType.SERVICE),
+        )
         if status:
             self.group_service_lut[key] = service
         else:
-            raise KeyError('Service with key "{}" already registered in '
-                           'Group [{}]'
-                           .format(key, self.group_name))
+            raise KeyError(
+                'Service with key "{}" already registered in '
+                "Group [{}]".format(key, self.group_name)
+            )
 
     @_check_executor
     def deregister(self, key: Any):
@@ -721,20 +768,26 @@ class RpcGroup:
             ``KeyError`` if srvice has not been registered.
         """
         if key not in self.group_service_lut:
-            raise KeyError('Service with key "{}" not registered in Group [{}] '
-                           'on Process[{}]'
-                           .format(key, self.group_name, get_cur_name()))
+            raise KeyError(
+                'Service with key "{}" not registered in Group [{}] '
+                "on Process[{}]".format(key, self.group_name, get_cur_name())
+            )
         # announce the deregistration
-        status = rpc.rpc_sync(get_world().lut_manager, _rpc_unset_lut_entry,
-                              args=(self.group_name, key,
-                                    get_cur_name(), LUTType.SERVICE))
+        status = rpc.rpc_sync(
+            get_world().lut_manager,
+            _rpc_unset_lut_entry,
+            args=(self.group_name, key, get_cur_name(), LUTType.SERVICE),
+        )
         if status:
             self.group_service_lut.pop(key)
         else:  # pragma: no cover
             # should never happen
-            raise RuntimeError('Failed to deregister service with key "{}" '
-                               'from Group [{}], executor is Process[{}]'
-                               .format(key, self.group_name, get_cur_name()))
+            raise RuntimeError(
+                'Failed to deregister service with key "{}" '
+                "from Group [{}], executor is Process[{}]".format(
+                    key, self.group_name, get_cur_name()
+                )
+            )
 
     def is_registered(self, key: Any):
         """
@@ -745,8 +798,11 @@ class RpcGroup:
                  The name only needs to be unique for this service in this
                  group.
         """
-        return rpc.rpc_sync(get_world().lut_manager, _rpc_has_lut_entry,
-                            args=(self.group_name, key, LUTType.SERVICE))
+        return rpc.rpc_sync(
+            get_world().lut_manager,
+            _rpc_has_lut_entry,
+            args=(self.group_name, key, LUTType.SERVICE),
+        )
 
     def registered_sync(self, key: Any, args=(), kwargs=None):
         """
@@ -883,15 +939,20 @@ class RpcGroup:
         if key in self.group_service_lut:
             holder = get_cur_name()
         else:
-            status, holder = rpc.rpc_sync(get_world().lut_manager,
-                                          _rpc_get_lut_entry,
-                                          args=(self.group_name, key,
-                                                LUTType.SERVICE))
+            status, holder = rpc.rpc_sync(
+                get_world().lut_manager,
+                _rpc_get_lut_entry,
+                args=(self.group_name, key, LUTType.SERVICE),
+            )
             if not status:
-                raise KeyError("Service with key [{}] not found on Group [{}], "
-                               .format(key, self.group_name))
-        return rpc_method(holder, _rpc_call_service,
-                          args=(self.group_name, key, args, kwargs))
+                raise KeyError(
+                    "Service with key [{}] not found on Group [{}], ".format(
+                        key, self.group_name
+                    )
+                )
+        return rpc_method(
+            holder, _rpc_call_service, args=(self.group_name, key, args, kwargs)
+        )
 
     def _rpc_entered_barrier(self):
         return self._barrier_status

@@ -3,7 +3,7 @@ from machin.utils.conf import (
     load_config_cmd,
     load_config_file,
     save_config,
-    merge_config
+    merge_config,
 )
 from machin.utils.helper_classes import Object
 from os.path import join
@@ -19,13 +19,10 @@ def get_config():
     return c
 
 
-@mock.patch("machin.utils.conf.argparse.ArgumentParser.parse_args",
-            return_value=Object(data={
-                "conf": [
-                    "conf1=2",
-                    "conf3=3"
-                ]
-            }))
+@mock.patch(
+    "machin.utils.conf.argparse.ArgumentParser.parse_args",
+    return_value=Object(data={"conf": ["conf1=2", "conf3=3"]}),
+)
 def test_load_config_cmd(*_mock_classes):
     conf = load_config_cmd()
     assert conf["conf1"] == 2
@@ -41,11 +38,8 @@ def test_load_config_cmd(*_mock_classes):
 
 def test_load_config_file(tmpdir):
     tmp_dir = str(tmpdir.make_numbered_dir())
-    with open(join(tmp_dir, "conf.json"), 'w') as config_file:
-        json.dump({
-            "conf1": 2,
-            "conf3": 3
-        }, config_file, sort_keys=True, indent=4)
+    with open(join(tmp_dir, "conf.json"), "w") as config_file:
+        json.dump({"conf1": 2, "conf3": 3}, config_file, sort_keys=True, indent=4)
 
     conf = load_config_file(join(tmp_dir, "conf.json"))
     assert conf["conf1"] == 2
@@ -73,10 +67,7 @@ def test_merge_config():
     assert conf.conf3 == 3
 
     conf = get_config()
-    conf2 = Config(
-        conf1=2,
-        conf3=3
-    )
+    conf2 = Config(conf1=2, conf3=3)
     conf = merge_config(conf, conf2)
     assert conf.conf1 == 2
     assert conf.conf2 == 2

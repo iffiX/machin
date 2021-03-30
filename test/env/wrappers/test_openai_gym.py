@@ -37,34 +37,36 @@ def should_skip(spec):
     ep = spec.entry_point
 
     # No need to test unittest environments
-    if ep.startswith('gym.envs.unittest'):
+    if ep.startswith("gym.envs.unittest"):
         return True
 
     # Skip not renderable tests
-    if (ep.startswith('gym.envs.algorithmic') or
-            ep.startswith('gym.envs.toy_text')):
+    if ep.startswith("gym.envs.algorithmic") or ep.startswith("gym.envs.toy_text"):
         return True
 
     # Skip mujoco tests
-    if (ep.startswith('gym.envs.mujoco') or
-            ep.startswith('gym.envs.robotics:')):
+    if ep.startswith("gym.envs.mujoco") or ep.startswith("gym.envs.robotics:"):
         return True
     try:
         import atari_py
     except ImportError:
-        if ep.startswith('gym.envs.atari'):
+        if ep.startswith("gym.envs.atari"):
             return True
     try:
         import Box2D
     except ImportError:
-        if ep.startswith('gym.envs.box2d'):
+        if ep.startswith("gym.envs.box2d"):
             return True
 
-    if ('GoEnv' in ep or
-            'HexEnv' in ep or
-            (ep.startswith("gym.envs.atari") and
-             not spec.id.startswith("Pong") and
-             not spec.id.startswith("Seaquest"))):
+    if (
+        "GoEnv" in ep
+        or "HexEnv" in ep
+        or (
+            ep.startswith("gym.envs.atari")
+            and not spec.id.startswith("Pong")
+            and not spec.id.startswith("Seaquest")
+        )
+    ):
         return True
     return False
 
@@ -78,18 +80,15 @@ def envs():
     for env_raw_name, env_spec in gym.envs.registry.env_specs.items():
         if not should_skip(env_spec):
             env_name, env_version = env_raw_name.split("-v")
-            if (env_name not in env_version
-                    or int(env_version) > env_map[env_name]):
+            if env_name not in env_version or int(env_version) > env_map[env_name]:
                 env_map[env_name] = int(env_version)
 
     # Create environments.
     for env_name, env_version in env_map.items():
         env_name = env_name + "-v" + str(env_version)
         lg.info("OpenAI gym {} added".format(env_name))
-        all_envs.append([lambda *_: gym.make(env_name)
-                         for _ in range(ENV_NUM)])
-    lg.info("{} OpenAI gym environments to be tested."
-            .format(len(all_envs)))
+        all_envs.append([lambda *_: gym.make(env_name) for _ in range(ENV_NUM)])
+    lg.info("{} OpenAI gym environments to be tested.".format(len(all_envs)))
     return all_envs
 
 
@@ -113,9 +112,11 @@ class TestParallelWrapperDummy(object):
 
             assert len(obsrvs) == reset_num
             for obsrv in obsrvs:
-                assert dummy_wrapper.observation_space.contains(obsrv), \
-                    "Required observation form: {}, Actual observation: {}" \
-                    .format(str(dummy_wrapper.observation_space), obsrv)
+                assert dummy_wrapper.observation_space.contains(
+                    obsrv
+                ), "Required observation form: {}, Actual observation: {}".format(
+                    str(dummy_wrapper.observation_space), obsrv
+                )
 
     ########################################################################
     # Test for ParallelWrapperDummy.step
@@ -131,8 +132,7 @@ class TestParallelWrapperDummy(object):
     def test_step(self, envs, idx, act_num):
         for env_list in envs:
             dummy_wrapper = openai_gym.ParallelWrapperDummy(env_list)
-            action = [mock_action(dummy_wrapper.action_space)
-                      for _ in range(act_num)]
+            action = [mock_action(dummy_wrapper.action_space) for _ in range(act_num)]
             dummy_wrapper.reset(idx)
             obsrvs, reward, terminal, info = dummy_wrapper.step(action, idx)
             dummy_wrapper.close()
@@ -142,9 +142,11 @@ class TestParallelWrapperDummy(object):
             assert len(terminal) == act_num
             assert len(info) == act_num and isinstance(info[0], dict)
             for obsrv in obsrvs:
-                assert dummy_wrapper.observation_space.contains(obsrv), \
-                    "Required observation form: {}, Actual observation: {}" \
-                    .format(str(dummy_wrapper.observation_space), obsrv)
+                assert dummy_wrapper.observation_space.contains(
+                    obsrv
+                ), "Required observation form: {}, Actual observation: {}".format(
+                    str(dummy_wrapper.observation_space), obsrv
+                )
 
     ########################################################################
     # Test for ParallelWrapperDummy.seed
@@ -153,7 +155,7 @@ class TestParallelWrapperDummy(object):
         None,
         choice(range(ENV_NUM)),
         sample(range(ENV_NUM), SAMPLE_NUM),
-        [_ for _ in range(ENV_NUM)]
+        [_ for _ in range(ENV_NUM)],
     ]
 
     @pytest.mark.parametrize("idx", param_test_seed)
@@ -171,7 +173,7 @@ class TestParallelWrapperDummy(object):
         (None, ENV_NUM),
         (choice(range(ENV_NUM)), 1),
         (sample(range(ENV_NUM), SAMPLE_NUM), SAMPLE_NUM),
-        ([_ for _ in range(ENV_NUM)], ENV_NUM)
+        ([_ for _ in range(ENV_NUM)], ENV_NUM),
     ]
 
     @pytest.mark.parametrize("idx,render_num", param_test_render)
@@ -233,9 +235,11 @@ class TestParallelWrapperSubProc(object):
 
             assert len(obsrvs) == reset_num
             for obsrv in obsrvs:
-                assert subproc_wrapper.observation_space.contains(obsrv), \
-                    "Required observation form: {}, Actual observation: {}" \
-                    .format(str(subproc_wrapper.observation_space), obsrv)
+                assert subproc_wrapper.observation_space.contains(
+                    obsrv
+                ), "Required observation form: {}, Actual observation: {}".format(
+                    str(subproc_wrapper.observation_space), obsrv
+                )
 
     ########################################################################
     # Test for ParallelWrapperSubProc.step
@@ -251,8 +255,7 @@ class TestParallelWrapperSubProc(object):
     def test_step(self, envs, idx, act_num):
         for env_list in envs:
             subproc_wrapper = openai_gym.ParallelWrapperSubProc(env_list)
-            action = [mock_action(subproc_wrapper.action_space)
-                      for _ in range(act_num)]
+            action = [mock_action(subproc_wrapper.action_space) for _ in range(act_num)]
             subproc_wrapper.reset(idx)
             obsrvs, reward, terminal, info = subproc_wrapper.step(action, idx)
             subproc_wrapper.close()
@@ -262,9 +265,11 @@ class TestParallelWrapperSubProc(object):
             assert len(terminal) == act_num
             assert len(info) == act_num and isinstance(info[0], dict)
             for obsrv in obsrvs:
-                assert subproc_wrapper.observation_space.contains(obsrv), \
-                    "Required observation form: {}, Actual observation: {}" \
-                    .format(str(subproc_wrapper.observation_space), obsrv)
+                assert subproc_wrapper.observation_space.contains(
+                    obsrv
+                ), "Required observation form: {}, Actual observation: {}".format(
+                    str(subproc_wrapper.observation_space), obsrv
+                )
 
     ########################################################################
     # Test for ParallelWrapperSubProc.seed
@@ -273,7 +278,7 @@ class TestParallelWrapperSubProc(object):
         None,
         choice(range(ENV_NUM)),
         sample(range(ENV_NUM), SAMPLE_NUM),
-        [_ for _ in range(ENV_NUM)]
+        [_ for _ in range(ENV_NUM)],
     ]
 
     @pytest.mark.parametrize("idx", param_test_seed)
@@ -291,7 +296,7 @@ class TestParallelWrapperSubProc(object):
         (None, ENV_NUM),
         (choice(range(ENV_NUM)), 1),
         (sample(range(ENV_NUM), SAMPLE_NUM), SAMPLE_NUM),
-        ([_ for _ in range(ENV_NUM)], ENV_NUM)
+        ([_ for _ in range(ENV_NUM)], ENV_NUM),
     ]
 
     @pytest.mark.parametrize("idx,render_num", param_test_render)

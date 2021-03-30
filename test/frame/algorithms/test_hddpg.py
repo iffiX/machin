@@ -72,19 +72,32 @@ class TestHDDPG(object):
     @pytest.fixture(scope="function")
     def hddpg(self, train_config, device, dtype):
         c = train_config
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .type(dtype).to(device), device, device)
-        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                      .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .type(dtype).to(device), device, device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .type(dtype).to(device), device, device)
-        hddpg = HDDPG(actor, actor_t, critic, critic_t,
-                      t.optim.Adam,
-                      nn.MSELoss(reduction='sum'),
-                      replay_device="cpu",
-                      replay_size=c.replay_size)
+        actor = smw(
+            Actor(c.observe_dim, c.action_dim, c.action_range).type(dtype).to(device),
+            device,
+            device,
+        )
+        actor_t = smw(
+            Actor(c.observe_dim, c.action_dim, c.action_range).type(dtype).to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        hddpg = HDDPG(
+            actor,
+            actor_t,
+            critic,
+            critic_t,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+        )
         return hddpg
 
     @pytest.fixture(scope="function")
@@ -92,40 +105,54 @@ class TestHDDPG(object):
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                    .type(dtype).to(device), device, device)
-        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range)
-                      .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim, c.action_dim)
-                     .type(dtype).to(device), device, device)
-        critic_t = smw(Critic(c.observe_dim, c.action_dim)
-                       .type(dtype).to(device), device, device)
-        hddpg = HDDPG(actor, actor_t, critic, critic_t,
-                      t.optim.Adam,
-                      nn.MSELoss(reduction='sum'),
-                      replay_device="cpu",
-                      replay_size=c.replay_size,
-                      visualize=True,
-                      visualize_dir=str(tmp_dir))
+        actor = smw(
+            Actor(c.observe_dim, c.action_dim, c.action_range).type(dtype).to(device),
+            device,
+            device,
+        )
+        actor_t = smw(
+            Actor(c.observe_dim, c.action_dim, c.action_range).type(dtype).to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        critic_t = smw(
+            Critic(c.observe_dim, c.action_dim).type(dtype).to(device), device, device
+        )
+        hddpg = HDDPG(
+            actor,
+            actor_t,
+            critic,
+            critic_t,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            visualize=True,
+            visualize_dir=str(tmp_dir),
+        )
         return hddpg
 
     @pytest.fixture(scope="function")
     def hddpg_train(self, train_config, gpu):
         c = train_config
         # cpu is faster for testing full training.
-        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range),
-                    "cpu", "cpu")
-        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range),
-                      "cpu", "cpu")
-        critic = smw(Critic(c.observe_dim, c.action_dim),
-                     "cpu", "cpu")
-        critic_t = smw(Critic(c.observe_dim, c.action_dim),
-                       "cpu", "cpu")
-        hddpg = HDDPG(actor, actor_t, critic, critic_t,
-                      t.optim.Adam,
-                      nn.MSELoss(reduction='sum'),
-                      replay_device="cpu",
-                      replay_size=c.replay_size)
+        actor = smw(Actor(c.observe_dim, c.action_dim, c.action_range), "cpu", "cpu")
+        actor_t = smw(Actor(c.observe_dim, c.action_dim, c.action_range), "cpu", "cpu")
+        critic = smw(Critic(c.observe_dim, c.action_dim), "cpu", "cpu")
+        critic_t = smw(Critic(c.observe_dim, c.action_dim), "cpu", "cpu")
+        hddpg = HDDPG(
+            actor,
+            actor_t,
+            critic,
+            critic_t,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+        )
         return hddpg
 
     ########################################################################
@@ -155,17 +182,27 @@ class TestHDDPG(object):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, c.action_dim], dtype=dtype)
-        hddpg_vis.store_transition({
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        })
-        hddpg_vis.update(update_value=True, update_policy=True,
-                         update_target=True, concatenate_samples=True)
-        hddpg_vis.update(update_value=False, update_policy=False,
-                         update_target=False, concatenate_samples=True)
+        hddpg_vis.store_transition(
+            {
+                "state": {"state": old_state},
+                "action": {"action": action},
+                "next_state": {"state": state},
+                "reward": 0,
+                "terminal": False,
+            }
+        )
+        hddpg_vis.update(
+            update_value=True,
+            update_policy=True,
+            update_target=True,
+            concatenate_samples=True,
+        )
+        hddpg_vis.update(
+            update_value=False,
+            update_policy=False,
+            update_target=False,
+            concatenate_samples=True,
+        )
 
     ########################################################################
     # Test for HDDPG save & load
@@ -183,25 +220,27 @@ class TestHDDPG(object):
     def test_config_init(self, train_config):
         c = train_config
         config = HDDPG.generate_config({})
-        config["frame_config"]["models"] = ["Actor", "Actor",
-                                            "Critic", "Critic"]
-        config["frame_config"]["model_kwargs"] = \
-            [{"state_dim": c.observe_dim,
-              "action_dim": c.action_dim,
-              "action_range": c.action_range}] * 2 + \
-            [{"state_dim": c.observe_dim,
-              "action_dim": c.action_dim}] * 2
+        config["frame_config"]["models"] = ["Actor", "Actor", "Critic", "Critic"]
+        config["frame_config"]["model_kwargs"] = [
+            {
+                "state_dim": c.observe_dim,
+                "action_dim": c.action_dim,
+                "action_range": c.action_range,
+            }
+        ] * 2 + [{"state_dim": c.observe_dim, "action_dim": c.action_dim}] * 2
         hddpg = HDDPG.init_from_config(config)
 
         old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
         action = t.zeros([1, c.action_dim], dtype=t.float32)
-        hddpg.store_transition({
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        })
+        hddpg.store_transition(
+            {
+                "state": {"state": old_state},
+                "action": {"action": action},
+                "next_state": {"state": state},
+                "reward": 0,
+                "terminal": False,
+            }
+        )
         hddpg.update()
 
     ########################################################################
@@ -234,7 +273,7 @@ class TestHDDPG(object):
                         action = hddpg_train.act_with_noise(
                             {"state": old_state.unsqueeze(0)},
                             noise_param=c.noise_param,
-                            mode=c.noise_mode
+                            mode=c.noise_mode,
                         )
                     else:
                         action = hddpg_train.act(
@@ -245,13 +284,15 @@ class TestHDDPG(object):
                     state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    hddpg_train.store_transition({
-                        "state": {"state": old_state.unsqueeze(0)},
-                        "action": {"action": action},
-                        "next_state": {"state": state.unsqueeze(0)},
-                        "reward": float(reward),
-                        "terminal": terminal or step == c.max_steps
-                    })
+                    hddpg_train.store_transition(
+                        {
+                            "state": {"state": old_state.unsqueeze(0)},
+                            "action": {"action": action},
+                            "next_state": {"state": state.unsqueeze(0)},
+                            "reward": float(reward),
+                            "terminal": terminal or step == c.max_steps,
+                        }
+                    )
             # update
             if episode > 100:
                 for i in range(step.get()):
@@ -263,8 +304,9 @@ class TestHDDPG(object):
 
             if episode.get() % c.noise_interval != 0:
                 # only log result without noise
-                logger.info("Episode {} total reward={:.2f}"
-                            .format(episode, smoother.value))
+                logger.info(
+                    "Episode {} total reward={:.2f}".format(episode, smoother.value)
+                )
 
             if smoother.value > c.solved_reward:
                 reward_fulfilled.count()

@@ -34,10 +34,11 @@ class ConnectionWrapper(object):  # pragma: no cover
             raise TimeoutError("Timeout")
 
     def __getattr__(self, name):
-        if 'conn' in self.__dict__:
+        if "conn" in self.__dict__:
             return getattr(self.conn, name)
-        raise AttributeError("'{}' object has no attribute '{}'".format(
-            type(self).__name__, 'conn'))
+        raise AttributeError(
+            "'{}' object has no attribute '{}'".format(type(self).__name__, "conn")
+        )
 
 
 class SimpleQueue(object):  # pragma: no cover
@@ -45,6 +46,7 @@ class SimpleQueue(object):  # pragma: no cover
     A simple single direction queue for inter-process communications.
     There could be multiple receivers and multiple senders on each side.
     """
+
     def __init__(self, *, ctx=None, copy_tensor=False):
         """
         Args:
@@ -64,7 +66,7 @@ class SimpleQueue(object):  # pragma: no cover
         # _rlock will be used by _help_stuff_finish() of multiprocessing.Pool
         self._rlock = ctx.Lock()
         self._copy_tensor = copy_tensor
-        if sys.platform == 'win32':
+        if sys.platform == "win32":
             self._wlock = None
         else:
             self._wlock = ctx.Lock()
@@ -82,12 +84,16 @@ class SimpleQueue(object):  # pragma: no cover
 
     def __getstate__(self):
         context.assert_spawning(self)
-        return (self._reader, self._writer, self._rlock, self._wlock,
-                self._copy_tensor)
+        return (self._reader, self._writer, self._rlock, self._wlock, self._copy_tensor)
 
     def __setstate__(self, state):
-        (self._reader, self._writer, self._rlock, self._wlock,
-         self._copy_tensor) = state
+        (
+            self._reader,
+            self._writer,
+            self._rlock,
+            self._wlock,
+            self._copy_tensor,
+        ) = state
 
     def get(self, timeout=None):
         """
@@ -167,6 +173,7 @@ class SimpleP2PQueue(object):  # pragma: no cover
     A simple single direction queue for inter-process P2P communications.
     Each end only have one process.
     """
+
     def __init__(self, *, copy_tensor=False):
         """
         Args:
@@ -242,10 +249,12 @@ class MultiP2PQueue(object):
     P2P queue which connects pool result manager and worker processes directly,
     with no lock.
     """
+
     def __init__(self, queue_num, *, copy_tensor=False):
         self.counter = 0
-        self.queues = [SimpleP2PQueue(copy_tensor=copy_tensor)
-                       for _ in range(queue_num)]
+        self.queues = [
+            SimpleP2PQueue(copy_tensor=copy_tensor) for _ in range(queue_num)
+        ]
 
     def put(self, obj: Any):
         # randomly choose a worker's queue

@@ -16,8 +16,7 @@ from ..utils.openai_gym import disable_view_window
 class GymTerminationError(Exception):
     def __init__(self):
         super(GymTerminationError, self).__init__(
-            "One or several environments have terminated, "
-            "reset before continuing."
+            "One or several environments have terminated, " "reset before continuing."
         )
 
 
@@ -27,6 +26,7 @@ class ParallelWrapperDummy(ParallelWrapperBase):
 
     For debug purpose only.
     """
+
     def __init__(self, env_creators: List[Callable[[int], gym.Env]]):
         """
         Args:
@@ -34,8 +34,7 @@ class ParallelWrapperDummy(ParallelWrapperBase):
                 environments, accepts a index as your environment id.
         """
         super(ParallelWrapperDummy, self).__init__()
-        self._envs = [ec(i) for ec, i in zip(env_creators,
-                                             range(len(env_creators)))]
+        self._envs = [ec(i) for ec, i in zip(env_creators, range(len(env_creators)))]
         self._terminal = np.zeros([len(self._envs)], dtype=np.bool)
 
     def reset(self, idx: Union[int, List[int]] = None) -> List[object]:
@@ -55,10 +54,9 @@ class ParallelWrapperDummy(ParallelWrapperBase):
                 self._terminal[i] = False
         return obsrv
 
-    def step(self,
-             action: Union[np.ndarray, List[Any]],
-             idx: Union[int, List[int]] = None) \
-            -> Tuple[List[object], List[float], List[bool], List[dict]]:
+    def step(
+        self, action: Union[np.ndarray, List[Any]], idx: Union[int, List[int]] = None
+    ) -> Tuple[List[object], List[float], List[bool], List[dict]]:
         """
         Let specified environment(s) run one time step. Specified environments
         must be active and have not reached terminal states before.
@@ -113,12 +111,11 @@ class ParallelWrapperDummy(ParallelWrapperBase):
             seed = [seed] * self.size()
         result = []
         for e, s in zip(self._envs, seed):
-            if hasattr(e, 'seed'):
+            if hasattr(e, "seed"):
                 result.append(e.seed(s))
         return result
 
-    def render(self, idx: Union[int, List[int]] = None,
-               *_, **__) -> List[np.ndarray]:
+    def render(self, idx: Union[int, List[int]] = None, *_, **__) -> List[np.ndarray]:
         """
         Render all/specified environments.
 
@@ -179,6 +176,7 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
     """
     Parallel wrapper based on sub processes.
     """
+
     def __init__(self, env_creators: List[Callable[[int], gym.Env]]) -> None:
         """
         Args:
@@ -195,19 +193,25 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
         # In case users wants to pass tensors to environments,
         # always copy all tensors to avoid errors
         ctx = get_context("spawn")
-        self.cmd_queues = [SimpleQueue(ctx=ctx, copy_tensor=True)
-                           for _ in range(len(env_creators))]
+        self.cmd_queues = [
+            SimpleQueue(ctx=ctx, copy_tensor=True) for _ in range(len(env_creators))
+        ]
         self.result_queue = SimpleQueue(ctx=ctx, copy_tensor=True)
-        for cmd_queue, ec, env_idx in zip(self.cmd_queues,
-                                          env_creators,
-                                          range(len(env_creators))):
+        for cmd_queue, ec, env_idx in zip(
+            self.cmd_queues, env_creators, range(len(env_creators))
+        ):
             # enable recursive serialization to support
             # lambda & local function creators.
             self.workers.append(
-                ctx.Process(target=self._worker,
-                            args=(cmd_queue, self.result_queue,
-                                  dumps(ec, recurse=True, copy_tensor=True),
-                                  env_idx))
+                ctx.Process(
+                    target=self._worker,
+                    args=(
+                        cmd_queue,
+                        self.result_queue,
+                        dumps(ec, recurse=True, copy_tensor=True),
+                        env_idx,
+                    ),
+                )
             )
 
         for worker in self.workers:
@@ -233,10 +237,9 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
         with self._cmd_lock:
             return self._call_gym_env_method(env_idxs, "reset")
 
-    def step(self,
-             action: Union[np.ndarray, List[Any]],
-             idx: Union[int, List[int]] = None) \
-            -> Tuple[List[object], List[float], List[bool], List[dict]]:
+    def step(
+        self, action: Union[np.ndarray, List[Any]], idx: Union[int, List[int]] = None
+    ) -> Tuple[List[object], List[float], List[bool], List[dict]]:
         """
         Let specified environment(s) run one time step. Specified environments
         must be active and have not reached terminal states before.
@@ -254,8 +257,9 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
             raise ValueError("Action number must match environment number!")
 
         with self._cmd_lock:
-            result = self._call_gym_env_method(env_idxs, "step",
-                                               [(act,) for act in action])
+            result = self._call_gym_env_method(
+                env_idxs, "step", [(act,) for act in action]
+            )
 
         obsrv = [r[0] for r in result]
         reward = [r[1] for r in result]
@@ -285,11 +289,11 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
             seed = [seed] * self.size()
         env_idxs = self._select_envs()
         with self._cmd_lock:
-            return self._call_gym_env_method(env_idxs, "seed",
-                                             [(sd,) for sd in seed])
+            return self._call_gym_env_method(env_idxs, "seed", [(sd,) for sd in seed])
 
-    def render(self, idx: Union[int, List[int]] = None,
-               *args, **kwargs) -> List[np.ndarray]:
+    def render(
+        self, idx: Union[int, List[int]] = None, *args, **kwargs
+    ) -> List[np.ndarray]:
         """
         Render all/specified environments.
 
@@ -303,8 +307,9 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
         env_idxs = self._select_envs(idx)
         with self._cmd_lock:
             return self._call_gym_env_method(
-                env_idxs, "render",
-                kwargs=list(repeat({"mode": "rgb_array"}, len(env_idxs)))
+                env_idxs,
+                "render",
+                kwargs=list(repeat({"mode": "rgb_array"}, len(env_idxs))),
             )
 
     def close(self) -> None:
@@ -365,13 +370,11 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
                 continue
             if worker.exitcode == 2:
                 raise RuntimeError(
-                    "Worker {} failed to create environment."
-                    .format(worker_id)
+                    "Worker {} failed to create environment.".format(worker_id)
                 )
             elif worker.exitcode != 0:
                 raise RuntimeError(
-                    "Worker {} exited with code {}."
-                    .format(worker_id, worker.exitcode)
+                    "Worker {} exited with code {}.".format(worker_id, worker.exitcode)
                 )
 
         for env_idx, i in zip(env_idxs, range(len(env_idxs))):
@@ -385,9 +388,9 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
         return [result[e_idx] for e_idx in env_idxs]
 
     @staticmethod
-    def _worker(cmd_queue: SimpleQueue,
-                result_queue: SimpleQueue,
-                env_creator, env_idx):
+    def _worker(
+        cmd_queue: SimpleQueue, result_queue: SimpleQueue, env_creator, env_idx
+    ):
         env = None
         try:
             env = loads(env_creator)(env_idx)
@@ -415,8 +418,7 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
                 except Exception as e:
                     # Something has gone wrong during execution, serialize
                     # the exception and send it back to master.
-                    result_queue.put((env_idx, False,
-                                      ExceptionWithTraceback(e)))
+                    result_queue.put((env_idx, False, ExceptionWithTraceback(e)))
         except KeyboardInterrupt:
             cmd_queue.close()
             result_queue.close()

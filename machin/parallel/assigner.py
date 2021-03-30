@@ -11,9 +11,8 @@ class ModelSizeEstimator:
     """
     Size estimator for pytorch modules.
     """
-    def __init__(self,
-                 model: nn.Module,
-                 size_multiplier=2):
+
+    def __init__(self, model: nn.Module, size_multiplier=2):
         """
         Estimates the size of PyTorch models in memory.
 
@@ -43,8 +42,10 @@ class ModelSizeEstimator:
         self.sizes["param"] = sizes
         self.dtype_sizes["param"] = dtype_sizes
         return float(
-            np.sum(np.array([np.prod(s) for s in self.sizes["param"]]) *
-                   np.array(self.dtype_sizes["param"]))
+            np.sum(
+                np.array([np.prod(s) for s in self.sizes["param"]])
+                * np.array(self.dtype_sizes["param"])
+            )
         ) / (1024 ** 2)
 
     def get_buffer_sizes(self) -> float:
@@ -57,8 +58,10 @@ class ModelSizeEstimator:
         self.sizes["buffer"] = sizes
         self.dtype_sizes["buffer"] = dtype_sizes
         return float(
-            np.sum(np.array([np.prod(s) for s in self.sizes["buffer"]]) *
-                   np.array(self.dtype_sizes["buffer"]))
+            np.sum(
+                np.array([np.prod(s) for s in self.sizes["buffer"]])
+                * np.array(self.dtype_sizes["buffer"])
+            )
         ) / (1024 ** 2)
 
     def estimate_size(self):
@@ -84,22 +87,25 @@ class ModelAssigner:
     """
     Assigner for pytorch modules.
     """
-    def __init__(self,
-                 models: List[nn.Module],
-                 model_connection: Dict[Tuple[int, int], int],
-                 devices: List[Union[t.device, str]] = None,
-                 model_size_multiplier=2,
-                 max_mem_ratio=0.5,
-                 cpu_weight=0,
-                 connection_weight=2,
-                 size_match_weight=1e-2,
-                 complexity_match_weight=1,
-                 entropy_weight=1,
-                 iterations=500,
-                 update_rate=0.01,
-                 gpu_gpu_distance=1,
-                 cpu_gpu_distance=10,
-                 move_models=True):
+
+    def __init__(
+        self,
+        models: List[nn.Module],
+        model_connection: Dict[Tuple[int, int], int],
+        devices: List[Union[t.device, str]] = None,
+        model_size_multiplier=2,
+        max_mem_ratio=0.5,
+        cpu_weight=0,
+        connection_weight=2,
+        size_match_weight=1e-2,
+        complexity_match_weight=1,
+        entropy_weight=1,
+        iterations=500,
+        update_rate=0.01,
+        gpu_gpu_distance=1,
+        cpu_gpu_distance=10,
+        move_models=True,
+    ):
         """
         Assign models to different devices. In the scope of a single process.
         Assigner assumes all GPUs have the **same processing power**.
@@ -168,18 +174,21 @@ class ModelAssigner:
                 assignment.
         """
         if devices is None:
-            devices = [t.device(type="cuda", index=i)
-                       for i in GPUtil.getAvailable(order="load")]
+            devices = [
+                t.device(type="cuda", index=i)
+                for i in GPUtil.getAvailable(order="load")
+            ]
         else:
             devices = [t.device(d) for d in devices]
-            available_devices = [t.device(type="cuda", index=i)
-                                 for i in GPUtil.getAvailable(order="load")]
+            available_devices = [
+                t.device(type="cuda", index=i)
+                for i in GPUtil.getAvailable(order="load")
+            ]
             used_devices = []
             for dev in devices:
                 if dev.type == "cuda" and dev not in available_devices:
                     default_logger.info(
-                        "Warning: device {} not available, removed."
-                        .format(dev)
+                        "Warning: device {} not available, removed.".format(dev)
                     )
                 else:
                     used_devices.append(dev)
@@ -190,9 +199,10 @@ class ModelAssigner:
 
         default_logger.info("Using these devices: {}".format(devices))
 
-        sizes = [ModelSizeEstimator(model, model_size_multiplier)
-                 .estimate_size()
-                 for model in models]
+        sizes = [
+            ModelSizeEstimator(model, model_size_multiplier).estimate_size()
+            for model in models
+        ]
         device_size_capacity = []
         device_complexity_capacity = []
 
@@ -200,22 +210,21 @@ class ModelAssigner:
         for dev in devices:
             if dev.type == "cpu":
                 device_size_capacity.append(
-                    int(psutil.virtual_memory().available / 1024 ** 2) *
-                    max_mem_ratio
+                    int(psutil.virtual_memory().available / 1024 ** 2) * max_mem_ratio
                 )
                 device_complexity_capacity.append(cpu_weight)
             elif dev.type == "cuda":
-                device_size_capacity.append(
-                    gpus[dev.index].memoryFree * max_mem_ratio
-                )
+                device_size_capacity.append(gpus[dev.index].memoryFree * max_mem_ratio)
                 device_complexity_capacity.append(1 - gpus[dev.index].load)
 
         if np.sum(np.array(sizes)) > np.sum(device_size_capacity):
-            raise RuntimeError("Estimated model will use {:.2f} MB, "
-                               "but only have {:.2f} MB allowed memory "
-                               "in total."
-                               .format(np.sum(np.array(sizes)),
-                                       np.sum(device_size_capacity)))
+            raise RuntimeError(
+                "Estimated model will use {:.2f} MB, "
+                "but only have {:.2f} MB allowed memory "
+                "in total.".format(
+                    np.sum(np.array(sizes)), np.sum(device_size_capacity)
+                )
+            )
 
         # assign model to devices
         # using heuristic and gradient decent
@@ -229,14 +238,16 @@ class ModelAssigner:
 
         optimizer = t.optim.Adam([placement], lr=update_rate)
         model_size = t.tensor(sizes, dtype=t.float).view([1, model_num])
-        size_capacity = (t.tensor(device_size_capacity, dtype=t.float)
-                         .view([1, device_num]))
+        size_capacity = t.tensor(device_size_capacity, dtype=t.float).view(
+            [1, device_num]
+        )
         model_complexity = model_size
 
         # complexity_capacity is basically the estimated computing power
         # of devices.
-        complexity_capacity = t.tensor(device_complexity_capacity,
-                                       dtype=t.float).view([1, device_num])
+        complexity_capacity = t.tensor(device_complexity_capacity, dtype=t.float).view(
+            [1, device_num]
+        )
 
         # model connection indicates the amount of data transmitted between
         # each pair of models, a weighted adjacency matrix.
@@ -249,31 +260,37 @@ class ModelAssigner:
         device_distance = t.zeros([device_num, device_num])
         for i in range(device_num):
             for j in range(i):
-                if (devices[i].type == "cpu" and
-                        devices[j].type == "cuda" or
-                        devices[i].type == "cuda" and
-                        devices[j].type == "cpu"):
-                    device_distance[i, j] = device_distance[j, i] = \
-                        cpu_gpu_distance
-                elif (devices[i].type == "cuda" and
-                      devices[j].type == "cuda" and
-                      devices[i].index != devices[j].index):
-                    device_distance[i, j] = device_distance[j, i] = \
-                        gpu_gpu_distance
+                if (
+                    devices[i].type == "cpu"
+                    and devices[j].type == "cuda"
+                    or devices[i].type == "cuda"
+                    and devices[j].type == "cpu"
+                ):
+                    device_distance[i, j] = device_distance[j, i] = cpu_gpu_distance
+                elif (
+                    devices[i].type == "cuda"
+                    and devices[j].type == "cuda"
+                    and devices[i].index != devices[j].index
+                ):
+                    device_distance[i, j] = device_distance[j, i] = gpu_gpu_distance
 
         # optimize
         for _ in range(iterations):
-            self.optimize_placement(optimizer, placement,
-                                    model_size, size_capacity,
-                                    model_complexity, complexity_capacity,
-                                    model_conn, device_distance,
-                                    connection_weight,
-                                    size_match_weight,
-                                    complexity_match_weight,
-                                    entropy_weight)
-        self._assignment = [devices[d]
-                            for d
-                            in t.argmax(placement, dim=1).tolist()]
+            self.optimize_placement(
+                optimizer,
+                placement,
+                model_size,
+                size_capacity,
+                model_complexity,
+                complexity_capacity,
+                model_conn,
+                device_distance,
+                connection_weight,
+                size_match_weight,
+                complexity_match_weight,
+                entropy_weight,
+            )
+        self._assignment = [devices[d] for d in t.argmax(placement, dim=1).tolist()]
         if move_models:
             for model, ass_device in zip(models, self._assignment):
                 model.to(ass_device)
@@ -287,18 +304,20 @@ class ModelAssigner:
         return self._assignment
 
     @staticmethod
-    def optimize_placement(optimizer,
-                           placement: t.Tensor,
-                           model_size: t.Tensor,
-                           size_capacity: t.Tensor,
-                           model_complexity: t.Tensor,
-                           complexity_capacity: t.Tensor,
-                           model_connection: t.Tensor,
-                           device_distance: t.Tensor,
-                           connection_weight: float,
-                           size_match_weight: float,
-                           complexity_match_weight: float,
-                           entropy_weight: float):
+    def optimize_placement(
+        optimizer,
+        placement: t.Tensor,
+        model_size: t.Tensor,
+        size_capacity: t.Tensor,
+        model_complexity: t.Tensor,
+        complexity_capacity: t.Tensor,
+        model_connection: t.Tensor,
+        device_distance: t.Tensor,
+        connection_weight: float,
+        size_match_weight: float,
+        complexity_match_weight: float,
+        entropy_weight: float,
+    ):
         """
         Suppose there are n models to place and m devices available.
 
@@ -321,31 +340,34 @@ class ModelAssigner:
 
         norm_model_conn = model_connection / t.sum(model_connection)
         norm_dev_dist = device_distance / t.sum(device_distance)
-        model_distance = t.einsum("ij,mn,jn->im",
-                                  placement, placement, norm_dev_dist)
+        model_distance = t.einsum("ij,mn,jn->im", placement, placement, norm_dev_dist)
         # model distance to itself is 0
         model_distance[np.arange(model_num), np.arange(model_num)] = 0
         connection_cost = norm_model_conn * model_distance
 
         # sum(model size) < capacity
-        size_match_cost = t.relu(t.einsum("ij,jk->ik", model_size, placement) -
-                                 size_capacity)
+        size_match_cost = t.relu(
+            t.einsum("ij,jk->ik", model_size, placement) - size_capacity
+        )
 
         # match computing power percent
         norm_model_cmplx = model_complexity / t.sum(model_complexity)
         norm_cmplx_capacity = complexity_capacity / t.sum(complexity_capacity)
-        cmplx_match_cost = (t.einsum("ij,jk->ik", norm_model_cmplx, placement) -
-                            norm_cmplx_capacity) ** 2
+        cmplx_match_cost = (
+            t.einsum("ij,jk->ik", norm_model_cmplx, placement) - norm_cmplx_capacity
+        ) ** 2
 
         # entropy loss, prevent placement probability diffuse over devices
         entropy_cost = placement * placement.log()
         tmp = t.zeros_like(placement)
         entropy_cost = -t.where(placement > 0, entropy_cost, tmp).sum(dim=-1)
 
-        total_cost = (t.mean(connection_cost) * connection_weight +
-                      t.mean(size_match_cost) * size_match_weight +
-                      t.mean(cmplx_match_cost) * complexity_match_weight +
-                      t.mean(entropy_cost) * entropy_weight)
+        total_cost = (
+            t.mean(connection_cost) * connection_weight
+            + t.mean(size_match_cost) * size_match_weight
+            + t.mean(cmplx_match_cost) * complexity_match_weight
+            + t.mean(entropy_cost) * entropy_weight
+        )
 
         optimizer.zero_grad()
         total_cost.backward()

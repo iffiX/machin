@@ -30,9 +30,7 @@ class Actor(nn.Module):
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
         dist = Categorical(probs=probs)
-        act = (action
-               if action is not None
-               else dist.sample())
+        act = action if action is not None else dist.sample()
         act_entropy = dist.entropy()
         act_log_prob = dist.log_prob(act.flatten())
         return act, act_log_prob, act_entropy
@@ -76,15 +74,18 @@ class TestA2C(object):
     @pytest.fixture(scope="function")
     def a2c(self, train_config, device, dtype):
         c = train_config
-        actor = smw(Actor(c.observe_dim, c.action_num)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim)
-                     .type(dtype).to(device), device, device)
-        a2c = A2C(actor, critic,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size)
+        actor = smw(
+            Actor(c.observe_dim, c.action_num).type(dtype).to(device), device, device
+        )
+        critic = smw(Critic(c.observe_dim).type(dtype).to(device), device, device)
+        a2c = A2C(
+            actor,
+            critic,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+        )
         return a2c
 
     @pytest.fixture(scope="function")
@@ -92,43 +93,51 @@ class TestA2C(object):
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
-        actor = smw(Actor(c.observe_dim, c.action_num)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim)
-                     .type(dtype).to(device), device, device)
-        a2c = A2C(actor, critic,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size,
-                  visualize=True,
-                  visualize_dir=str(tmp_dir))
+        actor = smw(
+            Actor(c.observe_dim, c.action_num).type(dtype).to(device), device, device
+        )
+        critic = smw(Critic(c.observe_dim).type(dtype).to(device), device, device)
+        a2c = A2C(
+            actor,
+            critic,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            visualize=True,
+            visualize_dir=str(tmp_dir),
+        )
         return a2c
 
     @pytest.fixture(scope="function")
     def a2c_lr(self, train_config, device, dtype):
         # not used for training, only used for testing apis
         c = train_config
-        actor = smw(Actor(c.observe_dim, c.action_num)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim)
-                     .type(dtype).to(device), device, device)
-        lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
-                                         logger=logger)
+        actor = smw(
+            Actor(c.observe_dim, c.action_num).type(dtype).to(device), device, device
+        )
+        critic = smw(Critic(c.observe_dim).type(dtype).to(device), device, device)
+        lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)], logger=logger)
         with pytest.raises(TypeError, match="missing .+ positional argument"):
-            _ = A2C(actor, critic,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    replay_device="cpu",
-                    replay_size=c.replay_size,
-                    lr_scheduler=LambdaLR)
-        a2c = A2C(actor, critic,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size,
-                  lr_scheduler=LambdaLR,
-                  lr_scheduler_args=((lr_func,), (lr_func,)))
+            _ = A2C(
+                actor,
+                critic,
+                t.optim.Adam,
+                nn.MSELoss(reduction="sum"),
+                replay_device="cpu",
+                replay_size=c.replay_size,
+                lr_scheduler=LambdaLR,
+            )
+        a2c = A2C(
+            actor,
+            critic,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            lr_scheduler=LambdaLR,
+            lr_scheduler_args=((lr_func,), (lr_func,)),
+        )
         return a2c
 
     @pytest.fixture(scope="function")
@@ -137,11 +146,14 @@ class TestA2C(object):
         # cpu is faster for testing full training.
         actor = smw(Actor(c.observe_dim, c.action_num), "cpu", "cpu")
         critic = smw(Critic(c.observe_dim), "cpu", "cpu")
-        a2c = A2C(actor, critic,
-                  t.optim.Adam,
-                  nn.MSELoss(reduction='sum'),
-                  replay_device="cpu",
-                  replay_size=c.replay_size)
+        a2c = A2C(
+            actor,
+            critic,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+        )
         return a2c
 
     ########################################################################
@@ -176,15 +188,17 @@ class TestA2C(object):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
-        a2c.store_transition({
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "value": 0,
-            "gae": 0,
-            "terminal": False
-        })
+        a2c.store_transition(
+            {
+                "state": {"state": old_state},
+                "action": {"action": action},
+                "next_state": {"state": state},
+                "reward": 0,
+                "value": 0,
+                "gae": 0,
+                "terminal": False,
+            }
+        )
 
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
     def test_store_episode(self, train_config, a2c, dtype, gae_lambda):
@@ -192,11 +206,13 @@ class TestA2C(object):
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         episode = [
-            {"state": {"state": old_state},
-             "action": {"action": action},
-             "next_state": {"state": state},
-             "reward": 0,
-             "terminal": False}
+            {
+                "state": {"state": old_state},
+                "action": {"action": action},
+                "next_state": {"state": state},
+                "reward": 0,
+                "terminal": False,
+            }
             for _ in range(3)
         ]
         a2c.gae_lambda = gae_lambda
@@ -209,27 +225,43 @@ class TestA2C(object):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
-        a2c_vis.store_episode([
-            {"state": {"state": old_state},
-             "action": {"action": action},
-             "next_state": {"state": state},
-             "reward": 0,
-             "terminal": False}
-            for _ in range(3)
-        ])
-        a2c_vis.update(update_value=True, update_policy=True,
-                       update_target=True, concatenate_samples=True)
+        a2c_vis.store_episode(
+            [
+                {
+                    "state": {"state": old_state},
+                    "action": {"action": action},
+                    "next_state": {"state": state},
+                    "reward": 0,
+                    "terminal": False,
+                }
+                for _ in range(3)
+            ]
+        )
+        a2c_vis.update(
+            update_value=True,
+            update_policy=True,
+            update_target=True,
+            concatenate_samples=True,
+        )
         a2c_vis.entropy_weight = 1e-3
-        a2c_vis.store_episode([
-            {"state": {"state": old_state},
-             "action": {"action": action},
-             "next_state": {"state": state},
-             "reward": 0,
-             "terminal": False}
-            for _ in range(3)
-        ])
-        a2c_vis.update(update_value=False, update_policy=False,
-                       update_target=False, concatenate_samples=True)
+        a2c_vis.store_episode(
+            [
+                {
+                    "state": {"state": old_state},
+                    "action": {"action": action},
+                    "next_state": {"state": state},
+                    "reward": 0,
+                    "terminal": False,
+                }
+                for _ in range(3)
+            ]
+        )
+        a2c_vis.update(
+            update_value=False,
+            update_policy=False,
+            update_target=False,
+            concatenate_samples=True,
+        )
 
     ########################################################################
     # Test for A2C save & load
@@ -249,20 +281,25 @@ class TestA2C(object):
         c = train_config
         config = A2C.generate_config({})
         config["frame_config"]["models"] = ["Actor", "Critic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": c.observe_dim,
-                                                   "action_num": c.action_num},
-                                                  {"state_dim": c.observe_dim}]
+        config["frame_config"]["model_kwargs"] = [
+            {"state_dim": c.observe_dim, "action_num": c.action_num},
+            {"state_dim": c.observe_dim},
+        ]
         a2c = A2C.init_from_config(config)
         old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
         action = t.zeros([1, 1], dtype=t.int)
-        a2c.store_episode([
-            {"state": {"state": old_state},
-             "action": {"action": action},
-             "next_state": {"state": state},
-             "reward": 0,
-             "terminal": False}
-            for _ in range(3)
-        ])
+        a2c.store_episode(
+            [
+                {
+                    "state": {"state": old_state},
+                    "action": {"action": action},
+                    "next_state": {"state": state},
+                    "reward": 0,
+                    "terminal": False,
+                }
+                for _ in range(3)
+            ]
+        )
         a2c.update()
 
     ########################################################################
@@ -293,21 +330,20 @@ class TestA2C(object):
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action = a2c_train.act(
-                        {"state": old_state.unsqueeze(0)}
-                    )[0]
+                    action = a2c_train.act({"state": old_state.unsqueeze(0)})[0]
                     state, reward, terminal, _ = env.step(action.item())
-                    state = t.tensor(state, dtype=t.float32) \
-                        .flatten()
+                    state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    tmp_observations.append({
-                        "state": {"state": old_state.unsqueeze(0)},
-                        "action": {"action": action},
-                        "next_state": {"state": state.unsqueeze(0)},
-                        "reward": float(reward),
-                        "terminal": terminal or step == c.max_steps
-                    })
+                    tmp_observations.append(
+                        {
+                            "state": {"state": old_state.unsqueeze(0)},
+                            "action": {"action": action},
+                            "next_state": {"state": state.unsqueeze(0)},
+                            "reward": float(reward),
+                            "terminal": terminal or step == c.max_steps,
+                        }
+                    )
 
             # update
             a2c_train.store_episode(tmp_observations)
@@ -317,8 +353,9 @@ class TestA2C(object):
             step.reset()
             terminal = False
 
-            logger.info("Episode {} total reward={:.2f}"
-                        .format(episode, smoother.value))
+            logger.info(
+                "Episode {} total reward={:.2f}".format(episode, smoother.value)
+            )
 
             if smoother.value > c.solved_reward:
                 reward_fulfilled.count()

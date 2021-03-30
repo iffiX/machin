@@ -1,11 +1,5 @@
 from multiprocessing import log_to_stderr
-from machin.parallel.pool import (
-    Pool,
-    P2PPool,
-    CtxPool,
-    ThreadPool,
-    CtxThreadPool
-)
+from machin.parallel.pool import Pool, P2PPool, CtxPool, ThreadPool, CtxThreadPool
 from logging import DEBUG
 
 import dill
@@ -50,99 +44,88 @@ class TestPool(object):
     def test_map(self):
         pool = self.pool_impl(processes=2)
         x = [t.ones([10]) * i for i in range(5)]
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       pool.map(func, x),
-                       [0, 20, 40, 60, 80]
-                   ))
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(pool.map(func, x), [0, 20, 40, 60, 80])
+        )
         pool.close()
         pool.join()
 
     def test_map_async(self):
         pool = self.pool_impl(processes=2)
         x = [t.ones([10]) * i for i in range(5)]
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       pool.map_async(func, x).get(),
-                       [0, 20, 40, 60, 80]
-                   ))
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(
+                pool.map_async(func, x).get(), [0, 20, 40, 60, 80]
+            )
+        )
         pool.close()
         pool.join()
 
     def test_imap(self):
         pool = self.pool_impl(processes=2)
         x = [t.ones([10]) * i for i in range(5)]
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       pool.imap(func, x),
-                       [0, 20, 40, 60, 80]
-                   ))
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(pool.imap(func, x), [0, 20, 40, 60, 80])
+        )
         pool.close()
         pool.join()
 
     def test_imap_unordered(self):
         pool = self.pool_impl(processes=2)
         x = [t.ones([10]) * i for i in range(5)]
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       sorted(pool.imap_unordered(func, x)),
-                       [0, 20, 40, 60, 80]
-                   ))
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(
+                sorted(pool.imap_unordered(func, x)), [0, 20, 40, 60, 80]
+            )
+        )
         pool.close()
         pool.join()
 
     def test_starmap(self):
         pool = self.pool_impl(processes=2)
-        x = [(t.ones([10]) * i, t.ones([10]) * i)
-             for i in range(5)]
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       pool.starmap(func2, x),
-                       [0, 20, 40, 60, 80]
-                   ))
+        x = [(t.ones([10]) * i, t.ones([10]) * i) for i in range(5)]
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(pool.starmap(func2, x), [0, 20, 40, 60, 80])
+        )
         pool.close()
         pool.join()
 
     def test_starmap_async(self):
         pool = self.pool_impl(processes=2)
-        x = [(t.ones([10]) * i, t.ones([10]) * i)
-             for i in range(5)]
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       pool.starmap_async(func2, x).get(),
-                       [0, 20, 40, 60, 80]
-                   ))
+        x = [(t.ones([10]) * i, t.ones([10]) * i) for i in range(5)]
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(
+                pool.starmap_async(func2, x).get(), [0, 20, 40, 60, 80]
+            )
+        )
         pool.close()
         pool.join()
 
     def test_gpu_tensor(self, pytestconfig):
-        x = [t.ones([10], device=pytestconfig.getoption("gpu_device")) * i
-             for i in range(5)]
+        x = [
+            t.ones([10], device=pytestconfig.getoption("gpu_device")) * i
+            for i in range(5)
+        ]
 
         pool = self.pool_impl(processes=2, is_copy_tensor=True)
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       pool.map(func, x),
-                       [0, 20, 40, 60, 80]
-                   ))
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(pool.map(func, x), [0, 20, 40, 60, 80])
+        )
         pool.close()
         pool.join()
 
-        pool = self.pool_impl(processes=2, is_copy_tensor=False,
-                              share_method="cuda")
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       pool.map(func, x),
-                       [0, 20, 40, 60, 80]
-                   ))
+        pool = self.pool_impl(processes=2, is_copy_tensor=False, share_method="cuda")
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(pool.map(func, x), [0, 20, 40, 60, 80])
+        )
         pool.close()
         pool.join()
 
@@ -150,14 +133,11 @@ class TestPool(object):
         x = [t.ones([10]) * i for i in range(5)]
         for xx in x:
             xx.share_memory_()
-        pool = self.pool_impl(processes=2, is_copy_tensor=False,
-                              share_method="cpu")
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       pool.map(func, x),
-                       [0, 20, 40, 60, 80]
-                   ))
+        pool = self.pool_impl(processes=2, is_copy_tensor=False, share_method="cpu")
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(pool.map(func, x), [0, 20, 40, 60, 80])
+        )
         pool.close()
         pool.join()
 
@@ -165,36 +145,31 @@ class TestPool(object):
         x = [t.ones([10]) * i for i in range(5)]
         y = t.ones([10])
 
-        x2 = [(t.ones([10]) * i, t.ones([10]) * i)
-              for i in range(5)]
+        x2 = [(t.ones([10]) * i, t.ones([10]) * i) for i in range(5)]
 
         def local_func(xx):
             nonlocal y
             return t.sum(xx + y)
 
         pool = self.pool_impl(processes=2, is_recursive=True)
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       pool.map(local_func, x),
-                       [10, 20, 30, 40, 50]
-                   ))
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       pool.map(lambda xx: t.sum(xx[0] + xx[1]), x2),
-                       [0, 20, 40, 60, 80]
-                   ))
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(pool.map(local_func, x), [10, 20, 30, 40, 50])
+        )
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(
+                pool.map(lambda xx: t.sum(xx[0] + xx[1]), x2), [0, 20, 40, 60, 80]
+            )
+        )
         pool.close()
         pool.join()
 
         pool = self.pool_impl(processes=2)
-        assert all(out == expect_out for
-                   out, expect_out in
-                   zip(
-                       pool.map(func, x),
-                       [0, 20, 40, 60, 80]
-                   ))
+        assert all(
+            out == expect_out
+            for out, expect_out in zip(pool.map(func, x), [0, 20, 40, 60, 80])
+        )
         pool.close()
         pool.join()
 
@@ -227,8 +202,7 @@ class TestCtxPool(object):
     def test_init(self):
         with pytest.raises(ValueError, match="not equal to the number"):
             _ = CtxPool(processes=2, worker_contexts=[0, 1, 2, 3])
-        pool = CtxPool(processes=2, initializer=init_func,
-                       initargs=("some_args",))
+        pool = CtxPool(processes=2, initializer=init_func, initargs=("some_args",))
         pool.close()
         pool.join()
         pool = CtxPool(processes=2, worker_contexts=[0, 1])
@@ -290,8 +264,9 @@ class TestCtxThreadPool(object):
     def test_init(self):
         with pytest.raises(ValueError, match="not equal to the number"):
             _ = CtxThreadPool(processes=2, worker_contexts=[0, 1, 2, 3])
-        pool = CtxThreadPool(processes=2, initializer=init_func,
-                             initargs=("some_args",))
+        pool = CtxThreadPool(
+            processes=2, initializer=init_func, initargs=("some_args",)
+        )
         pool.close()
         pool.join()
         pool = CtxThreadPool(processes=2, worker_contexts=[0, 1])

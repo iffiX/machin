@@ -10,6 +10,7 @@ class Config(Object):
     """
     A simple replacement for python dict.
     """
+
     def __init__(self, **configs):
         super(Config, self).__init__(configs)
 
@@ -80,13 +81,11 @@ def load_config_cmd(merge_conf: Config = None) -> Config:
     config_dict = {}
     if args.conf is not None:
         for env_str in args.conf:
-            name, value = env_str.split('=')
+            name, value = env_str.split("=")
             value = eval(value)
             config_dict[name] = value
 
-    return merge_config((Config()
-                         if merge_conf is None
-                         else merge_conf), config_dict)
+    return merge_config((Config() if merge_conf is None else merge_conf), config_dict)
 
 
 def load_config_file(json_file: str, merge_conf: Config = None) -> Config:
@@ -101,19 +100,17 @@ def load_config_file(json_file: str, merge_conf: Config = None) -> Config:
         configuration
     """
     # parse the configurations from the config json file provided
-    with open(json_file, 'r') as config_file:
+    with open(json_file, "r") as config_file:
         config_dict = json.load(config_file)
 
-    return merge_config((Config()
-                         if merge_conf is None
-                         else merge_conf), config_dict)
+    return merge_config((Config() if merge_conf is None else merge_conf), config_dict)
 
 
 def save_config(conf: Config, json_file: str):
     """
     Dump config object to a json file.
     """
-    with open(json_file, 'w') as config_file:
+    with open(json_file, "w") as config_file:
         json.dump(conf.data, config_file, sort_keys=True, indent=4)
 
 

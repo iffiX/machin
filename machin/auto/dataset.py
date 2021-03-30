@@ -18,11 +18,12 @@ def determine_precision(models):
             dtype.add(v.dtype)
     dtype = list(dtype)
     if len(dtype) > 1:
-        raise RuntimeError("Multiple data types of parameters detected "
-                           "in models: {}, this is currently not supported "
-                           "since we need to determine the data type of your "
-                           "model input from your model parameter data type."
-                           .format(dtype))
+        raise RuntimeError(
+            "Multiple data types of parameters detected "
+            "in models: {}, this is currently not supported "
+            "since we need to determine the data type of your "
+            "model input from your model parameter data type.".format(dtype)
+        )
     return dtype[0]
 
 
@@ -43,9 +44,7 @@ def log_video(module, name, video_frames: List[np.ndarray]):
     # create video temp file
     _fd, path = tempfile.mkstemp(suffix=".gif")
     try:
-        create_video(video_frames,
-                     os.path.dirname(path),
-                     os.path.basename(path))
+        create_video(video_frames, os.path.dirname(path), os.path.basename(path))
     except Exception as e:
         print(e)
         os.remove(path)
@@ -59,10 +58,11 @@ def log_video(module, name, video_frames: List[np.ndarray]):
 
 
 class DatasetResult:
-    def __init__(self,
-                 observations: List[Dict[str, Any]] = None,
-                 logs: List[Dict[str, Union[Scalar, Tuple[Scalar, str]]]]
-                 = None):
+    def __init__(
+        self,
+        observations: List[Dict[str, Any]] = None,
+        logs: List[Dict[str, Union[Scalar, Tuple[Scalar, str]]]] = None,
+    ):
         self.observations = observations or []
         self.logs = logs or []
 
@@ -80,6 +80,7 @@ class RLDataset(IterableDataset):
     """
     Base class for all RL Datasets.
     """
+
     def __init__(self, **_kwargs):
         super(RLDataset, self).__init__()
 

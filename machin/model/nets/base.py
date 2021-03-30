@@ -11,6 +11,7 @@ class NeuralNetworkModule(nn.Module, ABC):
           more than one device, and you also should not move your output to
           other devices other than your parameter storage device in forward().
     """
+
     def __init__(self):
         super(NeuralNetworkModule, self).__init__()
         self.input_module = None
@@ -26,9 +27,11 @@ class NeuralNetworkModule(nn.Module, ABC):
             if isinstance(input_module, nn.Sequential):
                 input_module = self.find_child(input_module, True)
             if len({p.device for p in input_module.parameters()}) > 1:
-                raise RuntimeError("Input module must be another "
-                                   "NeuralNetworkModule or locate "
-                                   "on one single device.")
+                raise RuntimeError(
+                    "Input module must be another "
+                    "NeuralNetworkModule or locate "
+                    "on one single device."
+                )
 
     def set_output_module(self, output_module: nn.Module):
         """
@@ -40,9 +43,11 @@ class NeuralNetworkModule(nn.Module, ABC):
             if isinstance(output_module, nn.Sequential):
                 output_module = self.find_child(output_module, False)
             if len({p.device for p in output_module.parameters()}) > 1:
-                raise RuntimeError("Output module must be another "
-                                   "NeuralNetworkModule or locate "
-                                   "on one single device.")
+                raise RuntimeError(
+                    "Output module must be another "
+                    "NeuralNetworkModule or locate "
+                    "on one single device."
+                )
 
     @property
     def input_device(self):
@@ -52,9 +57,11 @@ class NeuralNetworkModule(nn.Module, ABC):
             if not isinstance(self.input_module, NeuralNetworkModule):
                 dev_set = {p.device for p in self.input_module.parameters()}
                 if len(dev_set) != 1:
-                    raise RuntimeError("This input module contains "
-                                       "parameters on different devices, "
-                                       "please consider about splitting it.")
+                    raise RuntimeError(
+                        "This input module contains "
+                        "parameters on different devices, "
+                        "please consider about splitting it."
+                    )
                 else:
                     return list(dev_set)[0]
             else:
@@ -68,9 +75,11 @@ class NeuralNetworkModule(nn.Module, ABC):
             if not isinstance(self.output_module, NeuralNetworkModule):
                 dev_set = {p.device for p in self.output_module.parameters()}
                 if len(dev_set) != 1:
-                    raise RuntimeError("This output module contains "
-                                       "parameters on different devices, "
-                                       "please consider about splitting it.")
+                    raise RuntimeError(
+                        "This output module contains "
+                        "parameters on different devices, "
+                        "please consider about splitting it."
+                    )
                 else:
                     return list(dev_set)[0]
             else:
@@ -96,9 +105,11 @@ class NeuralNetworkModule(nn.Module, ABC):
         pass
 
 
-def static_module_wrapper(wrapped_module: nn.Module,
-                          input_device: Union[str, t.device],
-                          output_device: Union[str, t.device]):
+def static_module_wrapper(
+    wrapped_module: nn.Module,
+    input_device: Union[str, t.device],
+    output_device: Union[str, t.device],
+):
     """
     Wrapped module could locate on multiple devices, but must not be moved.
 

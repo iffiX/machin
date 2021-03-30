@@ -25,16 +25,16 @@ class QNet(nn.Module):
 class FakeDataset(RLDataset):
     def __next__(self):
         dr = DatasetResult()
-        dr.add_observation({
-            "state": {"state": t.ones([1, 4])},
-            "action": {"action": t.ones([1, 1], dtype=t.long)},
-            "next_state": {"state": t.ones([1, 4])},
-            "terminal": False,
-            "reward": 1
-        })
-        dr.add_log({
-            "test_log": (1, set_test_var)
-        })
+        dr.add_observation(
+            {
+                "state": {"state": t.ones([1, 4])},
+                "action": {"action": t.ones([1, 1], dtype=t.long)},
+                "next_state": {"state": t.ones([1, 4])},
+                "terminal": False,
+                "reward": 1,
+            }
+        )
+        dr.add_log({"test_log": (1, set_test_var)})
         return dr
 
 
@@ -49,8 +49,7 @@ def set_test_var(_launcher, log_key, log_val):
 def generate_config():
     config = DQN.generate_config({})
     config["frame_config"]["models"] = ["QNet", "QNet"]
-    config["frame_config"]["model_kwargs"] = \
-        [{"state_dim": 4, "action_num": 2}] * 2
+    config["frame_config"]["model_kwargs"] = [{"state_dim": 4, "action_num": 2}] * 2
     config["train_env_config"] = {}
     config["test_env_config"] = {}
     return config

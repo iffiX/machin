@@ -4,8 +4,11 @@ import multiagent.scenarios as scenarios
 import os
 
 _root_dir = os.path.dirname(scenarios.__file__)
-_all_files = [f.split(".")[0] for f in os.listdir(_root_dir) if
-              (not f.startswith("__") and f.endswith(".py"))]
+_all_files = [
+    f.split(".")[0]
+    for f in os.listdir(_root_dir)
+    if (not f.startswith("__") and f.endswith(".py"))
+]
 
 
 def all_envs():
@@ -20,7 +23,12 @@ def create_env(env_name):
     # create world
     world = scenario.make_world()
     # create multiagent environment
-    env = MultiAgentEnv(world, scenario.reset_world, scenario.reward,
-                        scenario.observation, info_callback=None,
-                        shared_viewer=False)
+    env = MultiAgentEnv(
+        world,
+        scenario.reset_world,
+        scenario.reward,
+        scenario.observation,
+        info_callback=None,
+        shared_viewer=False,
+    )
     return env
