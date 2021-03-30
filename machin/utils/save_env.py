@@ -178,7 +178,7 @@ class SaveEnv:
                 diff_time = current_time - time
                 if diff_time > diff_threshold:
                     rm_path = join(self.env_root, file)
-                    default_logger.info("Removing trial directory: {}".format(rm_path))
+                    default_logger.info(f"Removing trial directory: {rm_path}")
                     shutil.rmtree(rm_path)
 
     def _prep_dirs(self):

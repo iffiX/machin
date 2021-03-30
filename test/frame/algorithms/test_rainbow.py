@@ -17,7 +17,7 @@ from test.util_fixtures import *
 class QNet(nn.Module):
     # this test setup lacks the noisy linear layer and dueling structure.
     def __init__(self, state_dim, action_num, atom_num=10):
-        super(QNet, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -31,7 +31,7 @@ class QNet(nn.Module):
         return t.softmax(self.fc3(a).view(-1, self.action_num, self.atom_num), dim=-1)
 
 
-class TestRAINBOW(object):
+class TestRAINBOW:
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self):
@@ -302,9 +302,7 @@ class TestRAINBOW(object):
             step.reset()
             terminal = False
 
-            logger.info(
-                "Episode {} total reward={:.2f}".format(episode, smoother.value)
-            )
+            logger.info(f"Episode {episode} total reward={smoother.value:.2f}")
 
             if smoother.value > c.solved_reward:
                 reward_fulfilled.count()

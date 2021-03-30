@@ -17,7 +17,7 @@ from test.util_run_multi import *
 from test.util_fixtures import *
 
 
-class TestRunningStat(object):
+class TestRunningStat:
     @pytest.mark.parametrize("shape", ((), (3,), (3, 4)))
     def test_push(self, shape):
         vals = []
@@ -68,7 +68,7 @@ class TestRunningStat(object):
 
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(ActorDiscrete, self).__init__()
+        super().__init__()
         self.fc = nn.Linear(state_dim, action_dim, bias=False)
 
     def forward(self, state):
@@ -76,7 +76,7 @@ class ActorDiscrete(nn.Module):
         return a
 
 
-class TestARS(object):
+class TestARS:
     # configs and definitions
     # Cartpole-v0 can be solved:
     # within 200 episodes, using single layer Actor
@@ -274,7 +274,7 @@ class TestARS(object):
 
         env = c.env
         # for cpu usage viewing
-        default_logger.info("{}, pid {}".format(rank, os.getpid()))
+        default_logger.info(f"{rank}, pid {os.getpid()}")
         while episode < c.max_episodes:
             episode.count()
 
@@ -301,9 +301,7 @@ class TestARS(object):
             ars.update()
             smoother.update(all_reward / len(ars.get_actor_types()))
             default_logger.info(
-                "Process {} Episode {} total reward={:.2f}".format(
-                    rank, episode, smoother.value
-                )
+                f"Process {rank} Episode {episode} total reward={smoother.value:.2f}"
             )
 
             if smoother.value > c.solved_reward:

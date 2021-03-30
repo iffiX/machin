@@ -6,7 +6,7 @@ import sys
 from .pickle import dumps, loads
 
 
-class ConnectionWrapper(object):  # pragma: no cover
+class ConnectionWrapper:  # pragma: no cover
     """
     This simple wrapper provides timeout function for sending
     bytes on ``Connection``.
@@ -41,7 +41,7 @@ class ConnectionWrapper(object):  # pragma: no cover
         )
 
 
-class SimpleQueue(object):  # pragma: no cover
+class SimpleQueue:  # pragma: no cover
     """
     A simple single direction queue for inter-process communications.
     There could be multiple receivers and multiple senders on each side.
@@ -168,7 +168,7 @@ class SimpleQueue(object):  # pragma: no cover
         self.close()
 
 
-class SimpleP2PQueue(object):  # pragma: no cover
+class SimpleP2PQueue:  # pragma: no cover
     """
     A simple single direction queue for inter-process P2P communications.
     Each end only have one process.
@@ -244,7 +244,7 @@ class SimpleP2PQueue(object):  # pragma: no cover
         self.close()
 
 
-class MultiP2PQueue(object):
+class MultiP2PQueue:
     """
     P2P queue which connects pool result manager and worker processes directly,
     with no lock.

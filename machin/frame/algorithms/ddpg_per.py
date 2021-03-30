@@ -46,7 +46,7 @@ class DDPGPer(DDPG):
         **__
     ):
         # DOC INHERITED
-        super(DDPGPer, self).__init__(
+        super().__init__(
             actor,
             actor_target,
             critic,

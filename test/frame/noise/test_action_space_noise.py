@@ -9,7 +9,7 @@ import pytest
 import torch as t
 
 
-class TestAllActionSpaceNoise(object):
+class TestAllActionSpaceNoise:
     ########################################################################
     # Test for add_normal_noise_to_action
     ########################################################################

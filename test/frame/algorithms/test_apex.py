@@ -17,7 +17,7 @@ from test.util_fixtures import *
 
 class QNet(nn.Module):
     def __init__(self, state_dim, action_num):
-        super(QNet, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -31,7 +31,7 @@ class QNet(nn.Module):
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -47,7 +47,7 @@ class Actor(nn.Module):
 
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(ActorDiscrete, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -62,7 +62,7 @@ class ActorDiscrete(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -76,7 +76,7 @@ class Critic(nn.Module):
         return q
 
 
-class TestDQNApex(object):
+class TestDQNApex:
     # configs and definitions
     disable_view_window()
     c = Config()
@@ -264,7 +264,7 @@ class TestDQNApex(object):
         env = c.env
         world = get_world()
         all_group = world.create_rpc_group("all", ["0", "1", "2"])
-        all_group.pair("{}_running".format(rank), True)
+        all_group.pair(f"{rank}_running", True)
 
         if rank in (0, 1):
             while episode < c.max_episodes:
@@ -313,7 +313,7 @@ class TestDQNApex(object):
                     if reward_fulfilled >= c.solved_repeat:
                         default_logger.info("Environment solved!")
 
-                        all_group.unpair("{}_running".format(rank))
+                        all_group.unpair(f"{rank}_running")
                         while all_group.is_paired("0_running") or all_group.is_paired(
                             "1_running"
                         ):
@@ -335,7 +335,7 @@ class TestDQNApex(object):
         raise RuntimeError("DQN-Apex Training failed.")
 
 
-class TestDDPGApex(object):
+class TestDDPGApex:
     # configs and definitions
     disable_view_window()
     c = Config()
@@ -584,8 +584,8 @@ class TestDDPGApex(object):
         env = c.env
         world = get_world()
         all_group = world.create_rpc_group("all", ["0", "1", "2"])
-        all_group.pair("{}_running".format(rank), True)
-        default_logger.info("{}, pid {}".format(rank, os.getpid()))
+        all_group.pair(f"{rank}_running", True)
+        default_logger.info(f"{rank}, pid {os.getpid()}")
         if rank == 0:
             all_group.pair("episode", episode)
 
@@ -638,7 +638,7 @@ class TestDDPGApex(object):
                     if reward_fulfilled >= c.solved_repeat:
                         default_logger.info("Environment solved!")
 
-                        all_group.unpair("{}_running".format(rank))
+                        all_group.unpair(f"{rank}_running")
                         while all_group.is_paired("0_running") or all_group.is_paired(
                             "1_running"
                         ):

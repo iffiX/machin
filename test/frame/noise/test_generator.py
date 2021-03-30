@@ -8,7 +8,7 @@ from machin.frame.noise.generator import (
 import torch as t
 
 
-class TestAllNoiseGen(object):
+class TestAllNoiseGen:
     ########################################################################
     # Test for all noise generators
     ########################################################################

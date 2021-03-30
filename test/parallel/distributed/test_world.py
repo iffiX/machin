@@ -4,7 +4,7 @@ from test.util_fixtures import *
 import torch as t
 
 
-class WorkerService(object):
+class WorkerService:
     counter = 0
 
     def count(self):

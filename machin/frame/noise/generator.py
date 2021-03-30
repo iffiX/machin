@@ -58,7 +58,7 @@ class NormalNoiseGen(NoiseGen):
             return self.dist.sample(self.shape)
 
     def __repr__(self):
-        return "NormalNoise(mu={}, sigma={})".format(self.mu, self.sigma)
+        return f"NormalNoise(mu={self.mu}, sigma={self.sigma})"
 
 
 class ClippedNormalNoiseGen(NoiseGen):
@@ -131,7 +131,7 @@ class UniformNoiseGen(NoiseGen):
             return self.dist.sample(self.shape)
 
     def __repr__(self):
-        return "UniformNoise(min={}, max={})".format(self.min, self.max)
+        return f"UniformNoise(min={self.min}, max={self.max})"
 
 
 class OrnsteinUhlenbeckNoiseGen(NoiseGen):
@@ -199,4 +199,4 @@ class OrnsteinUhlenbeckNoiseGen(NoiseGen):
         self.x_prev = self.x0 if self.x0 is not None else t.zeros(self.shape)
 
     def __repr__(self):
-        return "OrnsteinUhlenbeckNoise(mu={}, sigma={})".format(self.mu, self.sigma)
+        return f"OrnsteinUhlenbeckNoise(mu={self.mu}, sigma={self.sigma})"

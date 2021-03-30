@@ -6,7 +6,7 @@ import torch.nn as nn
 
 class QNet(nn.Module):
     def __init__(self, state_dim, action_num):
-        super(QNet, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)

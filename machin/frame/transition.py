@@ -7,7 +7,7 @@ import numpy as np
 Scalar = NewType("Scalar", Union[int, float, bool])
 
 
-class TransitionBase(object):
+class TransitionBase:
     """
     Base class for all transitions
     """
@@ -267,7 +267,7 @@ class Transition(TransitionBase):
         assert isinstance(terminal, bool) or (
             t.is_tensor(terminal) and terminal.dtype == t.bool
         )
-        super(Transition, self).__init__(
+        super().__init__(
             major_attr=["state", "action", "next_state"],
             sub_attr=["reward", "terminal"],
             custom_attr=custom_keys,
@@ -278,7 +278,7 @@ class Transition(TransitionBase):
 
     def _check_validity(self):
         # fix batch size to 1
-        super(Transition, self)._check_validity()
+        super()._check_validity()
         if self._batch_size != 1:
             raise ValueError(
                 "Batch size of the default transition "
@@ -300,7 +300,7 @@ class TransitionStorageBasic(list):
         """
         self.max_size = max_size
         self.index = 0
-        super(TransitionStorageBasic, self).__init__()
+        super().__init__()
 
     def store(self, transition: TransitionBase) -> int:
         """
@@ -325,7 +325,7 @@ class TransitionStorageBasic(list):
         return position
 
     def clear(self):
-        super(TransitionStorageBasic, self).clear()
+        super().clear()
 
 
 class TransitionStorageSmart(TransitionStorageBasic):
@@ -344,7 +344,7 @@ class TransitionStorageSmart(TransitionStorageBasic):
 
     def __init__(self, max_size):
         # DOC INHERITED
-        super(TransitionStorageSmart, self).__init__(max_size)
+        super().__init__(max_size)
 
     def store(self, transition: TransitionBase) -> int:
         # DOC INHERITED
@@ -392,4 +392,4 @@ class TransitionStorageSmart(TransitionStorageBasic):
         return position
 
     def clear(self):
-        super(TransitionStorageSmart, self).clear()
+        super().clear()

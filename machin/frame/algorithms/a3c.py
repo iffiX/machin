@@ -85,7 +85,7 @@ class A3C(A2C):
         """
         # Adam is just a placeholder here, the actual optimizer is
         # set in parameter servers
-        super(A3C, self).__init__(
+        super().__init__(
             actor,
             critic,
             FakeOptimizer,
@@ -134,19 +134,19 @@ class A3C(A2C):
         # DOC INHERITED
         if self.is_syncing:
             self.actor_grad_server.pull(self.actor)
-        return super(A3C, self).act(state)
+        return super().act(state)
 
     def _eval_act(self, state: Dict[str, Any], action: Dict[str, Any], **__):
         # DOC INHERITED
         if self.is_syncing:
             self.actor_grad_server.pull(self.actor)
-        return super(A3C, self)._eval_act(state, action)
+        return super()._eval_act(state, action)
 
     def _criticize(self, state: Dict[str, Any], *_, **__):
         # DOC INHERITED
         if self.is_syncing:
             self.critic_grad_server.pull(self.critic)
-        return super(A3C, self)._criticize(state)
+        return super()._criticize(state)
 
     def update(
         self, update_value=True, update_policy=True, concatenate_samples=True, **__
@@ -154,7 +154,7 @@ class A3C(A2C):
         # DOC INHERITED
         org_sync = self.is_syncing
         self.is_syncing = False
-        super(A3C, self).update(update_value, update_policy, concatenate_samples)
+        super().update(update_value, update_policy, concatenate_samples)
         self.is_syncing = org_sync
         self.actor_grad_server.push(self.actor)
         self.critic_grad_server.push(self.critic)

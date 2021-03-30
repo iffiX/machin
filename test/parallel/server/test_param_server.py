@@ -6,12 +6,12 @@ import torch.nn as nn
 
 
 def _log(rank, msg):
-    default_logger.info("Client {}: {}".format(rank, msg))
+    default_logger.info(f"Client {rank}: {msg}")
 
 
 class Model(nn.Module):
     def __init__(self):
-        super(Model, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(1, 1, bias=False)
         self.fc2 = nn.Linear(1, 1, bias=False)
         self.fc3 = nn.Linear(1, 1, bias=False)
@@ -35,7 +35,7 @@ class Model(nn.Module):
         )
 
 
-class Optimizer(object):
+class Optimizer:
     def __init__(self, param):
         self.params = param
 
@@ -72,9 +72,9 @@ class TestPushPullModelServer(WorldTestBase):
                     model.fc2.weight += 1
                     model.fc3.weight += 1
                 if server.push(model):
-                    _log(rank, "push {} success".format(i))
+                    _log(rank, f"push {i} success")
                 else:
-                    _log(rank, "push {} failed".format(i))
+                    _log(rank, f"push {i} failed")
                 model.pp_version = i + 1
                 _log(
                     rank,
@@ -138,11 +138,11 @@ class TestPushPullGradServer(WorldTestBase):
                 loss = model(t.ones([1, 1]))
                 loss.backward()
                 server.push(model)
-                _log(rank, "iter {}, model: {}".format(i, model))
+                _log(rank, f"iter {i}, model: {model}")
                 sleep(random.random() * 0.2)
             sleep(3)
             server.pull(model)
-            _log(rank, "reduced model: {}".format(model))
+            _log(rank, f"reduced model: {model}")
             # reduce_method = "mean":
             # fc1: weight(1) - 6 = -5
             # fc2: weight(2) - 3 = -1

@@ -44,7 +44,7 @@ def check_nan(tensor: t.Tensor, name=""):
         ``RuntimeError`` if tensor has any ``nan`` element.
     """
     if t.any(t.isnan(tensor)):
-        raise CheckError("Tensor {} contains nan!".format(name))
+        raise CheckError(f"Tensor {name} contains nan!")
 
 
 def _add_input_check_hook(
@@ -187,7 +187,7 @@ def p_chk_nan(
     """
     Check whether there is any nan element in the parameter.
     """
-    check_nan(param_val, param_name + "(backward_count={})".format(counter.get()))
+    check_nan(param_val, param_name + f"(backward_count={counter.get()})")
 
 
 def p_chk_range(

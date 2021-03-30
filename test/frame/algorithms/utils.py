@@ -9,7 +9,7 @@ def unwrap_time_limit(env):
         return env
 
 
-class Smooth(object):
+class Smooth:
     def __init__(self):
         self._value = None
 

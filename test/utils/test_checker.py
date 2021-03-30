@@ -28,7 +28,7 @@ def test_check_nan():
 
 class SubModule1(nn.Module):
     def __init__(self):
-        super(SubModule1, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(5, 10)
         self.fc2 = nn.Linear(10, 20)
         mark_as_atom_module(self)
@@ -40,7 +40,7 @@ class SubModule1(nn.Module):
 
 class SubModule2(nn.Module):
     def __init__(self):
-        super(SubModule2, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(20, 20)
 
     def forward(self, x):
@@ -49,7 +49,7 @@ class SubModule2(nn.Module):
 
 class CheckedModel(nn.Module):
     def __init__(self):
-        super(CheckedModel, self).__init__()
+        super().__init__()
         self.sub1 = SubModule1()
         self.sub2 = SubModule2()
 

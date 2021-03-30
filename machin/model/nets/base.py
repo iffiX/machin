@@ -13,7 +13,7 @@ class NeuralNetworkModule(nn.Module, ABC):
     """
 
     def __init__(self):
-        super(NeuralNetworkModule, self).__init__()
+        super().__init__()
         self.input_module = None
         self.output_module = None
 

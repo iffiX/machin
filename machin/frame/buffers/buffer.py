@@ -9,7 +9,7 @@ import torch as t
 import random
 
 
-class Buffer(object):
+class Buffer:
     def __init__(self, buffer_size, buffer_device="cpu", *_, **__):
         """
         Create a buffer instance.
@@ -64,9 +64,7 @@ class Buffer(object):
             )
         if not transition.has_keys(required_attrs):
             missing_keys = set(required_attrs) - set(transition.keys())
-            raise ValueError(
-                "Transition object missing attributes: {}".format(missing_keys)
-            )
+            raise ValueError(f"Transition object missing attributes: {missing_keys}")
         transition.to(self.buffer_device)
 
         if self.size() != 0 and self.buffer[0].keys() != transition.keys():
@@ -136,7 +134,7 @@ class Buffer(object):
         sample_attrs: List[str] = None,
         additional_concat_attrs: List[str] = None,
         *_,
-        **__
+        **__,
     ) -> Any:
         """
         Sample a random batch from buffer.
@@ -204,7 +202,7 @@ class Buffer(object):
         if isinstance(sample_method, str):
             if not hasattr(self, "sample_method_" + sample_method):
                 raise RuntimeError(
-                    "Cannot find specified sample method: {}".format(sample_method)
+                    f"Cannot find specified sample method: {sample_method}"
                 )
             sample_method = getattr(self, "sample_method_" + sample_method)
         batch_size, batch = sample_method(self.buffer, batch_size)
@@ -316,7 +314,7 @@ class Buffer(object):
                 try:
                     return t.tensor(batch, device=device).view(batch_size, -1)
                 except Exception:
-                    raise ValueError("Batch not concatenable: {}".format(batch))
+                    raise ValueError(f"Batch not concatenable: {batch}")
         else:
             return batch
 

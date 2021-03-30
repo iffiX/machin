@@ -69,7 +69,7 @@ class HDDPG(DDPG):
             visualize: Whether visualize the network flow in the first pass.
             visualize_dir: Visualized graph save directory.
         """
-        super(HDDPG, self).__init__(
+        super().__init__(
             actor,
             actor_target,
             critic,

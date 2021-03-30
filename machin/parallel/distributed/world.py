@@ -94,9 +94,7 @@ def _rpc_call_service(group_name, key, args, kwargs):  # pragma: no cover
             _rpc_unset_lut_entry,
             args=(group_name, key, get_cur_name(), LUTType.SERVICE),
         )
-        raise KeyError(
-            "Group [{}], not found on Process [{}]".format(group_name, get_cur_name())
-        )
+        raise KeyError(f"Group [{group_name}], not found on Process [{get_cur_name()}]")
     lut = WORLD.groups[group_name].group_service_lut
 
     if key in lut:
@@ -131,9 +129,7 @@ def _rpc_get_paired_value(group_name, key):  # pragma: no cover
             _rpc_unset_lut_entry,
             args=(group_name, key, get_cur_name(), LUTType.VALUE),
         )
-        raise KeyError(
-            "Group [{}], not found on Process [{}]".format(group_name, get_cur_name())
-        )
+        raise KeyError(f"Group [{group_name}], not found on Process [{get_cur_name()}]")
 
     paired_map = WORLD.groups[group_name].group_value_lut
 
@@ -229,10 +225,10 @@ class RpcException(Exception):  # pragma: no cover
     def __init__(self, msg):
         if isinstance(msg, str):
             # used by rpc when reraising the exception on the caller side
-            super(RpcException, self).__init__(msg)
+            super().__init__(msg)
         else:
             tb = ExceptionWithTraceback(msg).tb
-            super(RpcException, self).__init__(tb)
+            super().__init__(tb)
 
 
 @_world_singleton
@@ -358,7 +354,7 @@ class World:
                 )
             )
         if group_name in self.groups:  # pragma: no cover
-            raise RuntimeError("Group {} already exists!".format(group_name))
+            raise RuntimeError(f"Group {group_name} already exists!")
         group = RpcGroup(group_name, members)
 
         # set the group
@@ -583,12 +579,10 @@ class RpcGroup:
         self._barrier_status = False
         if first_create and self.is_member(get_cur_name()):
             self.register(
-                "_rpc_entered_barrier_{}".format(get_cur_name()),
+                f"_rpc_entered_barrier_{get_cur_name()}",
                 self._rpc_entered_barrier,
             )
-            self.register(
-                "_rpc_exit_barrier_{}".format(get_cur_name()), self._rpc_exit_barrier
-            )
+            self.register(f"_rpc_exit_barrier_{get_cur_name()}", self._rpc_exit_barrier)
 
     @_copy_doc(rpc.rpc_sync)
     def rpc_sync(self, to: str, func: Callable, timeout=-1, args=(), kwargs=None):
@@ -625,9 +619,7 @@ class RpcGroup:
         """
         if key in self.group_value_lut:
             raise KeyError(
-                'Value with key "{}" already paired to Group [{}]'.format(
-                    key, self.group_name
-                )
+                f'Value with key "{key}" already paired to Group [{self.group_name}]'
             )
         # announce the pairing
         status = rpc.rpc_sync(
@@ -639,9 +631,7 @@ class RpcGroup:
             self.group_value_lut[key] = value
         else:
             raise KeyError(
-                'Value with key "{}" already paired to Group [{}]'.format(
-                    key, self.group_name
-                )
+                f'Value with key "{key}" already paired to Group [{self.group_name}]'
             )
 
     @_check_executor
@@ -715,9 +705,7 @@ class RpcGroup:
             )
             if not status:
                 raise KeyError(
-                    "Value with key [{}] not found on Group [{}], ".format(
-                        key, self.group_name
-                    )
+                    f"Value with key [{key}] not found on Group [{self.group_name}], "
                 )
         return rpc.remote(holder, _rpc_get_paired_value, args=(self.group_name, key))
 
@@ -870,7 +858,7 @@ class RpcGroup:
         if get_cur_name() == self.group_members[0]:
             while True:
                 all_entered = all(
-                    self.registered_sync("_rpc_entered_barrier_{}".format(m))
+                    self.registered_sync(f"_rpc_entered_barrier_{m}")
                     for m in self.group_members
                 )
                 if not all_entered:
@@ -878,7 +866,7 @@ class RpcGroup:
                 else:
                     break
             for m in self.group_members:
-                self.registered_sync("_rpc_exit_barrier_{}".format(m))
+                self.registered_sync(f"_rpc_exit_barrier_{m}")
         else:
             self._barrier_event.wait()
 
@@ -946,9 +934,7 @@ class RpcGroup:
             )
             if not status:
                 raise KeyError(
-                    "Service with key [{}] not found on Group [{}], ".format(
-                        key, self.group_name
-                    )
+                    f"Service with key [{key}] not found on Group [{self.group_name}], "
                 )
         return rpc_method(
             holder, _rpc_call_service, args=(self.group_name, key, args, kwargs)

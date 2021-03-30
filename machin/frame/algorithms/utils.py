@@ -284,7 +284,7 @@ class FakeOptimizer(torch.optim.Optimizer):
     """
 
     def __init__(self, params, *_, **__):
-        super(FakeOptimizer, self).__init__(params, {})
+        super().__init__(params, {})
 
     def step(self, *args, **kwargs):
         pass

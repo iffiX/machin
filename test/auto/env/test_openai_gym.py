@@ -24,7 +24,7 @@ import torch.nn.functional as F
 
 class QNet(nn.Module):
     def __init__(self, state_dim, action_num):
-        super(QNet, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -38,7 +38,7 @@ class QNet(nn.Module):
 
 class A2CActorCont(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
-        super(A2CActorCont, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
         self.mu_head = nn.Linear(16, action_dim)
@@ -60,7 +60,7 @@ class A2CActorCont(nn.Module):
 
 class A2CActorDisc(nn.Module):
     def __init__(self, state_dim, action_num):
-        super(A2CActorDisc, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -79,7 +79,7 @@ class A2CActorDisc(nn.Module):
 
 class A2CCritic(nn.Module):
     def __init__(self, state_dim):
-        super(A2CCritic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -94,7 +94,7 @@ class A2CCritic(nn.Module):
 
 class DDPGActorCont(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
-        super(DDPGActorCont, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -110,7 +110,7 @@ class DDPGActorCont(nn.Module):
 
 class DDPGActorDisc(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(DDPGActorDisc, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -125,7 +125,7 @@ class DDPGActorDisc(nn.Module):
 
 class DDPGCritic(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(DDPGCritic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -149,7 +149,7 @@ class TestRLGymDiscActDataset:
         assert t.is_tensor(result.observations[0]["next_state"]["state"])
         assert isinstance(result.observations[0]["reward"], float)
         assert isinstance(result.observations[0]["terminal"], bool)
-        log_keys = set([k for log_dict in result.logs for k in log_dict])
+        log_keys = {k for log_dict in result.logs for k in log_dict}
         assert log_keys.issuperset({"video", "total_reward"})
 
     # Only test single node, most representative algorithms
@@ -205,7 +205,7 @@ class TestRLGymContActDataset:
         assert t.is_tensor(result.observations[0]["next_state"]["state"])
         assert isinstance(result.observations[0]["reward"], float)
         assert isinstance(result.observations[0]["terminal"], bool)
-        log_keys = set([k for log_dict in result.logs for k in log_dict])
+        log_keys = {k for log_dict in result.logs for k in log_dict}
         assert log_keys.issuperset({"video", "total_reward"})
 
     # Only test single node, most representative algorithms
@@ -293,7 +293,7 @@ class InspectCallback(Callback):
             if "total_reward" in log:
                 self.max_total_reward = max(log["total_reward"], self.max_total_reward)
                 default_logger.info(
-                    "Current max total reward={:.2f}.".format(self.max_total_reward)
+                    f"Current max total reward={self.max_total_reward:.2f}."
                 )
                 if self.max_total_reward >= 190:
                     trainer.should_stop = True

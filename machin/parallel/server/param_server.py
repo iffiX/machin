@@ -167,9 +167,7 @@ class PushPullGradServer:
         grad_dict = {}
         for k, v in model.named_parameters():
             if not hasattr(v, "grad") or not t.is_tensor(v.grad):  # pragma: no cover
-                raise RuntimeError(
-                    "Parameter {} doesn't have gradient " "to push!".format(k)
-                )
+                raise RuntimeError(f"Parameter {k} doesn't have gradient to push!")
             grad_dict[k] = deepcopy(v.grad).to("cpu")
         self.group.registered_sync(
             choice(self.secondary_services),
@@ -393,7 +391,7 @@ class PushPullGradServerImpl:
             self.work_event.set()
             self.work_event.clear()
         else:  # pragma: no cover
-            raise ValueError("Unknown push level: {}".format(level))
+            raise ValueError(f"Unknown push level: {level}")
 
     def _task_reduce_grad(self):
         while True:

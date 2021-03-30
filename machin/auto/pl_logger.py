@@ -15,7 +15,7 @@ class LocalMediaLogger(LightningLoggerBase):
     """
 
     def __init__(self, image_dir: str, artifact_dir: str):
-        super(LocalMediaLogger, self).__init__()
+        super().__init__()
         self.image_dir = image_dir
         self.artifact_dir = artifact_dir
         self._counters = {}
@@ -86,12 +86,10 @@ class LocalMediaLogger(LightningLoggerBase):
             self._counters[log_name] = 0
 
         if not isinstance(image, str):
-            log_path = log_name + "_{}.png".format(step or self._counters[log_name])
+            log_path = log_name + f"_{step or self._counters[log_name]}.png"
         else:
             extension = os.path.splitext(image)[1]
-            log_path = log_name + "_{}{}".format(
-                step or self._counters[log_name], extension
-            )
+            log_path = log_name + f"_{step or self._counters[log_name]}{extension}"
         self._counters[log_name] += 1
 
         path = os.path.join(self.image_dir, log_path)

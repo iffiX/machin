@@ -1,13 +1,13 @@
 from machin.parallel.assigner import ModelSizeEstimator, ModelAssigner
 from machin.utils.helper_classes import Object
 
-import mock
+from unittest import mock
 import pytest
 import torch as t
 import torch.nn as nn
 
 
-class TestModelSizeEstimator(object):
+class TestModelSizeEstimator:
     def test_estimator(self):
         model = nn.Module()
         model.register_parameter(
@@ -34,7 +34,7 @@ class TestModelSizeEstimator(object):
         ) / (1024 ** 2)
 
 
-class TestModelAssigner(object):
+class TestModelAssigner:
     # unit of size is MB
     virtual_gpus = []
     virtual_cpu = 0

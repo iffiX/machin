@@ -59,7 +59,7 @@ class Pickler(DillPickler):
     """
 
     def __init__(self, file, recurse=False, copy_tensor=False):
-        super(Pickler, self).__init__(file, byref=False, recurse=recurse)
+        super().__init__(file, byref=False, recurse=recurse)
         self.dispatch_table = copyreg.dispatch_table.copy()
         if not copy_tensor:
             # register the reduction methods provided by pytorch

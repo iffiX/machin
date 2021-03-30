@@ -19,10 +19,10 @@ class Process(BaseProcess):
         cleaner=None,
         ctx=_default_context,
         *,
-        daemon=None
+        daemon=None,
     ):
         self._exc_pipe = Pipe()
-        super(Process, self).__init__(
+        super().__init__(
             group=group,
             target=target,
             name=name,
@@ -58,13 +58,13 @@ class Process(BaseProcess):
             tb = exc.__traceback__
             tb = traceback.format_exception(type(exc), exc, tb)
             tb = "".join(tb)
-            all_tb = all_tb + "\nException {}:\n{}".format(i, tb)
+            all_tb = all_tb + f"\nException {i}:\n{tb}"
         return all_tb
 
     def run(self):
         exc = []
         try:
-            super(Process, self).run()
+            super().run()
         except BaseException as e:
             exc.append(e)
         finally:

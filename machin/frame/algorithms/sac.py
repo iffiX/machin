@@ -181,7 +181,7 @@ class SAC(TorchFramework):
             )
 
         self.criterion = criterion
-        super(SAC, self).__init__()
+        super().__init__()
 
     @property
     def optimizers(self):
@@ -421,7 +421,7 @@ class SAC(TorchFramework):
 
     def load(self, model_dir, network_map=None, version=-1):
         # DOC INHERITED
-        super(SAC, self).load(model_dir, network_map, version)
+        super().load(model_dir, network_map, version)
         with t.no_grad():
             hard_update(self.critic, self.critic_target)
             hard_update(self.critic, self.critic2_target)

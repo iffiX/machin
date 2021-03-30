@@ -20,7 +20,7 @@ class Thread(threading.Thread):
         kwargs={},
         cleaner=None,
         *,
-        daemon=None
+        daemon=None,
     ):
         threading.Thread.__init__(
             self,
@@ -53,13 +53,13 @@ class Thread(threading.Thread):
             tb = exc.__traceback__
             tb = traceback.format_exception(type(exc), exc, tb)
             tb = "".join(tb)
-            all_tb = all_tb + "\nException {}:\n{}".format(i, tb)
+            all_tb = all_tb + f"\nException {i}:\n{tb}"
         return all_tb
 
     def run(self):
         exc = []
         try:
-            super(Thread, self).run()
+            super().run()
         except BaseException as e:
             exc.append(e)
         finally:

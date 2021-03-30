@@ -25,7 +25,7 @@ class MultiEvent(Event):
     # can only be used with Event from threading and not from multiprocessing
     def __init__(self, *events):
         global _lock
-        super(MultiEvent, self).__init__()
+        super().__init__()
 
         with _lock:
             self.is_leaf = all([type(e) == Event for e in events])

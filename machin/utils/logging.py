@@ -8,7 +8,7 @@ import colorlog
 from logging import INFO
 
 
-class FakeLogger(object):
+class FakeLogger:
     def setLevel(self, level):
         pass
 

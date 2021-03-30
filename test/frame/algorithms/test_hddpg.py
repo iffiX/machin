@@ -18,7 +18,7 @@ from test.util_fixtures import *
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -34,7 +34,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -48,7 +48,7 @@ class Critic(nn.Module):
         return q
 
 
-class TestHDDPG(object):
+class TestHDDPG:
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self):
@@ -304,9 +304,7 @@ class TestHDDPG(object):
 
             if episode.get() % c.noise_interval != 0:
                 # only log result without noise
-                logger.info(
-                    "Episode {} total reward={:.2f}".format(episode, smoother.value)
-                )
+                logger.info(f"Episode {episode} total reward={smoother.value:.2f}")
 
             if smoother.value > c.solved_reward:
                 reward_fulfilled.count()

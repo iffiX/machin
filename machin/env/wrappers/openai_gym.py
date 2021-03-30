@@ -15,7 +15,7 @@ from ..utils.openai_gym import disable_view_window
 
 class GymTerminationError(Exception):
     def __init__(self):
-        super(GymTerminationError, self).__init__(
+        super().__init__(
             "One or several environments have terminated, " "reset before continuing."
         )
 
@@ -33,7 +33,7 @@ class ParallelWrapperDummy(ParallelWrapperBase):
             env_creators: List of gym environment creators, used to create
                 environments, accepts a index as your environment id.
         """
-        super(ParallelWrapperDummy, self).__init__()
+        super().__init__()
         self._envs = [ec(i) for ec, i in zip(env_creators, range(len(env_creators)))]
         self._terminal = np.zeros([len(self._envs)], dtype=np.bool)
 
@@ -184,7 +184,7 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
                 environments on sub process workers, accepts a index as your
                 environment id.
         """
-        super(ParallelWrapperSubProc, self).__init__()
+        super().__init__()
         self.workers = []
 
         # Some environments will hang or collapse when using fork context.
@@ -369,12 +369,10 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
             if worker.exitcode is None:
                 continue
             if worker.exitcode == 2:
-                raise RuntimeError(
-                    "Worker {} failed to create environment.".format(worker_id)
-                )
+                raise RuntimeError(f"Worker {worker_id} failed to create environment.")
             elif worker.exitcode != 0:
                 raise RuntimeError(
-                    "Worker {} exited with code {}.".format(worker_id, worker.exitcode)
+                    f"Worker {worker_id} exited with code {worker.exitcode}."
                 )
 
         for env_idx, i in zip(env_idxs, range(len(env_idxs))):

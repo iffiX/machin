@@ -79,7 +79,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     def test_append_sample_random(rank, trans_list):
         world = get_world()
         count = 0
-        default_logger.info("{} started".format(rank))
+        default_logger.info(f"{rank} started")
         group = world.create_rpc_group("group", ["0", "1", "2"])
         buffer = DistributedPrioritizedBuffer("buffer", group, 5)
         if rank in (0, 1):
@@ -87,7 +87,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
             while time() - begin < 10:
                 trans, prior = random.choice(trans_list)
                 buffer.append(trans)
-                default_logger.info("{} append {} success".format(rank, count))
+                default_logger.info(f"{rank} append {count} success")
                 count += 1
                 sleep(random.random() * 0.5)
         else:
@@ -95,7 +95,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
             begin = time()
             while time() - begin < 5:
                 batch_size, sample, indexes, priorities = buffer.sample_batch(10)
-                default_logger.info("sampled batch size: {}".format(batch_size))
+                default_logger.info(f"sampled batch size: {batch_size}")
                 assert batch_size > 0
                 # state
                 assert list(sample[0]["state_1"].shape) == [batch_size, 2]
@@ -112,7 +112,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
                 # simulate perform a backward process
                 sleep(1)
                 buffer.update_priority(priorities, indexes)
-                default_logger.info("{} sample {} success".format(rank, count))
+                default_logger.info(f"{rank} sample {count} success")
                 count += 1
                 sleep(1)
         return True
@@ -125,7 +125,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     @WorldTestBase.setup_world
     def test_append_sample_controlled(rank, trans_list):
         world = get_world()
-        default_logger.info("{} started".format(rank))
+        default_logger.info(f"{rank} started")
         np.random.seed(0)
         group = world.create_rpc_group("group", ["0", "1", "2"])
         buffer = DistributedPrioritizedBuffer("buffer", group, 5)
@@ -139,7 +139,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
             batch_size, sample, indexes, priorities = buffer.sample_batch(
                 10, sample_attrs=["index"]
             )
-            default_logger.info("sampled batch size: {}".format(batch_size))
+            default_logger.info(f"sampled batch size: {batch_size}")
             default_logger.info(sample)
             default_logger.info(indexes)
             default_logger.info(priorities)
@@ -173,7 +173,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     @WorldTestBase.setup_world
     def test_sample_empty_buffer(rank):
         world = get_world()
-        default_logger.info("{} started".format(rank))
+        default_logger.info(f"{rank} started")
         np.random.seed(0)
         group = world.create_rpc_group("group", ["0", "1", "2"])
         buffer = DistributedPrioritizedBuffer("buffer", group, 5)
@@ -195,7 +195,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     @WorldTestBase.setup_world
     def test_append_sample_empty(rank, trans_list):
         world = get_world()
-        default_logger.info("{} started".format(rank))
+        default_logger.info(f"{rank} started")
         np.random.seed(0)
         group = world.create_rpc_group("group", ["0", "1", "2"])
         buffer = DistributedPrioritizedBuffer("buffer", group, 5)
@@ -221,7 +221,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     @WorldTestBase.setup_world
     def test_append_size(rank, trans_list):
         world = get_world()
-        default_logger.info("{} started".format(rank))
+        default_logger.info(f"{rank} started")
         np.random.seed(0)
         group = world.create_rpc_group("group", ["0", "1", "2"])
         buffer = DistributedPrioritizedBuffer("buffer", group, 5)
@@ -248,7 +248,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     @WorldTestBase.setup_world
     def test_append_clear(rank, trans_list):
         world = get_world()
-        default_logger.info("{} started".format(rank))
+        default_logger.info(f"{rank} started")
         np.random.seed(0)
         group = world.create_rpc_group("group", ["0", "1", "2"])
         buffer = DistributedPrioritizedBuffer("buffer", group, 5)

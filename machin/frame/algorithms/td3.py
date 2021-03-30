@@ -87,7 +87,7 @@ class TD3(DDPG):
         if lr_scheduler_kwargs is None:
             lr_scheduler_kwargs = ({}, {}, {})
 
-        super(TD3, self).__init__(
+        super().__init__(
             actor,
             actor_target,
             critic,
@@ -275,7 +275,7 @@ class TD3(DDPG):
         """
         if hasattr(self, "critic2_lr_sch"):
             self.critic2_lr_sch.step()
-        super(TD3, self).update_lr_scheduler()
+        super().update_lr_scheduler()
 
     def load(
         self, model_dir: str, network_map: Dict[str, str] = None, version: int = -1

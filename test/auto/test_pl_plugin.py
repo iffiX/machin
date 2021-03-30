@@ -24,15 +24,11 @@ class TestDDPPlugin:
             process_0.kill()
             pytest.fail("Timeout on waiting for the DDPPlugin script to end.")
         elif process_0.returncode != 0:
-            pytest.fail(
-                "DDPPlugin script returned code {}.".format(process_0.returncode)
-            )
+            pytest.fail(f"DDPPlugin script returned code {process_0.returncode}.")
         else:
             with open(test_save_path, "rb") as f:
                 flags = pickle.load(f)
-                assert flags == [True], "Not properly_inited, flags are: {}".format(
-                    flags
-                )
+                assert flags == [True], f"Not properly_inited, flags are: {flags}"
 
 
 class TestDDPSpawnPlugin:
@@ -53,12 +49,8 @@ class TestDDPSpawnPlugin:
             process_0.kill()
             pytest.fail("Timeout on waiting for the DDPSpawnPlugin " "script to end.")
         elif process_0.returncode != 0:
-            pytest.fail(
-                "DDPSpawnPlugin script returned code {}.".format(process_0.returncode)
-            )
+            pytest.fail(f"DDPSpawnPlugin script returned code {process_0.returncode}.")
         else:
             with open(test_save_path, "rb") as f:
                 flags = pickle.load(f)
-                assert flags == [True], "Not properly_inited, flags are: {}".format(
-                    flags
-                )
+                assert flags == [True], f"Not properly_inited, flags are: {flags}"

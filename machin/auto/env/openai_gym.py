@@ -66,7 +66,7 @@ class RLGymDiscActDataset(RLDataset):
         render_every_episode: int = 100,
         act_kwargs: Dict[str, Any] = None,
     ):
-        super(RLGymDiscActDataset, self).__init__()
+        super().__init__()
         self.frame = frame
         self.env = env
         self.render_every_episode = render_every_episode
@@ -173,7 +173,7 @@ class RLGymContActDataset(RLDataset):
         render_every_episode: int = 100,
         act_kwargs: Dict[str, Any] = None,
     ):
-        super(RLGymContActDataset, self).__init__()
+        super().__init__()
         self.frame = frame
         self.env = env
         self.render_every_episode = render_every_episode
@@ -297,8 +297,9 @@ def gym_env_dataset_creator(frame, env_config):
         )
 
 
-def launch_gym(config: Union[Dict[str, Any], Config],
-               pl_callbacks: List[Callback] = None):
+def launch_gym(
+    config: Union[Dict[str, Any], Config], pl_callbacks: List[Callback] = None
+):
     """
     Args:
         config: All configs needed to launch a gym environment and initialize

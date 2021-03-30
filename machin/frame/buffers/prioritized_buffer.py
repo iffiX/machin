@@ -205,7 +205,7 @@ class WeightTree:
         Args:
             precision: Number of digits of weights to print.
         """
-        fmt = "{{:.{}f}}".format(precision)
+        fmt = f"{{:.{precision}f}}"
         for i in range(self.depth):
             offset, size = self.offsets[i], self.sizes[i]
             weights = [
@@ -241,7 +241,7 @@ class PrioritizedBuffer(Buffer):
         beta=0.4,
         beta_increment_per_sampling=0.001,
         *_,
-        **__
+        **__,
     ):
         """
         Args:
@@ -263,7 +263,7 @@ class PrioritizedBuffer(Buffer):
             beta_increment_per_sampling:
                 Beta increase step size, will gradually increase ``beta`` to 1.
         """
-        super(PrioritizedBuffer, self).__init__(buffer_size, buffer_device)
+        super().__init__(buffer_size, buffer_device)
         self.epsilon = epsilon
         self.alpha = alpha
         self.beta = beta
@@ -291,7 +291,7 @@ class PrioritizedBuffer(Buffer):
             priority: Priority of transition.
             required_attrs: Required attributes.
         """
-        position = super(PrioritizedBuffer, self).append(transition, required_attrs)
+        position = super().append(transition, required_attrs)
         if priority is None:
             # the initialization method used in the original essay
             priority = self.wt_tree.get_leaf_max()
@@ -331,7 +331,7 @@ class PrioritizedBuffer(Buffer):
         sample_attrs: List[str] = None,
         additional_concat_attrs: List[str] = None,
         *_,
-        **__
+        **__,
     ) -> Any:
         """
         Sample the most important batch from the prioritized buffer.

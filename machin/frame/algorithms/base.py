@@ -149,14 +149,14 @@ class TorchFramework:
             if r in network_map:
                 t.save(
                     getattr(self, r),
-                    join(model_dir, "{}_{}.pt".format(network_map[r], version)),
+                    join(model_dir, f"{network_map[r]}_{version}.pt"),
                 )
             else:
                 default_logger.warning(
                     'Save name for module "{}" is not '
                     "specified, module name is used.".format(r)
                 )
-                t.save(getattr(self, r), join(model_dir, "{}_{}.pt".format(r, version)))
+                t.save(getattr(self, r), join(model_dir, f"{r}_{version}.pt"))
 
     def visualize_model(self, final_tensor: t.Tensor, name: str, directory: str):
         if name in self._visualized:

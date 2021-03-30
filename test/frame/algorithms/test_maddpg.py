@@ -20,7 +20,7 @@ from test.util_fixtures import *
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -36,7 +36,7 @@ class Actor(nn.Module):
 
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(ActorDiscrete, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -56,7 +56,7 @@ class Critic(nn.Module):
         # Note: For MADDPG
         #       state_dim is the dimension of all states from all agents.
         #       action_dim is the dimension of all actions from all agents.
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -70,7 +70,7 @@ class Critic(nn.Module):
         return q
 
 
-class TestMADDPG(object):
+class TestMADDPG:
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self):
@@ -577,13 +577,11 @@ class TestMADDPG(object):
             # "Agents are rewarded based on minimum agent distance
             #  to each landmark, penalized for collisions"
             smoother.update(total_reward / step.get())
-            logger.info("Episode {} total steps={}".format(episode, step))
+            logger.info(f"Episode {episode} total steps={step}")
             step.reset()
             terminal = False
 
-            logger.info(
-                "Episode {} total reward={:.2f}".format(episode, smoother.value)
-            )
+            logger.info(f"Episode {episode} total reward={smoother.value:.2f}")
 
             if smoother.value > c.solved_reward and episode > 20:
                 reward_fulfilled.count()

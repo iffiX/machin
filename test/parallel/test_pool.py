@@ -22,7 +22,7 @@ def func2(x, y):
     return t.sum(x + y)
 
 
-class TestPool(object):
+class TestPool:
     pool_impl = Pool
 
     def test_apply(self):
@@ -198,7 +198,7 @@ def ctx_func2(ctx, x, y):
     return ctx, x + y
 
 
-class TestCtxPool(object):
+class TestCtxPool:
     def test_init(self):
         with pytest.raises(ValueError, match="not equal to the number"):
             _ = CtxPool(processes=2, worker_contexts=[0, 1, 2, 3])
@@ -215,7 +215,7 @@ class TestCtxPool(object):
         x = [i for i in range(10)]
         result = pool.map(ctx_func, x)
         assert sorted([r[1] for r in result]) == x
-        assert set([r[0] for r in result]).issubset({0, 1})
+        assert {r[0] for r in result}.issubset({0, 1})
         pool.close()
         pool.join()
 
@@ -225,7 +225,7 @@ class TestCtxPool(object):
         xy = [(i, i) for i in range(10)]
         result = pool.starmap(ctx_func2, xy)
         assert sorted([r[1] for r in result]) == [i * 2 for i in range(10)]
-        assert set([r[0] for r in result]).issubset({0, 1})
+        assert {r[0] for r in result}.issubset({0, 1})
         pool.close()
         pool.join()
 
@@ -239,16 +239,16 @@ class TestCtxPool(object):
         result = pool.map(ctx_func, x)
         result2 = pool2.map(ctx_func, x)
         assert sorted([r[1] for r in result]) == x
-        assert set([r[0] for r in result]).issubset({0, 1})
+        assert {r[0] for r in result}.issubset({0, 1})
         assert sorted([r[1] for r in result2]) == x
-        assert set([r[0] for r in result2]).issubset({2, 3})
+        assert {r[0] for r in result2}.issubset({2, 3})
         pool.close()
         pool.join()
         pool2.close()
         pool2.join()
 
 
-class TestThreadPool(object):
+class TestThreadPool:
     def test_size(self):
         pool = ThreadPool(processes=2)
         assert pool.size() == 2
@@ -260,7 +260,7 @@ class TestThreadPool(object):
             dill.dumps(ThreadPool(processes=2))
 
 
-class TestCtxThreadPool(object):
+class TestCtxThreadPool:
     def test_init(self):
         with pytest.raises(ValueError, match="not equal to the number"):
             _ = CtxThreadPool(processes=2, worker_contexts=[0, 1, 2, 3])
@@ -291,7 +291,7 @@ class TestCtxThreadPool(object):
         x = [i for i in range(10)]
         result = pool.map(ctx_func, x)
         assert sorted([r[1] for r in result]) == x
-        assert set([r[0] for r in result]).issubset({0, 1})
+        assert {r[0] for r in result}.issubset({0, 1})
         pool.close()
         pool.join()
 
@@ -300,7 +300,7 @@ class TestCtxThreadPool(object):
         x = [i for i in range(10)]
         result = pool.map_async(ctx_func, x).get()
         assert sorted([r[1] for r in result]) == x
-        assert set([r[0] for r in result]).issubset({0, 1})
+        assert {r[0] for r in result}.issubset({0, 1})
         pool.close()
         pool.join()
 
@@ -309,7 +309,7 @@ class TestCtxThreadPool(object):
         x = [i for i in range(10)]
         result = pool.imap(ctx_func, x)
         assert sorted([r[1] for r in result]) == x
-        assert set([r[0] for r in result]).issubset({0, 1})
+        assert {r[0] for r in result}.issubset({0, 1})
         pool.close()
         pool.join()
 
@@ -318,7 +318,7 @@ class TestCtxThreadPool(object):
         x = [i for i in range(10)]
         result = pool.imap_unordered(ctx_func, x)
         assert sorted([r[1] for r in result]) == x
-        assert set([r[0] for r in result]).issubset({0, 1})
+        assert {r[0] for r in result}.issubset({0, 1})
         pool.close()
         pool.join()
 
@@ -327,7 +327,7 @@ class TestCtxThreadPool(object):
         xy = [(i, i) for i in range(10)]
         result = pool.starmap(ctx_func2, xy)
         assert sorted([r[1] for r in result]) == [i * 2 for i in range(10)]
-        assert set([r[0] for r in result]).issubset({0, 1})
+        assert {r[0] for r in result}.issubset({0, 1})
         pool.close()
         pool.join()
 
@@ -336,7 +336,7 @@ class TestCtxThreadPool(object):
         xy = [(i, i) for i in range(10)]
         result = pool.starmap_async(ctx_func2, xy).get()
         assert sorted([r[1] for r in result]) == [i * 2 for i in range(10)]
-        assert set([r[0] for r in result]).issubset({0, 1})
+        assert {r[0] for r in result}.issubset({0, 1})
         pool.close()
         pool.join()
 
@@ -350,9 +350,9 @@ class TestCtxThreadPool(object):
         result = pool.map(ctx_func, x)
         result2 = pool2.map(ctx_func, x)
         assert sorted([r[1] for r in result]) == x
-        assert set([r[0] for r in result]).issubset({0, 1})
+        assert {r[0] for r in result}.issubset({0, 1})
         assert sorted([r[1] for r in result2]) == x
-        assert set([r[0] for r in result2]).issubset({2, 3})
+        assert {r[0] for r in result2}.issubset({2, 3})
         pool.close()
         pool.join()
         pool2.close()

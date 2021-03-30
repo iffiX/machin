@@ -18,7 +18,7 @@ from test.util_fixtures import *
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_num):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -37,7 +37,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -50,7 +50,7 @@ class Critic(nn.Module):
         return v
 
 
-class TestA3C(object):
+class TestA3C:
     # configs and definitions
     disable_view_window()
     c = Config()
@@ -264,7 +264,7 @@ class TestA3C(object):
 
         env = c.env
         # for cpu usage viewing
-        default_logger.info("{}, pid {}".format(rank, os.getpid()))
+        default_logger.info(f"{rank}, pid {os.getpid()}")
         while episode < c.max_episodes:
             episode.count()
 
@@ -303,9 +303,7 @@ class TestA3C(object):
             terminal = False
 
             default_logger.info(
-                "Process {} Episode {} total reward={:.2f}".format(
-                    rank, episode, smoother.value
-                )
+                f"Process {rank} Episode {episode} total reward={smoother.value:.2f}"
             )
 
             if smoother.value > c.solved_reward:

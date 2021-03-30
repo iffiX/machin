@@ -21,7 +21,7 @@ from .utils import (
 )
 
 
-class RunningStat(object):
+class RunningStat:
     """
     Running status estimator method by B. P. Welford
     described in http://www.johndcook.com/blog/standard_deviation/
@@ -128,7 +128,7 @@ class RunningStat(object):
         return self._M.shape
 
 
-class MeanStdFilter(object):
+class MeanStdFilter:
     """Keeps track of a running mean for seen states"""
 
     def __init__(self, shape):
@@ -240,7 +240,7 @@ class MeanStdFilter(object):
         )
 
 
-class SharedNoiseSampler(object):
+class SharedNoiseSampler:
     def __init__(self, noise: t.Tensor, seed: int):
         """
         Args:
@@ -293,7 +293,7 @@ class ARS(TorchFramework):
         normalize_state: bool = True,
         noise_seed: int = 12345,
         sample_seed: int = 123,
-        **__
+        **__,
     ):
         """
 
@@ -414,7 +414,7 @@ class ARS(TorchFramework):
         self._sync_actor()
         self._generate_parameter()
         self._reset_reward_dict()
-        super(ARS, self).__init__()
+        super().__init__()
 
     @property
     def optimizers(self):
@@ -520,12 +520,12 @@ class ARS(TorchFramework):
 
         # collect result in manager process
         self.ars_group.pair(
-            "ars/rollout_result/{}".format(self.ars_group.get_cur_name()),
+            f"ars/rollout_result/{self.ars_group.get_cur_name()}",
             [pos_reward, neg_reward, delta_idx],
         )
         if self.normalize_state:
             self.ars_group.pair(
-                "ars/filter/{}".format(self.ars_group.get_cur_name()), self.filter
+                f"ars/filter/{self.ars_group.get_cur_name()}", self.filter
             )
         self.ars_group.barrier()
 
@@ -587,11 +587,9 @@ class ARS(TorchFramework):
                     self.filter[k].clear_local()
 
         self.ars_group.barrier()
-        self.ars_group.unpair(
-            "ars/rollout_result/{}".format(self.ars_group.get_cur_name())
-        )
+        self.ars_group.unpair(f"ars/rollout_result/{self.ars_group.get_cur_name()}")
         if self.normalize_state:
-            self.ars_group.unpair("ars/filter/{}".format(self.ars_group.get_cur_name()))
+            self.ars_group.unpair(f"ars/filter/{self.ars_group.get_cur_name()}")
         self.ars_group.barrier()
 
         # synchronize filter states across all workers (and the manager)

@@ -6,7 +6,7 @@ import pytest
 import torch as t
 
 
-class TestBuffer(object):
+class TestBuffer:
     BUFFER_SIZE = 1
     SAMPLE_BUFFER_SIZE = 10
 

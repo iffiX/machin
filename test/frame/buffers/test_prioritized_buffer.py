@@ -5,7 +5,7 @@ import numpy as np
 import torch as t
 
 
-class TestWeightTree(object):
+class TestWeightTree:
     WEIGHT_TREE_SIZE = 5
     WEIGHT_TREE_BASE = [1, 1, 1, 1, 3]
     WEIGHT_TREE_WEIGHTS = [1, 1, 1, 1, 3, 0, 0, 0, 2, 2, 3, 0, 4, 3, 7]
@@ -153,7 +153,7 @@ class TestWeightTree(object):
         sys.stdout = sys.__stdout__
 
 
-class TestPrioritizedBuffer(object):
+class TestPrioritizedBuffer:
     ########################################################################
     # Test for PrioritizedBuffer.append
     ########################################################################

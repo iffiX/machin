@@ -111,11 +111,11 @@ class Pool(pool.Pool):
         context = get_context("spawn")
         if not is_copy_tensor:
             if share_method not in ("cpu", "cuda"):
-                raise RuntimeError('Invalid share method: "{}"'.format(share_method))
+                raise RuntimeError(f'Invalid share method: "{share_method}"')
             if share_method == "cpu":
                 context = get_context("fork")
 
-        super(Pool, self).__init__(
+        super().__init__(
             processes=processes,
             initializer=initializer,
             initargs=initargs,
@@ -402,7 +402,7 @@ class CtxPool(Pool):
         else:
             worker_contexts = [None] * processes
 
-        super(CtxPool, self).__init__(
+        super().__init__(
             processes=processes,
             initializer=self._init_with_context,
             initargs=(worker_contexts, initializer) + initargs,
@@ -496,7 +496,7 @@ class CtxThreadPool(ThreadPool):
         else:
             worker_contexts = [None] * processes
 
-        super(CtxThreadPool, self).__init__(
+        super().__init__(
             processes=processes,
             initializer=self._init_with_context,
             initargs=(worker_contexts, initializer) + initargs,
@@ -505,50 +505,38 @@ class CtxThreadPool(ThreadPool):
     def apply(self, func, args=(), kwds=None):
         if kwds is None:
             kwds = {}
-        return (
-            super(CtxThreadPool, self)
-            .apply_async(self._wrap_func(func), args, kwds)
-            .get()
-        )
+        return super().apply_async(self._wrap_func(func), args, kwds).get()
 
     def apply_async(self, func, args=(), kwds=None, callback=None, error_callback=None):
         if kwds is None:
             kwds = {}
-        return super(CtxThreadPool, self).apply_async(
+        return super().apply_async(
             self._wrap_func(func), args, kwds, callback, error_callback
         )
 
     def map(self, func, iterable, chunksize=None):
-        return super(CtxThreadPool, self).map(
-            self._wrap_func(func), iterable, chunksize
-        )
+        return super().map(self._wrap_func(func), iterable, chunksize)
 
     def map_async(
         self, func, iterable, chunksize=None, callback=None, error_callback=None
     ):
-        return super(CtxThreadPool, self).map_async(
+        return super().map_async(
             self._wrap_func(func), iterable, chunksize, callback, error_callback
         )
 
     def imap(self, func, iterable, chunksize=1):
-        return super(CtxThreadPool, self).imap(
-            self._wrap_func(func), iterable, chunksize
-        )
+        return super().imap(self._wrap_func(func), iterable, chunksize)
 
     def imap_unordered(self, func, iterable, chunksize=1):
-        return super(CtxThreadPool, self).imap_unordered(
-            self._wrap_func(func), iterable, chunksize
-        )
+        return super().imap_unordered(self._wrap_func(func), iterable, chunksize)
 
     def starmap(self, func, iterable, chunksize=None):
-        return super(CtxThreadPool, self).starmap(
-            self._wrap_func(func), iterable, chunksize
-        )
+        return super().starmap(self._wrap_func(func), iterable, chunksize)
 
     def starmap_async(
         self, func, iterable, chunksize=None, callback=None, error_callback=None
     ):
-        return super(CtxThreadPool, self).starmap_async(
+        return super().starmap_async(
             self._wrap_func(func), iterable, chunksize, callback, error_callback
         )
 

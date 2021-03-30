@@ -7,7 +7,7 @@ from machin.utils.helper_classes import Switch
 from .generator import NormalNoiseGen
 
 
-class AdaptiveParamNoise(object):
+class AdaptiveParamNoise:
     def __init__(
         self,
         initial_stddev: float = 0.1,
@@ -117,7 +117,7 @@ def _add_perturb_hook(
             # Called before backward update, swap noisy parameters out,
             # so gradients are applied to original parameters.
             if debug_backward:
-                print("Backward swapped for {}!".format(param_name))
+                print(f"Backward swapped for {param_name}!")
             with t.no_grad():
                 if org_params and t.is_tensor(param_value):
                     param_value.set_(org_params[param_name])
@@ -154,7 +154,7 @@ def perturb_model(
         backward pass, and you can safely call optimizers afterwards.
 
     Hint:
-        1. ``noise_generator`` must accept (shape, \*args) in its ``__init__``
+        1. ``noise_generator`` must accept (shape, \\*args) in its ``__init__``
         function, where shape is the required shape. it also needs to have
         ``__call__(device=None)`` which produce a noise tensor on the specified
         device when invoked.
@@ -273,10 +273,8 @@ def perturb_model(
                 )
                 tmp_action.clear()
                 param_noise_spec.adapt(dist)
-                logger.info("Current output distance: {}".format(dist))
-                logger.info(
-                    "Current param noise stddev: {}".format(param_noise_spec.get_dev())
-                )
+                logger.info(f"Current output distance: {dist}")
+                logger.info(f"Current param noise stddev: {param_noise_spec.get_dev()}")
 
     # Boise generation happens in pre-forward and noise adjust happens
     # in post-forward

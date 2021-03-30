@@ -41,7 +41,7 @@ class DistributedBuffer(Buffer):
             group: Process group which holds this buffer.
             buffer_name: A unique name of your buffer.
         """
-        super(DistributedBuffer, self).__init__(buffer_size, "cpu")
+        super().__init__(buffer_size, "cpu")
         self.buffer_name = buffer_name
         self.group = group
 
@@ -65,16 +65,14 @@ class DistributedBuffer(Buffer):
     ):
         # DOC INHERITED
         with self.wr_lock:
-            super(DistributedBuffer, self).append(
-                transition, required_attrs=required_attrs
-            )
+            super().append(transition, required_attrs=required_attrs)
 
     def clear(self):
         """
         Clear current local buffer.
         """
         with self.wr_lock:
-            return super(DistributedBuffer, self).clear()
+            return super().clear()
 
     def all_clear(self):
         """
@@ -93,7 +91,7 @@ class DistributedBuffer(Buffer):
             Length of current local buffer.
         """
         with self.wr_lock:
-            return super(DistributedBuffer, self).size()
+            return super().size()
 
     def all_size(self):
         """
@@ -121,7 +119,7 @@ class DistributedBuffer(Buffer):
         sample_attrs: List[str] = None,
         additional_concat_attrs: List[str] = None,
         *_,
-        **__
+        **__,
     ) -> Any:
         # DOC INHERITED
         p_num = self.group.size()
@@ -160,7 +158,7 @@ class DistributedBuffer(Buffer):
         if isinstance(sample_method, str):
             if not hasattr(self, "sample_method_" + sample_method):
                 raise RuntimeError(
-                    "Cannot find specified sample method: {}".format(sample_method)
+                    f"Cannot find specified sample method: {sample_method}"
                 )
             sample_method = getattr(self, "sample_method_" + sample_method)
 
