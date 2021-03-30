@@ -528,5 +528,5 @@ class IMPALA(TorchFramework):
         frame = cls(*models, optimizer, criterion, impala_group, servers,
                     lr_scheduler=lr_scheduler, **f_config)
         if world.rank >= max_learner_id:
-            frame.update = lambda *_, **__: None, None
+            frame.update = lambda *_, **__: (None, None)
         return frame

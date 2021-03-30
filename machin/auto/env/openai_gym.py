@@ -1,13 +1,15 @@
 from copy import deepcopy
-from typing import Dict, Any, Union
+from typing import Dict, List, Any, Union
 from ..config import fill_default, is_algorithm_distributed
 from ..pl_logger import LocalMediaLogger
 from ..dataset import DatasetResult, RLDataset, log_video, determine_precision
-from ..pl_plugin import DDPPlugin
 from ..launcher import Launcher
-from machin.utils.conf import Config
 from machin.frame.algorithms import *
 from machin.env.utils.openai_gym import disable_view_window
+from machin.utils.conf import Config
+from machin.utils.save_env import SaveEnv
+from pytorch_lightning.callbacks import Callback, ModelCheckpoint, EarlyStopping
+from pytorch_lightning.loggers import TensorBoardLogger
 from gym.spaces import Box, Discrete, MultiBinary, MultiDiscrete
 import gym
 import torch as t
@@ -27,31 +29,6 @@ def _is_discrete_space(space):
 
 def _is_continuous_space(space):
     return type(space) in (Box, MultiBinary)
-
-
-def generate_gym_env_config(env_name: str = None,
-                            config: Union[Dict[str, Any], Config] = None):
-    """
-    Generate example OpenAI gym config.
-    """
-    config = deepcopy(config) or {}
-    return fill_default(
-        {"trials_dir": "trials",
-         "gpus": 0,
-         "episode_per_epoch": 100,
-         "max_episodes": 1000000,
-         "train_env_config": {
-             "env_name": env_name or "CartPole-v1",
-             "render_every_episode": 100,
-             "act_kwargs": {}
-         },
-         "test_env_config": {
-             "env_name": env_name or "CartPole-v1",
-             "render_every_episode": 100,
-             "act_kwargs": {}
-         }},
-        config
-    )
 
 
 class RLGymDiscActDataset(RLDataset):
@@ -152,7 +129,7 @@ class RLGymDiscActDataset(RLDataset):
 
         if len(rendering) > 0:
             result.add_log({"video": (rendering, log_video)})
-            result.add_log({"total_reward": total_reward})
+        result.add_log({"total_reward": total_reward})
 
         getattr(self.frame, "set_sync", lambda x: None)(True)
         self.counter += 1
@@ -256,11 +233,36 @@ class RLGymContActDataset(RLDataset):
 
         if len(rendering) > 0:
             result.add_log({"video": (rendering, log_video)})
-            result.add_log({"total_reward": total_reward})
+        result.add_log({"total_reward": total_reward})
 
         getattr(self.frame, "set_sync", lambda x: None)(True)
         self.counter += 1
         return result
+
+
+def generate_gym_env_config(env_name: str = None,
+                            config: Union[Dict[str, Any], Config] = None):
+    """
+    Generate example OpenAI gym config.
+    """
+    config = deepcopy(config) or {}
+    return fill_default(
+        {"trials_dir": "trials",
+         "gpus": 0,
+         "episode_per_epoch": 100,
+         "max_episodes": 1000000,
+         "train_env_config": {
+             "env_name": env_name or "CartPole-v1",
+             "render_every_episode": 100,
+             "act_kwargs": {}
+         },
+         "test_env_config": {
+             "env_name": env_name or "CartPole-v1",
+             "render_every_episode": 100,
+             "act_kwargs": {}
+         }},
+        config
+    )
 
 
 def gym_env_dataset_creator(frame, env_config):
@@ -284,12 +286,19 @@ def gym_env_dataset_creator(frame, env_config):
                                  type(env.action_space)))
 
 
-def launch_gym(config):
-    from machin.utils.save_env import SaveEnv
-    from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-    from pytorch_lightning.loggers import TensorBoardLogger
+def launch_gym(config: Union[Dict[str, Any], Config],
+               pl_callbacks: List[Callback] = None):
+    """
+    Args:
+        config: All configs needed to launch a gym environment and initialize
+            the algorithm framework.
+        pl_callbacks: Additional callbacks used to modify training behavior.
 
-    s_env = SaveEnv(config["trials_dir"])
+    Returns:
+
+    """
+    pl_callbacks = pl_callbacks or []
+    s_env = SaveEnv(config.get("trials_dir", None) or "./trials")
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=s_env.get_trial_model_dir(),
@@ -299,14 +308,16 @@ def launch_gym(config):
         period=1, verbose=True
     )
     early_stopping = EarlyStopping(
-        monitor="total_reward", mode="max"
+        monitor="total_reward",
+        mode="max",
+        patience=config["early_stopping_patience"]
     )
     t_logger = TensorBoardLogger(s_env.get_trial_train_log_dir())
     lm_logger = LocalMediaLogger(s_env.get_trial_image_dir(),
                                  s_env.get_trial_image_dir())
     trainer = pl.Trainer(
         gpus=config["gpus"],
-        callbacks=[checkpoint_callback, early_stopping],
+        callbacks=[checkpoint_callback, early_stopping] + pl_callbacks,
         logger=[t_logger, lm_logger],
         limit_train_batches=config["episode_per_epoch"],
         max_steps=config["max_episodes"],

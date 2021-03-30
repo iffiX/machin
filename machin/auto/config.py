@@ -7,7 +7,7 @@ import machin.frame.algorithms as algorithms
 
 
 def fill_default(default: Union[Dict[str, Any], Config],
-                  config: Union[Dict[str, Any], Config]):
+                 config: Union[Dict[str, Any], Config]):
     for key in default:
         if key not in config:
             config[key] = default[key]
@@ -25,6 +25,18 @@ def _get_available_algorithms():
     return algos
 
 
+def generate_training_config(trials_dir: str = "./trials",
+                             episode_per_epoch: int = 10,
+                             max_episodes: int = 10000,
+                             config: Union[Dict[str, Any], Config] = None):
+    config = deepcopy(config) or {}
+    config["trials_dir"] = trials_dir
+    config["episode_per_epoch"] = episode_per_epoch
+    config["max_episodes"] = max_episodes
+    config["early_stopping_patience"] = 3
+    return config
+
+
 def generate_algorithm_config(algorithm: str,
                               config: Union[Dict[str, Any], Config] = None):
     config = deepcopy(config) or {}
@@ -37,7 +49,7 @@ def generate_algorithm_config(algorithm: str,
 
 
 def init_algorithm_from_config(config: Union[Dict[str, Any], Config]):
-    assert_config_complete(config)
+    assert_algorithm_config_complete(config)
     frame = getattr(algorithms, config["frame"], None)
     if not inspect.isclass(frame) or not issubclass(frame, TorchFramework):
         raise ValueError("Invalid algorithm: {}, valid ones are: {}"
@@ -46,7 +58,7 @@ def init_algorithm_from_config(config: Union[Dict[str, Any], Config]):
 
 
 def is_algorithm_distributed(config: Union[Dict[str, Any], Config]):
-    assert_config_complete(config)
+    assert_algorithm_config_complete(config)
     frame = getattr(algorithms, config["frame"], None)
     if not inspect.isclass(frame) or not issubclass(frame, TorchFramework):
         raise ValueError("Invalid algorithm: {}, valid ones are: {}"
@@ -54,9 +66,12 @@ def is_algorithm_distributed(config: Union[Dict[str, Any], Config]):
     return frame.is_distributed()
 
 
-def assert_config_complete(config: Union[Dict[str, Any], Config]):
+def assert_algorithm_config_complete(config: Union[Dict[str, Any], Config]):
     assert "frame" in config, 'Missing key "frame" in config.'
     assert "frame_config" in config, 'Missing key "frame_config" in config.'
+
+
+def assert_env_config_complete(config: Union[Dict[str, Any], Config]):
     assert "train_env_config" in config, 'Missing key "train_env_config" ' \
                                          'in config.'
     assert "test_env_config" in config, 'Missing key "test_env_config" ' \

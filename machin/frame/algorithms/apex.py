@@ -232,7 +232,7 @@ class DQNApex(DQNPer):
         frame = cls(*models, optimizer, criterion, apex_group, servers,
                     lr_scheduler=lr_scheduler, **f_config)
         if world.rank >= max_learner_id:
-            frame.update = lambda *_, **__: None, None
+            frame.update = lambda *_, **__: (None, None)
         return frame
 
 
@@ -491,5 +491,5 @@ class DDPGApex(DDPGPer):
         frame = cls(*models, optimizer, criterion, apex_group, servers,
                     lr_scheduler=lr_scheduler, **f_config)
         if world.rank >= max_learner_id:
-            frame.update = lambda *_, **__: None, None
+            frame.update = lambda *_, **__: (None, None)
         return frame

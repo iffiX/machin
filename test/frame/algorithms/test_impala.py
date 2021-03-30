@@ -279,7 +279,7 @@ class TestIMPALA(object):
 
         old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
         action = t.zeros([1, 1], dtype=t.int)
-        if rank == 0:
+        if rank == 1:
             # episode length = 3
             impala.store_episode([
                 {"state": {"state": old_state},
@@ -290,7 +290,7 @@ class TestIMPALA(object):
                  "terminal": False}
                 for _ in range(3)
             ])
-        elif rank == 1:
+        elif rank == 2:
             # episode length = 2
             impala.store_episode([
                 {"state": {"state": old_state},
@@ -301,7 +301,7 @@ class TestIMPALA(object):
                  "terminal": False}
                 for _ in range(2)
             ])
-        if rank == 2:
+        if rank == 0:
             sleep(2)
             impala.update(update_value=True,
                           update_target=True,

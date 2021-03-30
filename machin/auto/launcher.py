@@ -103,4 +103,6 @@ class Launcher(pl.LightningModule):
                 else:
                     is_dist_initialized = dist.is_available() and \
                                           dist.is_initialized()
-                    self.log(log_key, log_val, sync_dist=is_dist_initialized)
+                    self.log(log_key, log_val,
+                             prog_bar=True,
+                             sync_dist=is_dist_initialized)

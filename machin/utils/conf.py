@@ -13,6 +13,11 @@ class Config(Object):
     def __init__(self, **configs):
         super(Config, self).__init__(configs)
 
+    def get(self, key, default=None):
+        if key in self:
+            return self[key]
+        return default
+
     def __iter__(self):
         for key in self.__dict__:
             if not key.startswith("__"):

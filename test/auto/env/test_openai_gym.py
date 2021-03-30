@@ -1,7 +1,22 @@
-from machin.frame.algorithms import A2C, DDPG, DQN
-from machin.auto.env.openai_gym import RLGymDiscActDataset, RLGymContActDataset
+from machin.auto.config import (
+    generate_training_config,
+    generate_algorithm_config,
+    init_algorithm_from_config
+)
+from machin.auto.env.openai_gym import (
+    RLGymDiscActDataset,
+    RLGymContActDataset,
+    generate_gym_env_config,
+    gym_env_dataset_creator,
+    launch_gym
+)
+from test.util_run_multi import *
+from test.util_fixtures import *
+from pytorch_lightning.callbacks import Callback
 from torch.distributions import Categorical, Normal
+from machin.utils.logging import default_logger
 import gym
+import pytest
 import torch as t
 import torch.nn as nn
 import torch.nn.functional as F
@@ -145,39 +160,39 @@ class TestRLGymDiscActDataset:
 
     # Only test single node, most representative algorithms
     def test_A2C(self):
-        config = A2C.generate_config({})
+        config = generate_algorithm_config("A2C", {})
         config["frame_config"]["models"] = ["A2CActorDisc", "A2CCritic"]
         config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
                                                    "action_num": 2},
                                                   {"state_dim": 4}]
-        a2c = A2C.init_from_config(config)
+        a2c = init_algorithm_from_config(config)
 
         env = gym.make("CartPole-v0")
         dataset = RLGymDiscActDataset(a2c, env, render_every_episode=1)
         self.assert_valid_disc_output(next(dataset))
 
     def test_DQN(self):
-        config = DQN.generate_config({})
+        config = generate_algorithm_config("DQN", {})
         config["frame_config"]["models"] = ["QNet", "QNet"]
         config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
                                                    "action_num": 2},
                                                   {"state_dim": 4,
                                                    "action_num": 2}]
-        dqn = DQN.init_from_config(config)
+        dqn = init_algorithm_from_config(config)
 
         env = gym.make("CartPole-v0")
-        dataset = RLGymDiscActDataset(dqn, env)
+        dataset = RLGymDiscActDataset(dqn, env, render_every_episode=1)
         self.assert_valid_disc_output(next(dataset))
 
     def test_DDPG(self):
-        config = DDPG.generate_config({})
+        config = generate_algorithm_config("DDPG", {})
         config["frame_config"]["models"] = ["DDPGActorDisc",
                                             "DDPGActorDisc",
                                             "DDPGCritic",
                                             "DDPGCritic"]
         config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
                                                    "action_dim": 2}] * 4
-        ddpg = DDPG.init_from_config(config)
+        ddpg = init_algorithm_from_config(config)
 
         env = gym.make("CartPole-v0")
         dataset = RLGymDiscActDataset(ddpg, env, render_every_episode=1)
@@ -201,20 +216,20 @@ class TestRLGymContActDataset:
 
     # Only test single node, most representative algorithms
     def test_A2C(self):
-        config = A2C.generate_config({})
+        config = generate_algorithm_config("A2C", {})
         config["frame_config"]["models"] = ["A2CActorCont", "A2CCritic"]
         config["frame_config"]["model_kwargs"] = [{"state_dim": 3,
                                                    "action_dim": 1,
                                                    "action_range": 2},
                                                   {"state_dim": 3}]
-        a2c = A2C.init_from_config(config)
+        a2c = init_algorithm_from_config(config)
 
         env = gym.make("Pendulum-v0")
         dataset = RLGymContActDataset(a2c, env, render_every_episode=1)
         self.assert_valid_cont_output(next(dataset))
 
     def test_DDPG(self):
-        config = DDPG.generate_config({})
+        config = generate_algorithm_config("DDPG", {})
         config["frame_config"]["models"] = ["DDPGActorCont",
                                             "DDPGActorCont",
                                             "DDPGCritic",
@@ -222,8 +237,112 @@ class TestRLGymContActDataset:
         config["frame_config"]["model_kwargs"] = \
             [{"state_dim": 3, "action_dim": 1, "action_range": 2}] * 2 + \
             [{"state_dim": 3, "action_dim": 1}] * 2
-        ddpg = DDPG.init_from_config(config)
+        ddpg = init_algorithm_from_config(config)
 
         env = gym.make("Pendulum-v0")
         dataset = RLGymContActDataset(ddpg, env, render_every_episode=1)
         self.assert_valid_cont_output(next(dataset))
+
+
+def test_gym_env_dataset_creator():
+    # Discrete action environment
+    config = generate_gym_env_config("CartPole-v0", {})
+    config = generate_algorithm_config("DDPG", config)
+    config["frame_config"]["models"] = ["DDPGActorCont",
+                                        "DDPGActorCont",
+                                        "DDPGCritic",
+                                        "DDPGCritic"]
+    config["frame_config"]["model_kwargs"] = \
+        [{"state_dim": 3, "action_dim": 1, "action_range": 2}] * 2 + \
+        [{"state_dim": 3, "action_dim": 1}] * 2
+    ddpg = init_algorithm_from_config(config)
+
+    assert isinstance(
+        gym_env_dataset_creator(ddpg, config["train_env_config"]),
+        RLGymDiscActDataset
+    )
+    assert isinstance(
+        gym_env_dataset_creator(ddpg, config["test_env_config"]),
+        RLGymDiscActDataset
+    )
+
+    # Continuous action environment
+    config = generate_gym_env_config("Pendulum-v0", {})
+    assert isinstance(
+        gym_env_dataset_creator(ddpg, config["train_env_config"]),
+        RLGymContActDataset
+    )
+    assert isinstance(
+        gym_env_dataset_creator(ddpg, config["test_env_config"]),
+        RLGymContActDataset
+    )
+
+    # Unsupported environment,
+    # like algorithmic, which uses a tuple action space
+    # or robotics, which uses the goal action space
+    config = generate_gym_env_config("Copy-v0", {})
+    with pytest.raises(ValueError, match="not supported"):
+        gym_env_dataset_creator(ddpg, config["train_env_config"])
+
+    with pytest.raises(ValueError, match="not supported"):
+        gym_env_dataset_creator(ddpg, config["test_env_config"])
+
+
+class InspectCallback(Callback):
+    def __init__(self):
+        self.max_total_reward = 0
+
+    def on_train_batch_end(
+        self, trainer, pl_module, outputs, batch, _batch_idx, _dataloader_idx
+    ) -> None:
+        for log in batch[0].logs:
+            if "total_reward" in log:
+                self.max_total_reward = max(log["total_reward"],
+                                            self.max_total_reward)
+                default_logger.info("Current max total reward={:.2f}."
+                                    .format(self.max_total_reward))
+                if self.max_total_reward >= 190:
+                    trainer.should_stop = True
+                return
+        default_logger.error("Missing total reward in logs.")
+
+
+class TestLaunchGym():
+    def test_dqn(self, tmpdir):
+        config = generate_gym_env_config("CartPole-v0", {})
+        config = generate_training_config(
+            trials_dir=str(tmpdir.make_numbered_dir()),
+            config=config
+        )
+        config = generate_algorithm_config("DQN", config)
+        config["early_stopping_patience"] = 10
+        config["frame_config"]["models"] = ["QNet", "QNet"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_num": 2},
+                                                  {"state_dim": 4,
+                                                   "action_num": 2}]
+        cb = InspectCallback()
+        launch_gym(config, pl_callbacks=[cb])
+        assert cb.max_total_reward >= 150
+
+    @staticmethod
+    @run_multi(expected_results=[True, True, True],
+               pass_through="tmpdir",
+               timeout=1800)
+    @WorldTestBase.setup_world
+    def test_dqn_apex(_, tmpdir):
+        config = generate_gym_env_config("CartPole-v0", {})
+        config = generate_training_config(
+            trials_dir=str(tmpdir.make_numbered_dir()),
+            config=config
+        )
+        config = generate_algorithm_config("DQNApex", config)
+        config["early_stopping_patience"] = 10
+        config["frame_config"]["models"] = ["QNet", "QNet"]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
+                                                   "action_num": 2},
+                                                  {"state_dim": 4,
+                                                   "action_num": 2}]
+        cb = InspectCallback()
+        launch_gym(config, pl_callbacks=[cb])
+        assert cb.max_total_reward >= 150

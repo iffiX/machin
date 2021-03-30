@@ -53,8 +53,9 @@ def log_video(module, name, video_frames: List[np.ndarray]):
 
     for logger in get_loggers_as_list(module):
         if hasattr(logger, "log_artifact") and callable(logger.log_artifact):
-            logger.log_artifact(path, name)
-    os.remove(path)
+            logger.log_artifact(path, name + ".gif")
+    if os.path.exists(path):
+        os.remove(path)
 
 
 class DatasetResult:

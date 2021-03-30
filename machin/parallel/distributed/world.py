@@ -159,9 +159,9 @@ def _world_singleton(cls):
     return _world_singleton_wrapper
 
 
-def _torch_version_less_than(major, minor, patch):
-    t_ver = [int(v) for v in t.__version__.split(".")]
-    return t_ver < [major, minor, patch]
+def _torch_version_less_than(major, minor):
+    t_ver = [int(v) for v in t.__version__.split(".")[0:2]]
+    return t_ver < [major, minor]
 
 
 def get_cur_rank():
@@ -875,7 +875,7 @@ class RpcGroup:
             raise RuntimeError("RPC target is not a member of group.")
 
         new_args = (func, args, kwargs)
-        if _torch_version_less_than(1, 6, 0):
+        if _torch_version_less_than(1, 6):
             return rpc_method(to, _rpc_call_func, args=new_args)
         return rpc_method(to, _rpc_call_func, args=new_args, timeout=timeout)
 
