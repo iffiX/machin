@@ -902,9 +902,7 @@ class MADDPG(TorchFramework):
         if visualize:
             # only invoked if not running by pool
             MADDPG._visualize(
-                act_policy_loss,
-                f"actor_{actor_index}_{policy_index}",
-                visualize_dir,
+                act_policy_loss, f"actor_{actor_index}_{policy_index}", visualize_dir,
             )
 
         if update_policy:

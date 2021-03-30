@@ -198,9 +198,7 @@ class A2C(TorchFramework):
             if lr_scheduler_kwargs is None:
                 lr_scheduler_kwargs = ({}, {})
             self.actor_lr_sch = lr_scheduler(
-                self.actor_optim,
-                *lr_scheduler_args[0],
-                **lr_scheduler_kwargs[0],
+                self.actor_optim, *lr_scheduler_args[0], **lr_scheduler_kwargs[0],
             )
             self.critic_lr_sch = lr_scheduler(
                 self.critic_optim, *lr_scheduler_args[1], **lr_scheduler_kwargs[1]

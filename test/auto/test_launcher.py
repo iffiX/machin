@@ -121,9 +121,6 @@ class TestLauncher:
 
     def test_real(self, real_launcher):
         trainer = pl.Trainer(
-            gpus=0,
-            limit_train_batches=1,
-            max_steps=1,
-            automatic_optimization=False,
+            gpus=0, limit_train_batches=1, max_steps=1, automatic_optimization=False,
         )
         trainer.fit(real_launcher)

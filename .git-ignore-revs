@@ -1,2 +1,8 @@
 # Black formatting
 e16d3b2094455bae3fe9b601c6249c6a2977a4e3
+
+# Pyupgrade for class and inheritance modernization
+9107aaf2b2d64e6b9ff70b32fb3e9a5e23b5cd7f
+
+# F-strings
+188ae7e3965fa0a7850b78a515b3823cb5a0a1ab

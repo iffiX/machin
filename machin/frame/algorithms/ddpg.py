@@ -394,13 +394,9 @@ class DDPG(TorchFramework):
         """
         self.actor.train()
         self.critic.train()
-        batch_size, (
-            state,
-            action,
-            reward,
-            next_state,
-            terminal,
-            others,
+        (
+            batch_size,
+            (state, action, reward, next_state, terminal, others,),
         ) = self.replay_buffer.sample_batch(
             self.batch_size,
             concatenate_samples,

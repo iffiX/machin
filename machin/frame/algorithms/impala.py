@@ -165,9 +165,7 @@ class IMPALA(TorchFramework):
 
         if lr_scheduler is not None:
             self.actor_lr_sch = lr_scheduler(
-                self.actor_optim,
-                *lr_scheduler_args[0],
-                **lr_scheduler_kwargs[0],
+                self.actor_optim, *lr_scheduler_args[0], **lr_scheduler_kwargs[0],
             )
             self.critic_lr_sch = lr_scheduler(
                 self.critic_optim, *lr_scheduler_args[1], **lr_scheduler_kwargs[1]
@@ -314,13 +312,9 @@ class IMPALA(TorchFramework):
         # might be different.
         self.actor.train()
         self.critic.train()
-        batch_size, (
-            state,
-            action,
-            reward,
-            next_state,
-            terminal,
-            action_log_prob,
+        (
+            batch_size,
+            (state, action, reward, next_state, terminal, action_log_prob,),
         ) = self.replay_buffer.sample_batch(
             self.batch_size,
             concatenate=False,

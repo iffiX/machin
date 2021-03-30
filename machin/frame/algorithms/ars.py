@@ -365,9 +365,7 @@ class ARS(TorchFramework):
             if lr_scheduler_kwargs is None:
                 lr_scheduler_kwargs = ({},)
             self.actor_lr_sch = lr_scheduler(
-                self.actor_optim,
-                *lr_scheduler_args[0],
-                **lr_scheduler_kwargs[0],
+                self.actor_optim, *lr_scheduler_args[0], **lr_scheduler_kwargs[0],
             )
 
         # generate shared noise

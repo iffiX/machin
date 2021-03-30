@@ -475,24 +475,29 @@ class TestMADDPG:
             ["Critic"] * c.test_agent_num,
         ]
         config["frame_config"]["model_args"] = [[()] * c.test_agent_num] * 4
-        config["frame_config"]["model_kwargs"] = [
+        config["frame_config"]["model_kwargs"] = (
             [
-                {
-                    "state_dim": c.test_observe_dim,
-                    "action_dim": c.test_action_dim,
-                    "action_range": c.test_action_range,
-                }
+                [
+                    {
+                        "state_dim": c.test_observe_dim,
+                        "action_dim": c.test_action_dim,
+                        "action_range": c.test_action_range,
+                    }
+                ]
+                * c.test_agent_num
             ]
-            * c.test_agent_num
-        ] * 2 + [
-            [
-                {
-                    "state_dim": c.test_observe_dim * c.test_agent_num,
-                    "action_dim": c.test_action_dim * c.test_agent_num,
-                }
+            * 2
+            + [
+                [
+                    {
+                        "state_dim": c.test_observe_dim * c.test_agent_num,
+                        "action_dim": c.test_action_dim * c.test_agent_num,
+                    }
+                ]
+                * c.test_agent_num
             ]
-            * c.test_agent_num
-        ] * 2
+            * 2
+        )
 
         maddpg = MADDPG.init_from_config(config)
 

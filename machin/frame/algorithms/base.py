@@ -148,8 +148,7 @@ class TorchFramework:
         for r in self._is_restorable:
             if r in network_map:
                 t.save(
-                    getattr(self, r),
-                    join(model_dir, f"{network_map[r]}_{version}.pt"),
+                    getattr(self, r), join(model_dir, f"{network_map[r]}_{version}.pt"),
                 )
             else:
                 default_logger.warning(

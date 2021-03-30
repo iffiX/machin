@@ -322,9 +322,7 @@ def launch_gym(
         verbose=True,
     )
     early_stopping = EarlyStopping(
-        monitor="total_reward",
-        mode="max",
-        patience=config["early_stopping_patience"],
+        monitor="total_reward", mode="max", patience=config["early_stopping_patience"],
     )
     t_logger = TensorBoardLogger(s_env.get_trial_train_log_dir())
     lm_logger = LocalMediaLogger(

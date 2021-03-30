@@ -353,13 +353,9 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         Returns:
             mean value of estimated policy value, value loss
         """
-        batch_size, (
-            state,
-            action,
-            reward,
-            next_state,
-            terminal,
-            others,
+        (
+            batch_size,
+            (state, action, reward, next_state, terminal, others,),
         ) = self.replay_buffer.sample_batch(
             self.batch_size,
             concatenate_samples,

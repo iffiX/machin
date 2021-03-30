@@ -579,8 +579,7 @@ class RpcGroup:
         self._barrier_status = False
         if first_create and self.is_member(get_cur_name()):
             self.register(
-                f"_rpc_entered_barrier_{get_cur_name()}",
-                self._rpc_entered_barrier,
+                f"_rpc_entered_barrier_{get_cur_name()}", self._rpc_entered_barrier,
             )
             self.register(f"_rpc_exit_barrier_{get_cur_name()}", self._rpc_exit_barrier)
 

@@ -90,8 +90,7 @@ def prep_load_model(
             for net_name, net in model_map.items():
                 net = net  # type: nn.Module
                 state_dict = t.load(
-                    join(model_dir, f"{net_name}_{version}.pt"),
-                    map_location="cpu",
+                    join(model_dir, f"{net_name}_{version}.pt"), map_location="cpu",
                 ).state_dict()
                 prep_load_state_dict(net, state_dict)
             return

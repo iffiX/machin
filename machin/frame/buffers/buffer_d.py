@@ -144,8 +144,11 @@ class DistributedBuffer(Buffer):
         if additional_concat_attrs is None:
             additional_concat_attrs = []
 
-        return all_batch_size, Buffer.post_process_batch(
-            all_batch, device, concatenate, sample_attrs, additional_concat_attrs
+        return (
+            all_batch_size,
+            Buffer.post_process_batch(
+                all_batch, device, concatenate, sample_attrs, additional_concat_attrs
+            ),
         )
 
     def _size_service(self):  # pragma: no cover

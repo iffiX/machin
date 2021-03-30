@@ -210,8 +210,11 @@ class Buffer:
         if device is None:
             device = self.buffer_device
 
-        return batch_size, self.post_process_batch(
-            batch, device, concatenate, sample_attrs, additional_concat_attrs
+        return (
+            batch_size,
+            self.post_process_batch(
+                batch, device, concatenate, sample_attrs, additional_concat_attrs
+            ),
         )
 
     @classmethod

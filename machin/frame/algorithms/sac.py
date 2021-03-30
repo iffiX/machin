@@ -166,9 +166,7 @@ class SAC(TorchFramework):
             if lr_scheduler_kwargs is None:
                 lr_scheduler_kwargs = ({}, {}, {})
             self.actor_lr_sch = lr_scheduler(
-                self.actor_optim,
-                *lr_scheduler_args[0],
-                **lr_scheduler_kwargs[0],
+                self.actor_optim, *lr_scheduler_args[0], **lr_scheduler_kwargs[0],
             )
             self.critic_lr_sch = lr_scheduler(
                 self.critic_optim, *lr_scheduler_args[1], **lr_scheduler_kwargs[1]
@@ -312,13 +310,9 @@ class SAC(TorchFramework):
         self.actor.train()
         self.critic.train()
         self.critic2.train()
-        batch_size, (
-            state,
-            action,
-            reward,
-            next_state,
-            terminal,
-            others,
+        (
+            batch_size,
+            (state, action, reward, next_state, terminal, others,),
         ) = self.replay_buffer.sample_batch(
             self.batch_size,
             concatenate_samples,
