@@ -21,9 +21,14 @@ def create_env(env_name):
     # create world
     world = scenario.make_world()
     # create multiagent environment
-    env = MultiAgentEnv(world, scenario.reset_world, scenario.reward,
-                        scenario.observation, info_callback=None,
-                        shared_viewer=False)
+    env = MultiAgentEnv(
+        world,
+        scenario.reset_world,
+        scenario.reward,
+        scenario.observation,
+        info_callback=None,
+        shared_viewer=False,
+    )
     return env
 
 
@@ -43,7 +48,7 @@ solved_repeat = 5
 # model definition
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(ActorDiscrete, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -63,7 +68,7 @@ class Critic(nn.Module):
         # Note: For MADDPG
         #       state_dim is the dimension of all states from all agents.
         #       action_dim is the dimension of all actions from all agents.
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -79,16 +84,17 @@ class Critic(nn.Module):
 
 if __name__ == "__main__":
     actor = ActorDiscrete(observe_dim, action_num)
-    critic = Critic(observe_dim * agent_num,
-                    action_num * agent_num)
+    critic = Critic(observe_dim * agent_num, action_num * agent_num)
 
-    maddpg = MADDPG([deepcopy(actor) for _ in range(agent_num)],
-                    [deepcopy(actor) for _ in range(agent_num)],
-                    [deepcopy(critic) for _ in range(agent_num)],
-                    [deepcopy(critic) for _ in range(agent_num)],
-                    [list(range(agent_num))] * agent_num,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'))
+    maddpg = MADDPG(
+        [deepcopy(actor) for _ in range(agent_num)],
+        [deepcopy(actor) for _ in range(agent_num)],
+        [deepcopy(critic) for _ in range(agent_num)],
+        [deepcopy(critic) for _ in range(agent_num)],
+        [list(range(agent_num))] * agent_num,
+        t.optim.Adam,
+        nn.MSELoss(reduction="sum"),
+    )
 
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
@@ -98,8 +104,9 @@ if __name__ == "__main__":
         total_reward = 0
         terminal = False
         step = 0
-        states = [t.tensor(st, dtype=t.float32).view(1, observe_dim)
-                  for st in env.reset()]
+        states = [
+            t.tensor(st, dtype=t.float32).view(1, observe_dim) for st in env.reset()
+        ]
 
         while not terminal and step <= max_steps:
             step += 1
@@ -113,19 +120,25 @@ if __name__ == "__main__":
                 action_probs = [r[1] for r in results]
 
                 states, rewards, terminals, _ = env.step(actions)
-                states = [t.tensor(st, dtype=t.float32).view(1, observe_dim)
-                          for st in states]
+                states = [
+                    t.tensor(st, dtype=t.float32).view(1, observe_dim) for st in states
+                ]
                 total_reward += float(sum(rewards)) / agent_num
 
-                maddpg.store_transitions([{
-                    "state": {"state": ost},
-                    "action": {"action": act},
-                    "next_state": {"state": st},
-                    "reward": float(rew),
-                    "terminal": term or step == max_steps
-                } for ost, act, st, rew, term in zip(
-                    old_states, action_probs, states, rewards, terminals
-                )])
+                maddpg.store_transitions(
+                    [
+                        {
+                            "state": {"state": ost},
+                            "action": {"action": act},
+                            "next_state": {"state": st},
+                            "reward": float(rew),
+                            "terminal": term or step == max_steps,
+                        }
+                        for ost, act, st, rew, term in zip(
+                            old_states, action_probs, states, rewards, terminals
+                        )
+                    ]
+                )
 
         # total reward is divided by steps here, since:
         # "Agents are rewarded based on minimum agent distance
@@ -138,10 +151,8 @@ if __name__ == "__main__":
                 maddpg.update()
 
         # show reward
-        smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                 total_reward * 0.1)
-        logger.info("Episode {} total reward={:.2f}"
-                    .format(episode, smoothed_total_reward))
+        smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
+        logger.info(f"Episode {episode} total reward={smoothed_total_reward:.2f}")
 
         if smoothed_total_reward > solved_reward and episode > 100:
             reward_fulfilled += 1

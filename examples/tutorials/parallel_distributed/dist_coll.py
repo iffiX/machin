@@ -4,8 +4,7 @@ import torch as t
 
 
 def main(rank):
-    world = World(world_size=3, rank=rank,
-                  name=str(rank), rpc_timeout=20)
+    world = World(world_size=3, rank=rank, name=str(rank), rpc_timeout=20)
     # all sub processes must enter this function, including non-group members
     group = world.create_collective_group(ranks=[0, 1, 2])
     # test broadcast

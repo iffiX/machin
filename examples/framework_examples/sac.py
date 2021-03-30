@@ -26,7 +26,7 @@ def atanh(x):
 # model definition
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -40,9 +40,9 @@ class Actor(nn.Module):
         mu = self.mu_head(a)
         sigma = softplus(self.sigma_head(a))
         dist = Normal(mu, sigma)
-        act = (atanh(action / self.action_range)
-               if action is not None
-               else dist.rsample())
+        act = (
+            atanh(action / self.action_range) if action is not None else dist.rsample()
+        )
         act_entropy = dist.entropy()
 
         # the suggested way to confine your actions within a valid range
@@ -52,9 +52,7 @@ class Actor(nn.Module):
         act = act_tanh * self.action_range
 
         # the distribution remapping process used in the original essay.
-        act_log_prob -= t.log(self.action_range *
-                              (1 - act_tanh.pow(2)) +
-                              1e-6)
+        act_log_prob -= t.log(self.action_range * (1 - act_tanh.pow(2)) + 1e-6)
         act_log_prob = act_log_prob.sum(1, keepdim=True)
 
         # If your distribution is different from "Normal" then you may either:
@@ -78,7 +76,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -99,9 +97,15 @@ if __name__ == "__main__":
     critic2 = Critic(observe_dim, action_dim)
     critic2_t = Critic(observe_dim, action_dim)
 
-    sac = SAC(actor, critic, critic_t, critic2, critic2_t,
-              t.optim.Adam,
-              nn.MSELoss(reduction='sum'))
+    sac = SAC(
+        actor,
+        critic,
+        critic_t,
+        critic2,
+        critic2_t,
+        t.optim.Adam,
+        nn.MSELoss(reduction="sum"),
+    )
 
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
@@ -123,13 +127,15 @@ if __name__ == "__main__":
                 state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
                 total_reward += reward[0]
 
-                sac.store_transition({
-                    "state": {"state": old_state},
-                    "action": {"action": action},
-                    "next_state": {"state": state},
-                    "reward": reward[0],
-                    "terminal": terminal or step == max_steps
-                })
+                sac.store_transition(
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": reward[0],
+                        "terminal": terminal or step == max_steps,
+                    }
+                )
 
         # update, update more if episode is longer, else less
         if episode > 100:
@@ -137,10 +143,8 @@ if __name__ == "__main__":
                 sac.update()
 
         # show reward
-        smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                 total_reward * 0.1)
-        logger.info("Episode {} total reward={:.2f}"
-                    .format(episode, smoothed_total_reward))
+        smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
+        logger.info(f"Episode {episode} total reward={smoothed_total_reward:.2f}")
 
         if smoothed_total_reward > solved_reward:
             reward_fulfilled += 1

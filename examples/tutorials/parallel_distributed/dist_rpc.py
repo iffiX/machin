@@ -4,7 +4,7 @@ from time import sleep
 
 
 # an example service class
-class WorkerService(object):
+class WorkerService:
     counter = 0
 
     def count(self):
@@ -16,8 +16,7 @@ class WorkerService(object):
 
 
 def main(rank):
-    world = World(world_size=3, rank=rank,
-                  name=str(rank), rpc_timeout=20)
+    world = World(world_size=3, rank=rank, name=str(rank), rpc_timeout=20)
     service = WorkerService()
     if rank == 0:
         # only group members needs to enter this function
@@ -47,21 +46,16 @@ def main(rank):
     elif rank == 1:
         group = world.create_rpc_group("group", ["0", "1"])
         sleep(0.5)
-        assert (group.is_registered("count") and
-                group.is_registered("get_count"))
-        print("Process 1: service 'count' and 'get_count' correctly "
-              "registered.")
+        assert group.is_registered("count") and group.is_registered("get_count")
+        print("Process 1: service 'count' and 'get_count' correctly " "registered.")
 
         assert group.registered_sync("count") == 21
         assert group.registered_async("count").wait() == 22
         assert group.registered_remote("count").to_here() == 23
-        print("Process 1: service 'count' and 'get_count' correctly "
-              "called")
+        print("Process 1: service 'count' and 'get_count' correctly " "called")
         sleep(4)
-        assert (not group.is_registered("count") and
-                not group.is_registered("get_count"))
-        print("Process 1: service 'count' and 'get_count' correctly "
-              "unregistered.")
+        assert not group.is_registered("count") and not group.is_registered("get_count")
+        print("Process 1: service 'count' and 'get_count' correctly " "unregistered.")
         group.destroy()
 
 

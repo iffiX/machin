@@ -11,7 +11,7 @@ import torch.nn as nn
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_num):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -22,9 +22,7 @@ class Actor(nn.Module):
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
         dist = Categorical(probs=probs)
-        act = (action
-               if action is not None
-               else dist.sample())
+        act = action if action is not None else dist.sample()
         act_entropy = dist.entropy()
         act_log_prob = dist.log_prob(act.flatten())
         return act, act_log_prob, act_entropy
@@ -32,7 +30,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -55,21 +53,17 @@ def main(rank):
     solved_repeat = 5
 
     # initlize distributed world first
-    _world = World(world_size=3, rank=rank,
-                   name=str(rank), rpc_timeout=20)
+    _world = World(world_size=3, rank=rank, name=str(rank), rpc_timeout=20)
 
     actor = Actor(observe_dim, action_num)
     critic = Critic(observe_dim)
 
     # in all test scenarios, all processes will be used as reducers
     servers = grad_server_helper(
-        [lambda: Actor(observe_dim, action_num),
-         lambda: Critic(observe_dim)],
-        learning_rate=5e-3
+        [lambda: Actor(observe_dim, action_num), lambda: Critic(observe_dim)],
+        learning_rate=5e-3,
     )
-    a3c = A3C(actor, critic,
-              nn.MSELoss(reduction='sum'),
-              servers)
+    a3c = A3C(actor, critic, nn.MSELoss(reduction="sum"), servers)
 
     # manually control syncing to improve performance
     a3c.set_sync(False)
@@ -99,23 +93,25 @@ def main(rank):
                 state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
                 total_reward += reward
 
-                tmp_observations.append({
-                    "state": {"state": old_state},
-                    "action": {"action": action},
-                    "next_state": {"state": state},
-                    "reward": reward,
-                    "terminal": terminal or step == max_steps
-                })
+                tmp_observations.append(
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": reward,
+                        "terminal": terminal or step == max_steps,
+                    }
+                )
 
         # update
         a3c.store_episode(tmp_observations)
         a3c.update()
 
         # show reward
-        smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                 total_reward * 0.1)
-        logger.info("Process {} Episode {} total reward={:.2f}"
-                    .format(rank, episode, smoothed_total_reward))
+        smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
+        logger.info(
+            f"Process {rank} Episode {episode} total reward={smoothed_total_reward:.2f}"
+        )
 
         if smoothed_total_reward > solved_reward:
             reward_fulfilled += 1

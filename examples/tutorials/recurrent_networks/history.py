@@ -7,9 +7,11 @@ class History:
         self.state_shape = state_shape
 
     def append(self, state):
-        assert (t.is_tensor(state) and
-                state.dtype == t.float32 and
-                tuple(state.shape) == self.state_shape)
+        assert (
+            t.is_tensor(state)
+            and state.dtype == t.float32
+            and tuple(state.shape) == self.state_shape
+        )
         self.history.append(state)
         self.history.pop(0)
         return self

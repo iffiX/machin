@@ -20,7 +20,7 @@ disable_view_window()
 
 class RecurrentActor(nn.Module):
     def __init__(self, action_num):
-        super(RecurrentActor, self).__init__()
+        super().__init__()
         self.gru = nn.GRU(128, 256, batch_first=True)
         self.fc1 = nn.Linear(256, 256)
         self.fc2 = nn.Linear(256, action_num)
@@ -28,14 +28,10 @@ class RecurrentActor(nn.Module):
     def forward(self, mem, hidden, action=None):
         hidden = hidden.transpose(0, 1)
         a, hidden = self.gru(mem.unsqueeze(1), hidden)
-        a = self.fc2(t.relu(
-            self.fc1(t.relu(a.flatten(start_dim=1)))
-        ))
+        a = self.fc2(t.relu(self.fc1(t.relu(a.flatten(start_dim=1)))))
         probs = t.softmax(a, dim=1)
         dist = Categorical(probs=probs)
-        act = (action
-               if action is not None
-               else dist.sample())
+        act = action if action is not None else dist.sample()
         act_entropy = dist.entropy()
         act_log_prob = dist.log_prob(act.flatten())
         return act, act_log_prob, act_entropy, hidden
@@ -43,7 +39,7 @@ class RecurrentActor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self):
-        super(Critic, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(128, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, 1)
@@ -59,11 +55,14 @@ if __name__ == "__main__":
     actor = RecurrentActor(action_num).to("cuda:0")
     critic = Critic().to("cuda:0")
 
-    rppo = PPO(actor, critic,
-               t.optim.Adam,
-               nn.MSELoss(reduction='sum'),
-               actor_learning_rate=1e-5,
-               critic_learning_rate=1e-4)
+    rppo = PPO(
+        actor,
+        critic,
+        t.optim.Adam,
+        nn.MSELoss(reduction="sum"),
+        actor_learning_rate=1e-5,
+        critic_learning_rate=1e-4,
+    )
 
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
@@ -83,27 +82,26 @@ if __name__ == "__main__":
                 old_state = state
                 # agent model inference
                 old_hidden = hidden
-                action, _, _, hidden = rppo.act({"mem": state,
-                                                 "hidden": hidden})
+                action, _, _, hidden = rppo.act({"mem": state, "hidden": hidden})
                 state, reward, terminal, _ = env.step(action.item())
                 state = convert(state)
                 total_reward += reward
 
-                tmp_observations.append({
-                    "state": {"mem": old_state, "hidden": old_hidden},
-                    "action": {"action": action},
-                    "next_state": {"mem": state, "hidden": hidden},
-                    "reward": reward,
-                    "terminal": terminal
-                })
+                tmp_observations.append(
+                    {
+                        "state": {"mem": old_state, "hidden": old_hidden},
+                        "action": {"action": action},
+                        "next_state": {"mem": state, "hidden": hidden},
+                        "reward": reward,
+                        "terminal": terminal,
+                    }
+                )
 
         # update
         rppo.store_episode(tmp_observations)
         rppo.update()
 
         # show reward
-        smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                 total_reward * 0.1)
+        smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
 
-        logger.info("Episode {} total reward={:.2f}"
-                    .format(episode, smoothed_total_reward))
+        logger.info(f"Episode {episode} total reward={smoothed_total_reward:.2f}")
