@@ -1,9 +1,7 @@
 from typing import Any
 from dill import Pickler as DillPickler, loads as d_loads
 from torch.multiprocessing import set_sharing_strategy
-from torch.multiprocessing.reductions import (
-    reduce_event, reduce_storage, reduce_tensor
-)
+from torch.multiprocessing.reductions import reduce_event, reduce_storage, reduce_tensor
 import io
 import copyreg
 import torch as t
@@ -59,10 +57,9 @@ class Pickler(DillPickler):
         no valid method is found, it will try to find a custom dump
         method in ".dispatch_table".
     """
+
     def __init__(self, file, recurse=False, copy_tensor=False):
-        super(Pickler, self).__init__(
-            file, byref=False, recurse=recurse
-        )
+        super(Pickler, self).__init__(file, byref=False, recurse=recurse)
         self.dispatch_table = copyreg.dispatch_table.copy()
         if not copy_tensor:
             # register the reduction methods provided by pytorch

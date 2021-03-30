@@ -17,8 +17,7 @@ class Smooth(object):
         if self._value is None:
             self._value = new_value
         else:
-            self._value = (self._value * (1 - update_rate)
-                           + new_value * update_rate)
+            self._value = self._value * (1 - update_rate) + new_value * update_rate
         return self._value
 
     @property

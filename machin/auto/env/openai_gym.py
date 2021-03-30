@@ -29,28 +29,31 @@ def _is_continuous_space(space):
     return type(space) in (Box, MultiBinary)
 
 
-def generate_gym_env_config(env_name: str = None,
-                            config: Union[Dict[str, Any], Config] = None):
+def generate_gym_env_config(
+    env_name: str = None, config: Union[Dict[str, Any], Config] = None
+):
     """
     Generate example OpenAI gym config.
     """
     config = deepcopy(config) or {}
     return fill_default(
-        {"trials_dir": "trials",
-         "gpus": 0,
-         "episode_per_epoch": 100,
-         "max_episodes": 1000000,
-         "train_env_config": {
-             "env_name": env_name or "CartPole-v1",
-             "render_every_episode": 100,
-             "act_kwargs": {}
-         },
-         "test_env_config": {
-             "env_name": env_name or "CartPole-v1",
-             "render_every_episode": 100,
-             "act_kwargs": {}
-         }},
-        config
+        {
+            "trials_dir": "trials",
+            "gpus": 0,
+            "episode_per_epoch": 100,
+            "max_episodes": 1000000,
+            "train_env_config": {
+                "env_name": env_name or "CartPole-v1",
+                "render_every_episode": 100,
+                "act_kwargs": {},
+            },
+            "test_env_config": {
+                "env_name": env_name or "CartPole-v1",
+                "render_every_episode": 100,
+                "act_kwargs": {},
+            },
+        },
+        config,
     )
 
 
@@ -81,10 +84,14 @@ class RLGymDiscActDataset(RLDataset):
         act_kwargs: Additional keyword arguments passed to act functions
             of different frameworks.
     """
-    def __init__(self,
-                 frame, env,
-                 render_every_episode: int = 100,
-                 act_kwargs: Dict[str, Any] = None):
+
+    def __init__(
+        self,
+        frame,
+        env,
+        render_every_episode: int = 100,
+        act_kwargs: Dict[str, Any] = None,
+    ):
         super(RLGymDiscActDataset, self).__init__()
         self.frame = frame
         self.env = env
@@ -117,9 +124,7 @@ class RLGymDiscActDataset(RLDataset):
                 old_state = state
                 # agent model inference
                 if type(self.frame) in (A2C, PPO, SAC, A3C, IMPALA):
-                    action = self.frame.act(
-                        {"state": old_state}, **self.act_kwargs
-                    )[0]
+                    action = self.frame.act({"state": old_state}, **self.act_kwargs)[0]
                 elif type(self.frame) in (DQN, DQNPer, DQNApex, RAINBOW):
                     action = self.frame.act_discrete_with_noise(
                         {"state": old_state}, **self.act_kwargs
@@ -129,25 +134,25 @@ class RLGymDiscActDataset(RLDataset):
                         {"state": old_state}, **self.act_kwargs
                     )[0]
                 elif type(self.frame) in (ARS,):
-                    action = self.frame.act(
-                        {"state": old_state}, **self.act_kwargs
-                    )
+                    action = self.frame.act({"state": old_state}, **self.act_kwargs)
                 else:
-                    raise RuntimeError("Unsupported framework: {}".format(
-                        type(self.frame)
-                    ))
+                    raise RuntimeError(
+                        "Unsupported framework: {}".format(type(self.frame))
+                    )
                 state, reward, terminal, info = self.env.step(action.item())
                 state = t.tensor(state, dtype=self._precision)
                 state = state.flatten().unsqueeze(0)
                 reward = float(reward)
                 total_reward += reward
-                result.add_observation({
-                    "state": {"state": old_state},
-                    "action": {"action": action},
-                    "next_state": {"state": state},
-                    "reward": reward,
-                    "terminal": terminal
-                })
+                result.add_observation(
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": reward,
+                        "terminal": terminal,
+                    }
+                )
                 result.add_log(info)
 
         if len(rendering) > 0:
@@ -187,10 +192,13 @@ class RLGymContActDataset(RLDataset):
             of different frameworks.
     """
 
-    def __init__(self,
-                 frame, env,
-                 render_every_episode: int = 100,
-                 act_kwargs: Dict[str, Any] = None):
+    def __init__(
+        self,
+        frame,
+        env,
+        render_every_episode: int = 100,
+        act_kwargs: Dict[str, Any] = None,
+    ):
         super(RLGymContActDataset, self).__init__()
         self.frame = frame
         self.env = env
@@ -224,34 +232,33 @@ class RLGymContActDataset(RLDataset):
                 old_state = state
                 # agent model inference
                 if type(self.frame) in (A2C, PPO, SAC, A3C, IMPALA):
-                    action = self.frame.act(
-                        {"state": old_state}, **self.act_kwargs
-                    )[0]
+                    action = self.frame.act({"state": old_state}, **self.act_kwargs)[0]
                 elif type(self.frame) in (DDPG, DDPGPer, HDDPG, TD3, DDPGApex):
                     action = self.frame.act_with_noise(
                         {"state": old_state}, **self.act_kwargs
                     )[0]
                 elif type(self.frame) in (ARS,):
-                    action = self.frame.act(
-                        {"state": old_state}, **self.act_kwargs
-                    )
+                    action = self.frame.act({"state": old_state}, **self.act_kwargs)
                 else:
-                    raise RuntimeError("Unsupported framework: {}".format(
-                        type(self.frame)
-                    ))
-                state, reward, terminal, info = \
-                    self.env.step(action.detach().cpu().numpy())
+                    raise RuntimeError(
+                        "Unsupported framework: {}".format(type(self.frame))
+                    )
+                state, reward, terminal, info = self.env.step(
+                    action.detach().cpu().numpy()
+                )
                 state = t.tensor(state, dtype=self._precision)
                 state = state.flatten().unsqueeze(0)
                 reward = float(reward)
                 total_reward += reward
-                result.add_observation({
-                    "state": {"state": old_state},
-                    "action": {"action": action},
-                    "next_state": {"state": state},
-                    "reward": reward,
-                    "terminal": terminal
-                })
+                result.add_observation(
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": reward,
+                        "terminal": terminal,
+                    }
+                )
                 result.add_log(info)
 
         if len(rendering) > 0:
@@ -267,21 +274,25 @@ def gym_env_dataset_creator(frame, env_config):
     env = gym.make(env_config["env_name"])
     if _is_discrete_space(env.action_space):
         return RLGymDiscActDataset(
-            frame, env,
+            frame,
+            env,
             render_every_episode=env_config["render_every_episode"],
-            act_kwargs=env_config["act_kwargs"]
+            act_kwargs=env_config["act_kwargs"],
         )
     elif _is_continuous_space(env.action_space):
         return RLGymContActDataset(
-            frame, env,
+            frame,
+            env,
             render_every_episode=env_config["render_every_episode"],
-            act_kwargs=env_config["act_kwargs"]
+            act_kwargs=env_config["act_kwargs"],
         )
     else:
-        raise ValueError("Gym environment {} has action space of type {}, "
-                         "which is not supported."
-                         .format(env_config["env_name"],
-                                 type(env.action_space)))
+        raise ValueError(
+            "Gym environment {} has action space of type {}, "
+            "which is not supported.".format(
+                env_config["env_name"], type(env.action_space)
+            )
+        )
 
 
 def launch_gym(config):
@@ -295,15 +306,16 @@ def launch_gym(config):
         dirpath=s_env.get_trial_model_dir(),
         filename="{epoch:02d}-{total_reward:.2f}",
         save_top_k=1,
-        monitor="total_reward", mode="max",
-        period=1, verbose=True
+        monitor="total_reward",
+        mode="max",
+        period=1,
+        verbose=True,
     )
-    early_stopping = EarlyStopping(
-        monitor="total_reward", mode="max"
-    )
+    early_stopping = EarlyStopping(monitor="total_reward", mode="max")
     t_logger = TensorBoardLogger(s_env.get_trial_train_log_dir())
-    lm_logger = LocalMediaLogger(s_env.get_trial_image_dir(),
-                                 s_env.get_trial_image_dir())
+    lm_logger = LocalMediaLogger(
+        s_env.get_trial_image_dir(), s_env.get_trial_image_dir()
+    )
     trainer = pl.Trainer(
         gpus=config["gpus"],
         callbacks=[checkpoint_callback, early_stopping],

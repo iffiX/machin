@@ -1,4 +1,5 @@
 from torchviz import make_dot
+
 """
 The visualization module, currently it only contains the pytorch
 flow graph visualization, more visualizations for cnn, resnet, lstm & rnn,

@@ -13,8 +13,7 @@ def _round_up(num):
 
 
 class DistributedBuffer(Buffer):
-    def __init__(self, buffer_name: str, group: RpcGroup, buffer_size: int,
-                 *_, **__):
+    def __init__(self, buffer_name: str, group: RpcGroup, buffer_size: int, *_, **__):
         """
         Create a distributed replay buffer instance.
 
@@ -50,21 +49,25 @@ class DistributedBuffer(Buffer):
 
         # register services, so that we may access other buffers
         _name = "/" + group.get_cur_name()
-        self.group.register(buffer_name + _name + "/_size_service",
-                            self._size_service)
-        self.group.register(buffer_name + _name + "/_clear_service",
-                            self._clear_service)
-        self.group.register(buffer_name + _name + "/_sample_service",
-                            self._sample_service)
+        self.group.register(buffer_name + _name + "/_size_service", self._size_service)
+        self.group.register(
+            buffer_name + _name + "/_clear_service", self._clear_service
+        )
+        self.group.register(
+            buffer_name + _name + "/_sample_service", self._sample_service
+        )
         self.wr_lock = RLock()
 
-    def append(self, transition: Union[Transition, Dict],
-               required_attrs=("state", "action", "next_state",
-                               "reward", "terminal")):
+    def append(
+        self,
+        transition: Union[Transition, Dict],
+        required_attrs=("state", "action", "next_state", "reward", "terminal"),
+    ):
         # DOC INHERITED
         with self.wr_lock:
             super(DistributedBuffer, self).append(
-                transition, required_attrs=required_attrs)
+                transition, required_attrs=required_attrs
+            )
 
     def clear(self):
         """
@@ -78,9 +81,7 @@ class DistributedBuffer(Buffer):
         Remove all entries from all local buffers.
         """
         future = [
-            self.group.registered_async(
-                self.buffer_name + "/" + m + "/_clear_service"
-            )
+            self.group.registered_async(self.buffer_name + "/" + m + "/_clear_service")
             for m in self.group.get_group_members()
         ]
         for fut in future:
@@ -102,21 +103,26 @@ class DistributedBuffer(Buffer):
         future = []
         count = 0
         for m in self.group.get_group_members():
-            future.append(self.group.registered_async(
-                self.buffer_name + "/" + m + "/_size_service"
-            ))
+            future.append(
+                self.group.registered_async(
+                    self.buffer_name + "/" + m + "/_size_service"
+                )
+            )
         for fut in future:
             count += fut.wait()
         return count
 
-    def sample_batch(self,
-                     batch_size: int,
-                     concatenate: bool = True,
-                     device: Union[str, t.device] = None,
-                     sample_method: Union[Callable, str] = "random_unique",
-                     sample_attrs: List[str] = None,
-                     additional_concat_attrs: List[str] = None,
-                     *_, **__) -> Any:
+    def sample_batch(
+        self,
+        batch_size: int,
+        concatenate: bool = True,
+        device: Union[str, t.device] = None,
+        sample_method: Union[Callable, str] = "random_unique",
+        sample_attrs: List[str] = None,
+        additional_concat_attrs: List[str] = None,
+        *_,
+        **__
+    ) -> Any:
         # DOC INHERITED
         p_num = self.group.size()
         local_batch_size = _round_up(batch_size / p_num)
@@ -124,7 +130,7 @@ class DistributedBuffer(Buffer):
         future = [
             self.group.registered_async(
                 self.buffer_name + "/" + m + "/_sample_service",
-                args=(local_batch_size, sample_method)
+                args=(local_batch_size, sample_method),
             )
             for m in self.group.get_group_members()
         ]
@@ -140,10 +146,9 @@ class DistributedBuffer(Buffer):
         if additional_concat_attrs is None:
             additional_concat_attrs = []
 
-        return \
-            all_batch_size, \
-            Buffer.post_process_batch(all_batch, device, concatenate,
-                                      sample_attrs, additional_concat_attrs)
+        return all_batch_size, Buffer.post_process_batch(
+            all_batch, device, concatenate, sample_attrs, additional_concat_attrs
+        )
 
     def _size_service(self):  # pragma: no cover
         return self.size()
@@ -154,13 +159,13 @@ class DistributedBuffer(Buffer):
     def _sample_service(self, batch_size, sample_method):  # pragma: no cover
         if isinstance(sample_method, str):
             if not hasattr(self, "sample_method_" + sample_method):
-                raise RuntimeError("Cannot find specified sample method: {}"
-                                   .format(sample_method))
+                raise RuntimeError(
+                    "Cannot find specified sample method: {}".format(sample_method)
+                )
             sample_method = getattr(self, "sample_method_" + sample_method)
 
         # sample raw local batch from local buffer
         with self.wr_lock:
-            local_batch_size, local_batch = sample_method(self.buffer,
-                                                          batch_size)
+            local_batch_size, local_batch = sample_method(self.buffer, batch_size)
 
         return local_batch_size, local_batch

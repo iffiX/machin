@@ -7,6 +7,7 @@ from machin.utils.visualize import make_dot
 from machin.utils.logging import default_logger
 from machin.model.nets.base import static_module_wrapper
 from machin.parallel.pool import P2PPool, ThreadPool
+
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .ddpg import *
 
@@ -26,13 +27,11 @@ class SHMBuffer(Buffer):
                 return result
             else:
                 try:
-                    result = t.tensor(batch, device=device)\
-                        .view(batch_size, -1)
+                    result = t.tensor(batch, device=device).view(batch_size, -1)
                     result.share_memory_()
                     return result
                 except Exception:
-                    raise ValueError("Batch not concatenable: {}"
-                                     .format(batch))
+                    raise ValueError("Batch not concatenable: {}".format(batch))
         else:
             for it in batch:
                 if t.is_tensor(it):
@@ -47,40 +46,43 @@ class MADDPG(TorchFramework):
     gathering all agents observations and train a global critic. This global
     critic observes all actions and all states from all agents.
     """
+
     # Since the number of sub-policies is automatically determined,
     # they are not considered here.
     _is_top = ["all_actor_target", "all_critic_target"]
     _is_restorable = ["all_actor_target", "all_critic_target"]
 
-    def __init__(self,
-                 actors: List[Union[NeuralNetworkModule, nn.Module]],
-                 actor_targets: List[Union[NeuralNetworkModule, nn.Module]],
-                 critics: List[Union[NeuralNetworkModule, nn.Module]],
-                 critic_targets: List[Union[NeuralNetworkModule, nn.Module]],
-                 optimizer: Callable,
-                 criterion: Callable,
-                 *_,
-                 lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[List[Tuple], List[Tuple]] = None,
-                 lr_scheduler_kwargs: Tuple[List[Dict], List[Dict]] = None,
-                 critic_visible_actors: List[List[int]] = None,
-                 sub_policy_num: int = 0,
-                 batch_size: int = 100,
-                 update_rate: float = 0.001,
-                 update_steps: Union[int, None] = None,
-                 actor_learning_rate: float = 0.0005,
-                 critic_learning_rate: float = 0.001,
-                 discount: float = 0.99,
-                 gradient_max: float = np.inf,
-                 replay_size: int = 500000,
-                 replay_device: Union[str, t.device] = "cpu",
-                 replay_buffer: Buffer = None,
-                 visualize: bool = False,
-                 visualize_dir: str = "",
-                 use_jit: bool = True,
-                 pool_type: str = "thread",
-                 pool_size: int = None,
-                 **__):
+    def __init__(
+        self,
+        actors: List[Union[NeuralNetworkModule, nn.Module]],
+        actor_targets: List[Union[NeuralNetworkModule, nn.Module]],
+        critics: List[Union[NeuralNetworkModule, nn.Module]],
+        critic_targets: List[Union[NeuralNetworkModule, nn.Module]],
+        optimizer: Callable,
+        criterion: Callable,
+        *_,
+        lr_scheduler: Callable = None,
+        lr_scheduler_args: Tuple[List[Tuple], List[Tuple]] = None,
+        lr_scheduler_kwargs: Tuple[List[Dict], List[Dict]] = None,
+        critic_visible_actors: List[List[int]] = None,
+        sub_policy_num: int = 0,
+        batch_size: int = 100,
+        update_rate: float = 0.001,
+        update_steps: Union[int, None] = None,
+        actor_learning_rate: float = 0.0005,
+        critic_learning_rate: float = 0.001,
+        discount: float = 0.99,
+        gradient_max: float = np.inf,
+        replay_size: int = 500000,
+        replay_device: Union[str, t.device] = "cpu",
+        replay_buffer: Buffer = None,
+        visualize: bool = False,
+        visualize_dir: str = "",
+        use_jit: bool = True,
+        pool_type: str = "thread",
+        pool_size: int = None,
+        **__
+    ):
         """
         See Also:
             :class:`.DDPG`
@@ -165,37 +167,44 @@ class MADDPG(TorchFramework):
         self.visualize = visualize
         self.visualize_dir = visualize_dir
         self.grad_max = gradient_max
-        self.critic_visible_actors = \
-            critic_visible_actors or [list(range(len(actors)))] * len(actors)
+        self.critic_visible_actors = critic_visible_actors or [
+            list(range(len(actors)))
+        ] * len(actors)
         self._update_counter = 0
 
         if update_rate is not None and update_steps is not None:
-            raise ValueError("You can only specify one target network update"
-                             " scheme, either by update_rate or update_steps,"
-                             " but not both.")
+            raise ValueError(
+                "You can only specify one target network update"
+                " scheme, either by update_rate or update_steps,"
+                " but not both."
+            )
 
         # create ensembles of policies
-        self.actors = [[actor] +
-                       [copy.deepcopy(actor) for _ in range(sub_policy_num)]
-                       for actor in actors]
-        self.actor_targets = [[actor_target] +
-                              [copy.deepcopy(actor_target)
-                               for _ in range(sub_policy_num)]
-                              for actor_target in actor_targets]
+        self.actors = [
+            [actor] + [copy.deepcopy(actor) for _ in range(sub_policy_num)]
+            for actor in actors
+        ]
+        self.actor_targets = [
+            [actor_target]
+            + [copy.deepcopy(actor_target) for _ in range(sub_policy_num)]
+            for actor_target in actor_targets
+        ]
         self.critics = critics
         self.critic_targets = critic_targets
-        self.actor_optims = [[optimizer(acc.parameters(),
-                                        lr=actor_learning_rate)
-                             for acc in ac]
-                             for ac in self.actors]
-        self.critic_optims = [optimizer(cr.parameters(),
-                                        lr=critic_learning_rate)
-                              for cr in self.critics]
+        self.actor_optims = [
+            [optimizer(acc.parameters(), lr=actor_learning_rate) for acc in ac]
+            for ac in self.actors
+        ]
+        self.critic_optims = [
+            optimizer(cr.parameters(), lr=critic_learning_rate) for cr in self.critics
+        ]
         self.ensemble_size = sub_policy_num + 1
-        self.replay_buffers = [SHMBuffer(replay_size, replay_device)
-                               if replay_buffer is None
-                               else copy.deepcopy(replay_buffer)
-                               for _ in range(len(actors))]
+        self.replay_buffers = [
+            SHMBuffer(replay_size, replay_device)
+            if replay_buffer is None
+            else copy.deepcopy(replay_buffer)
+            for _ in range(len(actors))
+        ]
 
         # create the pool used to update()
         # check devices of all parameters,
@@ -207,10 +216,12 @@ class MADDPG(TorchFramework):
 
         self.pool_type = pool_type
         if pool_type == "process":
-            self.pool = P2PPool(processes=pool_size,
-                                is_recursive=False,
-                                is_copy_tensor=False,
-                                share_method=device)
+            self.pool = P2PPool(
+                processes=pool_size,
+                is_recursive=False,
+                is_copy_tensor=False,
+                share_method=device,
+            )
         elif pool_type == "thread":
             self.pool = ThreadPool(processes=pool_size)
 
@@ -222,44 +233,40 @@ class MADDPG(TorchFramework):
         for ac, idx in zip(self.actor_targets, range(len(actors))):
             for acc, idxx in zip(ac, range(self.ensemble_size)):
                 acc.share_memory()
-                self.all_actor_target.add_module(
-                    "actor_{}_{}".format(idx, idxx), acc
-                )
+                self.all_actor_target.add_module("actor_{}_{}".format(idx, idxx), acc)
 
         for cr, idx in zip(self.critic_targets, range(len(critics))):
             cr.share_memory()
-            self.all_critic_target.add_module(
-                "critic_{}".format(idx), cr
-            )
+            self.all_critic_target.add_module("critic_{}".format(idx), cr)
 
         # Make sure target and online networks have the same weight
         with t.no_grad():
-            self.pool.starmap(hard_update,
-                              zip(itertools.chain(*self.actors),
-                                  itertools.chain(*self.actor_targets)))
-            self.pool.starmap(hard_update,
-                              zip(self.critics, self.critic_targets))
+            self.pool.starmap(
+                hard_update,
+                zip(
+                    itertools.chain(*self.actors), itertools.chain(*self.actor_targets)
+                ),
+            )
+            self.pool.starmap(hard_update, zip(self.critics, self.critic_targets))
 
         if lr_scheduler is not None:
             if lr_scheduler_args is None:
                 lr_scheduler_args = ([()] * len(actors), [()] * len(critics))
             if lr_scheduler_kwargs is None:
                 lr_scheduler_kwargs = ([{}] * len(actors), [{}] * len(critics))
-            self.actor_lr_schs = [lr_scheduler(acc_opt,
-                                               *lr_sch_args,
-                                               *lr_sch_kwargs)
-                                  for ac_opt, lr_sch_args, lr_sch_kwargs in
-                                  zip(self.actor_optims,
-                                      lr_scheduler_args[0],
-                                      lr_scheduler_kwargs[0])
-                                  for acc_opt in ac_opt]
-            self.critic_lr_schs = [lr_scheduler(cr_opt,
-                                                *lr_sch_args,
-                                                *lr_sch_kwargs)
-                                   for cr_opt, lr_sch_args, lr_sch_kwargs in
-                                   zip(self.critic_optims,
-                                       lr_scheduler_args[1],
-                                       lr_scheduler_kwargs[1])]
+            self.actor_lr_schs = [
+                lr_scheduler(acc_opt, *lr_sch_args, *lr_sch_kwargs)
+                for ac_opt, lr_sch_args, lr_sch_kwargs in zip(
+                    self.actor_optims, lr_scheduler_args[0], lr_scheduler_kwargs[0]
+                )
+                for acc_opt in ac_opt
+            ]
+            self.critic_lr_schs = [
+                lr_scheduler(cr_opt, *lr_sch_args, *lr_sch_kwargs)
+                for cr_opt, lr_sch_args, lr_sch_kwargs in zip(
+                    self.critic_optims, lr_scheduler_args[1], lr_scheduler_kwargs[1]
+                )
+            ]
 
         self.criterion = criterion
 
@@ -313,10 +320,7 @@ class MADDPG(TorchFramework):
             return self.actor_lr_schs + self.critic_lr_schs
         return []
 
-    def act(self,
-            states: List[Dict[str, Any]],
-            use_target: bool = False,
-            **__):
+    def act(self, states: List[Dict[str, Any]], use_target: bool = False, **__):
         """
         Use all actor networks to produce actions for the current state.
         A random sub-policy from the policy ensemble of each actor will
@@ -330,16 +334,17 @@ class MADDPG(TorchFramework):
             A list of anything returned by your actor. If your actor
             returns multiple values, they will be wrapped in a tuple.
         """
-        return [safe_return(act) for act in
-                self._act_api_general(states, use_target)]
+        return [safe_return(act) for act in self._act_api_general(states, use_target)]
 
-    def act_with_noise(self,
-                       states: List[Dict[str, Any]],
-                       noise_param: Any = (0.0, 1.0),
-                       ratio: float = 1.0,
-                       mode: str = "uniform",
-                       use_target: bool = False,
-                       **__):
+    def act_with_noise(
+        self,
+        states: List[Dict[str, Any]],
+        noise_param: Any = (0.0, 1.0),
+        ratio: float = 1.0,
+        mode: str = "uniform",
+        use_target: bool = False,
+        **__
+    ):
         """
         Use all actor networks to produce noisy actions for the current state.
         A random sub-policy from the policy ensemble of each actor will
@@ -367,8 +372,7 @@ class MADDPG(TorchFramework):
             elif mode == "normal":
                 action = add_normal_noise_to_action(action, noise_param, ratio)
             elif mode == "clipped_normal":
-                action = add_clipped_normal_noise_to_action(
-                    action, noise_param, ratio)
+                action = add_clipped_normal_noise_to_action(action, noise_param, ratio)
             elif mode == "ou":
                 action = add_ou_noise_to_action(action, noise_param, ratio)
             else:
@@ -379,9 +383,7 @@ class MADDPG(TorchFramework):
                 result.append((action, *others))
         return result
 
-    def act_discrete(self,
-                     states: List[Dict[str, Any]],
-                     use_target: bool = False):
+    def act_discrete(self, states: List[Dict[str, Any]], use_target: bool = False):
         """
         Use all actor networks to produce discrete actions for the current
         state.
@@ -412,9 +414,9 @@ class MADDPG(TorchFramework):
             result.append((action_disc, action, *others))
         return result
 
-    def act_discrete_with_noise(self,
-                                states: List[Dict[str, Any]],
-                                use_target: bool = False):
+    def act_discrete_with_noise(
+        self, states: List[Dict[str, Any]], use_target: bool = False
+    ):
         """
         Use all actor networks to produce discrete actions for the current
         state.
@@ -449,33 +451,28 @@ class MADDPG(TorchFramework):
     def _act_api_general(self, states, use_target):
         if self.use_jit:
             if use_target:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.jit_actor_targets]
+                actors = [choice(sub_actors) for sub_actors in self.jit_actor_targets]
             else:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.jit_actors]
-            future = [self._jit_safe_call(ac, st) for ac, st in
-                      zip(actors, states)]
+                actors = [choice(sub_actors) for sub_actors in self.jit_actors]
+            future = [self._jit_safe_call(ac, st) for ac, st in zip(actors, states)]
             result = [t.jit._wait(fut) for fut in future]
-            result = [res if isinstance(res, tuple) else (res,)
-                      for res in result]
+            result = [res if isinstance(res, tuple) else (res,) for res in result]
         else:
             if use_target:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.actor_targets]
+                actors = [choice(sub_actors) for sub_actors in self.actor_targets]
             else:
-                actors = [choice(sub_actors) for sub_actors in
-                          self.actors]
-            result = self.pool.starmap(self._no_grad_safe_call,
-                                       zip(actors, states))
+                actors = [choice(sub_actors) for sub_actors in self.actors]
+            result = self.pool.starmap(self._no_grad_safe_call, zip(actors, states))
             result = [res for res in result]
         return result
 
-    def _criticize(self,
-                   states: List[Dict[str, Any]],
-                   actions: List[Dict[str, Any]],
-                   index: int,
-                   use_target=False):
+    def _criticize(
+        self,
+        states: List[Dict[str, Any]],
+        actions: List[Dict[str, Any]],
+        index: int,
+        use_target=False,
+    ):
         """
         Use critic network to evaluate current value.
 
@@ -489,13 +486,17 @@ class MADDPG(TorchFramework):
             Q Value of shape ``[batch_size, 1]``.
         """
         if use_target:
-            return safe_call(self.critic_targets[index],
-                             self.state_concat_function(states),
-                             self.action_concat_function(actions))
+            return safe_call(
+                self.critic_targets[index],
+                self.state_concat_function(states),
+                self.action_concat_function(actions),
+            )
         else:
-            return safe_call(self.critics[index],
-                             self.state_concat_function(states),
-                             self.action_concat_function(actions))
+            return safe_call(
+                self.critics[index],
+                self.state_concat_function(states),
+                self.action_concat_function(actions),
+            )
 
     def store_transitions(self, transitions: List[Union[Transition, Dict]]):
         """
@@ -507,9 +508,10 @@ class MADDPG(TorchFramework):
         """
         assert len(transitions) == len(self.replay_buffers)
         for buff, trans in zip(self.replay_buffers, transitions):
-            buff.append(trans, required_attrs=(
-                "state", "action", "next_state", "reward", "terminal"
-            ))
+            buff.append(
+                trans,
+                required_attrs=("state", "action", "next_state", "reward", "terminal"),
+            )
 
     def store_episodes(self, episodes: List[List[Union[Transition, Dict]]]):
         """
@@ -518,19 +520,27 @@ class MADDPG(TorchFramework):
         """
         assert len(episodes) == len(self.replay_buffers)
         all_length = [len(ep) for ep in episodes]
-        assert len(set(all_length)) == 1, \
-            "All episodes must have the same length!"
+        assert len(set(all_length)) == 1, "All episodes must have the same length!"
         for buff, ep in zip(self.replay_buffers, episodes):
             for trans in ep:
-                buff.append(trans, required_attrs=(
-                    "state", "action", "next_state", "reward", "terminal"
-                ))
+                buff.append(
+                    trans,
+                    required_attrs=(
+                        "state",
+                        "action",
+                        "next_state",
+                        "reward",
+                        "terminal",
+                    ),
+                )
 
-    def update(self,
-               update_value=True,
-               update_policy=True,
-               update_target=True,
-               concatenate_samples=True):
+    def update(
+        self,
+        update_value=True,
+        update_policy=True,
+        update_target=True,
+        concatenate_samples=True,
+    ):
         """
         Update network weights by sampling from replay buffer.
 
@@ -551,12 +561,14 @@ class MADDPG(TorchFramework):
         if buffer_length == 0:
             return
         batch_size = min(buffer_length, self.batch_size)
-        sample_indexes = [[randint(0, buffer_length - 1)
-                           for _ in range(batch_size)]
-                          for __ in range(self.ensemble_size)]
+        sample_indexes = [
+            [randint(0, buffer_length - 1) for _ in range(batch_size)]
+            for __ in range(self.ensemble_size)
+        ]
 
-        sample_methods = [self._create_sample_method(indexes)
-                          for indexes in sample_indexes]
+        sample_methods = [
+            self._create_sample_method(indexes) for indexes in sample_indexes
+        ]
 
         # Now sample from buffer for each sub-policy in the ensemble.
         # To reduce memory usage, for each sub-policy "i" of each actor,
@@ -570,23 +582,30 @@ class MADDPG(TorchFramework):
         for e_idx in range(self.ensemble_size):
             ensemble_batch = []
             for a_idx in range(len(self.actors)):
-                batch_size_, batch = \
-                    self.replay_buffers[a_idx].sample_batch(
-                        self.batch_size, concatenate_samples,
-                        sample_method=sample_methods[e_idx],
-                        sample_attrs=[
-                            "state", "action", "reward", "next_state",
-                            "terminal", "*"]
-                    )
+                batch_size_, batch = self.replay_buffers[a_idx].sample_batch(
+                    self.batch_size,
+                    concatenate_samples,
+                    sample_method=sample_methods[e_idx],
+                    sample_attrs=[
+                        "state",
+                        "action",
+                        "reward",
+                        "next_state",
+                        "terminal",
+                        "*",
+                    ],
+                )
                 ensemble_batch.append(batch)
                 assert batch_size_ == batch_size
 
             batches.append(ensemble_batch)
             next_actions_t.append(
-                [self.action_transform_function(act)
-                 for act in
-                 self.act([batch[3] for batch in ensemble_batch],
-                          target=True)]
+                [
+                    self.action_transform_function(act)
+                    for act in self.act(
+                        [batch[3] for batch in ensemble_batch], target=True
+                    )
+                ]
             )
 
         if self.pool_type == "process":
@@ -597,24 +616,38 @@ class MADDPG(TorchFramework):
         self._update_counter += 1
         for e_idx in range(self.ensemble_size):
             for a_idx in range(len(self.actors)):
-                args.append((
-                    batch_size, batches, next_actions_t,
-                    a_idx, e_idx,
-                    self.actors, self.actor_targets,
-                    self.critics, self.critic_targets,
-                    self.critic_visible_actors,
-                    self.actor_optims, self.critic_optims,
-                    update_value, update_policy, update_target,
-                    self.action_transform_function,
-                    self.action_concat_function,
-                    self.state_concat_function,
-                    self.reward_function,
-                    self.criterion, self.discount, self.update_rate,
-                    self.update_steps, self._update_counter, self.grad_max,
-                    self.visualize and not self.has_visualized,
-                    self.visualize_dir,
-                    self._backward
-                ))
+                args.append(
+                    (
+                        batch_size,
+                        batches,
+                        next_actions_t,
+                        a_idx,
+                        e_idx,
+                        self.actors,
+                        self.actor_targets,
+                        self.critics,
+                        self.critic_targets,
+                        self.critic_visible_actors,
+                        self.actor_optims,
+                        self.critic_optims,
+                        update_value,
+                        update_policy,
+                        update_target,
+                        self.action_transform_function,
+                        self.action_concat_function,
+                        self.state_concat_function,
+                        self.reward_function,
+                        self.criterion,
+                        self.discount,
+                        self.update_rate,
+                        self.update_steps,
+                        self._update_counter,
+                        self.grad_max,
+                        self.visualize and not self.has_visualized,
+                        self.visualize_dir,
+                        self._backward,
+                    )
+                )
         all_loss = self.pool.starmap(self._update_sub_policy, args)
         mean_loss = t.tensor(all_loss).mean(dim=0)
 
@@ -636,11 +669,13 @@ class MADDPG(TorchFramework):
         # DOC INHERITED
         super(MADDPG, self).load(model_dir, network_map, version)
         with t.no_grad():
-            self.pool.starmap(hard_update,
-                              zip(itertools.chain(*self.actors),
-                                  itertools.chain(*self.actor_targets)))
-            self.pool.starmap(hard_update,
-                              zip(self.critics, self.critic_targets))
+            self.pool.starmap(
+                hard_update,
+                zip(
+                    itertools.chain(*self.actors), itertools.chain(*self.actor_targets)
+                ),
+            )
+            self.pool.starmap(hard_update, zip(self.critics, self.critic_targets))
 
     @staticmethod
     def _no_grad_safe_call(model, *named_args):
@@ -650,8 +685,7 @@ class MADDPG(TorchFramework):
 
     @staticmethod
     def _jit_safe_call(model, *named_args):
-        if (not hasattr(model, "input_device") or
-                not hasattr(model, "output_device")):
+        if not hasattr(model, "input_device") or not hasattr(model, "output_device"):
             # try to automatically determine the input & output
             # device of the model
             model_type = type(model)
@@ -670,8 +704,10 @@ class MADDPG(TorchFramework):
                     "1. dynamic_module_wrapper "
                     "from machin.model.nets.base \n"
                     "Or construct your own module & model with: \n"
-                    "NeuralNetworkModule from machin.model.nets.base"
-                    .format(model_type, device))
+                    "NeuralNetworkModule from machin.model.nets.base".format(
+                        model_type, device
+                    )
+                )
             else:
                 # assume that i/o devices are the same as parameter device
                 # print a warning
@@ -681,19 +717,25 @@ class MADDPG(TorchFramework):
                     " set to: {}\n"
                     "The framework is not responsible for any "
                     "un-matching device issues caused by this"
-                    "operation.".format(model_type, device[0]))
+                    "operation.".format(model_type, device[0])
+                )
                 model = static_module_wrapper(model, device[0], device[0])
         input_device = model.input_device
         # set in __init__
         args = model.arg_spec.args[1:] + model.arg_spec.kwonlyargs
         if model.arg_spec.defaults is not None:
-            args_with_defaults = args[-len(model.arg_spec.defaults):]
+            args_with_defaults = args[-len(model.arg_spec.defaults) :]
         else:
             args_with_defaults = []
-        required_args = (set(args) - set(args_with_defaults) -
-                         set(model.arg_spec.kwonlydefaults.keys()
-                             if model.arg_spec.kwonlydefaults is not None
-                             else []))
+        required_args = (
+            set(args)
+            - set(args_with_defaults)
+            - set(
+                model.arg_spec.kwonlydefaults.keys()
+                if model.arg_spec.kwonlydefaults is not None
+                else []
+            )
+        )
         model_type = model.model_type
         # t.jit._fork does not support keyword args
         # fill arguments in by their positions.
@@ -712,34 +754,52 @@ class MADDPG(TorchFramework):
                         args_list[args.index(k)] = v
 
         if not all(args_filled):
-            not_filled = [arg
-                          for filled, arg in zip(args_filled, args)
-                          if not filled]
+            not_filled = [arg for filled, arg in zip(args_filled, args) if not filled]
             required_not_filled = set(not_filled).intersection(required_args)
             if len(required_not_filled) > 0:
-                raise RuntimeError("\n"
-                                   "The signature of the forward function "
-                                   "of Model {} is {}\n"
-                                   "Missing required arguments: {}, "
-                                   "check your storage functions."
-                                   .format(model_type, required_args,
-                                           required_not_filled))
+                raise RuntimeError(
+                    "\n"
+                    "The signature of the forward function "
+                    "of Model {} is {}\n"
+                    "Missing required arguments: {}, "
+                    "check your storage functions.".format(
+                        model_type, required_args, required_not_filled
+                    )
+                )
 
         return t.jit._fork(model, *args_list)
 
     @staticmethod
-    def _update_sub_policy(batch_size, batches, next_actions_t,
-                           actor_index, policy_index,
-                           actors, actor_targets,
-                           critics, critic_targets,
-                           critic_visible_actors,
-                           actor_optims, critic_optims,
-                           update_value, update_policy, update_target,
-                           atf, acf, scf, rf,
-                           criterion, discount, update_rate, update_steps,
-                           update_counter, grad_max,
-                           visualize, visualize_dir,
-                           backward_func):
+    def _update_sub_policy(
+        batch_size,
+        batches,
+        next_actions_t,
+        actor_index,
+        policy_index,
+        actors,
+        actor_targets,
+        critics,
+        critic_targets,
+        critic_visible_actors,
+        actor_optims,
+        critic_optims,
+        update_value,
+        update_policy,
+        update_target,
+        atf,
+        acf,
+        scf,
+        rf,
+        criterion,
+        discount,
+        update_rate,
+        update_steps,
+        update_counter,
+        grad_max,
+        visualize,
+        visualize_dir,
+        backward_func,
+    ):
         # atf: action transform function, used to transform the
         #      raw output of a single actor to a arg dict like:
         #      {"action": tensor}, where "action" is the keyword argument
@@ -769,26 +829,24 @@ class MADDPG(TorchFramework):
             all_next_actions_t = [
                 ensemble_n_act_t[a_idx]
                 if a_idx != actor_index
-                else atf(safe_call(actor_targets[actor_index][policy_index],
-                                   ensemble_batch[a_idx][3])[0],
-                         ensemble_batch[a_idx][5])
+                else atf(
+                    safe_call(
+                        actor_targets[actor_index][policy_index],
+                        ensemble_batch[a_idx][3],
+                    )[0],
+                    ensemble_batch[a_idx][5],
+                )
                 for a_idx in visible_actors
             ]
             all_next_actions_t = acf(all_next_actions_t)
 
-            all_actions = [
-                ensemble_batch[a_idx][1] for a_idx in visible_actors
-            ]
+            all_actions = [ensemble_batch[a_idx][1] for a_idx in visible_actors]
             all_actions = acf(all_actions)
 
-            all_next_states = [
-                ensemble_batch[a_idx][3] for a_idx in visible_actors
-            ]
+            all_next_states = [ensemble_batch[a_idx][3] for a_idx in visible_actors]
             all_next_states = scf(all_next_states)
 
-            all_states = [
-                ensemble_batch[a_idx][0] for a_idx in visible_actors
-            ]
+            all_states = [ensemble_batch[a_idx][0] for a_idx in visible_actors]
             all_states = scf(all_states)
 
         # Update critic network first
@@ -796,36 +854,31 @@ class MADDPG(TorchFramework):
         with t.no_grad():
             reward = ensemble_batch[actor_index][2]
             terminal = ensemble_batch[actor_index][4]
-            next_value = safe_call(critic_targets[actor_index],
-                                   all_next_states,
-                                   all_next_actions_t)[0]
+            next_value = safe_call(
+                critic_targets[actor_index], all_next_states, all_next_actions_t
+            )[0]
             next_value = next_value.view(batch_size, -1)
-            y_i = rf(reward, discount, next_value, terminal,
-                     ensemble_batch[actor_index][5])
+            y_i = rf(
+                reward, discount, next_value, terminal, ensemble_batch[actor_index][5]
+            )
 
-        cur_value = safe_call(critics[actor_index],
-                              all_states,
-                              all_actions)[0]
+        cur_value = safe_call(critics[actor_index], all_states, all_actions)[0]
         value_loss = criterion(cur_value, y_i.to(cur_value.device))
 
         if visualize:
             # only invoked if not running by pool
-            MADDPG._visualize(value_loss,
-                              "critic_{}".format(actor_index),
-                              visualize_dir)
+            MADDPG._visualize(
+                value_loss, "critic_{}".format(actor_index), visualize_dir
+            )
 
         if update_value:
             critics[actor_index].zero_grad()
             backward_func(value_loss)
-            nn.utils.clip_grad_norm_(
-                critics[actor_index].parameters(), grad_max
-            )
+            nn.utils.clip_grad_norm_(critics[actor_index].parameters(), grad_max)
             critic_optims[actor_index].step()
 
         # Update actor network
-        all_actions = [
-            ensemble_batch[a_idx][1] for a_idx in visible_actors
-        ]
+        all_actions = [ensemble_batch[a_idx][1] for a_idx in visible_actors]
         # find the actor index in the view range of critic
         # Eg: there are 4 actors in total: a_0, a_1, a_2, a_3
         # critic may have access to actor a_1 and a_2
@@ -836,15 +889,13 @@ class MADDPG(TorchFramework):
         # in the view range of its corresponding critic.
         all_actions[visible_actors.index(actor_index)] = atf(
             safe_call(
-                actors[actor_index][policy_index],
-                ensemble_batch[actor_index][3]
+                actors[actor_index][policy_index], ensemble_batch[actor_index][3]
             )[0],
-            ensemble_batch[actor_index][5])
+            ensemble_batch[actor_index][5],
+        )
         all_actions = acf(all_actions)
 
-        act_value = safe_call(critics[actor_index],
-                              all_states,
-                              all_actions)[0]
+        act_value = safe_call(critics[actor_index], all_states, all_actions)[0]
 
         # "-" is applied because we want to maximize J_b(u),
         # but optimizer workers by minimizing the target
@@ -852,9 +903,11 @@ class MADDPG(TorchFramework):
 
         if visualize:
             # only invoked if not running by pool
-            MADDPG._visualize(act_policy_loss,
-                              "actor_{}_{}".format(actor_index, policy_index),
-                              visualize_dir)
+            MADDPG._visualize(
+                act_policy_loss,
+                "actor_{}_{}".format(actor_index, policy_index),
+                visualize_dir,
+            )
 
         if update_policy:
             actors[actor_index][policy_index].zero_grad()
@@ -867,18 +920,21 @@ class MADDPG(TorchFramework):
         # Update target networks
         if update_target:
             if update_rate is not None:
-                soft_update(actor_targets[actor_index][policy_index],
-                            actors[actor_index][policy_index],
-                            update_rate)
-                soft_update(critic_targets[actor_index],
-                            critics[actor_index],
-                            update_rate)
+                soft_update(
+                    actor_targets[actor_index][policy_index],
+                    actors[actor_index][policy_index],
+                    update_rate,
+                )
+                soft_update(
+                    critic_targets[actor_index], critics[actor_index], update_rate
+                )
             else:
                 if update_counter % update_steps == 0:
-                    hard_update(actor_targets[actor_index][policy_index],
-                                actors[actor_index][policy_index])
-                    hard_update(critic_targets[actor_index],
-                                critics[actor_index])
+                    hard_update(
+                        actor_targets[actor_index][policy_index],
+                        actors[actor_index][policy_index],
+                    )
+                    hard_update(critic_targets[actor_index], critics[actor_index])
 
         actors[actor_index][policy_index].eval()
         critics[actor_index].eval()
@@ -887,11 +943,9 @@ class MADDPG(TorchFramework):
     @staticmethod
     def _visualize(final_tensor, name, directory):
         g = make_dot(final_tensor)
-        g.render(filename=name,
-                 directory=directory,
-                 view=False,
-                 cleanup=False,
-                 quiet=True)
+        g.render(
+            filename=name, directory=directory, view=False, cleanup=False, quiet=True
+        )
 
     @staticmethod
     def _move_to_shared_mem(obj):
@@ -920,17 +974,19 @@ class MADDPG(TorchFramework):
             for k, v in model.named_parameters():
                 devices.add(v.device.type)
                 if len(devices) > 1:
-                    raise RuntimeError("All of your models should either"
-                                       "locate on GPUs or on your CPU!")
+                    raise RuntimeError(
+                        "All of your models should either"
+                        "locate on GPUs or on your CPU!"
+                    )
         return list(devices)[0]
 
     @staticmethod
     def _create_sample_method(indexes):
         def sample_method(buffer, _len):
             nonlocal indexes
-            batch = [buffer[i] for i in indexes
-                     if i < len(buffer)]
+            batch = [buffer[i] for i in indexes if i < len(buffer)]
             return len(batch), batch
+
         return sample_method
 
     @staticmethod
@@ -994,15 +1050,14 @@ class MADDPG(TorchFramework):
             "visualize_dir": "",
             "use_jit": True,
             "pool_type": "thread",
-            "pool_size": None
+            "pool_size": None,
         }
         config = deepcopy(config)
         config["frame"] = "MADDPG"
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:
-            config["frame_config"] = {**config["frame_config"],
-                                      **default_values}
+            config["frame_config"] = {**config["frame_config"], **default_values}
         return config
 
     @classmethod
@@ -1010,9 +1065,8 @@ class MADDPG(TorchFramework):
         f_config = deepcopy(config["frame_config"])
         all_models = []
         for models, model_args, model_kwargs in zip(
-                f_config["models"],
-                f_config["model_args"],
-                f_config["model_kwargs"]):
+            f_config["models"], f_config["model_args"], f_config["model_kwargs"]
+        ):
             models = assert_and_get_valid_models(models)
             models = [
                 m(*arg, **kwarg)
@@ -1023,9 +1077,8 @@ class MADDPG(TorchFramework):
         criterion = assert_and_get_valid_criterion(f_config["criterion"])(
             *f_config["criterion_args"], **f_config["criterion_kwargs"]
         )
-        lr_scheduler = (
-                f_config["lr_scheduler"]
-                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        lr_scheduler = f_config["lr_scheduler"] and assert_and_get_valid_lr_scheduler(
+            f_config["lr_scheduler"]
         )
         f_config["optimizer"] = optimizer
         f_config["criterion"] = criterion

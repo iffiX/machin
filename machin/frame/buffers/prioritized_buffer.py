@@ -9,6 +9,7 @@ class WeightTree:
     """
     Sum weight tree data structure.
     """
+
     def __init__(self, size):
         """
         Initialize a weight tree.
@@ -69,7 +70,7 @@ class WeightTree:
         Returns:
             Current weights of all leaves, ``np.ndarray`` of shape ``(size)``.
         """
-        return self.weights[:self.size]
+        return self.weights[: self.size]
 
     def get_leaf_weight(self, index: Union[int, List[int], np.ndarray]) -> Any:
         """
@@ -148,9 +149,11 @@ class WeightTree:
 
         self.weights[-1] = value + comp_value
 
-    def update_leaf_batch(self,
-                          weights: Union[List[float], np.ndarray],
-                          indexes: Union[List[int], np.ndarray]):
+    def update_leaf_batch(
+        self,
+        weights: Union[List[float], np.ndarray],
+        indexes: Union[List[int], np.ndarray],
+    ):
         """
         Update weight tree leaves in batch.
 
@@ -159,8 +162,7 @@ class WeightTree:
             indexes: Leaf indexes to update, must be in range ``[0, size - 1]``.
         """
         if len(weights) != len(indexes):
-            raise ValueError(
-                "Dimension of weights and indexes doesn't match!")
+            raise ValueError("Dimension of weights and indexes doesn't match!")
 
         if len(weights) == 0:
             return
@@ -179,9 +181,9 @@ class WeightTree:
             # O(n) = nlg(n)
             needs_update = np.unique(needs_update // 2)
             tmp = needs_update * 2
-            self.weights[offset + needs_update] = \
-                self.weights[prev_offset + tmp] + \
-                self.weights[prev_offset + tmp + 1]
+            self.weights[offset + needs_update] = (
+                self.weights[prev_offset + tmp] + self.weights[prev_offset + tmp + 1]
+            )
 
     def update_all_leaves(self, weights: Union[List[float], np.ndarray]):
         """
@@ -193,7 +195,7 @@ class WeightTree:
         """
         if len(weights) != self.size:
             raise ValueError("Weights size must match tree size!")
-        self.weights[0: len(weights)] = np.array(weights)
+        self.weights[0 : len(weights)] = np.array(weights)
         self._build()
 
     def print_weights(self, precision=2):
@@ -206,8 +208,9 @@ class WeightTree:
         fmt = "{{:.{}f}}".format(precision)
         for i in range(self.depth):
             offset, size = self.offsets[i], self.sizes[i]
-            weights = [fmt.format(self.weights[j]) for j in
-                       range(offset, offset + size)]
+            weights = [
+                fmt.format(self.weights[j]) for j in range(offset, offset + size)
+            ]
             print(weights)
 
     def _build(self):
@@ -219,18 +222,27 @@ class WeightTree:
             offset = self.offsets[i]
             level_size = self.sizes[i]
             # data are interleaved, therefore must be -1,2 and not 2,-1
-            weight_sum = self.weights[offset: offset + level_size] \
-                .reshape(-1, 2).sum(axis=1)
+            weight_sum = (
+                self.weights[offset : offset + level_size].reshape(-1, 2).sum(axis=1)
+            )
 
             offset += level_size
             next_level_size = self.sizes[i + 1]
-            self.weights[offset: offset + next_level_size] = weight_sum
+            self.weights[offset : offset + next_level_size] = weight_sum
 
 
 class PrioritizedBuffer(Buffer):
-    def __init__(self, buffer_size, buffer_device="cpu",
-                 epsilon=1e-2, alpha=0.6, beta=0.4,
-                 beta_increment_per_sampling=0.001, *_, **__):
+    def __init__(
+        self,
+        buffer_size,
+        buffer_device="cpu",
+        epsilon=1e-2,
+        alpha=0.6,
+        beta=0.4,
+        beta_increment_per_sampling=0.001,
+        *_,
+        **__
+    ):
         """
         Args:
             buffer_size: Maximum buffer size.
@@ -265,11 +277,12 @@ class PrioritizedBuffer(Buffer):
         """
         return (np.abs(priority) + self.epsilon) ** self.alpha
 
-    def append(self,
-               transition: Union[Transition, Dict],
-               priority: Union[float, None] = None,
-               required_attrs=("state", "action", "next_state",
-                               "reward", "terminal")):
+    def append(
+        self,
+        transition: Union[Transition, Dict],
+        priority: Union[float, None] = None,
+        required_attrs=("state", "action", "next_state", "reward", "terminal"),
+    ):
         """
         Store a transition object to buffer.
 
@@ -278,8 +291,7 @@ class PrioritizedBuffer(Buffer):
             priority: Priority of transition.
             required_attrs: Required attributes.
         """
-        position = super(PrioritizedBuffer, self).append(transition,
-                                                         required_attrs)
+        position = super(PrioritizedBuffer, self).append(transition, required_attrs)
         if priority is None:
             # the initialization method used in the original essay
             priority = self.wt_tree.get_leaf_max()
@@ -311,13 +323,16 @@ class PrioritizedBuffer(Buffer):
         priorities = self._normalize_priority(priorities)
         self.wt_tree.update_leaf_batch(priorities, indexes)
 
-    def sample_batch(self,
-                     batch_size: int,
-                     concatenate: bool = True,
-                     device: Union[str, t.device] = None,
-                     sample_attrs: List[str] = None,
-                     additional_concat_attrs: List[str] = None,
-                     *_, **__) -> Any:
+    def sample_batch(
+        self,
+        batch_size: int,
+        concatenate: bool = True,
+        device: Union[str, t.device] = None,
+        sample_attrs: List[str] = None,
+        additional_concat_attrs: List[str] = None,
+        *_,
+        **__
+    ) -> Any:
         """
         Sample the most important batch from the prioritized buffer.
 
@@ -363,8 +378,9 @@ class PrioritizedBuffer(Buffer):
 
         rand_priority = np.random.uniform(size=batch_size) * segment_length
         rand_priority += np.arange(batch_size, dtype=np.float) * segment_length
-        rand_priority = np.clip(rand_priority, 0,
-                                max(self.wt_tree.get_weight_sum() - 1e-6, 0))
+        rand_priority = np.clip(
+            rand_priority, 0, max(self.wt_tree.get_weight_sum() - 1e-6, 0)
+        )
         index = self.wt_tree.find_leaf_index(rand_priority)
 
         batch = [self.buffer[idx] for idx in index]
@@ -372,16 +388,16 @@ class PrioritizedBuffer(Buffer):
 
         # calculate importance sampling weight
         sample_probability = priority / self.wt_tree.get_weight_sum()
-        is_weight = np.power(len(self.buffer) * sample_probability,
-                             -self.curr_beta)
+        is_weight = np.power(len(self.buffer) * sample_probability, -self.curr_beta)
         is_weight /= is_weight.max()
         self.curr_beta = np.min(
-            [1., self.curr_beta + self.beta_increment_per_sampling]
+            [1.0, self.curr_beta + self.beta_increment_per_sampling]
         )
 
         if device is None:
             device = self.buffer_device
 
-        result = self.post_process_batch(batch, device, concatenate,
-                                         sample_attrs, additional_concat_attrs)
+        result = self.post_process_batch(
+            batch, device, concatenate, sample_attrs, additional_concat_attrs
+        )
         return len(batch), result, index, is_weight

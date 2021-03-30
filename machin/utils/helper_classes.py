@@ -119,6 +119,7 @@ class Object:
     Attributes:
         data: Internal dictionary.
     """
+
     def __init__(self, data=None, const_attrs=None):
         if data is None:
             data = {}
@@ -143,18 +144,21 @@ class Object:
         # when looking for special methods, such that when pickler is looking
         # up a non-existing __getstate__ function etc, this class will
         # not return a None value because self.attr(item) will return None.
-        if isinstance(item, str) and item[:2] == item[-2:] == '__':
+        if isinstance(item, str) and item[:2] == item[-2:] == "__":
             # skip non-existing special method lookups
-            raise AttributeError("Failed to find attribute: {}"
-                                 .format(item))
+            raise AttributeError("Failed to find attribute: {}".format(item))
         return self.attr(item)
 
     def __getitem__(self, item):
         return self.attr(item)
 
     def __setattr__(self, key, value):
-        if (key != "data" and key != "attr" and
-                key != "call" and key not in self.__dir__()):
+        if (
+            key != "data"
+            and key != "attr"
+            and key != "call"
+            and key not in self.__dir__()
+        ):
             if key in self.const_attrs:
                 raise RuntimeError("{} is const.".format(key))
             self.attr(key, value, change=True)
@@ -166,10 +170,11 @@ class Object:
             else:
                 raise ValueError("The data attribute must be a dictionary.")
         else:
-            raise RuntimeError("You should not set the {} property of an "
-                               "Object. You can only set non-const keys "
-                               "in data and .data and .call attributes."
-                               .format(key))
+            raise RuntimeError(
+                "You should not set the {} property of an "
+                "Object. You can only set non-const keys "
+                "in data and .data and .call attributes.".format(key)
+            )
 
     def __setitem__(self, key, value):
         self.__setattr__(key, value)

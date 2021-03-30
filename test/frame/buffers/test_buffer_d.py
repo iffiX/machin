@@ -16,11 +16,13 @@ class TestDistributedBuffer(WorldTestBase):
     @WorldTestBase.setup_world
     def test_append_sample(rank):
         world = get_world()
-        data = {"state": {"state_1": t.zeros([1, 2])},
-                "action": {"action_1": t.ones([1, 3])},
-                "next_state": {"next_state_1": t.zeros([1, 2])},
-                "reward": 1.5,
-                "terminal": True}
+        data = {
+            "state": {"state_1": t.zeros([1, 2])},
+            "action": {"action_1": t.ones([1, 3])},
+            "next_state": {"next_state_1": t.zeros([1, 2])},
+            "reward": 1.5,
+            "terminal": True,
+        }
         group = world.create_rpc_group("group", ["0", "1", "2"])
         buffer = DistributedBuffer("buffer", group, 5)
         if rank in (0, 1):
@@ -34,14 +36,13 @@ class TestDistributedBuffer(WorldTestBase):
             assert batch_size > 0
             assert len(sample) == 5
             # state
-            assert (t.all(sample[0]["state_1"] == 0) and
-                    list(sample[0]["state_1"].shape) == [batch_size, 2])
+            assert t.all(sample[0]["state_1"] == 0) and list(
+                sample[0]["state_1"].shape
+            ) == [batch_size, 2]
             # reward
-            assert (t.all(sample[3] == 1.5) and
-                    list(sample[3].shape) == [batch_size, 1])
+            assert t.all(sample[3] == 1.5) and list(sample[3].shape) == [batch_size, 1]
             # terminal
-            assert (t.all(sample[4]) and
-                    list(sample[4].shape) == [batch_size, 1])
+            assert t.all(sample[4]) and list(sample[4].shape) == [batch_size, 1]
         return True
 
     ########################################################################
@@ -52,11 +53,13 @@ class TestDistributedBuffer(WorldTestBase):
     @WorldTestBase.setup_world
     def test_append_size(rank):
         world = get_world()
-        data = {"state": {"state_1": t.zeros([1, 2])},
-                "action": {"action_1": t.ones([1, 3])},
-                "next_state": {"next_state_1": t.zeros([1, 2])},
-                "reward": 1.5,
-                "terminal": True}
+        data = {
+            "state": {"state_1": t.zeros([1, 2])},
+            "action": {"action_1": t.ones([1, 3])},
+            "next_state": {"next_state_1": t.zeros([1, 2])},
+            "reward": 1.5,
+            "terminal": True,
+        }
         group = world.create_rpc_group("group", ["0", "1", "2"])
         buffer = DistributedBuffer("buffer", group, 5)
         if rank in (0, 1):
@@ -79,11 +82,13 @@ class TestDistributedBuffer(WorldTestBase):
     @WorldTestBase.setup_world
     def test_append_clear(rank):
         world = get_world()
-        data = {"state": {"state_1": t.zeros([1, 2])},
-                "action": {"action_1": t.ones([1, 3])},
-                "next_state": {"next_state_1": t.zeros([1, 2])},
-                "reward": 1.5,
-                "terminal": True}
+        data = {
+            "state": {"state_1": t.zeros([1, 2])},
+            "action": {"action_1": t.ones([1, 3])},
+            "next_state": {"next_state_1": t.zeros([1, 2])},
+            "reward": 1.5,
+            "terminal": True,
+        }
         group = world.create_rpc_group("group", ["0", "1", "2"])
         buffer = DistributedBuffer("buffer", group, 5)
         if rank in (0, 1):

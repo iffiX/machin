@@ -11,15 +11,18 @@ class TransitionBase(object):
     """
     Base class for all transitions
     """
+
     _inited = False
 
-    def __init__(self,
-                 major_attr: Iterable[str],
-                 sub_attr: Iterable[str],
-                 custom_attr: Iterable[str],
-                 major_data: Iterable[Dict[str, t.Tensor]],
-                 sub_data: Iterable[Union[Scalar, t.Tensor]],
-                 custom_data: Iterable[Any]):
+    def __init__(
+        self,
+        major_attr: Iterable[str],
+        sub_attr: Iterable[str],
+        custom_attr: Iterable[str],
+        major_data: Iterable[Dict[str, t.Tensor]],
+        sub_data: Iterable[Union[Scalar, t.Tensor]],
+        custom_data: Iterable[Any],
+    ):
         """
         Note:
             Major attributes store things like state, action, next_states, etc.
@@ -50,8 +53,10 @@ class TransitionBase(object):
         self._length = len(self._keys)
         self._batch_size = None
 
-        for attr, data in zip(chain(major_attr, sub_attr, custom_attr),
-                              chain(major_data, sub_data, custom_data)):
+        for attr, data in zip(
+            chain(major_attr, sub_attr, custom_attr),
+            chain(major_data, sub_data, custom_data),
+        ):
             object.__setattr__(self, attr, data)
         # will trigger _check_validity in __setattr__
         self._inited = True
@@ -65,8 +70,9 @@ class TransitionBase(object):
 
     def __setitem__(self, key, value):
         if key not in self._keys:
-            raise RuntimeError("You cannot dynamically set new attributes in"
-                               "a Transition object!")
+            raise RuntimeError(
+                "You cannot dynamically set new attributes in" "a Transition object!"
+            )
         object.__setattr__(self, key, value)
         self._check_validity()
 
@@ -77,7 +83,8 @@ class TransitionBase(object):
             if key not in self._keys:
                 raise RuntimeError(
                     "You cannot dynamically set new attributes in"
-                    "a Transition object!")
+                    "a Transition object!"
+                )
         if self._inited:
             self._check_validity()
 
@@ -175,37 +182,44 @@ class TransitionBase(object):
             ma_data = getattr(self, ma)
             for k, v in ma_data.items():
                 if not t.is_tensor(v) or v.dim() < 1:
-                    raise ValueError('Key "{}" of transition major attribute '
-                                     '"{}" is a invalid tensor'.format(k, ma))
+                    raise ValueError(
+                        'Key "{}" of transition major attribute '
+                        '"{}" is a invalid tensor'.format(k, ma)
+                    )
                 if batch_size is None:
                     batch_size = v.shape[0]
                 else:
                     if batch_size != v.shape[0]:
-                        raise ValueError('Key "{}" of transition major '
-                                         'attribute "{}" has invalid '
-                                         'batch size {}.'
-                                         .format(k, ma, v.shape[0]))
+                        raise ValueError(
+                            'Key "{}" of transition major '
+                            'attribute "{}" has invalid '
+                            "batch size {}.".format(k, ma, v.shape[0])
+                        )
         for sa in self._sub_attr:
             sa_data = getattr(self, sa)
             if np.isscalar(sa_data):
                 # will return true for inbuilt scalar types
                 # like int, bool, float
                 if batch_size != 1:
-                    raise ValueError('Transition sub attribute '
-                                     '"{}" is a scalar, but batch size is {}.'
-                                     .format(sa, batch_size))
+                    raise ValueError(
+                        "Transition sub attribute "
+                        '"{}" is a scalar, but batch size is {}.'.format(sa, batch_size)
+                    )
             elif t.is_tensor(sa_data):
                 if sa_data.dim() < 1:
-                    raise ValueError('Transition sub attribute '
-                                     '"{}" is a invalid tensor.')
+                    raise ValueError(
+                        "Transition sub attribute " '"{}" is a invalid tensor.'
+                    )
                 elif sa_data.shape[0] != batch_size:
-                    raise ValueError('Transition sub attribute '
-                                     '"{}" has invalid batch size {}.'
-                                     .format(sa, sa_data.shape[0]))
+                    raise ValueError(
+                        "Transition sub attribute "
+                        '"{}" has invalid batch size {}.'.format(sa, sa_data.shape[0])
+                    )
             else:
-                raise ValueError('Transition sub attribute "{}" has invalid '
-                                 'value {}, requires scalar or tensor.'
-                                 .format(sa, sa_data))
+                raise ValueError(
+                    'Transition sub attribute "{}" has invalid '
+                    "value {}, requires scalar or tensor.".format(sa, sa_data)
+                )
         object.__setattr__(self, "_batch_size", batch_size)
 
 
@@ -219,19 +233,22 @@ class Transition(TransitionBase):
 
     Store one transition step of one agent.
     """
+
     state = None  # type: Dict[str, t.Tensor]
     action = None  # type: Dict[str, t.Tensor]
     next_state = None  # type: Dict[str, t.Tensor]
     reward = None  # type: Union[float, t.Tensor]
     terminal = None  # type: bool
 
-    def __init__(self,
-                 state: Dict[str, t.Tensor],
-                 action: Dict[str, t.Tensor],
-                 next_state: Dict[str, t.Tensor],
-                 reward: Union[float, t.Tensor],
-                 terminal: bool,
-                 **kwargs):
+    def __init__(
+        self,
+        state: Dict[str, t.Tensor],
+        action: Dict[str, t.Tensor],
+        next_state: Dict[str, t.Tensor],
+        reward: Union[float, t.Tensor],
+        terminal: bool,
+        **kwargs
+    ):
         """
         Args:
             state: Previous observed state.
@@ -247,32 +264,35 @@ class Transition(TransitionBase):
             not be moved to the sample output device.
         """
         custom_keys = sorted(kwargs.keys())
-        assert (isinstance(terminal, bool) or
-                (t.is_tensor(terminal) and terminal.dtype == t.bool))
+        assert isinstance(terminal, bool) or (
+            t.is_tensor(terminal) and terminal.dtype == t.bool
+        )
         super(Transition, self).__init__(
             major_attr=["state", "action", "next_state"],
             sub_attr=["reward", "terminal"],
             custom_attr=custom_keys,
             major_data=[state, action, next_state],
             sub_data=[reward, terminal],
-            custom_data=[kwargs[k] for k in custom_keys]
+            custom_data=[kwargs[k] for k in custom_keys],
         )
 
     def _check_validity(self):
         # fix batch size to 1
         super(Transition, self)._check_validity()
         if self._batch_size != 1:
-            raise ValueError("Batch size of the default transition "
-                             "implementation must be 1, is {}"
-                             .format(self._batch_size))
+            raise ValueError(
+                "Batch size of the default transition "
+                "implementation must be 1, is {}".format(self._batch_size)
+            )
 
 
 class TransitionStorageBasic(list):
     """
-    TransitionStorageBasic is a linear, size-capped chunk of memory for 
+    TransitionStorageBasic is a linear, size-capped chunk of memory for
     transitions, it makes sure that every stored transition is copied,
     and isolated from the passed in transition object.
     """
+
     def __init__(self, max_size):
         """
         Args:
@@ -321,6 +341,7 @@ class TransitionStorageSmart(TransitionStorageBasic):
 
     Sub attributes and custom attributes will be direcly copied.
     """
+
     def __init__(self, max_size):
         # DOC INHERITED
         super(TransitionStorageSmart, self).__init__(max_size)
@@ -336,10 +357,12 @@ class TransitionStorageSmart(TransitionStorageBasic):
                     state = transition[ma]
                     if last_state is not None:
                         for k, v in state.items():
-                            if (k not in last_state or
-                                    v.shape != last_state[k].shape or
-                                    v.dtype != last_state[k].dtype or
-                                    not v.equal(last_state[k])):
+                            if (
+                                k not in last_state
+                                or v.shape != last_state[k].shape
+                                or v.dtype != last_state[k].dtype
+                                or not v.equal(last_state[k])
+                            ):
                                 transition[ma] = deepcopy(transition[ma])
                                 break
                         else:

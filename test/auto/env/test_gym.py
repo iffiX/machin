@@ -36,9 +36,7 @@ class A2CActorCont(nn.Module):
         mu = 2.0 * t.tanh(self.mu_head(a))
         sigma = F.softplus(self.sigma_head(a))
         dist = Normal(mu, sigma)
-        action = (action
-                  if action is not None
-                  else dist.sample())
+        action = action if action is not None else dist.sample()
         action_entropy = dist.entropy()
         action = action.clamp(-self.action_range, self.action_range)
         action_log_prob = dist.log_prob(action)
@@ -58,9 +56,7 @@ class A2CActorDisc(nn.Module):
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
         dist = Categorical(probs=probs)
-        act = (action
-               if action is not None
-               else dist.sample())
+        act = action if action is not None else dist.sample()
         act_entropy = dist.entropy()
         act_log_prob = dist.log_prob(act.flatten())
         return act, act_log_prob, act_entropy
@@ -138,18 +134,17 @@ class TestRLGymDiscActDataset:
         assert t.is_tensor(result.observations[0]["next_state"]["state"])
         assert isinstance(result.observations[0]["reward"], float)
         assert isinstance(result.observations[0]["terminal"], bool)
-        log_keys = set([k
-                        for log_dict in result.logs
-                        for k in log_dict])
+        log_keys = set([k for log_dict in result.logs for k in log_dict])
         assert log_keys.issuperset({"video", "total_reward"})
 
     # Only test single node, most representative algorithms
     def test_A2C(self):
         config = A2C.generate_config({})
         config["frame_config"]["models"] = ["A2CActorDisc", "A2CCritic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_num": 2},
-                                                  {"state_dim": 4}]
+        config["frame_config"]["model_kwargs"] = [
+            {"state_dim": 4, "action_num": 2},
+            {"state_dim": 4},
+        ]
         a2c = A2C.init_from_config(config)
 
         env = gym.make("CartPole-v0")
@@ -159,10 +154,10 @@ class TestRLGymDiscActDataset:
     def test_DQN(self):
         config = DQN.generate_config({})
         config["frame_config"]["models"] = ["QNet", "QNet"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_num": 2},
-                                                  {"state_dim": 4,
-                                                   "action_num": 2}]
+        config["frame_config"]["model_kwargs"] = [
+            {"state_dim": 4, "action_num": 2},
+            {"state_dim": 4, "action_num": 2},
+        ]
         dqn = DQN.init_from_config(config)
 
         env = gym.make("CartPole-v0")
@@ -171,12 +166,13 @@ class TestRLGymDiscActDataset:
 
     def test_DDPG(self):
         config = DDPG.generate_config({})
-        config["frame_config"]["models"] = ["DDPGActorDisc",
-                                            "DDPGActorDisc",
-                                            "DDPGCritic",
-                                            "DDPGCritic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 4,
-                                                   "action_dim": 2}] * 4
+        config["frame_config"]["models"] = [
+            "DDPGActorDisc",
+            "DDPGActorDisc",
+            "DDPGCritic",
+            "DDPGCritic",
+        ]
+        config["frame_config"]["model_kwargs"] = [{"state_dim": 4, "action_dim": 2}] * 4
         ddpg = DDPG.init_from_config(config)
 
         env = gym.make("CartPole-v0")
@@ -194,19 +190,17 @@ class TestRLGymContActDataset:
         assert t.is_tensor(result.observations[0]["next_state"]["state"])
         assert isinstance(result.observations[0]["reward"], float)
         assert isinstance(result.observations[0]["terminal"], bool)
-        log_keys = set([k
-                        for log_dict in result.logs
-                        for k in log_dict])
+        log_keys = set([k for log_dict in result.logs for k in log_dict])
         assert log_keys.issuperset({"video", "total_reward"})
 
     # Only test single node, most representative algorithms
     def test_A2C(self):
         config = A2C.generate_config({})
         config["frame_config"]["models"] = ["A2CActorCont", "A2CCritic"]
-        config["frame_config"]["model_kwargs"] = [{"state_dim": 3,
-                                                   "action_dim": 1,
-                                                   "action_range": 2},
-                                                  {"state_dim": 3}]
+        config["frame_config"]["model_kwargs"] = [
+            {"state_dim": 3, "action_dim": 1, "action_range": 2},
+            {"state_dim": 3},
+        ]
         a2c = A2C.init_from_config(config)
 
         env = gym.make("Pendulum-v0")
@@ -215,13 +209,15 @@ class TestRLGymContActDataset:
 
     def test_DDPG(self):
         config = DDPG.generate_config({})
-        config["frame_config"]["models"] = ["DDPGActorCont",
-                                            "DDPGActorCont",
-                                            "DDPGCritic",
-                                            "DDPGCritic"]
-        config["frame_config"]["model_kwargs"] = \
-            [{"state_dim": 3, "action_dim": 1, "action_range": 2}] * 2 + \
-            [{"state_dim": 3, "action_dim": 1}] * 2
+        config["frame_config"]["models"] = [
+            "DDPGActorCont",
+            "DDPGActorCont",
+            "DDPGCritic",
+            "DDPGCritic",
+        ]
+        config["frame_config"]["model_kwargs"] = [
+            {"state_dim": 3, "action_dim": 1, "action_range": 2}
+        ] * 2 + [{"state_dim": 3, "action_dim": 1}] * 2
         ddpg = DDPG.init_from_config(config)
 
         env = gym.make("Pendulum-v0")

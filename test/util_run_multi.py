@@ -25,7 +25,7 @@ def find_free_port():
     # this function is used to find a free port
     # since we are using the host network in docker
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind(('localhost', 0))
+        s.bind(("localhost", 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
 
@@ -44,13 +44,15 @@ def processes():
     pipes = [mp.Pipe(duplex=True) for _ in [0, 1, 2]]
     man = ctx.Manager()
     queue = man.Queue()
-    processes = [Process(target=process_main,
-                         args=(pipes[i][0], queue), ctx=ctx)
-                 for i in [0, 1, 2]]
+    processes = [
+        Process(target=process_main, args=(pipes[i][0], queue), ctx=ctx)
+        for i in [0, 1, 2]
+    ]
 
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter(
-        "[%(asctime)s] <%(levelname)s>:%(name)s:%(message)s"))
+    handler.setFormatter(
+        logging.Formatter("[%(asctime)s] <%(levelname)s>:%(name)s:%(message)s")
+    )
 
     ql = QueueListener(queue, handler)
     ql.start()
@@ -76,23 +78,18 @@ def processes():
     default_logger.info("processes stopped")
 
 
-def exec_with_process(processes, func, args_list, kwargs_list,
-                      expected_results, timeout, *pass_through):
+def exec_with_process(
+    processes, func, args_list, kwargs_list, expected_results, timeout, *pass_through
+):
     procs, proc_pipes = processes
-    args_list = (args_list
-                 if args_list is not None
-                 else itertools.repeat([]))
-    kwargs_list = (kwargs_list
-                   if kwargs_list is not None
-                   else itertools.repeat({}))
+    args_list = args_list if args_list is not None else itertools.repeat([])
+    kwargs_list = kwargs_list if kwargs_list is not None else itertools.repeat({})
 
     # possibility of port collision using this method still exists
     port = find_free_port()
-    for pi, rank, args, kwargs in zip(proc_pipes, [0, 1, 2],
-                                      args_list, kwargs_list):
+    for pi, rank, args, kwargs in zip(proc_pipes, [0, 1, 2], args_list, kwargs_list):
         kwargs["_world_port"] = port
-        pi.send(dill.dumps((func, [rank] + list(args) + list(pass_through),
-                            kwargs)))
+        pi.send(dill.dumps((func, [rank] + list(args) + list(pass_through), kwargs)))
 
     results = [None, None, None]
     finished = [False, False, False]
@@ -117,8 +114,13 @@ def exec_with_process(processes, func, args_list, kwargs_list,
         assert results == expected_results
 
 
-def run_multi(args_list=None, kwargs_list=None, expected_results=None,
-              pass_through=None, timeout=60):
+def run_multi(
+    args_list=None,
+    kwargs_list=None,
+    expected_results=None,
+    pass_through=None,
+    timeout=60,
+):
     # pass_through allows you to pass through pytest parameters and fixtures
     # to the sub processes, these pass through parameters must be placed
     # behind normal args and before kwargs
@@ -138,14 +140,19 @@ def run_multi(args_list=None, kwargs_list=None, expected_results=None,
             return exec_with_process(
                 processes, func, args_list, kwargs_list, 
                 expected_results, timeout{})
-            """.format(pt_args),
-            dict(args_list=args_list,
-                 kwargs_list=kwargs_list,
-                 expected_results=expected_results,
-                 timeout=timeout,
-                 func=func,
-                 exec_with_process=exec_with_process)
+            """.format(
+                pt_args
+            ),
+            dict(
+                args_list=args_list,
+                kwargs_list=kwargs_list,
+                expected_results=expected_results,
+                timeout=timeout,
+                func=func,
+                exec_with_process=exec_with_process,
+            ),
         )
+
     return deco
 
 
@@ -154,8 +161,7 @@ class WorldTestBase(object):
     def setup_world(func):
         def wrapped(rank, *args, _world_port=9100, **kwargs):
             # election function for all tests
-            world = World(world_size=3, rank=rank,
-                          name=str(rank))
+            world = World(world_size=3, rank=rank, name=str(rank))
             default_logger.info("World using port {}".format(_world_port))
             # set a temporary success attribute on world
             default_logger.info("World created on {}".format(rank))

@@ -36,10 +36,11 @@ class MultiEvent(Event):
                     for le in event.get_leaf_events():
                         init_or_register(le, self)
                 else:
-                    raise ValueError("Type {} is not a valid event type,"
-                                     "requires threading.Event or a instance"
-                                     " of MultiEvent."
-                                     .format(type(event)))
+                    raise ValueError(
+                        "Type {} is not a valid event type,"
+                        "requires threading.Event or a instance"
+                        " of MultiEvent.".format(type(event))
+                    )
         self._events = events
 
     def set(self):
@@ -64,9 +65,9 @@ class MultiEvent(Event):
         while True:
             with self._cond:
                 self._cond.wait(timeout)
-            if (timeout is None or
-                    (timeout is not None and
-                     time.time() - begin >= timeout)):
+            if timeout is None or (
+                timeout is not None and time.time() - begin >= timeout
+            ):
                 break
         return self.is_set()
 

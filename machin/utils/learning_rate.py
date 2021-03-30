@@ -6,8 +6,7 @@ from typing import List, Tuple
 from logging import Logger
 
 
-def gen_learning_rate_func(lr_map: List[Tuple[int, float]],
-                           logger: Logger = None):
+def gen_learning_rate_func(lr_map: List[Tuple[int, float]], logger: Logger = None):
     """
     Example::
 
@@ -26,6 +25,7 @@ def gen_learning_rate_func(lr_map: List[Tuple[int, float]],
         A learning rate generation function with signature `lr_gen(step)->lr`,
         accepts int and returns float. use it in your pytorch lr scheduler.
     """
+
     def learning_rate_func(step):
         for i in range(len(lr_map) - 1):
             if lr_map[i][0] <= step < lr_map[i + 1][0]:

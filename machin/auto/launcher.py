@@ -9,15 +9,16 @@ import pytorch_lightning as pl
 
 
 class Launcher(pl.LightningModule):
-    def __init__(self,
-                 config: Union[Dict[str, Any], Config],
-                 env_dataset_creator:
-                 Callable[[TorchFramework, Dict[str, Any]], Dataset]):
+    def __init__(
+        self,
+        config: Union[Dict[str, Any], Config],
+        env_dataset_creator: Callable[[TorchFramework, Dict[str, Any]], Dataset],
+    ):
         """
         Launcher module for all algorithm frameworks.
-        
+
         Args:
-            config: All configs, including frame config, train env config, etc.  
+            config: All configs, including frame config, train env config, etc.
             env_dataset_creator: A callable which accepts the algorithm frame
                 and env config dictionary, and outputs a environment dataset.
         """
@@ -29,8 +30,7 @@ class Launcher(pl.LightningModule):
         self.automatic_optimization = False
 
         # forward models to the launcher module, so that parameters are handled.
-        for name, model in zip(self.frame.get_top_model_names(),
-                               self.frame.top_models):
+        for name, model in zip(self.frame.get_top_model_names(), self.frame.top_models):
             self.add_module(name, model)
 
     def on_train_start(self):
@@ -41,16 +41,18 @@ class Launcher(pl.LightningModule):
 
     def train_dataloader(self):
         return DataLoader(
-            dataset=self.env_dataset_creator(self.frame,
-                                             self.config["train_env_config"]),
-            collate_fn=lambda x: x
+            dataset=self.env_dataset_creator(
+                self.frame, self.config["train_env_config"]
+            ),
+            collate_fn=lambda x: x,
         )
 
     def test_dataloader(self):
         return DataLoader(
-            dataset=self.env_dataset_creator(self.frame,
-                                             self.config["test_env_config"]),
-            collate_fn=lambda x: x
+            dataset=self.env_dataset_creator(
+                self.frame, self.config["test_env_config"]
+            ),
+            collate_fn=lambda x: x,
         )
 
     def training_step(self, batch, _batch_idx):
@@ -71,22 +73,24 @@ class Launcher(pl.LightningModule):
     def _init_frame_with_pl(self):
         if not self._frame_pl_inited:
             acc_con = self.trainer.accelerator_connector
-            if (not self.frame.is_distributed() and
-                    acc_con.use_ddp):
-                raise RuntimeError("Current framework: {} is not a distributed "
-                                   "framework, you should not use an "
-                                   "accelerator.".format(self.config["frame"]))
+            if not self.frame.is_distributed() and acc_con.use_ddp:
+                raise RuntimeError(
+                    "Current framework: {} is not a distributed "
+                    "framework, you should not use an "
+                    "accelerator.".format(self.config["frame"])
+                )
 
-            if (self.frame.is_distributed() and
-                    (acc_con.use_ddp or
-                     type(acc_con.training_type_plugin) not in
-                     (DDPPlugin, DDPSpawnPlugin))):
-                raise RuntimeError("Current framework: {} is a distributed "
-                                   "framework, you should initialize the "
-                                   "trainer with a ddp type accelerator, and "
-                                   "must import machin.auto package to patch"
-                                   "the default DDP plugin."
-                                   .format(self.config["frame"]))
+            if self.frame.is_distributed() and (
+                acc_con.use_ddp
+                or type(acc_con.training_type_plugin) not in (DDPPlugin, DDPSpawnPlugin)
+            ):
+                raise RuntimeError(
+                    "Current framework: {} is a distributed "
+                    "framework, you should initialize the "
+                    "trainer with a ddp type accelerator, and "
+                    "must import machin.auto package to patch"
+                    "the default DDP plugin.".format(self.config["frame"])
+                )
             self.frame.set_backward_function(self.manual_backward)
             self.frame.optimizers = (
                 self.optimizers()
@@ -101,6 +105,5 @@ class Launcher(pl.LightningModule):
                 if isinstance(log_val, tuple) and callable(log_val[1]):
                     log_val[1](self, log_key, log_val[0])
                 else:
-                    is_dist_initialized = dist.is_available() and \
-                                          dist.is_initialized()
+                    is_dist_initialized = dist.is_available() and dist.is_initialized()
                     self.log(log_key, log_val, sync_dist=is_dist_initialized)

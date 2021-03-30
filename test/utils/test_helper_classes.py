@@ -1,6 +1,4 @@
-from machin.utils.helper_classes import (
-    Counter, Trigger, Timer, Switch, Object
-)
+from machin.utils.helper_classes import Counter, Trigger, Timer, Switch, Object
 import pytest
 
 

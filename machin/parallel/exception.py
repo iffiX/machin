@@ -7,6 +7,7 @@ class RemoteTraceback(Exception):  # pragma: no cover
     traceback ExceptionWithTraceback, should be thrown on the master
     side.
     """
+
     def __init__(self, tb):
         self.tb = tb
 
@@ -34,12 +35,10 @@ class ExceptionWithTraceback:  # pragma: no cover
         if tb is None:
             tb = exc.__traceback__
         tb = traceback.format_exception(type(exc), exc, tb)
-        tb = ''.join(tb)
+        tb = "".join(tb)
         self.exc = exc
         self.tb = '\n"""\n%s"""' % tb
 
     def __reduce__(self):
         # Used by pickler
         return _rebuild_exc, (self.exc, self.tb)
-
-

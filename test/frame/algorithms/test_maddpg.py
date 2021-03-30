@@ -104,118 +104,180 @@ class TestMADDPG(object):
         c = train_config
         # for simplicity, prey will be trained with predators,
         # Predator can get the observation of prey, same for prey.
-        actor = smw(ActorDiscrete(c.observe_dim,
-                                  c.action_num)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.observe_dim * c.agent_num,
-                            c.action_num * c.agent_num)
-                     .type(dtype).to(device), device, device)
+        actor = smw(
+            ActorDiscrete(c.observe_dim, c.action_num).type(dtype).to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(c.observe_dim * c.agent_num, c.action_num * c.agent_num)
+            .type(dtype)
+            .to(device),
+            device,
+            device,
+        )
         # set visible indexes to [[0], [1], [2]] is equivalent to using DDPG
-        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        t.optim.Adam,
-                        nn.MSELoss(reduction='sum'),
-                        replay_device="cpu",
-                        replay_size=c.replay_size,
-                        pool_type="thread")
+        maddpg = MADDPG(
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            pool_type="thread",
+        )
         return maddpg
 
     @pytest.fixture(scope="function")
     def maddpg_disc(self, train_config, device, dtype):
         c = train_config
-        actor = smw(ActorDiscrete(c.test_observe_dim, c.test_action_dim)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.test_observe_dim * c.test_agent_num,
-                            c.test_action_dim * c.test_agent_num)
-                     .type(dtype).to(device), device, device)
+        actor = smw(
+            ActorDiscrete(c.test_observe_dim, c.test_action_dim).type(dtype).to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(
+                c.test_observe_dim * c.test_agent_num,
+                c.test_action_dim * c.test_agent_num,
+            )
+            .type(dtype)
+            .to(device),
+            device,
+            device,
+        )
 
-        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        t.optim.Adam,
-                        nn.MSELoss(reduction='sum'),
-                        replay_device="cpu",
-                        replay_size=c.replay_size)
+        maddpg = MADDPG(
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+        )
         return maddpg
 
     @pytest.fixture(scope="function")
     def maddpg_cont(self, train_config, device, dtype):
         c = train_config
-        actor = smw(Actor(c.test_observe_dim, c.test_action_dim,
-                          c.test_action_range)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.test_observe_dim * c.test_agent_num,
-                            c.test_action_dim * c.test_agent_num)
-                     .type(dtype).to(device), device, device)
+        actor = smw(
+            Actor(c.test_observe_dim, c.test_action_dim, c.test_action_range)
+            .type(dtype)
+            .to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(
+                c.test_observe_dim * c.test_agent_num,
+                c.test_action_dim * c.test_agent_num,
+            )
+            .type(dtype)
+            .to(device),
+            device,
+            device,
+        )
 
-        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        t.optim.Adam,
-                        nn.MSELoss(reduction='sum'),
-                        replay_device="cpu",
-                        replay_size=c.replay_size)
+        maddpg = MADDPG(
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+        )
         return maddpg
 
     @pytest.fixture(scope="function")
     def maddpg_vis(self, train_config, device, dtype, tmpdir):
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
-        actor = smw(Actor(c.test_observe_dim, c.test_action_dim,
-                          c.test_action_range)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.test_observe_dim * c.test_agent_num,
-                            c.test_action_dim * c.test_agent_num)
-                     .type(dtype).to(device), device, device)
+        actor = smw(
+            Actor(c.test_observe_dim, c.test_action_dim, c.test_action_range)
+            .type(dtype)
+            .to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(
+                c.test_observe_dim * c.test_agent_num,
+                c.test_action_dim * c.test_agent_num,
+            )
+            .type(dtype)
+            .to(device),
+            device,
+            device,
+        )
 
-        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        t.optim.Adam,
-                        nn.MSELoss(reduction='sum'),
-                        replay_device="cpu",
-                        replay_size=c.replay_size,
-                        visualize=True,
-                        visualize_dir=str(tmp_dir))
+        maddpg = MADDPG(
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            visualize=True,
+            visualize_dir=str(tmp_dir),
+        )
         return maddpg
 
     @pytest.fixture(scope="function")
     def maddpg_lr(self, train_config, device, dtype):
         c = train_config
-        actor = smw(Actor(c.test_observe_dim, c.test_action_dim,
-                          c.test_action_range)
-                    .type(dtype).to(device), device, device)
-        critic = smw(Critic(c.test_observe_dim * c.test_agent_num,
-                            c.test_action_dim * c.test_agent_num)
-                     .type(dtype).to(device), device, device)
-        lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)],
-                                         logger=logger)
+        actor = smw(
+            Actor(c.test_observe_dim, c.test_action_dim, c.test_action_range)
+            .type(dtype)
+            .to(device),
+            device,
+            device,
+        )
+        critic = smw(
+            Critic(
+                c.test_observe_dim * c.test_agent_num,
+                c.test_action_dim * c.test_agent_num,
+            )
+            .type(dtype)
+            .to(device),
+            device,
+            device,
+        )
+        lr_func = gen_learning_rate_func([(0, 1e-3), (200000, 3e-4)], logger=logger)
         with pytest.raises(TypeError, match="missing .+ positional argument"):
-            _ = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
-                       [deepcopy(actor) for _ in range(c.test_agent_num)],
-                       [deepcopy(critic) for _ in range(c.test_agent_num)],
-                       [deepcopy(critic) for _ in range(c.test_agent_num)],
-                       t.optim.Adam,
-                       nn.MSELoss(reduction='sum'),
-                       replay_device="cpu",
-                       replay_size=c.replay_size,
-                       lr_scheduler=LambdaLR)
-        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        t.optim.Adam,
-                        nn.MSELoss(reduction='sum'),
-                        replay_device="cpu",
-                        replay_size=c.replay_size,
-                        lr_scheduler=LambdaLR,
-                        lr_scheduler_args=([(lr_func,)] * c.test_agent_num,
-                                           [(lr_func,)] * c.test_agent_num))
+            _ = MADDPG(
+                [deepcopy(actor) for _ in range(c.test_agent_num)],
+                [deepcopy(actor) for _ in range(c.test_agent_num)],
+                [deepcopy(critic) for _ in range(c.test_agent_num)],
+                [deepcopy(critic) for _ in range(c.test_agent_num)],
+                t.optim.Adam,
+                nn.MSELoss(reduction="sum"),
+                replay_device="cpu",
+                replay_size=c.replay_size,
+                lr_scheduler=LambdaLR,
+            )
+        maddpg = MADDPG(
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            lr_scheduler=LambdaLR,
+            lr_scheduler_args=(
+                [(lr_func,)] * c.test_agent_num,
+                [(lr_func,)] * c.test_agent_num,
+            ),
+        )
         return maddpg
 
     @pytest.fixture(scope="function")
@@ -223,20 +285,24 @@ class TestMADDPG(object):
         c = train_config
         # for simplicity, prey will be trained with predators,
         # Predator can get the observation of prey, same for prey.
-        actor = smw(ActorDiscrete(c.observe_dim,
-                                  c.action_num), "cpu", "cpu")
-        critic = smw(Critic(c.observe_dim * c.agent_num,
-                            c.action_num * c.agent_num), "cpu", "cpu")
+        actor = smw(ActorDiscrete(c.observe_dim, c.action_num), "cpu", "cpu")
+        critic = smw(
+            Critic(c.observe_dim * c.agent_num, c.action_num * c.agent_num),
+            "cpu",
+            "cpu",
+        )
         # set visible indexes to [[0], [1], [2]] is equivalent to using DDPG
-        maddpg = MADDPG([deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(actor) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        [deepcopy(critic) for _ in range(c.test_agent_num)],
-                        t.optim.Adam,
-                        nn.MSELoss(reduction='sum'),
-                        replay_device="cpu",
-                        replay_size=c.replay_size,
-                        pool_type="thread")
+        maddpg = MADDPG(
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(actor) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            [deepcopy(critic) for _ in range(c.test_agent_num)],
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            pool_type="thread",
+        )
         return maddpg
 
     ########################################################################
@@ -244,29 +310,30 @@ class TestMADDPG(object):
     ########################################################################
     def test_contiguous_act(self, train_config, maddpg_cont, dtype):
         c = train_config
-        states = ([{"state": t.zeros([1, c.test_observe_dim], dtype=dtype)}]
-                  * c.test_agent_num)
+        states = [
+            {"state": t.zeros([1, c.test_observe_dim], dtype=dtype)}
+        ] * c.test_agent_num
         maddpg_cont.act(states)
         maddpg_cont.act(states, use_target=True)
-        maddpg_cont.act_with_noise(states, noise_param=(0, 1.0),
-                                   mode="uniform")
-        maddpg_cont.act_with_noise(states, noise_param=(0, 1.0),
-                                   mode="normal")
-        maddpg_cont.act_with_noise(states, noise_param=(0, 1.0, -1.0, 1.0),
-                                   mode="clipped_normal")
-        maddpg_cont.act_with_noise(states, noise_param={"mu": 0, "sigma": 1},
-                                   mode="ou")
+        maddpg_cont.act_with_noise(states, noise_param=(0, 1.0), mode="uniform")
+        maddpg_cont.act_with_noise(states, noise_param=(0, 1.0), mode="normal")
+        maddpg_cont.act_with_noise(
+            states, noise_param=(0, 1.0, -1.0, 1.0), mode="clipped_normal"
+        )
+        maddpg_cont.act_with_noise(states, noise_param={"mu": 0, "sigma": 1}, mode="ou")
         with pytest.raises(ValueError, match="Unknown noise type"):
-            maddpg_cont.act_with_noise(states, noise_param=None,
-                                       mode="some_unknown_noise")
+            maddpg_cont.act_with_noise(
+                states, noise_param=None, mode="some_unknown_noise"
+            )
 
     ########################################################################
     # Test for MADDPG discrete domain acting
     ########################################################################
     def test_discrete_act(self, train_config, maddpg_disc, dtype):
         c = train_config
-        states = ([{"state": t.zeros([1, c.test_observe_dim], dtype=dtype)}]
-                  * c.test_agent_num)
+        states = [
+            {"state": t.zeros([1, c.test_observe_dim], dtype=dtype)}
+        ] * c.test_agent_num
         maddpg_disc.act_discrete(states)
         maddpg_disc.act_discrete(states, use_target=True)
         maddpg_disc.act_discrete_with_noise(states)
@@ -277,10 +344,12 @@ class TestMADDPG(object):
     ########################################################################
     def test__criticize(self, train_config, maddpg_cont, dtype):
         c = train_config
-        states = ([{"state": t.zeros([1, c.test_observe_dim], dtype=dtype)}]
-                  * c.test_agent_num)
-        actions = ([{"action": t.zeros([1, c.test_action_dim], dtype=dtype)}]
-                   * c.test_agent_num)
+        states = [
+            {"state": t.zeros([1, c.test_observe_dim], dtype=dtype)}
+        ] * c.test_agent_num
+        actions = [
+            {"action": t.zeros([1, c.test_action_dim], dtype=dtype)}
+        ] * c.test_agent_num
         maddpg_cont._criticize(states, actions, 0)
         maddpg_cont._criticize(states, actions, 1, use_target=True)
 
@@ -291,20 +360,32 @@ class TestMADDPG(object):
         c = train_config
         old_state = state = t.zeros([1, c.test_observe_dim], dtype=dtype)
         action = t.zeros([1, c.test_action_dim], dtype=dtype)
-        maddpg_cont.store_transitions([{
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        }] * c.test_agent_num)
-        maddpg_cont.store_episodes([[{
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        }]] * c.test_agent_num)
+        maddpg_cont.store_transitions(
+            [
+                {
+                    "state": {"state": old_state},
+                    "action": {"action": action},
+                    "next_state": {"state": state},
+                    "reward": 0,
+                    "terminal": False,
+                }
+            ]
+            * c.test_agent_num
+        )
+        maddpg_cont.store_episodes(
+            [
+                [
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": 0,
+                        "terminal": False,
+                    }
+                ]
+            ]
+            * c.test_agent_num
+        )
 
     ########################################################################
     # Test for MADDPG update
@@ -313,47 +394,67 @@ class TestMADDPG(object):
         c = train_config
         old_state = state = t.zeros([1, c.test_observe_dim], dtype=dtype)
         action = t.zeros([1, c.test_action_dim], dtype=dtype)
-        maddpg_cont.store_episodes([[{
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        }]] * c.test_agent_num)
-        maddpg_cont.update(update_value=True, update_policy=True,
-                           update_target=True, concatenate_samples=True)
+        maddpg_cont.store_episodes(
+            [
+                [
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": 0,
+                        "terminal": False,
+                    }
+                ]
+            ]
+            * c.test_agent_num
+        )
+        maddpg_cont.update(
+            update_value=True,
+            update_policy=True,
+            update_target=True,
+            concatenate_samples=True,
+        )
 
     def test_vis_update(self, train_config, maddpg_vis, dtype):
         c = train_config
         old_state = state = t.zeros([1, c.test_observe_dim], dtype=dtype)
         action = t.zeros([1, c.test_action_dim], dtype=dtype)
-        maddpg_vis.store_episodes([[{
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        }]] * c.test_agent_num)
-        maddpg_vis.update(update_value=True, update_policy=True,
-                          update_target=True, concatenate_samples=True)
+        maddpg_vis.store_episodes(
+            [
+                [
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": 0,
+                        "terminal": False,
+                    }
+                ]
+            ]
+            * c.test_agent_num
+        )
+        maddpg_vis.update(
+            update_value=True,
+            update_policy=True,
+            update_target=True,
+            concatenate_samples=True,
+        )
 
     ########################################################################
     # Test for MADDPG save & load
     ########################################################################
     def test_save_load(self, train_config, maddpg_cont, tmpdir):
         save_dir = tmpdir.make_numbered_dir()
-        maddpg_cont.save(model_dir=str(save_dir),
-                         network_map={
-                             "critic_target": "critic_t",
-                             "actor_target": "actor_t"
-                         },
-                         version=1000)
-        maddpg_cont.load(model_dir=str(save_dir),
-                         network_map={
-                             "critic_target": "critic_t",
-                             "actor_target": "actor_t"
-                         },
-                         version=1000)
+        maddpg_cont.save(
+            model_dir=str(save_dir),
+            network_map={"critic_target": "critic_t", "actor_target": "actor_t"},
+            version=1000,
+        )
+        maddpg_cont.load(
+            model_dir=str(save_dir),
+            network_map={"critic_target": "critic_t", "actor_target": "actor_t"},
+            version=1000,
+        )
 
     ########################################################################
     # Test for MADDPG lr_scheduler
@@ -367,30 +468,50 @@ class TestMADDPG(object):
     def test_config_init(self, train_config):
         c = train_config
         config = MADDPG.generate_config({})
-        config["frame_config"]["models"] = [["Actor"] * c.test_agent_num,
-                                            ["Actor"] * c.test_agent_num,
-                                            ["Critic"] * c.test_agent_num,
-                                            ["Critic"] * c.test_agent_num]
+        config["frame_config"]["models"] = [
+            ["Actor"] * c.test_agent_num,
+            ["Actor"] * c.test_agent_num,
+            ["Critic"] * c.test_agent_num,
+            ["Critic"] * c.test_agent_num,
+        ]
         config["frame_config"]["model_args"] = [[()] * c.test_agent_num] * 4
-        config["frame_config"]["model_kwargs"] = \
-            [[{"state_dim": c.test_observe_dim,
-               "action_dim": c.test_action_dim,
-               "action_range": c.test_action_range}] * c.test_agent_num] * 2 + \
-            [[{"state_dim": c.test_observe_dim * c.test_agent_num,
-               "action_dim": c.test_action_dim * c.test_agent_num}]
-             * c.test_agent_num] * 2
+        config["frame_config"]["model_kwargs"] = [
+            [
+                {
+                    "state_dim": c.test_observe_dim,
+                    "action_dim": c.test_action_dim,
+                    "action_range": c.test_action_range,
+                }
+            ]
+            * c.test_agent_num
+        ] * 2 + [
+            [
+                {
+                    "state_dim": c.test_observe_dim * c.test_agent_num,
+                    "action_dim": c.test_action_dim * c.test_agent_num,
+                }
+            ]
+            * c.test_agent_num
+        ] * 2
 
         maddpg = MADDPG.init_from_config(config)
 
         old_state = state = t.zeros([1, c.test_observe_dim], dtype=t.float32)
         action = t.zeros([1, c.test_action_dim], dtype=t.float32)
-        maddpg.store_episodes([[{
-            "state": {"state": old_state},
-            "action": {"action": action},
-            "next_state": {"state": state},
-            "reward": 0,
-            "terminal": False
-        }]] * c.test_agent_num)
+        maddpg.store_episodes(
+            [
+                [
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": 0,
+                        "terminal": False,
+                    }
+                ]
+            ]
+            * c.test_agent_num
+        )
         maddpg.update()
 
     ########################################################################
@@ -432,15 +553,20 @@ class TestMADDPG(object):
 
                     total_reward += float(sum(rewards)) / c.agent_num
 
-                    maddpg_train.store_transitions([{
-                        "state": {"state": ost.unsqueeze(0)},
-                        "action": {"action": act},
-                        "next_state": {"state": st.unsqueeze(0)},
-                        "reward": float(rew),
-                        "terminal": term or step == c.max_steps
-                    } for ost, act, st, rew, term in zip(
-                        old_states, action_probs, states, rewards, terminals
-                    )])
+                    maddpg_train.store_transitions(
+                        [
+                            {
+                                "state": {"state": ost.unsqueeze(0)},
+                                "action": {"action": act},
+                                "next_state": {"state": st.unsqueeze(0)},
+                                "reward": float(rew),
+                                "terminal": term or step == c.max_steps,
+                            }
+                            for ost, act, st, rew, term in zip(
+                                old_states, action_probs, states, rewards, terminals
+                            )
+                        ]
+                    )
 
             # update
             if episode > 5:
@@ -451,13 +577,13 @@ class TestMADDPG(object):
             # "Agents are rewarded based on minimum agent distance
             #  to each landmark, penalized for collisions"
             smoother.update(total_reward / step.get())
-            logger.info("Episode {} total steps={}"
-                        .format(episode, step))
+            logger.info("Episode {} total steps={}".format(episode, step))
             step.reset()
             terminal = False
 
-            logger.info("Episode {} total reward={:.2f}"
-                        .format(episode, smoother.value))
+            logger.info(
+                "Episode {} total reward={:.2f}".format(episode, smoother.value)
+            )
 
             if smoother.value > c.solved_reward and episode > 20:
                 reward_fulfilled.count()

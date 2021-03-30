@@ -12,6 +12,7 @@ class TorchFramework:
     """
     Base framework for all algorithms
     """
+
     _is_top = []
     _is_restorable = []
 
@@ -88,8 +89,9 @@ class TorchFramework:
             model = getattr(self, top)
             model.share_memory()
 
-    def load(self, model_dir: str, network_map: Dict[str, str] = None,
-             version: int = -1):
+    def load(
+        self, model_dir: str, network_map: Dict[str, str] = None, version: int = -1
+    ):
         """
         Load models.
 
@@ -112,14 +114,15 @@ class TorchFramework:
                 restore_map[network_map[r]] = getattr(self, r)
             else:
                 default_logger.warning(
-                    "Load path for module \"{}\" is not specified, "
+                    'Load path for module "{}" is not specified, '
                     "module name is used.".format(r)
                 )
                 restore_map[r] = getattr(self, r)
         prep_load_model(model_dir, restore_map, version)
 
-    def save(self, model_dir: str, network_map: Dict[str, str] = None,
-             version: int = 0):
+    def save(
+        self, model_dir: str, network_map: Dict[str, str] = None, version: int = 0
+    ):
         """
         Save models.
 
@@ -140,34 +143,34 @@ class TorchFramework:
             version = "default"
             default_logger.warning(
                 "You are using the default version to save, "
-                "use custom version instead.")
+                "use custom version instead."
+            )
         for r in self._is_restorable:
             if r in network_map:
-                t.save(getattr(self, r),
-                       join(model_dir,
-                            "{}_{}.pt".format(network_map[r], version)))
+                t.save(
+                    getattr(self, r),
+                    join(model_dir, "{}_{}.pt".format(network_map[r], version)),
+                )
             else:
-                default_logger.warning("Save name for module \"{}\" is not "
-                                       "specified, module name is used."
-                                       .format(r))
-                t.save(getattr(self, r),
-                       join(model_dir,
-                            "{}_{}.pt".format(r, version)))
+                default_logger.warning(
+                    'Save name for module "{}" is not '
+                    "specified, module name is used.".format(r)
+                )
+                t.save(getattr(self, r), join(model_dir, "{}_{}.pt".format(r, version)))
 
-    def visualize_model(self,
-                        final_tensor: t.Tensor,
-                        name: str,
-                        directory: str):
+    def visualize_model(self, final_tensor: t.Tensor, name: str, directory: str):
         if name in self._visualized:
             return
         else:
             self._visualized.add(name)
             g = make_dot(final_tensor)
-            g.render(filename=name,
-                     directory=directory,
-                     view=False,
-                     cleanup=False,
-                     quiet=True)
+            g.render(
+                filename=name,
+                directory=directory,
+                view=False,
+                cleanup=False,
+                quiet=True,
+            )
 
     @classmethod
     def generate_config(cls, config: Union[Dict[str, Any], Config]):

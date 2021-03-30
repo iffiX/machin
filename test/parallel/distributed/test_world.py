@@ -156,9 +156,7 @@ class TestWorld(WorldTestBase):
             a_list = None
         a = t.full([5], -1)
         group.scatter(a, a_list, 0)
-        assert (t.all(a == 0) or
-                t.all(a == 1) or
-                t.all(a == 2))
+        assert t.all(a == 0) or t.all(a == 1) or t.all(a == 2)
         group.destroy()
         return True
 
@@ -174,8 +172,7 @@ class TestWorld(WorldTestBase):
         return True
 
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"])
+    @run_multi(expected_results=[True, True, True], pass_through=["gpu"])
     @WorldTestBase.setup_world
     def test_cc_broadcast_multigpu(rank, gpu):
         if isinstance(gpu, str) and gpu.startswith("cuda"):
@@ -191,8 +188,7 @@ class TestWorld(WorldTestBase):
         return True
 
     @staticmethod
-    @run_multi(expected_results=[True, True, True],
-               pass_through=["gpu"])
+    @run_multi(expected_results=[True, True, True], pass_through=["gpu"])
     @WorldTestBase.setup_world
     def test_cc_all_reduce_multigpu(_, gpu):
         if isinstance(gpu, str) and gpu.startswith("cuda"):
@@ -213,8 +209,7 @@ class TestWorld(WorldTestBase):
     def test_rpc_sync(_):
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
-        assert (group.rpc_sync("1", worker_calculate, args=(1, 2), timeout=1)
-                == 3)
+        assert group.rpc_sync("1", worker_calculate, args=(1, 2), timeout=1) == 3
         group.destroy()
         return True
 
@@ -224,8 +219,9 @@ class TestWorld(WorldTestBase):
     def test_rpc_async(_):
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
-        assert (group.rpc_async("1", worker_calculate, args=(1, 2), timeout=1)
-                .wait() == 3)
+        assert (
+            group.rpc_async("1", worker_calculate, args=(1, 2), timeout=1).wait() == 3
+        )
         group.destroy()
         return True
 
@@ -235,8 +231,9 @@ class TestWorld(WorldTestBase):
     def test_rpc_remote(_):
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
-        assert (group.remote("1", worker_calculate, args=(1, 2), timeout=1)
-                .to_here() == 3)
+        assert (
+            group.remote("1", worker_calculate, args=(1, 2), timeout=1).to_here() == 3
+        )
         group.destroy()
         return True
 
@@ -304,8 +301,7 @@ class TestWorld(WorldTestBase):
         elif rank == 1:
             group = world.create_rpc_group("group", ["0", "1"])
             sleep(2)
-            assert (group.is_registered("count") and
-                    group.is_registered("get_count"))
+            assert group.is_registered("count") and group.is_registered("get_count")
 
             # cannot register an already used key
             with pytest.raises(KeyError, match="already registered in Group"):
@@ -323,8 +319,9 @@ class TestWorld(WorldTestBase):
             assert group.registered_async("count").wait() == 22
             assert group.registered_remote("count").to_here() == 23
             sleep(4)
-            assert (not group.is_registered("count") and
-                    not group.is_registered("get_count"))
+            assert not group.is_registered("count") and not group.is_registered(
+                "get_count"
+            )
         return True
 
     @staticmethod

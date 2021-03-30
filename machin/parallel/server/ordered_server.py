@@ -12,6 +12,7 @@ class OrderedServerBase(ABC):  # pragma: no cover
     has returned True, there are possibilities that these acknowledged
     push are discarded.
     """
+
     @abstractmethod
     def push(self, key, value, version, prev_version):
         """
@@ -64,20 +65,15 @@ class OrderedServerSimple(OrderedServerBase):
 
     def pull(self, key, version=None):
         # DOC INHERITED
-        return self.group.registered_sync(
-            self._pull_service, args=(key, version)
-        )
+        return self.group.registered_sync(self._pull_service, args=(key, version))
 
 
 class OrderedServerSimpleImpl(object):
     """
     A simple key-value server, with strict ordered update
     """
-    def __init__(self,
-                 server_name: str,
-                 group: RpcGroup,
-                 version_depth: int = 1,
-                 **__):
+
+    def __init__(self, server_name: str, group: RpcGroup, version_depth: int = 1, **__):
         """
         This init function must be only invoked on the runner process,
         and the runner process must be a member process of ``group``.
@@ -101,8 +97,7 @@ class OrderedServerSimpleImpl(object):
         self.lock = Lock()
         self.version_depth = version_depth
         # pair an accessor to group
-        self.group.pair(server_name,
-                        OrderedServerSimple(self.server_name, self.group))
+        self.group.pair(server_name, OrderedServerSimple(self.server_name, self.group))
         self.group.register(server_name + "/_push_service", self._push_service)
         self.group.register(server_name + "/_pull_service", self._pull_service)
 

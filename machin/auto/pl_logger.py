@@ -13,6 +13,7 @@ class LocalMediaLogger(LightningLoggerBase):
     A logger designed to handle log_image and log_artifact just like the
     neptune.ai logger does. log_hyperparams and log_metrics are not handled.
     """
+
     def __init__(self, image_dir: str, artifact_dir: str):
         super(LocalMediaLogger, self).__init__()
         self.image_dir = image_dir
@@ -47,8 +48,7 @@ class LocalMediaLogger(LightningLoggerBase):
         pass
 
     @rank_zero_only
-    def log_artifact(self, artifact: str,
-                     destination: Optional[str] = None):
+    def log_artifact(self, artifact: str, destination: Optional[str] = None):
         """
         Save an artifact (file) in the ``artifact_dir``.
 
@@ -59,17 +59,16 @@ class LocalMediaLogger(LightningLoggerBase):
                 If ``None`` is passed, an artifact file name will be used.
         """
         if destination:
-            os.rename(artifact, os.path.join(self.artifact_dir,
-                                             destination))
+            os.rename(artifact, os.path.join(self.artifact_dir, destination))
         else:
-            os.rename(artifact, os.path.join(self.artifact_dir,
-                                       os.path.basename(artifact)))
+            os.rename(
+                artifact, os.path.join(self.artifact_dir, os.path.basename(artifact))
+            )
 
     @rank_zero_only
-    def log_image(self,
-                  log_name: str,
-                  image: Union[str, Any],
-                  step: Optional[int] = None) -> None:
+    def log_image(
+        self, log_name: str, image: Union[str, Any], step: Optional[int] = None
+    ) -> None:
         """
         Log image data in the ``image_dir``.
 
@@ -87,13 +86,12 @@ class LocalMediaLogger(LightningLoggerBase):
             self._counters[log_name] = 0
 
         if not isinstance(image, str):
-            log_path = (log_name +
-                        "_{}.png".format(step or self._counters[log_name]))
+            log_path = log_name + "_{}.png".format(step or self._counters[log_name])
         else:
             extension = os.path.splitext(image)[1]
-            log_path = (log_name +
-                        "_{}{}".format(step or self._counters[log_name],
-                                       extension))
+            log_path = log_name + "_{}{}".format(
+                step or self._counters[log_name], extension
+            )
         self._counters[log_name] += 1
 
         path = os.path.join(self.image_dir, log_path)
@@ -104,8 +102,7 @@ class LocalMediaLogger(LightningLoggerBase):
         elif isinstance(image, str):
             os.rename(image, path)
         else:
-            raise ValueError("Unsupported image type: {}"
-                             .format(type(image)))
+            raise ValueError("Unsupported image type: {}".format(type(image)))
 
     @rank_zero_only
     def save(self):

@@ -1,23 +1,20 @@
 from typing import Callable, Any, Union, List, Tuple, Dict
-from machin.parallel.distributed import (
-    get_world, get_cur_name
-)
-from machin.parallel.server import (
-    PushPullGradServerImpl,
-    PushPullModelServerImpl
-)
+from machin.parallel.distributed import get_world, get_cur_name
+from machin.parallel.server import PushPullGradServerImpl, PushPullModelServerImpl
 from torch.optim import Adam
 
 
-def grad_server_helper(model_creators: List[Callable],
-                       group_name: str = "grad_server",
-                       members: Union[str, List[str]] = "all",
-                       optimizer: Any = Adam,
-                       learning_rate: Union[float, List[float]] = 1e-3,
-                       optimizer_kwargs: List[Dict[str, Any]] = None,
-                       lr_scheduler: Any = None,
-                       lr_scheduler_args: List[Tuple] = None,
-                       lr_scheduler_kwargs: List[Dict[str, Any]] = None):
+def grad_server_helper(
+    model_creators: List[Callable],
+    group_name: str = "grad_server",
+    members: Union[str, List[str]] = "all",
+    optimizer: Any = Adam,
+    learning_rate: Union[float, List[float]] = 1e-3,
+    optimizer_kwargs: List[Dict[str, Any]] = None,
+    lr_scheduler: Any = None,
+    lr_scheduler_args: List[Tuple] = None,
+    lr_scheduler_kwargs: List[Dict[str, Any]] = None,
+):
     """
     Helper function for creating a tuple of grad servers,
     used by A3C, IMPALE, etc. This function requires all processes
@@ -66,35 +63,39 @@ def grad_server_helper(model_creators: List[Callable],
     # create servers
     primary_reducer = members[0]
     servers = [
-        PushPullGradServerImpl("grad_server_" + str(i),
-                               server_group,
-                               primary_reducer=primary_reducer)
+        PushPullGradServerImpl(
+            "grad_server_" + str(i), server_group, primary_reducer=primary_reducer
+        )
         for i in range(len(model_creators))
     ]
     if get_cur_name() == primary_reducer:
-        for (model_creator,
-             server,
-             optim_kwargs,
-             lr,
-             lr_sch_args,
-             lr_sch_kwargs) in zip(model_creators,
-                                   servers,
-                                   optimizer_kwargs,
-                                   learning_rate,
-                                   lr_scheduler_args,
-                                   lr_scheduler_kwargs):
+        for (
+            model_creator,
+            server,
+            optim_kwargs,
+            lr,
+            lr_sch_args,
+            lr_sch_kwargs,
+        ) in zip(
+            model_creators,
+            servers,
+            optimizer_kwargs,
+            learning_rate,
+            lr_scheduler_args,
+            lr_scheduler_kwargs,
+        ):
             model = model_creator()
             if lr_scheduler is None:
-                server.manage_model(model,
-                                    optimizer(model.parameters(), lr=lr,
-                                              **optim_kwargs))
+                server.manage_model(
+                    model, optimizer(model.parameters(), lr=lr, **optim_kwargs)
+                )
             else:
-                optimizer = optimizer(model.parameters(), lr=lr,
-                                      **optim_kwargs)
-                server.manage_model(model, optimizer,
-                                    lr_scheduler(optimizer,
-                                                 *lr_sch_args,
-                                                 **lr_sch_kwargs))
+                optimizer = optimizer(model.parameters(), lr=lr, **optim_kwargs)
+                server.manage_model(
+                    model,
+                    optimizer,
+                    lr_scheduler(optimizer, *lr_sch_args, **lr_sch_kwargs),
+                )
             server.start()
 
     server_group.barrier()
@@ -108,9 +109,11 @@ def grad_server_helper(model_creators: List[Callable],
     return servers
 
 
-def model_server_helper(model_num: int,
-                        group_name: str = "model_server",
-                        members: Union[str, List[str]] = "all"):
+def model_server_helper(
+    model_num: int,
+    group_name: str = "model_server",
+    members: Union[str, List[str]] = "all",
+):
     """
     Helper function for creating a tuple of model servers,
     used by APEX, etc. This function requires all processes
@@ -138,8 +141,7 @@ def model_server_helper(model_num: int,
     # In current implementation, only one process will initialize the server
     if get_cur_name() == members[0]:
         for i in range(model_num):
-            _server = PushPullModelServerImpl("model_server_" + str(i),
-                                              server_group)
+            _server = PushPullModelServerImpl("model_server_" + str(i), server_group)
 
     server_group.barrier()
 

@@ -10,6 +10,7 @@ class NoiseGen(ABC):
     """
     Base class for noise generators.
     """
+
     @abstractmethod
     def __call__(self, device=None):
         """
@@ -61,8 +62,14 @@ class NormalNoiseGen(NoiseGen):
 
 
 class ClippedNormalNoiseGen(NoiseGen):
-    def __init__(self, shape: Any, mu: float = 0.0, sigma: float = 1.0,
-                 nmin: float = -1.0, nmax: float = 1.0):
+    def __init__(
+        self,
+        shape: Any,
+        mu: float = 0.0,
+        sigma: float = 1.0,
+        nmin: float = -1.0,
+        nmax: float = 1.0,
+    ):
         """
         Normal noise generator.
 
@@ -91,8 +98,9 @@ class ClippedNormalNoiseGen(NoiseGen):
             return self.dist.sample(self.shape)
 
     def __repr__(self):
-        return "ClippedNormalNoise(mu={}, sigma={}, min={}, max={})"\
-            .format(self.mu, self.sigma, self.min, self.max)
+        return "ClippedNormalNoise(mu={}, sigma={}, min={}, max={})".format(
+            self.mu, self.sigma, self.min, self.max
+        )
 
 
 class UniformNoiseGen(NoiseGen):
@@ -127,9 +135,15 @@ class UniformNoiseGen(NoiseGen):
 
 
 class OrnsteinUhlenbeckNoiseGen(NoiseGen):
-    def __init__(self, shape: Any, mu: float = 0.0, sigma: float = 1.0,
-                 theta: float = 0.15, dt: float = 1e-2,
-                 x0: t.Tensor = None):
+    def __init__(
+        self,
+        shape: Any,
+        mu: float = 0.0,
+        sigma: float = 1.0,
+        theta: float = 0.15,
+        dt: float = 1e-2,
+        x0: t.Tensor = None,
+    ):
         """
         Ornstein-Uhlenbeck noise generator.
         Based on `definition <http://math.stackexchange.com/questions\
@@ -167,8 +181,11 @@ class OrnsteinUhlenbeckNoiseGen(NoiseGen):
         self.reset()
 
     def __call__(self, device=None):
-        x = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + \
-            self.sigma * t.sqrt(self.dt) * self.norm_dist.sample(self.shape)
+        x = (
+            self.x_prev
+            + self.theta * (self.mu - self.x_prev) * self.dt
+            + self.sigma * t.sqrt(self.dt) * self.norm_dist.sample(self.shape)
+        )
         self.x_prev = x
         if device is not None:
             return x.to(device)
@@ -182,5 +199,4 @@ class OrnsteinUhlenbeckNoiseGen(NoiseGen):
         self.x_prev = self.x0 if self.x0 is not None else t.zeros(self.shape)
 
     def __repr__(self):
-        return "OrnsteinUhlenbeckNoise(mu={}, sigma={})"\
-            .format(self.mu, self.sigma)
+        return "OrnsteinUhlenbeckNoise(mu={}, sigma={})".format(self.mu, self.sigma)

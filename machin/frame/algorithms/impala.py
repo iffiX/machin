@@ -16,7 +16,7 @@ from .utils import (
     assert_and_get_valid_models,
     assert_and_get_valid_optimizer,
     assert_and_get_valid_criterion,
-    assert_and_get_valid_lr_scheduler
+    assert_and_get_valid_lr_scheduler,
 )
 
 
@@ -54,6 +54,7 @@ class EpisodeTransition(Transition):
     single transition object, the batch dimension will be used to
     stack all transition steps.
     """
+
     def _check_validity(self):
         """
         Disable checking for batch size in the base :class:`.Transition`
@@ -66,12 +67,23 @@ class EpisodeDistributedBuffer(DistributedBuffer):
     A distributed buffer which stores each episode as a transition
     object inside the buffer.
     """
-    def append(self, transition: Dict,
-               required_attrs=("state", "action", "next_state",
-                               "reward", "terminal", "action_log_prob")):
+
+    def append(
+        self,
+        transition: Dict,
+        required_attrs=(
+            "state",
+            "action",
+            "next_state",
+            "reward",
+            "terminal",
+            "action_log_prob",
+        ),
+    ):
         transition = EpisodeTransition(**transition)
-        super(EpisodeDistributedBuffer, self)\
-            .append(transition, required_attrs=required_attrs)
+        super(EpisodeDistributedBuffer, self).append(
+            transition, required_attrs=required_attrs
+        )
 
 
 class IMPALA(TorchFramework):
@@ -82,27 +94,29 @@ class IMPALA(TorchFramework):
     _is_top = ["actor", "critic"]
     _is_restorable = ["actor", "critic"]
 
-    def __init__(self,
-                 actor: Union[NeuralNetworkModule, nn.Module],
-                 critic: Union[NeuralNetworkModule, nn.Module],
-                 optimizer: Callable,
-                 criterion: Callable,
-                 impala_group: RpcGroup,
-                 model_server: Tuple[PushPullModelServer],
-                 *_,
-                 lr_scheduler: Callable = None,
-                 lr_scheduler_args: Tuple[Tuple, Tuple] = (),
-                 lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
-                 batch_size: int = 5,
-                 learning_rate: float = 0.001,
-                 isw_clip_c: float = 1.0,
-                 isw_clip_rho: float = 1.0,
-                 entropy_weight: float = None,
-                 value_weight: float = 0.5,
-                 gradient_max: float = np.inf,
-                 discount: float = 0.99,
-                 replay_size: int = 500,
-                 **__):
+    def __init__(
+        self,
+        actor: Union[NeuralNetworkModule, nn.Module],
+        critic: Union[NeuralNetworkModule, nn.Module],
+        optimizer: Callable,
+        criterion: Callable,
+        impala_group: RpcGroup,
+        model_server: Tuple[PushPullModelServer],
+        *_,
+        lr_scheduler: Callable = None,
+        lr_scheduler_args: Tuple[Tuple, Tuple] = (),
+        lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
+        batch_size: int = 5,
+        learning_rate: float = 0.001,
+        isw_clip_c: float = 1.0,
+        isw_clip_rho: float = 1.0,
+        entropy_weight: float = None,
+        value_weight: float = 0.5,
+        gradient_max: float = np.inf,
+        discount: float = 0.99,
+        replay_size: int = 500,
+        **__
+    ):
         """
         Note:
             Please make sure isw_clip_rho >= isw_clip_c
@@ -143,13 +157,10 @@ class IMPALA(TorchFramework):
 
         self.actor = actor
         self.critic = critic
-        self.actor_optim = optimizer(self.actor.parameters(),
-                                     lr=learning_rate)
-        self.critic_optim = optimizer(self.critic.parameters(),
-                                      lr=learning_rate)
+        self.actor_optim = optimizer(self.actor.parameters(), lr=learning_rate)
+        self.critic_optim = optimizer(self.critic.parameters(), lr=learning_rate)
         self.replay_buffer = EpisodeDistributedBuffer(
-            buffer_name="buffer", group=impala_group,
-            buffer_size=replay_size
+            buffer_name="buffer", group=impala_group, buffer_size=replay_size
         )
         self.is_syncing = True
         self.actor_model_server = model_server[0]
@@ -161,9 +172,7 @@ class IMPALA(TorchFramework):
                 **lr_scheduler_kwargs[0],
             )
             self.critic_lr_sch = lr_scheduler(
-                self.critic_optim,
-                *lr_scheduler_args[1],
-                **lr_scheduler_kwargs[1]
+                self.critic_optim, *lr_scheduler_args[1], **lr_scheduler_kwargs[1]
             )
 
         self.criterion = criterion
@@ -205,10 +214,7 @@ class IMPALA(TorchFramework):
             self.actor_model_server.pull(self.actor)
         return safe_call(self.actor, state)
 
-    def _eval_act(self,
-                  state: Dict[str, Any],
-                  action: Dict[str, Any],
-                  *_, **__):
+    def _eval_act(self, state: Dict[str, Any], action: Dict[str, Any], *_, **__):
         """
         Use actor network to evaluate the log-likelihood of a given
         action in the current state.
@@ -257,27 +263,33 @@ class IMPALA(TorchFramework):
                 for sub_k in v.keys():
                     tmp_dict[sub_k] = _make_tensor_from_batch(
                         [item[k][sub_k] for item in episode],
-                        self.replay_buffer.buffer_device, True
+                        self.replay_buffer.buffer_device,
+                        True,
                     )
                 cc_episode[k] = tmp_dict
             elif k in ("reward", "terminal", "action_log_prob"):
                 cc_episode[k] = _make_tensor_from_batch(
                     [item[k] for item in episode],
-                    self.replay_buffer.buffer_device, True
+                    self.replay_buffer.buffer_device,
+                    True,
                 )
             else:
                 # currently, additional attributes are not supported.
                 pass
 
-        self.replay_buffer.append(cc_episode, required_attrs=(
-            "state", "action", "next_state", "reward",
-            "action_log_prob", "terminal"
-        ))
+        self.replay_buffer.append(
+            cc_episode,
+            required_attrs=(
+                "state",
+                "action",
+                "next_state",
+                "reward",
+                "action_log_prob",
+                "terminal",
+            ),
+        )
 
-    def update(self,
-               update_value=True,
-               update_policy=True,
-               **__):
+    def update(self, update_value=True, update_policy=True, **__):
         """
         Update network weights by sampling from replay buffer.
 
@@ -304,18 +316,27 @@ class IMPALA(TorchFramework):
         # might be different.
         self.actor.train()
         self.critic.train()
-        batch_size, (state, action, reward, next_state,
-                     terminal, action_log_prob) = \
-            self.replay_buffer.sample_batch(self.batch_size,
-                                            concatenate=False,
-                                            device="cpu",
-                                            sample_attrs=[
-                                                "state", "action", "reward",
-                                                "next_state", "terminal",
-                                                "action_log_prob"],
-                                            additional_concat_attrs=[
-                                                "action_log_prob"
-                                            ])
+        batch_size, (
+            state,
+            action,
+            reward,
+            next_state,
+            terminal,
+            action_log_prob,
+        ) = self.replay_buffer.sample_batch(
+            self.batch_size,
+            concatenate=False,
+            device="cpu",
+            sample_attrs=[
+                "state",
+                "action",
+                "reward",
+                "next_state",
+                "terminal",
+                "action_log_prob",
+            ],
+            additional_concat_attrs=["action_log_prob"],
+        )
         # `state`, `action` and `next_state` should be dicts like:
         # {"attr1": [Tensor(ep1_length, ...),
         #            Tensor(ep2_length, ...)]}
@@ -380,18 +401,22 @@ class IMPALA(TorchFramework):
                 # 0 works well when rho=c=1 or 1 > rho >= c
                 for rev_step in reversed(range(ep_len - 1)):
                     idx = offset + rev_step
-                    vs[idx] = (value[idx] + delta_v[idx] +
-                               self.discount * c[idx] *
-                               (vs[idx + 1] - value[idx + 1]))
+                    vs[idx] = (
+                        value[idx]
+                        + delta_v[idx]
+                        + self.discount * c[idx] * (vs[idx + 1] - value[idx + 1])
+                    )
                 # shift v_s to get v_{s+1}
-                vss[offset: offset + ep_len - 1] = \
-                    vs[offset + 1: offset + ep_len]
+                vss[offset : offset + ep_len - 1] = vs[offset + 1 : offset + ep_len]
 
                 # update offset
                 offset += ep_len
 
-        act_policy_loss = -(rho.detach() * cur_action_log_prob *
-                            (reward + self.discount * vss - value).detach())
+        act_policy_loss = -(
+            rho.detach()
+            * cur_action_log_prob
+            * (reward + self.discount * vss - value).detach()
+        )
         if self.entropy_weight is not None:
             act_policy_loss += self.entropy_weight * entropy
         act_policy_loss = act_policy_loss.sum()
@@ -402,26 +427,21 @@ class IMPALA(TorchFramework):
         if update_policy:
             self.actor.zero_grad()
             self._backward(act_policy_loss)
-            nn.utils.clip_grad_norm_(
-                self.actor.parameters(), self.grad_max
-            )
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.grad_max)
             self.actor_optim.step()
 
         # Update critic network
         if update_value:
             self.critic.zero_grad()
             self._backward(value_loss)
-            nn.utils.clip_grad_norm_(
-                self.critic.parameters(), self.grad_max
-            )
+            nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_max)
             self.critic_optim.step()
 
         # push actor model for samplers
-        if isinstance(self.actor,
-                      (nn.parallel.DataParallel,
-                       nn.parallel.DistributedDataParallel)):
-            self.actor_model_server.push(self.actor.module,
-                                         pull_on_fail=False)
+        if isinstance(
+            self.actor, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
+        ):
+            self.actor_model_server.push(self.actor.module, pull_on_fail=False)
         else:
             self.actor_model_server.push(self.actor)
 
@@ -464,15 +484,14 @@ class IMPALA(TorchFramework):
             "value_weight": 0.5,
             "gradient_max": np.inf,
             "discount": 0.99,
-            "replay_size": 500
+            "replay_size": 500,
         }
         config = deepcopy(config)
         config["frame"] = "IMPALA"
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:
-            config["frame_config"] = {**config["frame_config"],
-                                      **default_values}
+            config["frame_config"] = {**config["frame_config"], **default_values}
         return config
 
     @classmethod
@@ -481,29 +500,27 @@ class IMPALA(TorchFramework):
         f_config = deepcopy(config["frame_config"])
         impala_group = world.create_rpc_group(
             group_name=f_config["impala_group_name"],
-            members=(world.get_members()
-                     if f_config["impala_members"] == "all"
-                     else f_config["impala_members"])
+            members=(
+                world.get_members()
+                if f_config["impala_members"] == "all"
+                else f_config["impala_members"]
+            ),
         )
 
         models = assert_and_get_valid_models(f_config["models"])
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
-            m(*arg, **kwarg)
-            for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            m(*arg, **kwarg) for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         # wrap models in DistributedDataParallel when running in learner mode
         max_learner_id = f_config["learner_process_number"]
 
-        learner_group = world.create_collective_group(
-            ranks=list(range(max_learner_id))
-        )
+        learner_group = world.create_collective_group(ranks=list(range(max_learner_id)))
 
         if world.rank < max_learner_id:
             models = [
-                DistributedDataParallel(module=m,
-                                        process_group=learner_group.group)
+                DistributedDataParallel(module=m, process_group=learner_group.group)
                 for m in models
             ]
 
@@ -511,22 +528,26 @@ class IMPALA(TorchFramework):
         criterion = assert_and_get_valid_criterion(f_config["criterion"])(
             *f_config["criterion_args"], **f_config["criterion_kwargs"]
         )
-        lr_scheduler = (
-                f_config["lr_scheduler"]
-                and assert_and_get_valid_lr_scheduler(f_config["lr_scheduler"])
+        lr_scheduler = f_config["lr_scheduler"] and assert_and_get_valid_lr_scheduler(
+            f_config["lr_scheduler"]
         )
-        servers = model_server_helper(model_num=1,
-                                      group_name=f_config[
-                                          "model_server_group_name"
-                                      ],
-                                      members=f_config[
-                                          "model_server_members"
-                                      ])
+        servers = model_server_helper(
+            model_num=1,
+            group_name=f_config["model_server_group_name"],
+            members=f_config["model_server_members"],
+        )
         del f_config["optimizer"]
         del f_config["criterion"]
         del f_config["lr_scheduler"]
-        frame = cls(*models, optimizer, criterion, impala_group, servers,
-                    lr_scheduler=lr_scheduler, **f_config)
+        frame = cls(
+            *models,
+            optimizer,
+            criterion,
+            impala_group,
+            servers,
+            lr_scheduler=lr_scheduler,
+            **f_config,
+        )
         if world.rank >= max_learner_id:
             frame.update = lambda *_, **__: None, None
         return frame

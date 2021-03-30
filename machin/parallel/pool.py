@@ -53,9 +53,17 @@ class Pool(pool.Pool):
      2. Ability to select the tensor serialize scheme.
     """
 
-    def __init__(self, processes=None, initializer=None, initargs=(),
-                 maxtasksperchild=None, is_recursive=False, is_daemon=True,
-                 is_copy_tensor=True, share_method=None):
+    def __init__(
+        self,
+        processes=None,
+        initializer=None,
+        initargs=(),
+        maxtasksperchild=None,
+        is_recursive=False,
+        is_daemon=True,
+        is_copy_tensor=True,
+        share_method=None,
+    ):
         """
         Note:
             To share "cpu" tensors in shared memory, you must set::
@@ -103,8 +111,7 @@ class Pool(pool.Pool):
         context = get_context("spawn")
         if not is_copy_tensor:
             if share_method not in ("cpu", "cuda"):
-                raise RuntimeError('Invalid share method: "{}"'
-                                   .format(share_method))
+                raise RuntimeError('Invalid share method: "{}"'.format(share_method))
             if share_method == "cpu":
                 context = get_context("fork")
 
@@ -113,7 +120,7 @@ class Pool(pool.Pool):
             initializer=initializer,
             initargs=initargs,
             maxtasksperchild=maxtasksperchild,
-            context=context
+            context=context,
         )
 
     def _setup_queues(self):
@@ -127,90 +134,123 @@ class Pool(pool.Pool):
         # DOC INHERITED
         if kwds is None:
             kwds = {}
-        return pool.Pool.apply(self, self._caller,
-                               [(dumps(func,
-                                       recurse=self._is_recursive,
-                                       copy_tensor=self._is_copy_tensor),
-                                 args, kwds)])
+        return pool.Pool.apply(
+            self,
+            self._caller,
+            [
+                (
+                    dumps(
+                        func,
+                        recurse=self._is_recursive,
+                        copy_tensor=self._is_copy_tensor,
+                    ),
+                    args,
+                    kwds,
+                )
+            ],
+        )
 
-    def apply_async(self, func, args=(), kwds=None, callback=None,
-                    error_callback=None):
+    def apply_async(self, func, args=(), kwds=None, callback=None, error_callback=None):
         # DOC INHERITED
         if kwds is None:
             kwds = {}
-        return pool.Pool.apply_async(self, self._caller,
-                                     [(dumps(func,
-                                             recurse=self._is_recursive,
-                                             copy_tensor=self._is_copy_tensor),
-                                       args, kwds)])
+        return pool.Pool.apply_async(
+            self,
+            self._caller,
+            [
+                (
+                    dumps(
+                        func,
+                        recurse=self._is_recursive,
+                        copy_tensor=self._is_copy_tensor,
+                    ),
+                    args,
+                    kwds,
+                )
+            ],
+        )
 
     def map(self, func, iterable, chunksize=None):
         # DOC INHERITED
-        return pool.Pool.map(self, self._caller,
-                             proxy_dumper(
-                                 self._is_recursive,
-                                 self._is_copy_tensor,
-                                 func,
-                                 [(arg,) for arg in iterable]
-                             ),
-                             chunksize)
+        return pool.Pool.map(
+            self,
+            self._caller,
+            proxy_dumper(
+                self._is_recursive,
+                self._is_copy_tensor,
+                func,
+                [(arg,) for arg in iterable],
+            ),
+            chunksize,
+        )
 
-    def map_async(self, func, iterable, chunksize=None, callback=None,
-                  error_callback=None):
+    def map_async(
+        self, func, iterable, chunksize=None, callback=None, error_callback=None
+    ):
         # DOC INHERITED
-        return pool.Pool.map_async(self, self._caller,
-                                   proxy_dumper(
-                                       self._is_recursive,
-                                       self._is_copy_tensor,
-                                       func,
-                                       [(arg,) for arg in iterable]
-                                   ),
-                                   chunksize, callback, error_callback)
+        return pool.Pool.map_async(
+            self,
+            self._caller,
+            proxy_dumper(
+                self._is_recursive,
+                self._is_copy_tensor,
+                func,
+                [(arg,) for arg in iterable],
+            ),
+            chunksize,
+            callback,
+            error_callback,
+        )
 
     def imap(self, func, iterable, chunksize=1):
         # DOC INHERITED
-        return pool.Pool.imap(self, self._caller,
-                              proxy_dumper(
-                                  self._is_recursive,
-                                  self._is_copy_tensor,
-                                  func,
-                                  [(arg,) for arg in iterable]
-                              ),
-                              chunksize)
+        return pool.Pool.imap(
+            self,
+            self._caller,
+            proxy_dumper(
+                self._is_recursive,
+                self._is_copy_tensor,
+                func,
+                [(arg,) for arg in iterable],
+            ),
+            chunksize,
+        )
 
     def imap_unordered(self, func, iterable, chunksize=1):
         # DOC INHERITED
-        return pool.Pool.imap_unordered(self, self._caller,
-                                        proxy_dumper(
-                                            self._is_recursive,
-                                            self._is_copy_tensor,
-                                            func,
-                                            [(arg,) for arg in iterable]
-                                        ),
-                                        chunksize)
+        return pool.Pool.imap_unordered(
+            self,
+            self._caller,
+            proxy_dumper(
+                self._is_recursive,
+                self._is_copy_tensor,
+                func,
+                [(arg,) for arg in iterable],
+            ),
+            chunksize,
+        )
 
     def starmap(self, func, iterable, chunksize=None):
         # DOC INHERITED
-        return pool.Pool.starmap(self, self._caller,
-                                 proxy_dumper(
-                                     self._is_recursive,
-                                     self._is_copy_tensor,
-                                     func,
-                                     iterable
-                                 ),
-                                 chunksize)
+        return pool.Pool.starmap(
+            self,
+            self._caller,
+            proxy_dumper(self._is_recursive, self._is_copy_tensor, func, iterable),
+            chunksize,
+        )
 
-    def starmap_async(self, func, iterable, chunksize=None, callback=None,
-                      error_callback=None):
+    def starmap_async(
+        self, func, iterable, chunksize=None, callback=None, error_callback=None
+    ):
         # DOC INHERITED
-        return pool.Pool.starmap_async(self, self._caller,
-                                       proxy_dumper(
-                                           self._is_recursive,
-                                           self._is_copy_tensor,
-                                           func,
-                                           iterable
-                                       ),
-                                       chunksize, callback, error_callback)
+        return pool.Pool.starmap_async(
+            self,
+            self._caller,
+            proxy_dumper(self._is_recursive, self._is_copy_tensor, func, iterable),
+            chunksize,
+            callback,
+            error_callback,
+        )
 
     def _repopulate_pool(self):
         """
@@ -219,17 +259,21 @@ class Pool(pool.Pool):
         """
         for _ in range(self._processes - len(self._pool)):
             # changed worker -> clean_worker
-            args = (self._inqueue, self._outqueue,
-                    self._initializer,
-                    self._initargs, self._maxtasksperchild)
-            if hasattr(self, '_wrap_exception'):
+            args = (
+                self._inqueue,
+                self._outqueue,
+                self._initializer,
+                self._initargs,
+                self._maxtasksperchild,
+            )
+            if hasattr(self, "_wrap_exception"):
                 args += (self._wrap_exception,)
             worker = self.Process(target=clean_worker, args=args)
             self._pool.append(worker)
-            worker.name = worker.name.replace('Process', 'PoolWorker')
+            worker.name = worker.name.replace("Process", "PoolWorker")
             worker.daemon = self._is_daemon
             worker.start()
-            pool.util.debug('added worker')
+            pool.util.debug("added worker")
 
     def size(self):
         """
@@ -257,18 +301,21 @@ class P2PPool(Pool):
         """
         for idx in range(self._processes - len(self._pool)):
             # changed worker -> clean_worker
-            args = (self._inqueue.get_sub_queue(idx),
-                    self._outqueue.get_sub_queue(idx),
-                    self._initializer,
-                    self._initargs, self._maxtasksperchild)
-            if hasattr(self, '_wrap_exception'):
+            args = (
+                self._inqueue.get_sub_queue(idx),
+                self._outqueue.get_sub_queue(idx),
+                self._initializer,
+                self._initargs,
+                self._maxtasksperchild,
+            )
+            if hasattr(self, "_wrap_exception"):
                 args += (self._wrap_exception,)
             worker = self.Process(target=clean_worker, args=args)
             self._pool.append(worker)
-            worker.name = worker.name.replace('Process', 'PoolWorker')
+            worker.name = worker.name.replace("Process", "PoolWorker")
             worker.daemon = self._is_daemon
             worker.start()
-            pool.util.debug('added worker')
+            pool.util.debug("added worker")
 
     def close(self):
         # we cannot rely on sentinels to shutdown worker processes
@@ -277,8 +324,17 @@ class P2PPool(Pool):
         self.terminate()
 
     @classmethod
-    def _terminate_pool(cls, taskqueue, inqueue, outqueue, pool,
-                        worker_handler, task_handler, result_handler, cache):
+    def _terminate_pool(
+        cls,
+        taskqueue,
+        inqueue,
+        outqueue,
+        pool,
+        worker_handler,
+        task_handler,
+        result_handler,
+        cache,
+    ):
 
         worker_handler._state = TERMINATE
         task_handler._state = TERMINATE
@@ -297,7 +353,7 @@ class P2PPool(Pool):
             result_handler.join()
 
         # terminate workers directly
-        if pool and hasattr(pool[0], 'terminate'):
+        if pool and hasattr(pool[0], "terminate"):
             for p in pool:
                 p.terminate()
                 p.join(timeout=1e-1)
@@ -311,6 +367,7 @@ class CtxPoolStorage:
 
     ``storage`` is accessed on the client process side.
     """
+
     storage = None
 
 
@@ -324,15 +381,24 @@ class CtxPool(Pool):
     The length of ``worker_contexts`` must be the same as ``processes``
     """
 
-    def __init__(self, processes: int, initializer=None, initargs=(),
-                 maxtasksperchild=None, worker_contexts=None,
-                 is_recursive=False, is_daemon=True,
-                 is_copy_tensor=True, share_method=None):
+    def __init__(
+        self,
+        processes: int,
+        initializer=None,
+        initargs=(),
+        maxtasksperchild=None,
+        worker_contexts=None,
+        is_recursive=False,
+        is_daemon=True,
+        is_copy_tensor=True,
+        share_method=None,
+    ):
 
         if worker_contexts is not None:
             if len(worker_contexts) != processes:
-                raise ValueError("Context number is not equal to the number of "
-                                 "pool workers.")
+                raise ValueError(
+                    "Context number is not equal to the number of " "pool workers."
+                )
         else:
             worker_contexts = [None] * processes
 
@@ -344,7 +410,7 @@ class CtxPool(Pool):
             is_recursive=is_recursive,
             is_daemon=is_daemon,
             is_copy_tensor=is_copy_tensor,
-            share_method=share_method
+            share_method=share_method,
         )
         self._caller = proxy_ctx_caller
 
@@ -363,21 +429,25 @@ class CtxPool(Pool):
             # Unpack context
             initargs[0] = initargs[0][id]
 
-            args = (self._inqueue, self._outqueue,
-                    self._initializer,
-                    initargs, self._maxtasksperchild)
+            args = (
+                self._inqueue,
+                self._outqueue,
+                self._initializer,
+                initargs,
+                self._maxtasksperchild,
+            )
 
-            if hasattr(self, '_wrap_exception'):
+            if hasattr(self, "_wrap_exception"):
                 args += (self._wrap_exception,)
 
             # changed worker -> clean_worker
             worker = self.Process(target=clean_worker, args=args)
             worker.id = id
             self._pool.append(worker)
-            worker.name = worker.name.replace('Process', 'CtxPoolWorker')
+            worker.name = worker.name.replace("Process", "CtxPoolWorker")
             worker.daemon = self._is_daemon
             worker.start()
-            pool.util.debug('added worker')
+            pool.util.debug("added worker")
 
     @staticmethod
     def _init_with_context(context, init_func, *initargs):
@@ -415,30 +485,33 @@ class ThreadPool(pool.ThreadPool):
 class CtxThreadPool(ThreadPool):
     _context = threading.local()
 
-    def __init__(self, processes: int, initializer=None, initargs=(),
-                 worker_contexts=None):
+    def __init__(
+        self, processes: int, initializer=None, initargs=(), worker_contexts=None
+    ):
         if worker_contexts is not None:
             if len(worker_contexts) != processes:
-                raise ValueError("Context number is not equal to the number of "
-                                 "pool workers.")
+                raise ValueError(
+                    "Context number is not equal to the number of " "pool workers."
+                )
         else:
             worker_contexts = [None] * processes
 
         super(CtxThreadPool, self).__init__(
             processes=processes,
             initializer=self._init_with_context,
-            initargs=(worker_contexts, initializer) + initargs
+            initargs=(worker_contexts, initializer) + initargs,
         )
 
     def apply(self, func, args=(), kwds=None):
         if kwds is None:
             kwds = {}
-        return super(CtxThreadPool, self).apply_async(
-            self._wrap_func(func), args, kwds
-        ).get()
+        return (
+            super(CtxThreadPool, self)
+            .apply_async(self._wrap_func(func), args, kwds)
+            .get()
+        )
 
-    def apply_async(self, func, args=(), kwds=None, callback=None,
-                    error_callback=None):
+    def apply_async(self, func, args=(), kwds=None, callback=None, error_callback=None):
         if kwds is None:
             kwds = {}
         return super(CtxThreadPool, self).apply_async(
@@ -450,11 +523,11 @@ class CtxThreadPool(ThreadPool):
             self._wrap_func(func), iterable, chunksize
         )
 
-    def map_async(self, func, iterable, chunksize=None, callback=None,
-                  error_callback=None):
+    def map_async(
+        self, func, iterable, chunksize=None, callback=None, error_callback=None
+    ):
         return super(CtxThreadPool, self).map_async(
-            self._wrap_func(func), iterable, chunksize,
-            callback, error_callback
+            self._wrap_func(func), iterable, chunksize, callback, error_callback
         )
 
     def imap(self, func, iterable, chunksize=1):
@@ -472,11 +545,11 @@ class CtxThreadPool(ThreadPool):
             self._wrap_func(func), iterable, chunksize
         )
 
-    def starmap_async(self, func, iterable, chunksize=None, callback=None,
-                      error_callback=None):
+    def starmap_async(
+        self, func, iterable, chunksize=None, callback=None, error_callback=None
+    ):
         return super(CtxThreadPool, self).starmap_async(
-            self._wrap_func(func), iterable, chunksize,
-            callback, error_callback
+            self._wrap_func(func), iterable, chunksize, callback, error_callback
         )
 
     def _repopulate_pool(self):
@@ -494,20 +567,24 @@ class CtxThreadPool(ThreadPool):
             # Unpack context
             initargs[0] = initargs[0][id]
 
-            args = (self._inqueue, self._outqueue,
-                    self._initializer,
-                    initargs, self._maxtasksperchild)
+            args = (
+                self._inqueue,
+                self._outqueue,
+                self._initializer,
+                initargs,
+                self._maxtasksperchild,
+            )
 
-            if hasattr(self, '_wrap_exception'):
+            if hasattr(self, "_wrap_exception"):
                 args += (self._wrap_exception,)
 
             # changed worker -> clean_worker
             worker = self.Process(target=pool.worker, args=args)
             worker.id = id
             self._pool.append(worker)
-            worker.name = worker.name.replace('Process', 'CtxThreadPoolWorker')
+            worker.name = worker.name.replace("Process", "CtxThreadPoolWorker")
             worker.start()
-            pool.util.debug('added worker')
+            pool.util.debug("added worker")
 
     @classmethod
     def _wrap_func(cls, func):
