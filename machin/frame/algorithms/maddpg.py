@@ -31,7 +31,7 @@ class SHMBuffer(Buffer):
                     result.share_memory_()
                     return result
                 except Exception:
-                    raise ValueError("Batch not concatenable: {}".format(batch))
+                    raise ValueError(f"Batch not concatenable: {batch}")
         else:
             for it in batch:
                 if t.is_tensor(it):
@@ -81,7 +81,7 @@ class MADDPG(TorchFramework):
         use_jit: bool = True,
         pool_type: str = "thread",
         pool_size: int = None,
-        **__
+        **__,
     ):
         """
         See Also:
@@ -233,11 +233,11 @@ class MADDPG(TorchFramework):
         for ac, idx in zip(self.actor_targets, range(len(actors))):
             for acc, idxx in zip(ac, range(self.ensemble_size)):
                 acc.share_memory()
-                self.all_actor_target.add_module("actor_{}_{}".format(idx, idxx), acc)
+                self.all_actor_target.add_module(f"actor_{idx}_{idxx}", acc)
 
         for cr, idx in zip(self.critic_targets, range(len(critics))):
             cr.share_memory()
-            self.all_critic_target.add_module("critic_{}".format(idx), cr)
+            self.all_critic_target.add_module(f"critic_{idx}", cr)
 
         # Make sure target and online networks have the same weight
         with t.no_grad():
@@ -343,7 +343,7 @@ class MADDPG(TorchFramework):
         ratio: float = 1.0,
         mode: str = "uniform",
         use_target: bool = False,
-        **__
+        **__,
     ):
         """
         Use all actor networks to produce noisy actions for the current state.
@@ -867,9 +867,7 @@ class MADDPG(TorchFramework):
 
         if visualize:
             # only invoked if not running by pool
-            MADDPG._visualize(
-                value_loss, "critic_{}".format(actor_index), visualize_dir
-            )
+            MADDPG._visualize(value_loss, f"critic_{actor_index}", visualize_dir)
 
         if update_value:
             critics[actor_index].zero_grad()
@@ -905,7 +903,7 @@ class MADDPG(TorchFramework):
             # only invoked if not running by pool
             MADDPG._visualize(
                 act_policy_loss,
-                "actor_{}_{}".format(actor_index, policy_index),
+                f"actor_{actor_index}_{policy_index}",
                 visualize_dir,
             )
 

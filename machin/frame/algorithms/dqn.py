@@ -49,7 +49,7 @@ class DQN(TorchFramework):
         mode: str = "double",
         visualize: bool = False,
         visualize_dir: str = "",
-        **__
+        **__,
     ):
         """
         Note:
@@ -173,7 +173,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         self._update_counter = 0
 
         if mode not in {"vanilla", "fixed_target", "double"}:
-            raise ValueError("Unknown DQN mode: {}".format(mode))
+            raise ValueError(f"Unknown DQN mode: {mode}")
 
         if update_rate is not None and update_steps is not None:
             raise ValueError(
@@ -254,7 +254,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         state: Dict[str, Any],
         use_target: bool = False,
         decay_epsilon: bool = True,
-        **__
+        **__,
     ):
         """
         Randomly selects an action from the action space according
@@ -480,7 +480,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
                         hard_update(self.qnet_target, self.qnet)
 
         else:
-            raise ValueError("Unknown DQN mode: {}".format(self.mode))
+            raise ValueError(f"Unknown DQN mode: {self.mode}")
 
         self.qnet.eval()
         # use .item() to prevent memory leakage

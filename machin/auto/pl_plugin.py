@@ -51,8 +51,8 @@ class DDPPlugin(DDP):
                 rank=int(global_rank),
                 world_size=int(world_size),
                 dist_backend=self.torch_distributed_backend,
-                dist_init_method="tcp://{}:{}".format(master_addr, master_port),
-                rpc_init_method="tcp://{}:{}".format(master_addr, int(master_port) + 1),
+                dist_init_method=f"tcp://{master_addr}:{master_port}",
+                rpc_init_method=f"tcp://{master_addr}:{int(master_port) + 1}",
             )
 
     def training_step(self, *args, **kwargs):
@@ -96,8 +96,8 @@ class DDPSpawnPlugin(DDPS):
                 rank=int(global_rank),
                 world_size=int(world_size),
                 dist_backend=self.torch_distributed_backend,
-                dist_init_method="tcp://{}:{}".format(master_addr, master_port),
-                rpc_init_method="tcp://{}:{}".format(master_addr, int(master_port) + 1),
+                dist_init_method=f"tcp://{master_addr}:{master_port}",
+                rpc_init_method=f"tcp://{master_addr}:{int(master_port) + 1}",
             )
 
     def training_step(self, *args, **kwargs):

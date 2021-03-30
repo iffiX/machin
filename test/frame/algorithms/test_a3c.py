@@ -264,7 +264,7 @@ class TestA3C(object):
 
         env = c.env
         # for cpu usage viewing
-        default_logger.info("{}, pid {}".format(rank, os.getpid()))
+        default_logger.info(f"{rank}, pid {os.getpid()}")
         while episode < c.max_episodes:
             episode.count()
 
@@ -303,9 +303,7 @@ class TestA3C(object):
             terminal = False
 
             default_logger.info(
-                "Process {} Episode {} total reward={:.2f}".format(
-                    rank, episode, smoother.value
-                )
+                f"Process {rank} Episode {episode} total reward={smoother.value:.2f}"
             )
 
             if smoother.value > c.solved_reward:

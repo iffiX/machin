@@ -3,7 +3,7 @@ from test.util_run_multi import *
 
 
 def _log(rank, msg):
-    default_logger.info("Client {}: {}".format(rank, msg))
+    default_logger.info(f"Client {rank}: {msg}")
 
 
 class Object(object):

@@ -146,7 +146,7 @@ class Object:
         # not return a None value because self.attr(item) will return None.
         if isinstance(item, str) and item[:2] == item[-2:] == "__":
             # skip non-existing special method lookups
-            raise AttributeError("Failed to find attribute: {}".format(item))
+            raise AttributeError(f"Failed to find attribute: {item}")
         return self.attr(item)
 
     def __getitem__(self, item):
@@ -160,7 +160,7 @@ class Object:
             and key not in self.__dir__()
         ):
             if key in self.const_attrs:
-                raise RuntimeError("{} is const.".format(key))
+                raise RuntimeError(f"{key} is const.")
             self.attr(key, value, change=True)
         elif key == "call":
             super(Object, self).__setattr__(key, value)

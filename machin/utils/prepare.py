@@ -86,11 +86,11 @@ def prep_load_model(
     if version is not None:
         is_version_found = [version in version_map[name] for name in model_map.keys()]
         if all(is_version_found):
-            logger.info("Specified version found, using version: {}".format(version))
+            logger.info(f"Specified version found, using version: {version}")
             for net_name, net in model_map.items():
                 net = net  # type: nn.Module
                 state_dict = t.load(
-                    join(model_dir, "{}_{}.pt".format(net_name, version)),
+                    join(model_dir, f"{net_name}_{version}.pt"),
                     map_location="cpu",
                 ).state_dict()
                 prep_load_state_dict(net, state_dict)
@@ -99,9 +99,7 @@ def prep_load_model(
             for ivf, net_name in zip(is_version_found, model_map.keys()):
                 if not ivf:
                     logger.warning(
-                        "Specified version {} for network {} is invalid".format(
-                            version, net_name
-                        )
+                        f"Specified version {version} for network {net_name} is invalid"
                     )
 
     logger.info("Begin auto find")
@@ -113,9 +111,9 @@ def prep_load_model(
         else:
             return
     version = max(common)
-    logger.info("Using version: {}".format(version))
+    logger.info(f"Using version: {version}")
     for net_name, net in model_map.items():
         state_dict = t.load(
-            join(model_dir, "{}_{}.pt".format(net_name, version)), map_location="cpu"
+            join(model_dir, f"{net_name}_{version}.pt"), map_location="cpu"
         ).state_dict()
         prep_load_state_dict(net, state_dict)

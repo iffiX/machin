@@ -369,12 +369,10 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
             if worker.exitcode is None:
                 continue
             if worker.exitcode == 2:
-                raise RuntimeError(
-                    "Worker {} failed to create environment.".format(worker_id)
-                )
+                raise RuntimeError(f"Worker {worker_id} failed to create environment.")
             elif worker.exitcode != 0:
                 raise RuntimeError(
-                    "Worker {} exited with code {}.".format(worker_id, worker.exitcode)
+                    f"Worker {worker_id} exited with code {worker.exitcode}."
                 )
 
         for env_idx, i in zip(env_idxs, range(len(env_idxs))):

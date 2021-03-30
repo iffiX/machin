@@ -117,7 +117,7 @@ def _add_perturb_hook(
             # Called before backward update, swap noisy parameters out,
             # so gradients are applied to original parameters.
             if debug_backward:
-                print("Backward swapped for {}!".format(param_name))
+                print(f"Backward swapped for {param_name}!")
             with t.no_grad():
                 if org_params and t.is_tensor(param_value):
                     param_value.set_(org_params[param_name])
@@ -273,10 +273,8 @@ def perturb_model(
                 )
                 tmp_action.clear()
                 param_noise_spec.adapt(dist)
-                logger.info("Current output distance: {}".format(dist))
-                logger.info(
-                    "Current param noise stddev: {}".format(param_noise_spec.get_dev())
-                )
+                logger.info(f"Current output distance: {dist}")
+                logger.info(f"Current param noise stddev: {param_noise_spec.get_dev()}")
 
     # Boise generation happens in pre-forward and noise adjust happens
     # in post-forward

@@ -111,7 +111,7 @@ class Pool(pool.Pool):
         context = get_context("spawn")
         if not is_copy_tensor:
             if share_method not in ("cpu", "cuda"):
-                raise RuntimeError('Invalid share method: "{}"'.format(share_method))
+                raise RuntimeError(f'Invalid share method: "{share_method}"')
             if share_method == "cpu":
                 context = get_context("fork")
 

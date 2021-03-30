@@ -37,7 +37,7 @@ class ExceptionWithTraceback:  # pragma: no cover
         tb = traceback.format_exception(type(exc), exc, tb)
         tb = "".join(tb)
         self.exc = exc
-        self.tb = '\n"""\n%s"""' % tb
+        self.tb = f'\n"""\n{tb}"""'
 
     def __reduce__(self):
         # Used by pickler

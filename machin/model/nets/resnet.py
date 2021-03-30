@@ -66,7 +66,7 @@ def cfg(depth, norm="none"):
             "152": (Bottleneck, [3, 8, 36, 3], {"norm_layer": none_norm}),
         }
     else:
-        raise ValueError('Invalid normalization method: "{}"'.format(norm))
+        raise ValueError(f'Invalid normalization method: "{norm}"')
     return cfg_dict[str(depth)]
 
 

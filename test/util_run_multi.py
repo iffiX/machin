@@ -59,7 +59,7 @@ def processes():
     default_logger.addHandler(handler)
 
     for p, i in zip(processes, [0, 1, 2]):
-        default_logger.info("processes {} started".format(i))
+        default_logger.info(f"processes {i} started")
         p.start()
     yield processes, [pi[1] for pi in pipes]
     for p, pi, i in zip(processes, pipes, [0, 1, 2]):
@@ -68,7 +68,7 @@ def processes():
         p.join(timeout=1)
         if p.is_alive():
             # ungraceful shutdown
-            default_logger.info("processes {} ungraceful shutdown".format(i))
+            default_logger.info(f"processes {i} ungraceful shutdown")
             p.terminate()
             p.join()
     default_logger.removeHandler(handler)
@@ -135,14 +135,12 @@ def run_multi(
 
     def deco(func):
         return FunctionMaker.create(
-            "w_wrapped_func(processes{})".format(pt_args),
-            """
+            f"w_wrapped_func(processes{pt_args})",
+            f"""
             return exec_with_process(
                 processes, func, args_list, kwargs_list, 
-                expected_results, timeout{})
-            """.format(
-                pt_args
-            ),
+                expected_results, timeout{pt_args})
+            """,
             dict(
                 args_list=args_list,
                 kwargs_list=kwargs_list,
@@ -162,12 +160,12 @@ class WorldTestBase(object):
         def wrapped(rank, *args, _world_port=9100, **kwargs):
             # election function for all tests
             world = World(world_size=3, rank=rank, name=str(rank))
-            default_logger.info("World using port {}".format(_world_port))
+            default_logger.info(f"World using port {_world_port}")
             # set a temporary success attribute on world
-            default_logger.info("World created on {}".format(rank))
+            default_logger.info(f"World created on {rank}")
             result = func(rank, *args, **kwargs)
             world.stop()
-            default_logger.info("World stopped on {}".format(rank))
+            default_logger.info(f"World stopped on {rank}")
             return result
 
         return wrapped

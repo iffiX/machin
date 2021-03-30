@@ -121,7 +121,7 @@ class DistributedBuffer(Buffer):
         sample_attrs: List[str] = None,
         additional_concat_attrs: List[str] = None,
         *_,
-        **__
+        **__,
     ) -> Any:
         # DOC INHERITED
         p_num = self.group.size()
@@ -160,7 +160,7 @@ class DistributedBuffer(Buffer):
         if isinstance(sample_method, str):
             if not hasattr(self, "sample_method_" + sample_method):
                 raise RuntimeError(
-                    "Cannot find specified sample method: {}".format(sample_method)
+                    f"Cannot find specified sample method: {sample_method}"
                 )
             sample_method = getattr(self, "sample_method_" + sample_method)
 

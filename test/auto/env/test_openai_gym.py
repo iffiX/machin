@@ -293,7 +293,7 @@ class InspectCallback(Callback):
             if "total_reward" in log:
                 self.max_total_reward = max(log["total_reward"], self.max_total_reward)
                 default_logger.info(
-                    "Current max total reward={:.2f}.".format(self.max_total_reward)
+                    f"Current max total reward={self.max_total_reward:.2f}."
                 )
                 if self.max_total_reward >= 190:
                     trainer.should_stop = True

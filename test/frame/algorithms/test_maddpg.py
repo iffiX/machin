@@ -577,13 +577,11 @@ class TestMADDPG(object):
             # "Agents are rewarded based on minimum agent distance
             #  to each landmark, penalized for collisions"
             smoother.update(total_reward / step.get())
-            logger.info("Episode {} total steps={}".format(episode, step))
+            logger.info(f"Episode {episode} total steps={step}")
             step.reset()
             terminal = False
 
-            logger.info(
-                "Episode {} total reward={:.2f}".format(episode, smoother.value)
-            )
+            logger.info(f"Episode {episode} total reward={smoother.value:.2f}")
 
             if smoother.value > c.solved_reward and episode > 20:
                 reward_fulfilled.count()

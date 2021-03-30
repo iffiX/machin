@@ -430,9 +430,7 @@ class TestTD3(object):
 
             if episode.get() % c.noise_interval != 0:
                 # only log result without noise
-                logger.info(
-                    "Episode {} total reward={:.2f}".format(episode, smoother.value)
-                )
+                logger.info(f"Episode {episode} total reward={smoother.value:.2f}")
 
             if smoother.value > c.solved_reward:
                 reward_fulfilled.count()

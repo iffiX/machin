@@ -370,8 +370,8 @@ class TestIMPALA(object):
         env = c.env
         world = get_world()
         all_group = world.create_rpc_group("all", ["0", "1", "2"])
-        all_group.pair("{}_running".format(rank), True)
-        default_logger.info("{}, pid {}".format(rank, os.getpid()))
+        all_group.pair(f"{rank}_running", True)
+        default_logger.info(f"{rank}, pid {os.getpid()}")
         if rank == 0:
             all_group.pair("episode", episode)
 
@@ -424,7 +424,7 @@ class TestIMPALA(object):
                     if reward_fulfilled >= c.solved_repeat:
                         default_logger.info("Environment solved!")
 
-                        all_group.unpair("{}_running".format(rank))
+                        all_group.unpair(f"{rank}_running")
                         while all_group.is_paired("0_running") or all_group.is_paired(
                             "1_running"
                         ):

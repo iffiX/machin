@@ -293,7 +293,7 @@ class ARS(TorchFramework):
         normalize_state: bool = True,
         noise_seed: int = 12345,
         sample_seed: int = 123,
-        **__
+        **__,
     ):
         """
 
@@ -520,12 +520,12 @@ class ARS(TorchFramework):
 
         # collect result in manager process
         self.ars_group.pair(
-            "ars/rollout_result/{}".format(self.ars_group.get_cur_name()),
+            f"ars/rollout_result/{self.ars_group.get_cur_name()}",
             [pos_reward, neg_reward, delta_idx],
         )
         if self.normalize_state:
             self.ars_group.pair(
-                "ars/filter/{}".format(self.ars_group.get_cur_name()), self.filter
+                f"ars/filter/{self.ars_group.get_cur_name()}", self.filter
             )
         self.ars_group.barrier()
 
@@ -587,11 +587,9 @@ class ARS(TorchFramework):
                     self.filter[k].clear_local()
 
         self.ars_group.barrier()
-        self.ars_group.unpair(
-            "ars/rollout_result/{}".format(self.ars_group.get_cur_name())
-        )
+        self.ars_group.unpair(f"ars/rollout_result/{self.ars_group.get_cur_name()}")
         if self.normalize_state:
-            self.ars_group.unpair("ars/filter/{}".format(self.ars_group.get_cur_name()))
+            self.ars_group.unpair(f"ars/filter/{self.ars_group.get_cur_name()}")
         self.ars_group.barrier()
 
         # synchronize filter states across all workers (and the manager)

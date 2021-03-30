@@ -86,7 +86,7 @@ def envs():
     # Create environments.
     for env_name, env_version in env_map.items():
         env_name = env_name + "-v" + str(env_version)
-        lg.info("OpenAI gym {} added".format(env_name))
+        lg.info(f"OpenAI gym {env_name} added")
         all_envs.append([lambda *_: gym.make(env_name) for _ in range(ENV_NUM)])
     lg.info("{} OpenAI gym environments to be tested.".format(len(all_envs)))
     return all_envs

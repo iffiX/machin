@@ -188,7 +188,7 @@ class ModelAssigner:
             for dev in devices:
                 if dev.type == "cuda" and dev not in available_devices:
                     default_logger.info(
-                        "Warning: device {} not available, removed.".format(dev)
+                        f"Warning: device {dev} not available, removed."
                     )
                 else:
                     used_devices.append(dev)
@@ -197,7 +197,7 @@ class ModelAssigner:
         if not devices:
             devices = [t.device("cpu")]
 
-        default_logger.info("Using these devices: {}".format(devices))
+        default_logger.info(f"Using these devices: {devices}")
 
         sizes = [
             ModelSizeEstimator(model, model_size_multiplier).estimate_size()

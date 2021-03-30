@@ -205,7 +205,7 @@ class WeightTree:
         Args:
             precision: Number of digits of weights to print.
         """
-        fmt = "{{:.{}f}}".format(precision)
+        fmt = f"{{:.{precision}f}}"
         for i in range(self.depth):
             offset, size = self.offsets[i], self.sizes[i]
             weights = [
@@ -241,7 +241,7 @@ class PrioritizedBuffer(Buffer):
         beta=0.4,
         beta_increment_per_sampling=0.001,
         *_,
-        **__
+        **__,
     ):
         """
         Args:
@@ -331,7 +331,7 @@ class PrioritizedBuffer(Buffer):
         sample_attrs: List[str] = None,
         additional_concat_attrs: List[str] = None,
         *_,
-        **__
+        **__,
     ) -> Any:
         """
         Sample the most important batch from the prioritized buffer.
