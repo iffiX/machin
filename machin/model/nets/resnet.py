@@ -85,7 +85,7 @@ class BasicBlock(NeuralNetworkModule):
         """
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
-        super(BasicBlock, self).__init__()
+        super().__init__()
         self.conv1 = conv3x3(in_planes, out_planes, stride)
         self.bn1 = norm_layer(out_planes)
         self.conv2 = conv3x3(out_planes, self.expansion * out_planes)
@@ -128,7 +128,7 @@ class Bottleneck(NeuralNetworkModule):
         """
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
-        super(Bottleneck, self).__init__()
+        super().__init__()
         self.conv1 = conv1x1(in_planes, out_planes)
         self.conv2 = conv3x3(out_planes, out_planes, stride=stride)
         self.conv3 = conv1x1(out_planes, self.expansion * out_planes)
@@ -172,7 +172,7 @@ class BasicBlockWN(NeuralNetworkModule):
             out_planes: Number of output planes.
             stride:     Stride of convolution.
         """
-        super(BasicBlockWN, self).__init__()
+        super().__init__()
         self.conv1 = weight_norm(conv3x3(in_planes, out_planes, stride))
         self.conv2 = weight_norm(conv3x3(out_planes, self.expansion * out_planes))
         # Create a shortcut from input to output.
@@ -213,7 +213,7 @@ class BottleneckWN(NeuralNetworkModule):
             out_planes: Number of output planes.
             stride:     Stride of convolution.
         """
-        super(BottleneckWN, self).__init__()
+        super().__init__()
         self.conv1 = weight_norm(
             nn.Conv2d(in_planes, out_planes, kernel_size=1, bias=False)
         )
@@ -272,7 +272,7 @@ class ResNet(NeuralNetworkModule):
             norm: Normalization method, could be one of "none", "batch" or
                 "weight".
         """
-        super(ResNet, self).__init__()
+        super().__init__()
         self.norm = norm
         self.depth = depth
         self.in_planes = in_planes

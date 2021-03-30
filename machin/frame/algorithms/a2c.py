@@ -208,7 +208,7 @@ class A2C(TorchFramework):
 
         self.criterion = criterion
 
-        super(A2C, self).__init__()
+        super().__init__()
 
     @property
     def optimizers(self):

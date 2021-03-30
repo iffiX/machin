@@ -7,7 +7,7 @@ from machin.utils.helper_classes import Switch
 from .generator import NormalNoiseGen
 
 
-class AdaptiveParamNoise(object):
+class AdaptiveParamNoise:
     def __init__(
         self,
         initial_stddev: float = 0.1,
@@ -154,7 +154,7 @@ def perturb_model(
         backward pass, and you can safely call optimizers afterwards.
 
     Hint:
-        1. ``noise_generator`` must accept (shape, \*args) in its ``__init__``
+        1. ``noise_generator`` must accept (shape, \\*args) in its ``__init__``
         function, where shape is the required shape. it also needs to have
         ``__call__(device=None)`` which produce a noise tensor on the specified
         device when invoked.

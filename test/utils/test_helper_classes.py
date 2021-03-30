@@ -2,7 +2,7 @@ from machin.utils.helper_classes import Counter, Trigger, Timer, Switch, Object
 import pytest
 
 
-class TestCounter(object):
+class TestCounter:
     def test_counter(self):
         c = Counter(start=0, step=1)
         c.count()
@@ -17,7 +17,7 @@ class TestCounter(object):
         str(c)
 
 
-class TestSwitch(object):
+class TestSwitch:
     def test_switch(self):
         s = Switch()
         s.on()
@@ -28,7 +28,7 @@ class TestSwitch(object):
         assert s.get()
 
 
-class TestTrigger(object):
+class TestTrigger:
     def test_trigger(self):
         t = Trigger()
         t.on()
@@ -36,14 +36,14 @@ class TestTrigger(object):
         assert not t.get()
 
 
-class TestTimer(object):
+class TestTimer:
     def test_timer(self):
         t = Timer()
         t.begin()
         t.end()
 
 
-class TestObject(object):
+class TestObject:
     def test_init(self):
         obj = Object()
         assert obj.data == {}

@@ -4,7 +4,7 @@ import pytest
 import torch as t
 
 
-class TestTransitionBase(object):
+class TestTransitionBase:
     ########################################################################
     # Test for TransitionBase.__init__
     ########################################################################
@@ -235,7 +235,7 @@ class TestTransitionBase(object):
         tb.to(pytestconfig.getoption("gpu_device"))
 
 
-class TestTransition(object):
+class TestTransition:
     ########################################################################
     # Test for Transition.__init__
     ########################################################################

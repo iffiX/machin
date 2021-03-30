@@ -13,7 +13,7 @@ import machin.auto
 
 class NNModule(nn.Module):
     def __init__(self):
-        super(NNModule, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(10, 10)
 
     def forward(self, x):
@@ -22,7 +22,7 @@ class NNModule(nn.Module):
 
 class ParallelModule(pl.LightningModule):
     def __init__(self):
-        super(ParallelModule, self).__init__()
+        super().__init__()
         self.nn_model = NNModule()
 
     def train_dataloader(self):

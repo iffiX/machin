@@ -125,8 +125,8 @@ class Object:
             data = {}
         if const_attrs is None:
             const_attrs = set()
-        super(Object, self).__setattr__("const_attrs", const_attrs)
-        super(Object, self).__setattr__("data", data)
+        super().__setattr__("const_attrs", const_attrs)
+        super().__setattr__("data", data)
 
     def __call__(self, *args, **kwargs):
         return self.call(*args, **kwargs)
@@ -163,10 +163,10 @@ class Object:
                 raise RuntimeError(f"{key} is const.")
             self.attr(key, value, change=True)
         elif key == "call":
-            super(Object, self).__setattr__(key, value)
+            super().__setattr__(key, value)
         elif key == "data":
             if isinstance(value, dict):
-                super(Object, self).__setattr__(key, value)
+                super().__setattr__(key, value)
             else:
                 raise ValueError("The data attribute must be a dictionary.")
         else:

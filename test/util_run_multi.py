@@ -154,7 +154,7 @@ def run_multi(
     return deco
 
 
-class WorldTestBase(object):
+class WorldTestBase:
     @staticmethod
     def setup_world(func):
         def wrapped(rank, *args, _world_port=9100, **kwargs):

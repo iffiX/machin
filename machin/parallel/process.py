@@ -22,7 +22,7 @@ class Process(BaseProcess):
         daemon=None,
     ):
         self._exc_pipe = Pipe()
-        super(Process, self).__init__(
+        super().__init__(
             group=group,
             target=target,
             name=name,
@@ -64,7 +64,7 @@ class Process(BaseProcess):
     def run(self):
         exc = []
         try:
-            super(Process, self).run()
+            super().run()
         except BaseException as e:
             exc.append(e)
         finally:

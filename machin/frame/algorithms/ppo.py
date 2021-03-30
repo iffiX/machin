@@ -73,7 +73,7 @@ class PPO(A2C):
             visualize: Whether visualize the network flow in the first pass.
             visualize_dir: Visualized graph save directory.
         """
-        super(PPO, self).__init__(
+        super().__init__(
             actor,
             critic,
             optimizer,

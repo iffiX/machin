@@ -59,7 +59,7 @@ class Thread(threading.Thread):
     def run(self):
         exc = []
         try:
-            super(Thread, self).run()
+            super().run()
         except BaseException as e:
             exc.append(e)
         finally:

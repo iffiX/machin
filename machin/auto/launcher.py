@@ -22,7 +22,7 @@ class Launcher(pl.LightningModule):
             env_dataset_creator: A callable which accepts the algorithm frame
                 and env config dictionary, and outputs a environment dataset.
         """
-        super(Launcher, self).__init__()
+        super().__init__()
         self.config = config
         self.env_dataset_creator = env_dataset_creator
         self.frame = init_algorithm_from_config(config)
@@ -106,4 +106,6 @@ class Launcher(pl.LightningModule):
                     log_val[1](self, log_key, log_val[0])
                 else:
                     is_dist_initialized = dist.is_available() and dist.is_initialized()
-                    self.log(log_key, log_val, prog_bar=True, sync_dist=is_dist_initialized)
+                    self.log(
+                        log_key, log_val, prog_bar=True, sync_dist=is_dist_initialized
+                    )

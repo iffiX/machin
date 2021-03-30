@@ -11,7 +11,7 @@ def _log(rank, msg):
 
 class Model(nn.Module):
     def __init__(self):
-        super(Model, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(1, 1, bias=False)
         self.fc2 = nn.Linear(1, 1, bias=False)
         self.fc3 = nn.Linear(1, 1, bias=False)
@@ -35,7 +35,7 @@ class Model(nn.Module):
         )
 
 
-class Optimizer(object):
+class Optimizer:
     def __init__(self, param):
         self.params = param
 

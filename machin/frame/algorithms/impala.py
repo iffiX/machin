@@ -81,9 +81,7 @@ class EpisodeDistributedBuffer(DistributedBuffer):
         ),
     ):
         transition = EpisodeTransition(**transition)
-        super(EpisodeDistributedBuffer, self).append(
-            transition, required_attrs=required_attrs
-        )
+        super().append(transition, required_attrs=required_attrs)
 
 
 class IMPALA(TorchFramework):
@@ -177,7 +175,7 @@ class IMPALA(TorchFramework):
 
         self.criterion = criterion
 
-        super(IMPALA, self).__init__()
+        super().__init__()
 
     @property
     def optimizers(self):

@@ -9,7 +9,7 @@ import torch.nn as nn
 ############################################################################
 # Test for AdaptiveParamNoise
 ############################################################################
-class TestAdaptiveParamNoise(object):
+class TestAdaptiveParamNoise:
     def test_adapt(self):
         spec = AdaptiveParamNoise()
         spec.adapt(1.0)

@@ -20,7 +20,7 @@ from test.util_fixtures import *
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_num):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -39,7 +39,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -52,7 +52,7 @@ class Critic(nn.Module):
         return v
 
 
-class TestIMPALA(object):
+class TestIMPALA:
     # configs and definitions
     disable_view_window()
     c = Config()

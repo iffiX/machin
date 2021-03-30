@@ -77,7 +77,7 @@ class DQNApex(DQNPer):
             gradient_max: Maximum gradient.
             replay_size: Local replay buffer size of a single worker.
         """
-        super(DQNApex, self).__init__(
+        super().__init__(
             qnet,
             qnet_target,
             optimizer,
@@ -116,7 +116,7 @@ class DQNApex(DQNPer):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.qnet_model_server.pull(self.qnet)
-        return super(DQNApex, self).act_discrete(state, use_target)
+        return super().act_discrete(state, use_target)
 
     def act_discrete_with_noise(
         self,
@@ -128,17 +128,13 @@ class DQNApex(DQNPer):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.qnet_model_server.pull(self.qnet)
-        return super(DQNApex, self).act_discrete_with_noise(
-            state, use_target, decay_epsilon
-        )
+        return super().act_discrete_with_noise(state, use_target, decay_epsilon)
 
     def update(
         self, update_value=True, update_target=True, concatenate_samples=True, **__
     ):
         # DOC INHERITED
-        result = super(DQNApex, self).update(
-            update_value, update_target, concatenate_samples
-        )
+        result = super().update(update_value, update_target, concatenate_samples)
         if isinstance(
             self.qnet, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
         ):
@@ -316,7 +312,7 @@ class DDPGApex(DDPGPer):
             gradient_max: Maximum gradient.
             replay_size: Local replay buffer size of a single worker.
         """
-        super(DDPGApex, self).__init__(
+        super().__init__(
             actor,
             actor_target,
             critic,
@@ -357,7 +353,7 @@ class DDPGApex(DDPGPer):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
-        return super(DDPGApex, self).act(state, use_target)
+        return super().act(state, use_target)
 
     def act_with_noise(
         self,
@@ -371,7 +367,7 @@ class DDPGApex(DDPGPer):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
-        return super(DDPGApex, self).act_with_noise(
+        return super().act_with_noise(
             state,
             noise_param=noise_param,
             ratio=ratio,
@@ -383,7 +379,7 @@ class DDPGApex(DDPGPer):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
-        return super(DDPGApex, self).act_discrete(state, use_target)
+        return super().act_discrete(state, use_target)
 
     def act_discrete_with_noise(
         self, state: Dict[str, Any], use_target: bool = False, **__
@@ -391,7 +387,7 @@ class DDPGApex(DDPGPer):
         # DOC INHERITED
         if self.is_syncing and not use_target:
             self.actor_model_server.pull(self.actor)
-        return super(DDPGApex, self).act_discrete_with_noise(state, use_target)
+        return super().act_discrete_with_noise(state, use_target)
 
     def update(
         self,
@@ -402,7 +398,7 @@ class DDPGApex(DDPGPer):
         **__
     ):
         # DOC INHERITED
-        result = super(DDPGApex, self).update(
+        result = super().update(
             update_value, update_policy, update_target, concatenate_samples
         )
         if isinstance(

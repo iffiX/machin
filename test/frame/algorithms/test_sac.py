@@ -24,7 +24,7 @@ def atanh(x):
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -74,7 +74,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -88,7 +88,7 @@ class Critic(nn.Module):
         return q
 
 
-class TestSAC(object):
+class TestSAC:
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self):

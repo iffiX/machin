@@ -92,7 +92,7 @@ def envs():
     return all_envs
 
 
-class TestParallelWrapperDummy(object):
+class TestParallelWrapperDummy:
     ########################################################################
     # Test for ParallelWrapperDummy.reset
     ########################################################################
@@ -215,7 +215,7 @@ class TestParallelWrapperDummy(object):
         dummy_wrapper.close()
 
 
-class TestParallelWrapperSubProc(object):
+class TestParallelWrapperSubProc:
     ########################################################################
     # Test for ParallelWrapperSubProc.reset
     ########################################################################

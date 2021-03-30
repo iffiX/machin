@@ -82,7 +82,7 @@ class RLDataset(IterableDataset):
     """
 
     def __init__(self, **_kwargs):
-        super(RLDataset, self).__init__()
+        super().__init__()
 
     def __iter__(self) -> Iterable:
         return self

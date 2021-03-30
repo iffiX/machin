@@ -21,7 +21,7 @@ from .utils import (
 )
 
 
-class RunningStat(object):
+class RunningStat:
     """
     Running status estimator method by B. P. Welford
     described in http://www.johndcook.com/blog/standard_deviation/
@@ -128,7 +128,7 @@ class RunningStat(object):
         return self._M.shape
 
 
-class MeanStdFilter(object):
+class MeanStdFilter:
     """Keeps track of a running mean for seen states"""
 
     def __init__(self, shape):
@@ -240,7 +240,7 @@ class MeanStdFilter(object):
         )
 
 
-class SharedNoiseSampler(object):
+class SharedNoiseSampler:
     def __init__(self, noise: t.Tensor, seed: int):
         """
         Args:
@@ -414,7 +414,7 @@ class ARS(TorchFramework):
         self._sync_actor()
         self._generate_parameter()
         self._reset_reward_dict()
-        super(ARS, self).__init__()
+        super().__init__()
 
     @property
     def optimizers(self):

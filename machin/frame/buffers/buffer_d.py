@@ -41,7 +41,7 @@ class DistributedBuffer(Buffer):
             group: Process group which holds this buffer.
             buffer_name: A unique name of your buffer.
         """
-        super(DistributedBuffer, self).__init__(buffer_size, "cpu")
+        super().__init__(buffer_size, "cpu")
         self.buffer_name = buffer_name
         self.group = group
 
@@ -65,16 +65,14 @@ class DistributedBuffer(Buffer):
     ):
         # DOC INHERITED
         with self.wr_lock:
-            super(DistributedBuffer, self).append(
-                transition, required_attrs=required_attrs
-            )
+            super().append(transition, required_attrs=required_attrs)
 
     def clear(self):
         """
         Clear current local buffer.
         """
         with self.wr_lock:
-            return super(DistributedBuffer, self).clear()
+            return super().clear()
 
     def all_clear(self):
         """
@@ -93,7 +91,7 @@ class DistributedBuffer(Buffer):
             Length of current local buffer.
         """
         with self.wr_lock:
-            return super(DistributedBuffer, self).size()
+            return super().size()
 
     def all_size(self):
         """

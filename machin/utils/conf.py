@@ -12,7 +12,7 @@ class Config(Object):
     """
 
     def __init__(self, **configs):
-        super(Config, self).__init__(configs)
+        super().__init__(configs)
 
     def get(self, key, default=None):
         if key in self:
@@ -100,7 +100,7 @@ def load_config_file(json_file: str, merge_conf: Config = None) -> Config:
         configuration
     """
     # parse the configurations from the config json file provided
-    with open(json_file, "r") as config_file:
+    with open(json_file) as config_file:
         config_dict = json.load(config_file)
 
     return merge_config((Config() if merge_conf is None else merge_conf), config_dict)

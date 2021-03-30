@@ -15,7 +15,7 @@ class LocalMediaLogger(LightningLoggerBase):
     """
 
     def __init__(self, image_dir: str, artifact_dir: str):
-        super(LocalMediaLogger, self).__init__()
+        super().__init__()
         self.image_dir = image_dir
         self.artifact_dir = artifact_dir
         self._counters = {}

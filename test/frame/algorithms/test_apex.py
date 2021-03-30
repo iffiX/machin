@@ -17,7 +17,7 @@ from test.util_fixtures import *
 
 class QNet(nn.Module):
     def __init__(self, state_dim, action_num):
-        super(QNet, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -31,7 +31,7 @@ class QNet(nn.Module):
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -47,7 +47,7 @@ class Actor(nn.Module):
 
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(ActorDiscrete, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -62,7 +62,7 @@ class ActorDiscrete(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -76,7 +76,7 @@ class Critic(nn.Module):
         return q
 
 
-class TestDQNApex(object):
+class TestDQNApex:
     # configs and definitions
     disable_view_window()
     c = Config()
@@ -335,7 +335,7 @@ class TestDQNApex(object):
         raise RuntimeError("DQN-Apex Training failed.")
 
 
-class TestDDPGApex(object):
+class TestDDPGApex:
     # configs and definitions
     disable_view_window()
     c = Config()

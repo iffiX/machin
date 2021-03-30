@@ -17,7 +17,7 @@ from test.util_run_multi import *
 from test.util_fixtures import *
 
 
-class TestRunningStat(object):
+class TestRunningStat:
     @pytest.mark.parametrize("shape", ((), (3,), (3, 4)))
     def test_push(self, shape):
         vals = []
@@ -68,7 +68,7 @@ class TestRunningStat(object):
 
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(ActorDiscrete, self).__init__()
+        super().__init__()
         self.fc = nn.Linear(state_dim, action_dim, bias=False)
 
     def forward(self, state):
@@ -76,7 +76,7 @@ class ActorDiscrete(nn.Module):
         return a
 
 
-class TestARS(object):
+class TestARS:
     # configs and definitions
     # Cartpole-v0 can be solved:
     # within 200 episodes, using single layer Actor

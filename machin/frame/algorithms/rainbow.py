@@ -81,7 +81,7 @@ class RAINBOW(DQN):
             mode: one of ``"vanilla", "fixed_target", "double"``.
             visualize: Whether visualize the network flow in the first pass.
         """
-        super(RAINBOW, self).__init__(
+        super().__init__(
             qnet,
             qnet_target,
             optimizer,

@@ -68,7 +68,7 @@ class OrderedServerSimple(OrderedServerBase):
         return self.group.registered_sync(self._pull_service, args=(key, version))
 
 
-class OrderedServerSimpleImpl(object):
+class OrderedServerSimpleImpl:
     """
     A simple key-value server, with strict ordered update
     """

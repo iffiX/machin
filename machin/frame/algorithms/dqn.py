@@ -209,7 +209,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
         self.criterion = criterion
 
-        super(DQN, self).__init__()
+        super().__init__()
 
     @property
     def optimizers(self):
@@ -495,7 +495,7 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
 
     def load(self, model_dir, network_map=None, version=-1):
         # DOC INHERITED
-        super(DQN, self).load(model_dir, network_map, version)
+        super().load(model_dir, network_map, version)
         with t.no_grad():
             hard_update(self.qnet, self.qnet_target)
 

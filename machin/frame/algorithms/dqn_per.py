@@ -44,7 +44,7 @@ class DQNPer(DQN):
         **__
     ):
         # DOC INHERITED
-        super(DQNPer, self).__init__(
+        super().__init__(
             qnet,
             qnet_target,
             optimizer,

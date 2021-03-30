@@ -2,7 +2,7 @@ from machin.utils.tensor_board import default_board
 import pytest
 
 
-class TestTensorBoard(object):
+class TestTensorBoard:
     def test_tensor_board(self):
         default_board.init()
         with pytest.raises(RuntimeError, match="has been initialized"):

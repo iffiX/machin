@@ -6,7 +6,7 @@ def _log(rank, msg):
     default_logger.info(f"Client {rank}: {msg}")
 
 
-class Object(object):
+class Object:
     pass
 
 

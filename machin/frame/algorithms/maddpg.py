@@ -297,7 +297,7 @@ class MADDPG(TorchFramework):
                 self.jit_actors.append(jit_actors)
                 self.jit_actor_targets.append(jit_actor_targets)
 
-        super(MADDPG, self).__init__()
+        super().__init__()
 
     @property
     def optimizers(self):
@@ -667,7 +667,7 @@ class MADDPG(TorchFramework):
 
     def load(self, model_dir, network_map=None, version=-1):
         # DOC INHERITED
-        super(MADDPG, self).load(model_dir, network_map, version)
+        super().load(model_dir, network_map, version)
         with t.no_grad():
             self.pool.starmap(
                 hard_update,

@@ -9,7 +9,7 @@ from machin.utils.helper_classes import Object
 from os.path import join
 import os
 import json
-import mock
+from unittest import mock
 
 
 def get_config():

@@ -45,7 +45,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             buffer_size: Maximum local buffer size.
             group: Process group which holds this buffer.
         """
-        super(DistributedPrioritizedBuffer, self).__init__(buffer_size, "cpu")
+        super().__init__(buffer_size, "cpu")
         self.buffer_name = buffer_name
         self.buffer_version_table = np.zeros([buffer_size], dtype=np.uint64)
         self.group = group
@@ -93,7 +93,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             Length of current local buffer.
         """
         with self.wr_lock:
-            return super(DistributedPrioritizedBuffer, self).size()
+            return super().size()
 
     def all_size(self):
         """
@@ -117,7 +117,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
         Remove all entries from current local buffer.
         """
         with self.wr_lock:
-            super(DistributedPrioritizedBuffer, self).clear()
+            super().clear()
             # also clear the version table
             self.buffer_version_table.fill(0)
 
@@ -214,11 +214,11 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
 
     def _size_service(self):  # pragma: no cover
         with self.wr_lock:
-            return super(DistributedPrioritizedBuffer, self).size()
+            return super().size()
 
     def _clear_service(self):  # pragma: no cover
         with self.wr_lock:
-            super(DistributedPrioritizedBuffer, self).clear()
+            super().clear()
             # also clear the version table
             self.buffer_version_table.fill(0)
 
@@ -235,9 +235,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             # select unchanged entries
             priorities = priorities[is_same]
             indexes = indexes[is_same]
-            super(DistributedPrioritizedBuffer, self).update_priority(
-                priorities, indexes
-            )
+            super().update_priority(priorities, indexes)
 
     def _sample_service(self, batch_size, all_weight_sum):  # pragma: no cover
         # the local batch size

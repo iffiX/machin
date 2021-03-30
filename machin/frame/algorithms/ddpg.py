@@ -173,7 +173,7 @@ class DDPG(TorchFramework):
             )
 
         self.criterion = criterion
-        super(DDPG, self).__init__()
+        super().__init__()
 
     @property
     def optimizers(self):
@@ -479,7 +479,7 @@ class DDPG(TorchFramework):
         self, model_dir: str, network_map: Dict[str, str] = None, version: int = -1
     ):
         # DOC INHERITED
-        super(DDPG, self).load(model_dir, network_map, version)
+        super().load(model_dir, network_map, version)
         with t.no_grad():
             hard_update(self.actor, self.actor_target)
             hard_update(self.critic, self.critic_target)
