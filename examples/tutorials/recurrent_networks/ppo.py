@@ -22,7 +22,7 @@ disable_view_window()
 
 class Actor(nn.Module):
     def __init__(self, history_depth, action_num):
-        super(Actor, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(128 * history_depth, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, action_num)
@@ -32,9 +32,7 @@ class Actor(nn.Module):
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
         dist = Categorical(probs=probs)
-        act = (action
-               if action is not None
-               else dist.sample())
+        act = action if action is not None else dist.sample()
         act_entropy = dist.entropy()
         act_log_prob = dist.log_prob(act.flatten())
         return act, act_log_prob, act_entropy
@@ -42,7 +40,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, history_depth):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(128 * history_depth, 256)
         self.fc2 = nn.Linear(256, 256)
@@ -59,11 +57,14 @@ if __name__ == "__main__":
     actor = Actor(history_depth, action_num).to("cuda:0")
     critic = Critic(history_depth).to("cuda:0")
 
-    ppo = PPO(actor, critic,
-              t.optim.Adam,
-              nn.MSELoss(reduction='sum'),
-              actor_learning_rate=1e-5,
-              critic_learning_rate=1e-4)
+    ppo = PPO(
+        actor,
+        critic,
+        t.optim.Adam,
+        nn.MSELoss(reduction="sum"),
+        actor_learning_rate=1e-5,
+        critic_learning_rate=1e-4,
+    )
 
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
@@ -89,21 +90,21 @@ if __name__ == "__main__":
 
                 old_history = history.get()
                 new_history = history.append(state).get()
-                tmp_observations.append({
-                    "state": {"mem": old_history},
-                    "action": {"action": action},
-                    "next_state": {"mem": new_history},
-                    "reward": reward,
-                    "terminal": terminal
-                })
+                tmp_observations.append(
+                    {
+                        "state": {"mem": old_history},
+                        "action": {"action": action},
+                        "next_state": {"mem": new_history},
+                        "reward": reward,
+                        "terminal": terminal,
+                    }
+                )
 
         # update
         ppo.store_episode(tmp_observations)
         ppo.update()
 
         # show reward
-        smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                 total_reward * 0.1)
+        smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
 
-        logger.info("Episode {} total reward={:.2f}"
-                    .format(episode, smoothed_total_reward))
+        logger.info(f"Episode {episode} total reward={smoothed_total_reward:.2f}")

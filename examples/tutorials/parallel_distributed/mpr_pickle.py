@@ -22,9 +22,11 @@ if __name__ == "__main__":
     # However, if you do this in the same process, no SEGFAULT
     # will happen, because memory map is the same.
     tensor = t.ones([10])
-    p = Process(target=print_tensor_sub_proc,
-                args=(dumps(tensor, copy_tensor=True),),
-                ctx=fork_ctx)
+    p = Process(
+        target=print_tensor_sub_proc,
+        args=(dumps(tensor, copy_tensor=True),),
+        ctx=fork_ctx,
+    )
     p.start()
     p.join()
     # cpu tensor, in shared memory
@@ -34,15 +36,23 @@ if __name__ == "__main__":
     # only a pointer to the shared memory will be passed, and
     # not all data in the tensor.
     tensor.share_memory_()
-    p = Process(target=print_tensor_sub_proc,
-                args=(dumps(tensor, copy_tensor=False),),
-                ctx=fork_ctx)
+    p = Process(
+        target=print_tensor_sub_proc,
+        args=(dumps(tensor, copy_tensor=False),),
+        ctx=fork_ctx,
+    )
     p.start()
     p.join()
-    print("Dumped length of shm tensor if copy: {}"
-          .format(len(dumps(tensor, copy_tensor=True))))
-    print("Dumped length of shm tensor if not copy: {}"
-          .format(len(dumps(tensor, copy_tensor=False))))
+    print(
+        "Dumped length of shm tensor if copy: {}".format(
+            len(dumps(tensor, copy_tensor=True))
+        )
+    )
+    print(
+        "Dumped length of shm tensor if not copy: {}".format(
+            len(dumps(tensor, copy_tensor=False))
+        )
+    )
 
     # gpu tensor
     # If you would like to pass this tensor to a sub process
@@ -51,15 +61,23 @@ if __name__ == "__main__":
     # not all data in the tensor.
     # You should use "spawn" context instead of "fork" as well.
     tensor = tensor.to("cuda:0")
-    p = Process(target=print_tensor_sub_proc,
-                args=(dumps(tensor, copy_tensor=False),),
-                ctx=spawn_ctx)
+    p = Process(
+        target=print_tensor_sub_proc,
+        args=(dumps(tensor, copy_tensor=False),),
+        ctx=spawn_ctx,
+    )
     p.start()
     p.join()
-    print("Dumped length of gpu tensor if copy: {}"
-          .format(len(dumps(tensor, copy_tensor=True))))
-    print("Dumped length of gpu tensor if not copy: {}"
-          .format(len(dumps(tensor, copy_tensor=False))))
+    print(
+        "Dumped length of gpu tensor if copy: {}".format(
+            len(dumps(tensor, copy_tensor=True))
+        )
+    )
+    print(
+        "Dumped length of gpu tensor if not copy: {}".format(
+            len(dumps(tensor, copy_tensor=False))
+        )
+    )
 
     # in order to pass a local function / lambda function
     # to the subprocess, set recursive to `true`
@@ -68,11 +86,12 @@ if __name__ == "__main__":
         global tensor
         tensor.fill_(3)
 
-
-    print("Before:{}".format(tensor))
-    p = Process(target=exec_sub_proc,
-                args=(dumps(local_func, recurse=True, copy_tensor=False),),
-                ctx=spawn_ctx)
+    print(f"Before:{tensor}")
+    p = Process(
+        target=exec_sub_proc,
+        args=(dumps(local_func, recurse=True, copy_tensor=False),),
+        ctx=spawn_ctx,
+    )
     p.start()
     p.join()
-    print("After:{}".format(tensor))
+    print(f"After:{tensor}")

@@ -11,7 +11,7 @@ import torch.nn as nn
 
 class ActorDiscrete(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(ActorDiscrete, self).__init__()
+        super().__init__()
         self.fc = nn.Linear(state_dim, action_dim, bias=False)
 
     def forward(self, state):
@@ -29,19 +29,23 @@ def main(rank):
     solved_repeat = 5
 
     # initlize distributed world first
-    world = World(world_size=3, rank=rank,
-                  name=str(rank), rpc_timeout=20)
+    world = World(world_size=3, rank=rank, name=str(rank), rpc_timeout=20)
 
     actor = dmw(ActorDiscrete(observe_dim, action_num))
     servers = model_server_helper(model_num=1)
     ars_group = world.create_rpc_group("ars", ["0", "1", "2"])
-    ars = ARS(actor, t.optim.SGD, ars_group, servers,
-              noise_std_dev=0.1,
-              learning_rate=0.1,
-              noise_size=1000000,
-              rollout_num=6,
-              used_rollout_num=6,
-              normalize_state=True)
+    ars = ARS(
+        actor,
+        t.optim.SGD,
+        ars_group,
+        servers,
+        noise_std_dev=0.1,
+        learning_rate=0.1,
+        noise_size=1000000,
+        rollout_num=6,
+        used_rollout_num=6,
+        normalize_state=True,
+    )
 
     # begin training
     episode, step, reward_fulfilled = 0, 0, 0
@@ -63,8 +67,7 @@ def main(rank):
                     # agent model inference
                     action = ars.act({"state": state}, at)
                     state, reward, terminal, __ = env.step(action)
-                    state = t.tensor(state, dtype=t.float32)\
-                        .view(1, observe_dim)
+                    state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
                     total_reward += reward
 
             ars.store_reward(total_reward, at)
@@ -74,10 +77,12 @@ def main(rank):
         ars.update()
 
         # show reward
-        smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                 all_reward / len(ars.get_actor_types()) * 0.1)
-        logger.info("Process {} Episode {} total reward={:.2f}"
-                    .format(rank, episode, smoothed_total_reward))
+        smoothed_total_reward = (
+            smoothed_total_reward * 0.9 + all_reward / len(ars.get_actor_types()) * 0.1
+        )
+        logger.info(
+            f"Process {rank} Episode {episode} total reward={smoothed_total_reward:.2f}"
+        )
 
         if smoothed_total_reward > solved_reward:
             reward_fulfilled += 1

@@ -13,7 +13,7 @@ import torch.nn as nn
 
 class QNet(nn.Module):
     def __init__(self, state_dim, action_num):
-        super(QNet, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -35,8 +35,7 @@ def main(rank):
     solved_repeat = 5
 
     # initlize distributed world first
-    world = World(world_size=4, rank=rank,
-                  name=str(rank), rpc_timeout=20)
+    world = World(world_size=4, rank=rank, name=str(rank), rpc_timeout=20)
 
     servers = model_server_helper(model_num=1)
     apex_group = world.create_rpc_group("apex", ["0", "1", "2", "3"])
@@ -47,22 +46,27 @@ def main(rank):
 
         # wrap the model with DistributedDataParallel
         # if current process is learner process 2 or 3
-        q_net = DistributedDataParallel(module=QNet(observe_dim, action_num),
-                                        process_group=learner_group.group)
-        q_net_t = DistributedDataParallel(module=QNet(observe_dim, action_num),
-                                          process_group=learner_group.group)
+        q_net = DistributedDataParallel(
+            module=QNet(observe_dim, action_num), process_group=learner_group.group
+        )
+        q_net_t = DistributedDataParallel(
+            module=QNet(observe_dim, action_num), process_group=learner_group.group
+        )
     else:
         q_net = QNet(observe_dim, action_num)
         q_net_t = QNet(observe_dim, action_num)
 
     # we may use a smaller batch size to train if we are using
     # DistributedDataParallel
-    dqn_apex = DQNApex(q_net, q_net_t,
-                       t.optim.Adam,
-                       nn.MSELoss(reduction='sum'),
-                       apex_group,
-                       servers,
-                       batch_size=50)
+    dqn_apex = DQNApex(
+        q_net,
+        q_net_t,
+        t.optim.Adam,
+        nn.MSELoss(reduction="sum"),
+        apex_group,
+        servers,
+        batch_size=50,
+    )
 
     # synchronize all processes in the group, make sure
     # distributed buffer has been created on all processes in apex_group
@@ -93,26 +97,25 @@ def main(rank):
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action = dqn_apex.act_discrete_with_noise(
-                        {"state": old_state}
-                    )
+                    action = dqn_apex.act_discrete_with_noise({"state": old_state})
                     state, reward, terminal, _ = env.step(action.item())
-                    state = t.tensor(state, dtype=t.float32)\
-                        .view(1, observe_dim)
+                    state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
                     total_reward += reward
 
-                    dqn_apex.store_transition({
-                        "state": {"state": old_state},
-                        "action": {"action": action},
-                        "next_state": {"state": state},
-                        "reward": reward,
-                        "terminal": terminal or step == max_steps
-                    })
+                    dqn_apex.store_transition(
+                        {
+                            "state": {"state": old_state},
+                            "action": {"action": action},
+                            "next_state": {"state": state},
+                            "reward": reward,
+                            "terminal": terminal or step == max_steps,
+                        }
+                    )
 
-            smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                     total_reward * 0.1)
-            logger.info("Process {} Episode {} total reward={:.2f}"
-                        .format(rank, episode, smoothed_total_reward))
+            smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
+            logger.info(
+                f"Process {rank} Episode {episode} total reward={smoothed_total_reward:.2f}"
+            )
 
             if smoothed_total_reward > solved_reward:
                 reward_fulfilled += 1

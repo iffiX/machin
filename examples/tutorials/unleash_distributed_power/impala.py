@@ -14,7 +14,7 @@ import torch.nn as nn
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_num):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -25,9 +25,7 @@ class Actor(nn.Module):
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
         dist = Categorical(probs=probs)
-        act = (action
-               if action is not None
-               else dist.sample())
+        act = action if action is not None else dist.sample()
         act_entropy = dist.entropy()
         act_log_prob = dist.log_prob(act.flatten())
         return act, act_log_prob, act_entropy
@@ -35,7 +33,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -58,8 +56,7 @@ def main(rank):
     solved_repeat = 5
 
     # initlize distributed world first
-    world = World(world_size=4, rank=rank,
-                  name=str(rank), rpc_timeout=20)
+    world = World(world_size=4, rank=rank, name=str(rank), rpc_timeout=20)
 
     servers = model_server_helper(model_num=1)
     impala_group = world.create_rpc_group("impala", ["0", "1", "2", "3"])
@@ -70,10 +67,12 @@ def main(rank):
 
         # wrap the model with DistributedDataParallel
         # if current process is learner process 2 or 3
-        actor = DistributedDataParallel(module=Actor(observe_dim, action_num),
-                                        process_group=learner_group.group)
-        critic = DistributedDataParallel(module=Critic(observe_dim),
-                                         process_group=learner_group.group)
+        actor = DistributedDataParallel(
+            module=Actor(observe_dim, action_num), process_group=learner_group.group
+        )
+        critic = DistributedDataParallel(
+            module=Critic(observe_dim), process_group=learner_group.group
+        )
     else:
         actor = Actor(observe_dim, action_num)
         critic = Critic(observe_dim)
@@ -83,12 +82,15 @@ def main(rank):
 
     # note: since the impala framework is storing a whole
     # episode as a single sample, we should wait for a smaller number
-    impala = IMPALA(actor, critic,
-                    t.optim.Adam,
-                    nn.MSELoss(reduction='sum'),
-                    impala_group,
-                    servers,
-                    batch_size=2)
+    impala = IMPALA(
+        actor,
+        critic,
+        t.optim.Adam,
+        nn.MSELoss(reduction="sum"),
+        impala_group,
+        servers,
+        batch_size=2,
+    )
 
     # synchronize all processes in the group, make sure
     # distributed buffer has been created on all processes in apex_group
@@ -120,27 +122,27 @@ def main(rank):
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action, action_log_prob, *_ = \
-                        impala.act({"state": old_state})
+                    action, action_log_prob, *_ = impala.act({"state": old_state})
                     state, reward, terminal, _ = env.step(action.item())
-                    state = t.tensor(state, dtype=t.float32) \
-                        .view(1, observe_dim)
+                    state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
                     total_reward += reward
 
-                    tmp_observations.append({
-                        "state": {"state": old_state},
-                        "action": {"action": action},
-                        "next_state": {"state": state},
-                        "reward": reward,
-                        "action_log_prob": action_log_prob.item(),
-                        "terminal": terminal or step == max_steps
-                    })
+                    tmp_observations.append(
+                        {
+                            "state": {"state": old_state},
+                            "action": {"action": action},
+                            "next_state": {"state": state},
+                            "reward": reward,
+                            "action_log_prob": action_log_prob.item(),
+                            "terminal": terminal or step == max_steps,
+                        }
+                    )
 
             impala.store_episode(tmp_observations)
-            smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                     total_reward * 0.1)
-            logger.info("Process {} Episode {} total reward={:.2f}"
-                        .format(rank, episode, smoothed_total_reward))
+            smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
+            logger.info(
+                f"Process {rank} Episode {episode} total reward={smoothed_total_reward:.2f}"
+            )
 
             if smoothed_total_reward > solved_reward:
                 reward_fulfilled += 1

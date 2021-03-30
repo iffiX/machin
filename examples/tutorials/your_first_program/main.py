@@ -18,7 +18,7 @@ solved_repeat = 5
 # model definition
 class QNet(nn.Module):
     def __init__(self, state_dim, action_num):
-        super(QNet, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -49,9 +49,7 @@ if __name__ == "__main__":
     # q_net = dynamic_module_wrapper(q_net)
     # q_net_t = dynamic_module_wrapper(q_net_t)
 
-    dqn = DQN(q_net, q_net_t,
-              t.optim.Adam,
-              nn.MSELoss(reduction='sum'))
+    dqn = DQN(q_net, q_net_t, t.optim.Adam, nn.MSELoss(reduction="sum"))
 
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
@@ -68,20 +66,20 @@ if __name__ == "__main__":
             with t.no_grad():
                 old_state = state
                 # agent model inference
-                action = dqn.act_discrete_with_noise(
-                    {"some_state": old_state}
-                )
+                action = dqn.act_discrete_with_noise({"some_state": old_state})
                 state, reward, terminal, _ = env.step(action.item())
                 state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
                 total_reward += reward
 
-                dqn.store_transition({
-                    "state": {"some_state": old_state},
-                    "action": {"action": action},
-                    "next_state": {"some_state": state},
-                    "reward": reward,
-                    "terminal": terminal or step == max_steps
-                })
+                dqn.store_transition(
+                    {
+                        "state": {"some_state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"some_state": state},
+                        "reward": reward,
+                        "terminal": terminal or step == max_steps,
+                    }
+                )
 
         # update, update more if episode is longer, else less
         if episode > 100:
@@ -89,10 +87,8 @@ if __name__ == "__main__":
                 dqn.update()
 
         # show reward
-        smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                 total_reward * 0.1)
-        logger.info("Episode {} total reward={:.2f}"
-                    .format(episode, smoothed_total_reward))
+        smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
+        logger.info(f"Episode {episode} total reward={smoothed_total_reward:.2f}")
 
         if smoothed_total_reward > solved_reward:
             reward_fulfilled += 1

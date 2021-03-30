@@ -2,11 +2,10 @@ from machin.parallel.assigner import ModelAssigner
 from machin.model.nets.resnet import ResNet
 
 if __name__ == "__main__":
-    models = [ResNet(in_planes=9,
-                     depth=152,
-                     out_planes=1,
-                     out_pool_size=[20, 20])
-              for _ in range(4)]
+    models = [
+        ResNet(in_planes=9, depth=152, out_planes=1, out_pool_size=[20, 20])
+        for _ in range(4)
+    ]
 
     # create 4 ResNet as example models
     assigner = ModelAssigner(
@@ -33,11 +32,9 @@ if __name__ == "__main__":
         update_rate=0.01,
         gpu_gpu_distance=1,
         cpu_gpu_distance=10,
-        move_models=False
+        move_models=False,
     )
-    real_assignment = [
-        str(dev) for dev in assigner.assignment
-    ]
+    real_assignment = [str(dev) for dev in assigner.assignment]
     # should be "cuda:0", "cuda:0", "cpu", "cpu"
     # or "cpu", "cpu", "cuda:0", "cuda:0"
-    print("Assignment: {}".format(real_assignment))
+    print(f"Assignment: {real_assignment}")

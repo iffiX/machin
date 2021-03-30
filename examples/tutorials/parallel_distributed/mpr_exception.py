@@ -4,7 +4,7 @@ import time
 
 def test1():
     time.sleep(1)
-    print("Exception occurred at {}".format(time.time()))
+    print(f"Exception occurred at {time.time()}")
     raise RuntimeError("Error")
 
 
@@ -15,7 +15,7 @@ if __name__ == "__main__":
         try:
             t1.watch()
         except ProcessException as e:
-            print("Exception caught at {}".format(time.time()))
-            print("Exception is: {}".format(e))
+            print(f"Exception caught at {time.time()}")
+            print(f"Exception is: {e}")
             break
     t1.join()

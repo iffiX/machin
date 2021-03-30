@@ -20,7 +20,7 @@ solved_repeat = 5
 # model definition
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -36,7 +36,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -56,9 +56,9 @@ if __name__ == "__main__":
     critic = Critic(observe_dim, action_dim)
     critic_t = Critic(observe_dim, action_dim)
 
-    ddpg = DDPG(actor, actor_t, critic, critic_t,
-                t.optim.Adam,
-                nn.MSELoss(reduction='sum'))
+    ddpg = DDPG(
+        actor, actor_t, critic, critic_t, t.optim.Adam, nn.MSELoss(reduction="sum")
+    )
 
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
@@ -76,21 +76,21 @@ if __name__ == "__main__":
                 old_state = state
                 # agent model inference
                 action = ddpg.act_with_noise(
-                            {"state": old_state},
-                            noise_param=noise_param,
-                            mode=noise_mode
-                        )
+                    {"state": old_state}, noise_param=noise_param, mode=noise_mode
+                )
                 state, reward, terminal, _ = env.step(action.numpy())
                 state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
                 total_reward += reward[0]
 
-                ddpg.store_transition({
-                    "state": {"state": old_state},
-                    "action": {"action": action},
-                    "next_state": {"state": state},
-                    "reward": reward[0],
-                    "terminal": terminal or step == max_steps
-                })
+                ddpg.store_transition(
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": reward[0],
+                        "terminal": terminal or step == max_steps,
+                    }
+                )
 
         # update, update more if episode is longer, else less
         if episode > 100:
@@ -98,10 +98,8 @@ if __name__ == "__main__":
                 ddpg.update()
 
         # show reward
-        smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                 total_reward * 0.1)
-        logger.info("Episode {} total reward={:.2f}"
-                    .format(episode, smoothed_total_reward))
+        smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
+        logger.info(f"Episode {episode} total reward={smoothed_total_reward:.2f}")
 
         if smoothed_total_reward > solved_reward:
             reward_fulfilled += 1

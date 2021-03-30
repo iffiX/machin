@@ -23,27 +23,22 @@ disable_view_window()
 # for atari games
 class QNet(nn.Module):
     def __init__(self, history_depth, action_num):
-        super(QNet, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(128 * history_depth, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, action_num)
 
     def forward(self, mem):
-        return self.fc3(t.relu(
-            self.fc2(t.relu(
-                self.fc1(mem.flatten(start_dim=1))
-            ))
-        ))
+        return self.fc3(t.relu(self.fc2(t.relu(self.fc1(mem.flatten(start_dim=1))))))
 
 
 if __name__ == "__main__":
     q_net = QNet(history_depth, action_num).to("cuda:0")
     q_net_t = QNet(history_depth, action_num).to("cuda:0")
 
-    dqn = DQNPer(q_net, q_net_t,
-                 t.optim.Adam,
-                 nn.MSELoss(reduction='sum'),
-                 learning_rate=5e-4)
+    dqn = DQNPer(
+        q_net, q_net_t, t.optim.Adam, nn.MSELoss(reduction="sum"), learning_rate=5e-4
+    )
 
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
@@ -61,9 +56,7 @@ if __name__ == "__main__":
             with t.no_grad():
                 history.append(state)
                 # agent model inference
-                action = dqn.act_discrete_with_noise(
-                    {"mem": history.get()}
-                )
+                action = dqn.act_discrete_with_noise({"mem": history.get()})
 
                 # info is {"ale.lives": self.ale.lives()}, not used here
                 state, reward, terminal, _ = env.step(action.item())
@@ -71,13 +64,15 @@ if __name__ == "__main__":
                 total_reward += reward
                 old_history = history.get()
                 new_history = history.append(state).get()
-                dqn.store_transition({
-                    "state": {"mem": old_history},
-                    "action": {"action": action},
-                    "next_state": {"mem": new_history},
-                    "reward": reward,
-                    "terminal": terminal
-                })
+                dqn.store_transition(
+                    {
+                        "state": {"mem": old_history},
+                        "action": {"action": action},
+                        "next_state": {"mem": new_history},
+                        "reward": reward,
+                        "terminal": terminal,
+                    }
+                )
 
         # update, update more if episode is longer, else less
         if episode > 20:
@@ -85,8 +80,6 @@ if __name__ == "__main__":
                 dqn.update()
 
         # show reward
-        smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                 total_reward * 0.1)
+        smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
 
-        logger.info("Episode {} total reward={:.2f}"
-                    .format(episode, smoothed_total_reward))
+        logger.info(f"Episode {episode} total reward={smoothed_total_reward:.2f}")

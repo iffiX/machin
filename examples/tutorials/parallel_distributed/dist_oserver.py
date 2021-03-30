@@ -5,8 +5,7 @@ from time import sleep
 
 
 def main(rank):
-    world = World(world_size=3, rank=rank,
-                  name=str(rank), rpc_timeout=20)
+    world = World(world_size=3, rank=rank, name=str(rank), rpc_timeout=20)
     # Usually, distributed services in Machin are seperated
     # into:
     # An accessor: OrderedServerSimple

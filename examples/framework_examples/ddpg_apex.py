@@ -12,7 +12,7 @@ import torch.nn as nn
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -28,7 +28,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.fc1 = nn.Linear(state_dim + action_dim, 16)
         self.fc2 = nn.Linear(16, 16)
@@ -55,8 +55,7 @@ def main(rank):
     solved_repeat = 5
 
     # initlize distributed world first
-    world = World(world_size=4, rank=rank,
-                  name=str(rank), rpc_timeout=20)
+    world = World(world_size=4, rank=rank, name=str(rank), rpc_timeout=20)
 
     servers = model_server_helper(model_num=2)
     apex_group = world.create_rpc_group("apex", ["0", "1", "2", "3"])
@@ -66,11 +65,16 @@ def main(rank):
     critic = Critic(observe_dim, action_dim)
     critic_t = Critic(observe_dim, action_dim)
 
-    ddpg_apex = DDPGApex(actor, actor_t, critic, critic_t,
-                         t.optim.Adam,
-                         nn.MSELoss(reduction='sum'),
-                         apex_group,
-                         servers)
+    ddpg_apex = DDPGApex(
+        actor,
+        actor_t,
+        critic,
+        critic_t,
+        t.optim.Adam,
+        nn.MSELoss(reduction="sum"),
+        apex_group,
+        servers,
+    )
 
     # synchronize all processes in the group, make sure
     # distributed buffer has been created on all processes in apex_group
@@ -102,27 +106,26 @@ def main(rank):
                     old_state = state
                     # agent model inference
                     action = ddpg_apex.act_with_noise(
-                            {"state": old_state},
-                            noise_param=noise_param,
-                            mode=noise_mode
-                        )
+                        {"state": old_state}, noise_param=noise_param, mode=noise_mode
+                    )
                     state, reward, terminal, _ = env.step(action.numpy())
-                    state = t.tensor(state, dtype=t.float32)\
-                        .view(1, observe_dim)
+                    state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
                     total_reward += reward[0]
 
-                    ddpg_apex.store_transition({
-                        "state": {"state": old_state},
-                        "action": {"action": action},
-                        "next_state": {"state": state},
-                        "reward": reward[0],
-                        "terminal": terminal or step == max_steps
-                    })
+                    ddpg_apex.store_transition(
+                        {
+                            "state": {"state": old_state},
+                            "action": {"action": action},
+                            "next_state": {"state": state},
+                            "reward": reward[0],
+                            "terminal": terminal or step == max_steps,
+                        }
+                    )
 
-            smoothed_total_reward = (smoothed_total_reward * 0.9 +
-                                     total_reward * 0.1)
-            logger.info("Process {} Episode {} total reward={:.2f}"
-                        .format(rank, episode, smoothed_total_reward))
+            smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
+            logger.info(
+                f"Process {rank} Episode {episode} total reward={smoothed_total_reward:.2f}"
+            )
 
             if smoothed_total_reward > solved_reward:
                 reward_fulfilled += 1
