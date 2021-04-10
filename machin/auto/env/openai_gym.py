@@ -3,7 +3,7 @@ from typing import Dict, List, Any, Union
 from ..config import fill_default, is_algorithm_distributed
 from ..pl_logger import LocalMediaLogger
 from ..dataset import DatasetResult, RLDataset, log_video, determine_precision
-from ..launcher import Launcher
+from ..launcher import Launcher, DistributedLauncher
 from machin.frame.algorithms import *
 from machin.env.utils.openai_gym import disable_view_window
 from machin.utils.conf import Config
@@ -58,6 +58,8 @@ class RLGymDiscActDataset(RLDataset):
         act_kwargs: Additional keyword arguments passed to act functions
             of different frameworks.
     """
+
+    early_stopping_monitor = "total_reward"
 
     def __init__(
         self,
@@ -163,6 +165,8 @@ class RLGymContActDataset(RLDataset):
         act_kwargs: Additional keyword arguments passed to act functions
             of different frameworks.
     """
+
+    early_stopping_monitor = "total_reward"
 
     def __init__(
         self,
@@ -304,7 +308,10 @@ def launch_gym(
 
     """
     pl_callbacks = pl_callbacks or []
-    s_env = SaveEnv(config.get("trials_dir", None) or "./trials")
+
+    # disable time formatting so all processes will use the same directory
+    # delay directory creation
+    s_env = SaveEnv(config.get("root_dir", None) or "./trial", time_format="")
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=s_env.get_trial_model_dir(),
@@ -322,14 +329,20 @@ def launch_gym(
     lm_logger = LocalMediaLogger(
         s_env.get_trial_image_dir(), s_env.get_trial_image_dir()
     )
+
+    is_distributed = is_algorithm_distributed(config)
     trainer = pl.Trainer(
-        gpus=config["gpus"],
+        gpus=config.get("gpus", None),
+        num_processes=config.get("num_processes", 1),
+        num_nodes=config.get("num_nodes", 1),
         callbacks=[checkpoint_callback, early_stopping] + pl_callbacks,
         logger=[t_logger, lm_logger],
         limit_train_batches=config["episode_per_epoch"],
         max_steps=config["max_episodes"],
-        accelerator="ddp" if is_algorithm_distributed(config) else None,
+        accelerator="ddp" if is_distributed else None,
     )
-    model = Launcher(config, gym_env_dataset_creator)
-
+    if is_distributed:
+        model = DistributedLauncher(config, gym_env_dataset_creator)
+    else:
+        model = Launcher(config, gym_env_dataset_creator)
     trainer.fit(model)

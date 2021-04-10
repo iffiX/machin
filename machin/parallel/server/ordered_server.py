@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from threading import Lock
 from copy import deepcopy
-from ..distributed import RpcGroup
+from ..distributed import RpcGroup, debug_with_process
 
 
 class OrderedServerBase(ABC):  # pragma: no cover
@@ -59,12 +59,20 @@ class OrderedServerSimple(OrderedServerBase):
 
     def push(self, key, value, version, prev_version):
         # DOC INHERITED
+        debug_with_process(
+            f"calling push service {self._push_service} "
+            f"on group [{self.group.group_name}]"
+        )
         return self.group.registered_sync(
             self._push_service, args=(key, value, version, prev_version)
         )
 
     def pull(self, key, version=None):
         # DOC INHERITED
+        debug_with_process(
+            f"calling pull service {self._push_service} "
+            f"on group [{self.group.group_name}]"
+        )
         return self.group.registered_sync(self._pull_service, args=(key, version))
 
 

@@ -1,6 +1,5 @@
 from typing import Union, Dict, List, Tuple, Callable, Any
 from copy import deepcopy
-import math
 import numpy as np
 import torch as t
 import torch.nn as nn
@@ -18,6 +17,10 @@ from .utils import (
     assert_and_get_valid_criterion,
     assert_and_get_valid_lr_scheduler,
 )
+
+
+def _disable_update(*_, **__):
+    return None, None
 
 
 def _make_tensor_from_batch(batch: List[Any], device, concatenate):
@@ -172,7 +175,9 @@ class IMPALA(TorchFramework):
             )
 
         self.criterion = criterion
-
+        self._is_using_DP_or_DDP = isinstance(
+            self.actor, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
+        )
         super().__init__()
 
     @property
@@ -197,7 +202,8 @@ class IMPALA(TorchFramework):
         self.is_syncing = is_syncing
 
     def manual_sync(self):
-        self.actor_model_server.pull(self.actor)
+        if not self._is_using_DP_or_DDP:
+            self.actor_model_server.pull(self.actor)
 
     def act(self, state: Dict[str, Any], *_, **__):
         """
@@ -206,7 +212,7 @@ class IMPALA(TorchFramework):
         Returns:
             Anything produced by actor.
         """
-        if self.is_syncing:
+        if self.is_syncing and not self._is_using_DP_or_DDP:
             self.actor_model_server.pull(self.actor)
         return safe_call(self.actor, state)
 
@@ -430,9 +436,7 @@ class IMPALA(TorchFramework):
             self.critic_optim.step()
 
         # push actor model for samplers
-        if isinstance(
-            self.actor, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
-        ):
+        if self._is_using_DP_or_DDP:
             self.actor_model_server.push(self.actor.module, pull_on_fail=False)
         else:
             self.actor_model_server.push(self.actor)
@@ -487,7 +491,11 @@ class IMPALA(TorchFramework):
         return config
 
     @classmethod
-    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
+    def init_from_config(
+        cls,
+        config: Union[Dict[str, Any], Config],
+        model_device: Union[str, t.device] = "cpu",
+    ):
         world = get_world()
         f_config = deepcopy(config["frame_config"])
         impala_group = world.create_rpc_group(
@@ -503,7 +511,8 @@ class IMPALA(TorchFramework):
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
-            m(*arg, **kwarg) for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            m(*arg, **kwarg).to(model_device)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         # wrap models in DistributedDataParallel when running in learner mode
         max_learner_id = f_config["learner_process_number"]
@@ -541,5 +550,8 @@ class IMPALA(TorchFramework):
             **f_config,
         )
         if world.rank >= max_learner_id:
-            frame.update = lambda *_, **__: (None, None)
+            frame.role = "sampler"
+            frame.update = _disable_update
+        else:
+            frame.role = "learner"
         return frame

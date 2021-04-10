@@ -3,6 +3,7 @@ from typing import Dict, Any, Union
 from machin.frame.algorithms import TorchFramework
 from machin.utils.conf import Config
 import inspect
+import torch as t
 import machin.frame.algorithms as algorithms
 
 
@@ -29,13 +30,13 @@ def _get_available_algorithms():
 
 
 def generate_training_config(
-    trials_dir: str = "./trials",
+    root_dir: str = "./trial",
     episode_per_epoch: int = 10,
     max_episodes: int = 10000,
     config: Union[Dict[str, Any], Config] = None,
 ):
     config = deepcopy(config) or {}
-    config["trials_dir"] = trials_dir
+    config["root_dir"] = root_dir
     config["episode_per_epoch"] = episode_per_epoch
     config["max_episodes"] = max_episodes
     config["early_stopping_patience"] = 3
@@ -48,14 +49,23 @@ def generate_algorithm_config(
     config = deepcopy(config) or {}
     if hasattr(algorithms, algorithm):
         algo_obj = getattr(algorithms, algorithm)
-        if issubclass(algo_obj, TorchFramework):
-            return algo_obj.generate_config(config)
+        if inspect.isclass(algo_obj) and issubclass(algo_obj, TorchFramework):
+            config = algo_obj.generate_config(config)
+            if algo_obj.is_distributed():
+                # in pytorch lightning, gpus will override num_processes
+                config["gpus"] = [0, 0, 0]
+                config["num_processes"] = 3
+                config["num_nodes"] = 1
+                config["batch_num"] = {"sampler": 10, "learner": 1}
+            return config
     raise ValueError(
         f"Invalid algorithm: {algorithm}, valid ones are: {_get_available_algorithms()}"
     )
 
 
-def init_algorithm_from_config(config: Union[Dict[str, Any], Config]):
+def init_algorithm_from_config(
+    config: Union[Dict[str, Any], Config], model_device: Union[str, t.device] = "cpu"
+):
     assert_algorithm_config_complete(config)
     frame = getattr(algorithms, config["frame"], None)
     if not inspect.isclass(frame) or not issubclass(frame, TorchFramework):
@@ -63,7 +73,7 @@ def init_algorithm_from_config(config: Union[Dict[str, Any], Config]):
             f"Invalid algorithm: {config['frame']}, "
             f"valid ones are: {_get_available_algorithms()}"
         )
-    return frame.init_from_config(config)
+    return frame.init_from_config(config, model_device=model_device)
 
 
 def is_algorithm_distributed(config: Union[Dict[str, Any], Config]):

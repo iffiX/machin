@@ -15,6 +15,7 @@ class SaveEnv:
         env_root: str,
         restart_from_trial: Union[str, None] = None,
         time_format="%Y_%m_%d_%H_%M_%S",
+        create_sub_dirs=True,
     ):
         """
         Create the default environment for saving. creates something like::
@@ -31,6 +32,10 @@ class SaveEnv:
             restart_from_trial: instead of creating a new save environment
                 for a new trial, use a existing save environment of an older
                 trial, old trial name should be in format ``time_format``
+            time_format: Time formatter, setting it to an empty string will cause
+                the save environment to use ``env_root`` directly instead of using
+                sub directories with a datetime name.
+            create_dirs: Whether to create directories.
         """
         self.env_root = env_root
         self.time_format = time_format
@@ -42,7 +47,8 @@ class SaveEnv:
                 restart_from_trial, self.time_format
             )
         self._check_dirs()
-        self._prep_dirs()
+        if create_sub_dirs:
+            self.create_sub_dirs()
 
     def create_dirs(self, dirs: Iterable[str]):
         """
@@ -181,7 +187,7 @@ class SaveEnv:
                     default_logger.info(f"Removing trial directory: {rm_path}")
                     shutil.rmtree(rm_path)
 
-    def _prep_dirs(self):
+    def create_sub_dirs(self):
         root_dir = join(self.env_root, self.env_create_time.strftime(self.time_format))
         prep_create_dirs(
             (

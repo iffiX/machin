@@ -81,6 +81,8 @@ class RLDataset(IterableDataset):
     Base class for all RL Datasets.
     """
 
+    early_stopping_monitor = ""
+
     def __init__(self, **_kwargs):
         super().__init__()
 

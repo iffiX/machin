@@ -19,6 +19,8 @@ class TorchFramework:
     def __init__(self):
         self._visualized = set()
         self._backward = t.autograd.backward
+        # may be used by some distributed frameworks
+        self.role = None
 
     @property
     def optimizers(self):
@@ -174,5 +176,9 @@ class TorchFramework:
         raise NotImplementedError
 
     @classmethod
-    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
+    def init_from_config(
+        cls,
+        config: Union[Dict[str, Any], Config],
+        model_device: Union[str, t.device] = "cpu",
+    ):
         raise NotImplementedError

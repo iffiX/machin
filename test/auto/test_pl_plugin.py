@@ -47,7 +47,7 @@ class TestDDPSpawnPlugin:
         process_0.wait(timeout=20)
         if process_0.poll():
             process_0.kill()
-            pytest.fail("Timeout on waiting for the DDPSpawnPlugin " "script to end.")
+            pytest.fail("Timeout on waiting for the DDPSpawnPlugin script to end.")
         elif process_0.returncode != 0:
             pytest.fail(f"DDPSpawnPlugin script returned code {process_0.returncode}.")
         else:

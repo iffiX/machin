@@ -10,16 +10,25 @@ from machin.auto.env.openai_gym import (
     gym_env_dataset_creator,
     launch_gym,
 )
+import os
+import sys
+import pickle
+import os.path as p
 from test.util_run_multi import *
 from test.util_fixtures import *
 from pytorch_lightning.callbacks import Callback
 from torch.distributions import Categorical, Normal
+from machin.parallel.distributed import get_cur_rank
+from machin.parallel.thread import Thread
+from machin.parallel.queue import SimpleQueue
 from machin.utils.logging import default_logger
 import gym
 import pytest
 import torch as t
 import torch.nn as nn
 import torch.nn.functional as F
+import subprocess as sp
+import multiprocessing as mp
 
 
 class QNet(nn.Module):
@@ -295,20 +304,51 @@ class InspectCallback(Callback):
                 default_logger.info(
                     f"Current max total reward={self.max_total_reward:.2f}."
                 )
-                if self.max_total_reward >= 190:
-                    trainer.should_stop = True
                 return
         default_logger.error("Missing total reward in logs.")
+
+
+class SpawnInspectCallback(Callback):
+    def __init__(self, queue: SimpleQueue):
+        self.max_total_reward = 0
+        self.queue = queue
+
+    def on_train_batch_end(
+        self, trainer, pl_module, outputs, batch, _batch_idx, _dataloader_idx
+    ) -> None:
+        for log in batch[0].logs:
+            if "total_reward" in log:
+                self.max_total_reward = max(log["total_reward"], self.max_total_reward)
+                default_logger.info(
+                    f"Process [{get_cur_rank()}] "
+                    f"Current max total reward={self.max_total_reward:.2f}."
+                )
+                self.queue.put((get_cur_rank(), self.max_total_reward))
+                t_plugin = trainer.training_type_plugin
+                trainer.should_stop = t_plugin.reduce_early_stopping_decision(
+                    self.max_total_reward >= 150
+                )
+                if trainer.should_stop:
+                    default_logger.info(f"Process [{get_cur_rank()}] decides to exit.")
+                return
+        default_logger.error("Missing total reward in logs.")
+
+
+class LoggerDebugCallback(Callback):
+    def on_train_start(self, *_, **__):
+        from logging import DEBUG
+
+        default_logger.setLevel(DEBUG)
 
 
 class TestLaunchGym:
     def test_dqn(self, tmpdir):
         config = generate_gym_env_config("CartPole-v0", {})
         config = generate_training_config(
-            trials_dir=str(tmpdir.make_numbered_dir()), config=config
+            root_dir=str(tmpdir.make_numbered_dir()), config=config
         )
         config = generate_algorithm_config("DQN", config)
-        config["early_stopping_patience"] = 10
+        config["early_stopping_patience"] = 100
         config["frame_config"]["models"] = ["QNet", "QNet"]
         config["frame_config"]["model_kwargs"] = [
             {"state_dim": 4, "action_num": 2},
@@ -316,27 +356,76 @@ class TestLaunchGym:
         ]
         cb = InspectCallback()
         launch_gym(config, pl_callbacks=[cb])
-        assert cb.max_total_reward >= 150
+        assert (
+            cb.max_total_reward >= 150
+        ), f"Max total reward {cb.max_total_reward} below threshold 150."
 
-    @staticmethod
-    @run_multi(
-        expected_results=[True, True, True], pass_through=["tmpdir"], timeout=1800
-    )
-    @WorldTestBase.setup_world
-    def test_dqn_apex(_, tmpdir):
+    def test_dqn_apex_cpu_spawn(self, tmpdir):
+        # by default, pytorch lightning will use ddp-spawn mode to replace ddp
+        # if there are only cpus
+        os.environ["WORLD_SIZE"] = "3"
         config = generate_gym_env_config("CartPole-v0", {})
         config = generate_training_config(
-            trials_dir=str(tmpdir.make_numbered_dir()), config=config
+            root_dir=tmpdir.make_numbered_dir(), config=config
         )
         config = generate_algorithm_config("DQNApex", config)
-        config["early_stopping_patience"] = 10
-        config["frame_config"]["models"] = ["QNet", "QNet"]
+        # use ddp_cpu
+        config["gpus"] = None
+        config["num_processes"] = 3
+        # this testing process corresponds to this node
+        config["num_nodes"] = 1
+        config["early_stopping_patience"] = 100
+        # Use class instead of string name since algorithms is distributed.
+        config["frame_config"]["models"] = [QNet, QNet]
         config["frame_config"]["model_kwargs"] = [
             {"state_dim": 4, "action_num": 2},
             {"state_dim": 4, "action_num": 2},
         ]
-        cb = InspectCallback()
-        launch_gym(config, pl_callbacks=[cb])
-        assert cb.max_total_reward >= 150
 
-        return True
+        # for spawn we use a special callback, because the we cannot access
+        # max_total_reward from sub-processes
+        queue = SimpleQueue(ctx=mp.get_context("spawn"))
+        # cb = [SpawnInspectCallback(queue), LoggerDebugCallback()]
+        cb = [SpawnInspectCallback(queue)]
+        t = Thread(target=launch_gym, args=(config,), kwargs={"pl_callbacks": cb})
+        t.start()
+
+        default_logger.info("Start tracking")
+        subproc_max_total_reward = [0, 0, 0]
+        while True:
+            try:
+                result = queue.quick_get(timeout=60)
+                default_logger.info(f"Result from process [{result[0]}]: {result[1]}")
+                subproc_max_total_reward[result[0]] = result[1]
+            except TimeoutError:
+                # no more results
+                default_logger.info("No more results.")
+                break
+        t.join()
+        assert (
+            sum(subproc_max_total_reward) / 3 >= 150
+        ), f"Max total reward {sum(subproc_max_total_reward) / 3} below threshold 150."
+
+    def test_dqn_apex_gpu(self, tmpdir):
+        env = os.environ.copy()
+        test_save_path = str(p.join(tmpdir.make_numbered_dir(), "test.save"))
+        env["ROOT_DIR"] = str(tmpdir.make_numbered_dir())
+        env["TEST_SAVE_PATH"] = test_save_path
+        process_0 = sp.Popen(
+            [
+                sys.executable,
+                p.join(
+                    p.dirname(p.abspath(__file__)), "_openai_gym_dqn_apex_gpu_runner.py"
+                ),
+            ],
+            env=env,
+        )
+        try:
+            process_0.wait(timeout=1800)
+        except sp.TimeoutExpired:
+            pytest.fail("Timeout on waiting for the script to end.")
+        with open(test_save_path, "rb") as f:
+            avg_max_total_reward = pickle.load(f)
+        assert (
+            avg_max_total_reward >= 150
+        ), f"Max total reward {avg_max_total_reward} below threshold 150."

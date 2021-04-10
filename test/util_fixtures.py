@@ -21,4 +21,12 @@ def dtype(pytestconfig, request):
     return t.float64
 
 
-__all__ = ["gpu", "device", "dtype"]
+@pytest.fixture()
+def mp_tmpdir(tmpdir):
+    """
+    For multiprocessing, sharing the same tmpdir across all processes
+    """
+    return tmpdir.make_numbered_dir()
+
+
+__all__ = ["gpu", "device", "dtype", "mp_tmpdir"]

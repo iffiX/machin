@@ -1,11 +1,14 @@
-import math
 from .dqn_per import *
 from .ddpg_per import *
 from ..buffers.prioritized_buffer_d import DistributedPrioritizedBuffer
 from torch.nn.parallel import DistributedDataParallel
 from machin.parallel.server import PushPullModelServer
-from machin.parallel.distributed import get_world, RpcGroup
+from machin.parallel.distributed import get_world, RpcGroup, debug_with_process
 from machin.frame.helpers.servers import model_server_helper
+
+
+def _disable_update(*_, **__):
+    return None, None
 
 
 class DQNApex(DQNPer):
@@ -38,7 +41,7 @@ class DQNApex(DQNPer):
         discount: float = 0.99,
         gradient_max: float = np.inf,
         replay_size: int = 500000,
-        **__
+        **__,
     ):
         """
         See Also:
@@ -93,6 +96,9 @@ class DQNApex(DQNPer):
             discount=discount,
             gradient_max=gradient_max,
         )
+        self._is_using_DP_or_DDP = isinstance(
+            self.qnet, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
+        )
 
         # will not support sharing rpc group,
         # use static buffer_name is ok here.
@@ -110,12 +116,17 @@ class DQNApex(DQNPer):
         self.is_syncing = is_syncing
 
     def manual_sync(self):
-        self.qnet_model_server.pull(self.qnet)
+        if not self._is_using_DP_or_DDP:
+            debug_with_process("apex pull begin")
+            self.qnet_model_server.pull(self.qnet)
+            debug_with_process("apex pull success")
 
     def act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
-        if self.is_syncing and not use_target:
+        if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
+            debug_with_process("apex pull begin")
             self.qnet_model_server.pull(self.qnet)
+            debug_with_process("apex pull success")
         return super().act_discrete(state, use_target)
 
     def act_discrete_with_noise(
@@ -123,11 +134,13 @@ class DQNApex(DQNPer):
         state: Dict[str, Any],
         use_target: bool = False,
         decay_epsilon: bool = True,
-        **__
+        **__,
     ):
         # DOC INHERITED
-        if self.is_syncing and not use_target:
+        if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
+            debug_with_process("apex pull begin")
             self.qnet_model_server.pull(self.qnet)
+            debug_with_process("apex pull success")
         return super().act_discrete_with_noise(state, use_target, decay_epsilon)
 
     def update(
@@ -135,12 +148,14 @@ class DQNApex(DQNPer):
     ):
         # DOC INHERITED
         result = super().update(update_value, update_target, concatenate_samples)
-        if isinstance(
-            self.qnet, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
-        ):
+        if self._is_using_DP_or_DDP:
+            debug_with_process("apex push begin")
             self.qnet_model_server.push(self.qnet.module, pull_on_fail=False)
+            debug_with_process("apex push success")
         else:
+            debug_with_process("apex push begin")
             self.qnet_model_server.push(self.qnet)
+            debug_with_process("apex push success")
         return result
 
     @classmethod
@@ -179,7 +194,11 @@ class DQNApex(DQNPer):
         return config
 
     @classmethod
-    def init_from_config(cls, config: Dict[str, Any]):
+    def init_from_config(
+        cls,
+        config: Union[Dict[str, Any], Config],
+        model_device: Union[str, t.device] = "cpu",
+    ):
         world = get_world()
         f_config = deepcopy(config["frame_config"])
         apex_group = world.create_rpc_group(
@@ -195,7 +214,8 @@ class DQNApex(DQNPer):
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
-            m(*arg, **kwarg) for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            m(*arg, **kwarg).to(model_device)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         # wrap models in DistributedDataParallel when running in learner mode
         max_learner_id = f_config["learner_process_number"]
@@ -231,10 +251,13 @@ class DQNApex(DQNPer):
             apex_group,
             servers,
             lr_scheduler=lr_scheduler,
-            **f_config
+            **f_config,
         )
         if world.rank >= max_learner_id:
-            frame.update = lambda *_, **__: (None, None)
+            frame.role = "sampler"
+            frame.update = _disable_update
+        else:
+            frame.role = "learner"
         return frame
 
 
@@ -270,7 +293,7 @@ class DDPGApex(DDPGPer):
         discount: float = 0.99,
         gradient_max: float = np.inf,
         replay_size: int = 500000,
-        **__
+        **__,
     ):
         """
         See Also:
@@ -329,7 +352,9 @@ class DDPGApex(DDPGPer):
             discount=discount,
             gradient_max=gradient_max,
         )
-
+        self._is_using_DP_or_DDP = isinstance(
+            self.actor, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
+        )
         # will not support sharing rpc group,
         # use static buffer_name is ok here.
         self.replay_buffer = DistributedPrioritizedBuffer(
@@ -347,11 +372,12 @@ class DDPGApex(DDPGPer):
         self.is_syncing = is_syncing
 
     def manual_sync(self):
-        self.actor_model_server.pull(self.actor)
+        if not self._is_using_DP_or_DDP:
+            self.actor_model_server.pull(self.actor)
 
     def act(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
-        if self.is_syncing and not use_target:
+        if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
             self.actor_model_server.pull(self.actor)
         return super().act(state, use_target)
 
@@ -362,10 +388,10 @@ class DDPGApex(DDPGPer):
         ratio: float = 1.0,
         mode: str = "uniform",
         use_target: bool = False,
-        **__
+        **__,
     ):
         # DOC INHERITED
-        if self.is_syncing and not use_target:
+        if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
             self.actor_model_server.pull(self.actor)
         return super().act_with_noise(
             state,
@@ -377,7 +403,7 @@ class DDPGApex(DDPGPer):
 
     def act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
-        if self.is_syncing and not use_target:
+        if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
             self.actor_model_server.pull(self.actor)
         return super().act_discrete(state, use_target)
 
@@ -385,7 +411,7 @@ class DDPGApex(DDPGPer):
         self, state: Dict[str, Any], use_target: bool = False, **__
     ):
         # DOC INHERITED
-        if self.is_syncing and not use_target:
+        if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
             self.actor_model_server.pull(self.actor)
         return super().act_discrete_with_noise(state, use_target)
 
@@ -395,15 +421,13 @@ class DDPGApex(DDPGPer):
         update_policy=True,
         update_target=True,
         concatenate_samples=True,
-        **__
+        **__,
     ):
         # DOC INHERITED
         result = super().update(
             update_value, update_policy, update_target, concatenate_samples
         )
-        if isinstance(
-            self.actor, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
-        ):
+        if self._is_using_DP_or_DDP:
             self.actor_model_server.push(self.actor.module, pull_on_fail=False)
         else:
             self.actor_model_server.push(self.actor)
@@ -444,7 +468,11 @@ class DDPGApex(DDPGPer):
         return config
 
     @classmethod
-    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
+    def init_from_config(
+        cls,
+        config: Union[Dict[str, Any], Config],
+        model_device: Union[str, t.device] = "cpu",
+    ):
         world = get_world()
         f_config = deepcopy(config["frame_config"])
         apex_group = world.create_rpc_group(
@@ -460,7 +488,8 @@ class DDPGApex(DDPGPer):
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
-            m(*arg, **kwarg) for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            m(*arg, **kwarg).to(model_device)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         # wrap models in DistributedDataParallel when running in learner mode
         max_learner_id = f_config["learner_process_number"]
@@ -496,8 +525,11 @@ class DDPGApex(DDPGPer):
             apex_group,
             servers,
             lr_scheduler=lr_scheduler,
-            **f_config
+            **f_config,
         )
         if world.rank >= max_learner_id:
-            frame.update = lambda *_, **__: (None, None)
+            frame.role = "sampler"
+            frame.update = _disable_update
+        else:
+            frame.role = "learner"
         return frame

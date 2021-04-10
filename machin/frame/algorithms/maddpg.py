@@ -1053,7 +1053,11 @@ class MADDPG(TorchFramework):
         return config
 
     @classmethod
-    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
+    def init_from_config(
+        cls,
+        config: Union[Dict[str, Any], Config],
+        model_device: Union[str, t.device] = "cpu",
+    ):
         f_config = deepcopy(config["frame_config"])
         all_models = []
         for models, model_args, model_kwargs in zip(
@@ -1061,7 +1065,7 @@ class MADDPG(TorchFramework):
         ):
             models = assert_and_get_valid_models(models)
             models = [
-                m(*arg, **kwarg)
+                m(*arg, **kwarg).to(model_device)
                 for m, arg, kwarg in zip(models, model_args, model_kwargs)
             ]
             all_models.append(models)

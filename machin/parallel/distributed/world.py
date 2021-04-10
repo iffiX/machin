@@ -1,9 +1,11 @@
 from threading import Lock, Event
 from datetime import timedelta
 from typing import Union, List, Any, Callable
+from inspect import getframeinfo, stack
 from time import sleep
 from torch.distributed import rpc
 from machin.parallel.exception import ExceptionWithTraceback
+from machin.utils.logging import default_logger
 
 import enum
 import torch as t
@@ -16,6 +18,15 @@ WORLD = None  # type: Union[None, World]
 class LUTType(enum.Enum):
     VALUE = 0
     SERVICE = 1
+
+
+def debug_with_process(message):
+    caller = getframeinfo(stack()[1][0])
+    default_logger.debug(
+        f"Process [{get_cur_rank()}]: "
+        f"<{caller.filename},L{caller.lineno}> "
+        f"{message}"
+    )
 
 
 def _copy_doc(from_func):
@@ -304,10 +315,7 @@ class World:
             rpc.shutdown()
 
     def create_collective_group(
-        self,
-        ranks: List[int],
-        timeout: Any = dist.default_pg_timeout,
-        backend: Any = None,
+        self, ranks: List[int], timeout: float = 60, backend: Any = None,
     ):
         """
         Create a sub process group for collective communications. This function
@@ -327,7 +335,7 @@ class World:
         """
         ranks = sorted(ranks)
         group = CollectiveGroup(
-            dist.new_group(ranks, timeout, backend),
+            dist.new_group(ranks, timedelta(seconds=timeout), backend),
             ranks.index(self.rank) if self.rank in ranks else None,
         )
         return group
@@ -382,6 +390,13 @@ class World:
             while self.group_create_signals[group_name] is not True:
                 sleep(0.1)
         return group
+
+    def get_ranks(self):
+        """
+        Returns:
+            A list of ranks of all processes.
+        """
+        return list(self.rank_name_map.keys())
 
     def get_members(self):
         """

@@ -98,6 +98,7 @@ def safe_call(model, *named_args):
             # print a warning
             default_logger.warning(
                 f"""\
+                
                 You have not specified the i/o device of your model {model_type}
                 Automatically determined and set to: {device[0]}
 
@@ -197,7 +198,7 @@ def assert_and_get_valid_models(models):
     for model in models:
         if inspect.isclass(model) and issubclass(model, nn.Module):
             m.append(model)
-        if (
+        elif (
             isinstance(model, str)
             and model in global_vars
             and issubclass(global_vars[model], nn.Module)
@@ -205,9 +206,12 @@ def assert_and_get_valid_models(models):
             m.append(global_vars[model])
         else:
             raise ValueError(
-                f"Invalid model: {model}, it needs to be an nn.Module "
-                "sub class, or a string name of a global of a "
-                "variable."
+                f"""\
+                
+                Invalid model: {model}, it needs to be one of:
+                1. An nn.Module subclass
+                2. A string name of a global defined model class in any frame 
+                   of your call stack. (Not available if framework is distributed)"""
             )
     return m
 
@@ -226,11 +230,12 @@ def assert_and_get_valid_optimizer(optimizer):
     else:
         raise ValueError(
             f"""\
+            
             Invalid optimizer: {optimizer}, it needs to be one of:"
             1. An optimizer class
             2. A string name of a valid optimizer class in torch.optim
             3. A string name of a global defined optimizer class in any frame 
-               of your call stack."""
+               of your call stack. (Not available if framework is distributed)"""
         )
 
 
@@ -250,11 +255,12 @@ def assert_and_get_valid_lr_scheduler(lr_scheduler):
     else:
         raise ValueError(
             f"""\
+            
             Invalid lr_scheduler: {lr_scheduler}, it needs to be one of:
             1. An lr_scheduler class
             2. A string name of a valid lr_scheduler class in torch.optim.lr_scheduler
             3. A string name of a global defined lr_scheduler class in any frame 
-               of your call stack."""
+               of your call stack. (Not available if framework is distributed)"""
         )
 
 
@@ -272,12 +278,13 @@ def assert_and_get_valid_criterion(criterion):
     else:
         raise ValueError(
             f"""\
+            
             Invalid lr_scheduler: {criterion}, it needs to be one of:
             1. A loss class which inherits from torch.nn.Module
             2. A callable loss function
             3. A string name of a valid loss class in torch.nn.modules.loss
             4. A string name of a global defined callable in any frame 
-               of your call stack."""
+               of your call stack. (Not available if framework is distributed)"""
         )
 
 

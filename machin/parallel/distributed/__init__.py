@@ -6,6 +6,7 @@ from .world import (
     get_cur_rank,
     get_cur_name,
     is_world_initialized,
+    debug_with_process,
 )
 
 from . import world
@@ -18,5 +19,5 @@ __all__ = [
     "get_cur_rank",
     "get_cur_name",
     "is_world_initialized",
-    "world",
+    "debug_with_process",
 ]

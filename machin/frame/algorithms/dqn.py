@@ -545,13 +545,18 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         return config
 
     @classmethod
-    def init_from_config(cls, config: Union[Dict[str, Any], Config]):
+    def init_from_config(
+        cls,
+        config: Union[Dict[str, Any], Config],
+        model_device: Union[str, t.device] = "cpu",
+    ):
         f_config = deepcopy(config["frame_config"])
         models = assert_and_get_valid_models(f_config["models"])
         model_args = f_config["model_args"]
         model_kwargs = f_config["model_kwargs"]
         models = [
-            m(*arg, **kwarg) for m, arg, kwarg in zip(models, model_args, model_kwargs)
+            m(*arg, **kwarg).to(model_device)
+            for m, arg, kwarg in zip(models, model_args, model_kwargs)
         ]
         optimizer = assert_and_get_valid_optimizer(f_config["optimizer"])
         criterion = assert_and_get_valid_criterion(f_config["criterion"])(
