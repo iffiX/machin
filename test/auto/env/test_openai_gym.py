@@ -3,12 +3,12 @@ from machin.auto.config import (
     generate_algorithm_config,
     init_algorithm_from_config,
 )
-from machin.auto.env.openai_gym import (
+from machin.auto.envs.openai_gym import (
     RLGymDiscActDataset,
     RLGymContActDataset,
-    generate_gym_env_config,
+    generate_env_config,
     gym_env_dataset_creator,
-    launch_gym,
+    launch,
 )
 import os
 import sys
@@ -251,7 +251,7 @@ class TestRLGymContActDataset:
 
 def test_gym_env_dataset_creator():
     # Discrete action environment
-    config = generate_gym_env_config("CartPole-v0", {})
+    config = generate_env_config("CartPole-v0", {})
     config = generate_algorithm_config("DDPG", config)
     config["frame_config"]["models"] = [
         "DDPGActorCont",
@@ -272,7 +272,7 @@ def test_gym_env_dataset_creator():
     )
 
     # Continuous action environment
-    config = generate_gym_env_config("Pendulum-v0", {})
+    config = generate_env_config("Pendulum-v0", {})
     assert isinstance(
         gym_env_dataset_creator(ddpg, config["train_env_config"]), RLGymContActDataset
     )
@@ -283,7 +283,7 @@ def test_gym_env_dataset_creator():
     # Unsupported environment,
     # like algorithmic, which uses a tuple action space
     # or robotics, which uses the goal action space
-    config = generate_gym_env_config("Copy-v0", {})
+    config = generate_env_config("Copy-v0", {})
     with pytest.raises(ValueError, match="not supported"):
         gym_env_dataset_creator(ddpg, config["train_env_config"])
 
@@ -304,6 +304,7 @@ class InspectCallback(Callback):
                 default_logger.info(
                     f"Current max total reward={self.max_total_reward:.2f}."
                 )
+                trainer.should_stop = self.max_total_reward >= 150
                 return
         default_logger.error("Missing total reward in logs.")
 
@@ -343,7 +344,7 @@ class LoggerDebugCallback(Callback):
 
 class TestLaunchGym:
     def test_dqn(self, tmpdir):
-        config = generate_gym_env_config("CartPole-v0", {})
+        config = generate_env_config("CartPole-v0", {})
         config = generate_training_config(
             root_dir=str(tmpdir.make_numbered_dir()), config=config
         )
@@ -355,7 +356,7 @@ class TestLaunchGym:
             {"state_dim": 4, "action_num": 2},
         ]
         cb = InspectCallback()
-        launch_gym(config, pl_callbacks=[cb])
+        launch(config, pl_callbacks=[cb])
         assert (
             cb.max_total_reward >= 150
         ), f"Max total reward {cb.max_total_reward} below threshold 150."
@@ -364,7 +365,7 @@ class TestLaunchGym:
         # by default, pytorch lightning will use ddp-spawn mode to replace ddp
         # if there are only cpus
         os.environ["WORLD_SIZE"] = "3"
-        config = generate_gym_env_config("CartPole-v0", {})
+        config = generate_env_config("CartPole-v0", {})
         config = generate_training_config(
             root_dir=tmpdir.make_numbered_dir(), config=config
         )
@@ -387,7 +388,7 @@ class TestLaunchGym:
         queue = SimpleQueue(ctx=mp.get_context("spawn"))
         # cb = [SpawnInspectCallback(queue), LoggerDebugCallback()]
         cb = [SpawnInspectCallback(queue)]
-        t = Thread(target=launch_gym, args=(config,), kwargs={"pl_callbacks": cb})
+        t = Thread(target=launch, args=(config,), kwargs={"pl_callbacks": cb})
         t.start()
 
         default_logger.info("Start tracking")
@@ -424,6 +425,7 @@ class TestLaunchGym:
             process_0.wait(timeout=1800)
         except sp.TimeoutExpired:
             pytest.fail("Timeout on waiting for the script to end.")
+
         with open(test_save_path, "rb") as f:
             avg_max_total_reward = pickle.load(f)
         assert (

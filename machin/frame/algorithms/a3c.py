@@ -123,6 +123,10 @@ class A3C(A2C):
     def lr_schedulers(self):
         return []
 
+    @classmethod
+    def is_distributed(cls):
+        return True
+
     def set_sync(self, is_syncing):
         self.is_syncing = is_syncing
 

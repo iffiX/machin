@@ -2,6 +2,7 @@ from copy import deepcopy
 from typing import Dict, Any, Union
 from machin.frame.algorithms import TorchFramework
 from machin.utils.conf import Config
+from . import envs
 import inspect
 import torch as t
 import machin.frame.algorithms as algorithms
@@ -16,7 +17,7 @@ def fill_default(
     return config
 
 
-def _get_available_algorithms():
+def get_available_algorithms():
     algos = []
     for algo in dir(algorithms):
         algo_cls = getattr(algorithms, algo)
@@ -29,8 +30,17 @@ def _get_available_algorithms():
     return algos
 
 
+def get_available_environments():
+    environments = []
+    for e in dir(envs):
+        e_module = getattr(envs, e)
+        if hasattr(e_module, "launch") and hasattr(e_module, "generate_env_config"):
+            environments.append(e)
+    return environments
+
+
 def generate_training_config(
-    root_dir: str = "./trial",
+    root_dir: str = "trial",
     episode_per_epoch: int = 10,
     max_episodes: int = 10000,
     config: Union[Dict[str, Any], Config] = None,
@@ -56,10 +66,23 @@ def generate_algorithm_config(
                 config["gpus"] = [0, 0, 0]
                 config["num_processes"] = 3
                 config["num_nodes"] = 1
-                config["batch_num"] = {"sampler": 10, "learner": 1}
+            else:
+                config["gpus"] = [0]
             return config
     raise ValueError(
-        f"Invalid algorithm: {algorithm}, valid ones are: {_get_available_algorithms()}"
+        f"Invalid algorithm: {algorithm}, valid ones are: {get_available_algorithms()}"
+    )
+
+
+def generate_env_config(environment: str, config: Union[Dict[str, Any], Config] = None):
+    config = deepcopy(config) or {}
+    if hasattr(envs, environment):
+        e_module = getattr(envs, environment)
+        if hasattr(e_module, "launch") and hasattr(e_module, "generate_env_config"):
+            return e_module.generate_env_config(config)
+    raise ValueError(
+        f"Invalid environment: {environment}, "
+        f"valid ones are: {get_available_algorithms()}"
     )
 
 
@@ -71,7 +94,7 @@ def init_algorithm_from_config(
     if not inspect.isclass(frame) or not issubclass(frame, TorchFramework):
         raise ValueError(
             f"Invalid algorithm: {config['frame']}, "
-            f"valid ones are: {_get_available_algorithms()}"
+            f"valid ones are: {get_available_algorithms()}"
         )
     return frame.init_from_config(config, model_device=model_device)
 
@@ -82,7 +105,7 @@ def is_algorithm_distributed(config: Union[Dict[str, Any], Config]):
     if not inspect.isclass(frame) or not issubclass(frame, TorchFramework):
         raise ValueError(
             f"Invalid algorithm: {config['frame']}, "
-            f"valid ones are: {_get_available_algorithms()}"
+            f"valid ones are: {get_available_algorithms()}"
         )
     return frame.is_distributed()
 

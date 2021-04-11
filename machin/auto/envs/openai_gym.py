@@ -244,34 +244,6 @@ class RLGymContActDataset(RLDataset):
         return result
 
 
-def generate_gym_env_config(
-    env_name: str = None, config: Union[Dict[str, Any], Config] = None
-):
-    """
-    Generate example OpenAI gym config.
-    """
-    config = deepcopy(config) or {}
-    return fill_default(
-        {
-            "trials_dir": "trials",
-            "gpus": 0,
-            "episode_per_epoch": 100,
-            "max_episodes": 1000000,
-            "train_env_config": {
-                "env_name": env_name or "CartPole-v1",
-                "render_every_episode": 100,
-                "act_kwargs": {},
-            },
-            "test_env_config": {
-                "env_name": env_name or "CartPole-v1",
-                "render_every_episode": 100,
-                "act_kwargs": {},
-            },
-        },
-        config,
-    )
-
-
 def gym_env_dataset_creator(frame, env_config):
     env = gym.make(env_config["env_name"])
     if _is_discrete_space(env.action_space):
@@ -295,9 +267,31 @@ def gym_env_dataset_creator(frame, env_config):
         )
 
 
-def launch_gym(
-    config: Union[Dict[str, Any], Config], pl_callbacks: List[Callback] = None
+def generate_env_config(
+    env_name: str = None, config: Union[Dict[str, Any], Config] = None
 ):
+    """
+    Generate example OpenAI gym config.
+    """
+    config = deepcopy(config) or {}
+    return fill_default(
+        {
+            "train_env_config": {
+                "env_name": env_name or "CartPole-v1",
+                "render_every_episode": 100,
+                "act_kwargs": {},
+            },
+            "test_env_config": {
+                "env_name": env_name or "CartPole-v1",
+                "render_every_episode": 100,
+                "act_kwargs": {},
+            },
+        },
+        config,
+    )
+
+
+def launch(config: Union[Dict[str, Any], Config], pl_callbacks: List[Callback] = None):
     """
     Args:
         config: All configs needed to launch a gym environment and initialize

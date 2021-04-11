@@ -1,4 +1,5 @@
 from machin.parallel.distributed import get_world, get_cur_rank
+from machin.utils.helper_classes import Object
 from torch.utils.data import DataLoader, TensorDataset
 import os
 import sys
@@ -24,6 +25,7 @@ class ParallelModule(pl.LightningModule):
     def __init__(self):
         super().__init__()
         self.nn_model = NNModule()
+        self.frame = Object({"optimizers": None, "lr_schedulers": None})
 
     def train_dataloader(self):
         return DataLoader(
@@ -40,6 +42,9 @@ class ParallelModule(pl.LightningModule):
         if not world_inited:
             raise RuntimeError("World not initialized.")
         return None
+
+    def init_frame(self):
+        pass
 
     def configure_optimizers(self):
         return None

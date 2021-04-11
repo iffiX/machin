@@ -187,6 +187,7 @@ class DQNApex(DQNPer):
         }
         config = deepcopy(config)
         config["frame"] = "DQNApex"
+        config["batch_num"] = {"sampler": 10, "learner": 1}
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:
@@ -461,6 +462,7 @@ class DDPGApex(DDPGPer):
         }
         config = deepcopy(config)
         config["frame"] = "DDPGApex"
+        config["batch_num"] = {"sampler": 10, "learner": 1}
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:

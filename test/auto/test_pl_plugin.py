@@ -19,16 +19,14 @@ class TestDDPPlugin:
             ],
             env=env,
         )
-        process_0.wait(timeout=20)
-        if process_0.poll():
-            process_0.kill()
+        try:
+            process_0.wait(timeout=20)
+        except sp.TimeoutExpired:
             pytest.fail("Timeout on waiting for the DDPPlugin script to end.")
-        elif process_0.returncode != 0:
-            pytest.fail(f"DDPPlugin script returned code {process_0.returncode}.")
-        else:
-            with open(test_save_path, "rb") as f:
-                flags = pickle.load(f)
-                assert flags == [True], f"Not properly_inited, flags are: {flags}"
+
+        with open(test_save_path, "rb") as f:
+            flags = pickle.load(f)
+            assert flags == [True], f"Not properly_inited, flags are: {flags}"
 
 
 class TestDDPSpawnPlugin:
@@ -44,13 +42,11 @@ class TestDDPSpawnPlugin:
             ],
             env=env,
         )
-        process_0.wait(timeout=20)
-        if process_0.poll():
-            process_0.kill()
+        try:
+            process_0.wait(timeout=20)
+        except sp.TimeoutExpired:
             pytest.fail("Timeout on waiting for the DDPSpawnPlugin script to end.")
-        elif process_0.returncode != 0:
-            pytest.fail(f"DDPSpawnPlugin script returned code {process_0.returncode}.")
-        else:
-            with open(test_save_path, "rb") as f:
-                flags = pickle.load(f)
-                assert flags == [True], f"Not properly_inited, flags are: {flags}"
+
+        with open(test_save_path, "rb") as f:
+            flags = pickle.load(f)
+            assert flags == [True], f"Not properly_inited, flags are: {flags}"

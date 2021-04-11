@@ -1,6 +1,7 @@
 import os
 import logging
 import pytorch_lightning as pl
+from time import sleep
 from torch import distributed
 from pytorch_lightning.utilities.seed import seed_everything
 from pytorch_lightning.utilities.distributed import rank_zero_only
@@ -105,8 +106,12 @@ class DDPPlugin(DDP):
 
         # initialize framework in the launcher
         self._model.init_frame()
-        self._model.trainer.accelerator.optimizers = self._model.frame.optimizers
-        self._model.trainer.accelerator.lr_schedulers = self._model.frame.lr_schedulers
+        if self._model.frame.optimizers is not None:
+            self._model.trainer.accelerator.optimizers = self._model.frame.optimizers
+        if self._model.frame.lr_schedulers is not None:
+            self._model.trainer.accelerator.lr_schedulers = (
+                self._model.frame.lr_schedulers
+            )
 
         self.barrier()
 
@@ -199,8 +204,12 @@ class DDPSpawnPlugin(DDPS):
 
         # initialize framework in the launcher
         self._model.init_frame()
-        trainer.accelerator.optimizers = self._model.frame.optimizers
-        trainer.accelerator.lr_schedulers = self._model.frame.lr_schedulers
+        if self._model.frame.optimizers is not None:
+            self._model.trainer.accelerator.optimizers = self._model.frame.optimizers
+        if self._model.frame.lr_schedulers is not None:
+            self._model.trainer.accelerator.lr_schedulers = (
+                self._model.frame.lr_schedulers
+            )
 
         self.barrier()
 
@@ -231,7 +240,7 @@ class DDPSpawnPlugin(DDPS):
         ]
         for p in processes:
             p.start()
-        while all([p.is_alive() for p in processes]):
+        while True:
             should_exit = False
             for p in processes:
                 try:
@@ -240,9 +249,14 @@ class DDPSpawnPlugin(DDPS):
                     traceback.print_exc()
                     should_exit = True
             if should_exit:
+                for p in processes:
+                    p.terminate()
+                    p.join()
+                raise RuntimeError("One or more exceptions raised in sub-processes.")
+            elif not all([p.is_alive() for p in processes]):
                 break
+            sleep(0.1)
         for p in processes:
-            p.kill()
             p.join()
 
     def training_step(self, *args, **kwargs):
@@ -266,4 +280,3 @@ class DDPSpawnPlugin(DDPS):
 # before the trainer is initialized.
 pl.trainer.connectors.accelerator_connector.DDPPlugin = DDPPlugin
 pl.trainer.connectors.accelerator_connector.DDPSpawnPlugin = DDPSpawnPlugin
-pl_logger.info("DDP plugin patched.")

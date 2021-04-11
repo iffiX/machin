@@ -57,7 +57,7 @@ setuptools.setup(
         "psutil",
         "numpy",
         "torch>=1.6.0",
-        "pytorch-lightning>=1.0",
+        "pytorch-lightning>=1.2.0",
         "torchviz",
         "moviepy",
         "matplotlib",

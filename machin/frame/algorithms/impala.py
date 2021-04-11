@@ -484,6 +484,7 @@ class IMPALA(TorchFramework):
         }
         config = deepcopy(config)
         config["frame"] = "IMPALA"
+        config["batch_num"] = {"sampler": 10, "learner": 1}
         if "frame_config" not in config:
             config["frame_config"] = default_values
         else:

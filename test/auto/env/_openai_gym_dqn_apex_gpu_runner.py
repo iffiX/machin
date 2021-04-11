@@ -1,5 +1,5 @@
 from machin.auto.config import generate_algorithm_config, generate_training_config
-from machin.auto.env.openai_gym import generate_gym_env_config, launch_gym
+from machin.auto.envs.openai_gym import generate_env_config, launch
 from machin.parallel.distributed import get_cur_rank, is_world_initialized
 from machin.utils.logging import default_logger
 from pytorch_lightning.callbacks import Callback
@@ -50,13 +50,21 @@ class DDPInspectCallback(Callback):
                 self.avg_max_total_reward = self.reduce_max_total_reward(
                     trainer, t_plugin
                 )
-                trainer.should_stop = t_plugin.reduce_early_stopping_decision(
-                    self.max_total_reward >= 150
+                trainer.should_stop = self.reduce_early_stopping_decision(
+                    trainer, t_plugin
                 )
                 if trainer.should_stop:
                     default_logger.info(f"Process [{get_cur_rank()}] decides to exit.")
                 return
         default_logger.error("Missing total reward in logs.")
+
+    def reduce_early_stopping_decision(self, trainer, t_plugin):
+        should_stop = t.tensor(
+            int(self.max_total_reward >= 150), device=trainer.lightning_module.device
+        )
+        should_stop = t_plugin.reduce(should_stop, reduce_op=ReduceOp.SUM)
+        should_stop = bool(should_stop == trainer.world_size)
+        return should_stop
 
     def reduce_max_total_reward(self, trainer, t_plugin):
         avg = t.tensor(self.max_total_reward, device=trainer.lightning_module.device)
@@ -67,7 +75,7 @@ class DDPInspectCallback(Callback):
 if __name__ == "__main__":
     os.environ["WORLD_SIZE"] = "3"
     print(os.environ["TEST_SAVE_PATH"])
-    config = generate_gym_env_config("CartPole-v0", {})
+    config = generate_env_config("CartPole-v0", {})
     config = generate_training_config(root_dir=os.environ["ROOT_DIR"], config=config)
     config = generate_algorithm_config("DQNApex", config)
 
@@ -86,7 +94,7 @@ if __name__ == "__main__":
 
     # cb = [DDPInspectCallback(), LoggerDebugCallback()]
     cb = [DDPInspectCallback()]
-    launch_gym(config, pl_callbacks=cb)
+    launch(config, pl_callbacks=cb)
     if is_world_initialized() and get_cur_rank() == 0:
         with open(os.environ["TEST_SAVE_PATH"], "wb") as f:
             pickle.dump(cb[0].avg_max_total_reward, f)
