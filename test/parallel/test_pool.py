@@ -1,5 +1,6 @@
 from multiprocessing import log_to_stderr
 from machin.parallel.pool import Pool, P2PPool, CtxPool, ThreadPool, CtxThreadPool
+from machin.utils.logging import default_logger as logger
 from logging import DEBUG
 
 import dill
@@ -7,7 +8,7 @@ import pytest
 import torch as t
 
 # enable pool logging
-log_to_stderr(DEBUG)
+# log_to_stderr(DEBUG)
 
 
 def init_func(*_):
@@ -112,34 +113,41 @@ class TestPool:
             t.ones([10], device=pytestconfig.getoption("gpu_device")) * i
             for i in range(5)
         ]
-
+        logger.info("GPU tensors created.")
         pool = self.pool_impl(processes=2, is_copy_tensor=True)
+        logger.info("Pool 1 created.")
         assert all(
             out == expect_out
             for out, expect_out in zip(pool.map(func, x), [0, 20, 40, 60, 80])
         )
         pool.close()
         pool.join()
+        logger.info("Pool 1 joined.")
 
         pool = self.pool_impl(processes=2, is_copy_tensor=False, share_method="cuda")
+        logger.info("Pool 2 created.")
         assert all(
             out == expect_out
             for out, expect_out in zip(pool.map(func, x), [0, 20, 40, 60, 80])
         )
         pool.close()
         pool.join()
+        logger.info("Pool 2 joined.")
 
     def test_cpu_shared_tensor(self):
         x = [t.ones([10]) * i for i in range(5)]
         for xx in x:
             xx.share_memory_()
+        logger.info("CPU tensors created.")
         pool = self.pool_impl(processes=2, is_copy_tensor=False, share_method="cpu")
+        logger.info("Pool created.")
         assert all(
             out == expect_out
             for out, expect_out in zip(pool.map(func, x), [0, 20, 40, 60, 80])
         )
         pool.close()
         pool.join()
+        logger.info("Pool joined.")
 
     def test_lambda_and_local(self):
         x = [t.ones([10]) * i for i in range(5)]

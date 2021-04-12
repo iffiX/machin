@@ -22,6 +22,7 @@ from machin.parallel.distributed import get_cur_rank
 from machin.parallel.thread import Thread
 from machin.parallel.queue import SimpleQueue
 from machin.utils.logging import default_logger
+from pytorch_lightning.utilities.distributed import ReduceOp
 import gym
 import pytest
 import torch as t
@@ -326,13 +327,21 @@ class SpawnInspectCallback(Callback):
                 )
                 self.queue.put((get_cur_rank(), self.max_total_reward))
                 t_plugin = trainer.training_type_plugin
-                trainer.should_stop = t_plugin.reduce_early_stopping_decision(
-                    self.max_total_reward >= 150
+                trainer.should_stop = self.reduce_early_stopping_decision(
+                    trainer, t_plugin
                 )
                 if trainer.should_stop:
                     default_logger.info(f"Process [{get_cur_rank()}] decides to exit.")
                 return
         default_logger.error("Missing total reward in logs.")
+
+    def reduce_early_stopping_decision(self, trainer, t_plugin):
+        should_stop = t.tensor(
+            int(self.max_total_reward >= 150), device=trainer.lightning_module.device
+        )
+        should_stop = t_plugin.reduce(should_stop, reduce_op=ReduceOp.SUM)
+        should_stop = bool(should_stop == trainer.world_size)
+        return should_stop
 
 
 class LoggerDebugCallback(Callback):
