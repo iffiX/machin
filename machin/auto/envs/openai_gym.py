@@ -276,6 +276,7 @@ def generate_env_config(
     config = deepcopy(config) or {}
     return fill_default(
         {
+            "env": "openai_gym",
             "train_env_config": {
                 "env_name": env_name or "CartPole-v1",
                 "render_every_episode": 100,

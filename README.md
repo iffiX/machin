@@ -30,7 +30,7 @@
 <br/>
 
 <div align="center">
-<p><strong>Readable, Reusable, Extendable</strong></p>
+<p><strong>Automatic, Readable, Reusable, Extendable</strong></p>
 
 <p><strong>Machin</strong> is a reinforcement library designed for pytorch.</p> 
 </div>
@@ -78,24 +78,39 @@ Currently Machin has implemented the following algorithms, the list is still gro
 
 ### Features
 ---
-#### 1. Readable
+
+#### 1. Automatic
+
+Starting from version 0.4.0, Machin now supports automatic config generation, you can get a configuration
+through:
+```
+python -m machin.auto generate --algo DQN --env openai_gym --output config.json
+```
+
+And automatically launch the experiment with pytorch lightning:
+```
+python -m machin.auto launch --config config.json
+```
+
+
+#### 2. Readable
 
 Compared to other reinforcement learning libraries such as the famous [rlpyt](https://github.com/astooke/rlpyt), [ray](https://github.com/ray-project/ray), and [baselines](https://github.com/openai/baselines). Machin tries to just provide a simple, clear implementation of RL algorithms.
 
 All algorithms in Machin are designed with minimial abstractions and have very detailed documents, as well as various helpful tutorials.
 
-#### 2. Reusable
+#### 3. Reusable
 
 Machin takes a similar approach to that of pytorch, encasulating algorithms, data structures in their own classes. Users do not need to setup a series of `data collectors`, `trainers`, `runners`, `samplers`... to use them, **just import**.
 
 The only restriction placed on your models is their input / output format, however, these restrictions are minimal, making it easy to adapt algorithms to your custom environments. 
 
-#### 3. Extendable
+#### 4. Extendable
 Machin is built upon pytorch, it and thanks to its powerful rpc api, we may construct complex distributed programs. Machin provides implementations for enhanced parallel execution pools, automatic model assignment, role based rpc scaling, rpc service discovery and registration, etc.
 
 Upon these core functions, Machin is able to provide tested high-performance distributed training algorithm implementations, such as A3C, APEX, IMPALA, to ease your design.
 
-#### 4. Reproducible
+#### 5. Reproducible
 Machin is **weakly** reproducible, for each release, our test framework will directly train every RL framework, if any framework cannot reach the target score, the test will fail directly. 
 
 However, currently, the tests are not guaranteed to

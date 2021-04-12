@@ -1,4 +1,5 @@
 import os
+import shutil
 from PIL.Image import Image
 from matplotlib.figure import Figure
 from argparse import Namespace
@@ -59,10 +60,16 @@ class LocalMediaLogger(LightningLoggerBase):
                 If ``None`` is passed, an artifact file name will be used.
         """
         if destination:
-            os.rename(artifact, os.path.join(self.artifact_dir, destination))
+            shutil.copy(
+                artifact,
+                self.enumerate_till_valid(os.path.join(self.artifact_dir, destination)),
+            )
         else:
-            os.rename(
-                artifact, os.path.join(self.artifact_dir, os.path.basename(artifact))
+            shutil.copy(
+                artifact,
+                self.enumerate_till_valid(
+                    os.path.join(self.artifact_dir, os.path.basename(artifact))
+                ),
             )
 
     @rank_zero_only
@@ -98,7 +105,7 @@ class LocalMediaLogger(LightningLoggerBase):
         elif isinstance(image, Figure):
             image.savefig(path)
         elif isinstance(image, str):
-            os.rename(image, path)
+            shutil.copy(image, path)
         else:
             raise ValueError(f"Unsupported image type: {type(image)}")
 
@@ -109,3 +116,14 @@ class LocalMediaLogger(LightningLoggerBase):
     @rank_zero_only
     def finalize(self, status):
         pass
+
+    @staticmethod
+    def enumerate_till_valid(path):
+        counter = 0
+        cur_path = path
+        while os.path.exists(cur_path):
+            counter += 1
+            names = list(os.path.splitext(path))
+            names[0] += f"_{counter}"
+            cur_path = "".join(names)
+        return cur_path

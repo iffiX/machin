@@ -165,6 +165,14 @@ def safe_return(result):
         return result
 
 
+def safe_import(name):
+    components = name.split(".")
+    mod = __import__(components[0])
+    for comp in components[1:]:
+        mod = getattr(mod, comp)
+    return mod
+
+
 def get_globals_from_stack():
     frames = inspect.stack()
     global_vars = {}
@@ -204,6 +212,8 @@ def assert_and_get_valid_models(models):
             and issubclass(global_vars[model], nn.Module)
         ):
             m.append(global_vars[model])
+        elif isinstance(model, str) and "." in model:
+            m.append(safe_import(model))
         else:
             raise ValueError(
                 f"""\
@@ -211,7 +221,8 @@ def assert_and_get_valid_models(models):
                 Invalid model: {model}, it needs to be one of:
                 1. An nn.Module subclass
                 2. A string name of a global defined model class in any frame 
-                   of your call stack. (Not available if framework is distributed)"""
+                   of your call stack. (Not available if framework is distributed),
+                3. A string name of a importable model class, eg: foo.baz.model"""
             )
     return m
 
@@ -223,10 +234,12 @@ def assert_and_get_valid_optimizer(optimizer):
     if isinstance(optimizer, str):
         if hasattr(torch.optim, optimizer):
             return getattr(torch.optim, optimizer)
-        if optimizer in global_vars and issubclass(
+        elif optimizer in global_vars and issubclass(
             global_vars[optimizer], torch.optim.Optimizer
         ):
             return global_vars[optimizer]
+        elif "." in optimizer:
+            return safe_import(optimizer)
     else:
         raise ValueError(
             f"""\
@@ -235,7 +248,8 @@ def assert_and_get_valid_optimizer(optimizer):
             1. An optimizer class
             2. A string name of a valid optimizer class in torch.optim
             3. A string name of a global defined optimizer class in any frame 
-               of your call stack. (Not available if framework is distributed)"""
+               of your call stack. (Not available if framework is distributed),
+            4. A string name of a importable optimizer class, eg: foo.baz.optim"""
         )
 
 
@@ -248,10 +262,12 @@ def assert_and_get_valid_lr_scheduler(lr_scheduler):
     if isinstance(lr_scheduler, str):
         if hasattr(torch.optim.lr_scheduler, lr_scheduler):
             return getattr(torch.optim.lr_scheduler, lr_scheduler)
-        if lr_scheduler in global_vars and issubclass(
+        elif lr_scheduler in global_vars and issubclass(
             global_vars[lr_scheduler], torch.optim.lr_scheduler._LRScheduler
         ):
             return global_vars[lr_scheduler]
+        elif "." in lr_scheduler:
+            return safe_import(lr_scheduler)
     else:
         raise ValueError(
             f"""\
@@ -260,7 +276,9 @@ def assert_and_get_valid_lr_scheduler(lr_scheduler):
             1. An lr_scheduler class
             2. A string name of a valid lr_scheduler class in torch.optim.lr_scheduler
             3. A string name of a global defined lr_scheduler class in any frame 
-               of your call stack. (Not available if framework is distributed)"""
+               of your call stack. (Not available if framework is distributed)
+            4. A string name of a importable scheduler class, eg: foo.baz.lr_scheduler
+            """
         )
 
 
@@ -273,8 +291,10 @@ def assert_and_get_valid_criterion(criterion):
     if isinstance(criterion, str):
         if hasattr(torch.nn.modules.loss, criterion):
             return getattr(torch.nn.modules.loss, criterion)
-        if criterion in global_vars and callable(global_vars[criterion]):
+        elif criterion in global_vars and callable(global_vars[criterion]):
             return global_vars[criterion]
+        elif "." in criterion:
+            return safe_import(criterion)
     else:
         raise ValueError(
             f"""\
@@ -284,7 +304,8 @@ def assert_and_get_valid_criterion(criterion):
             2. A callable loss function
             3. A string name of a valid loss class in torch.nn.modules.loss
             4. A string name of a global defined callable in any frame 
-               of your call stack. (Not available if framework is distributed)"""
+               of your call stack. (Not available if framework is distributed)
+            5. A string name of a importable loss class, eg: foo.baz.loss"""
         )
 
 

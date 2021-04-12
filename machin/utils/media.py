@@ -94,6 +94,7 @@ def create_video(
                 verbose=False,
                 logger=None,
             )
+        clip.close()
 
 
 def create_video_subproc(

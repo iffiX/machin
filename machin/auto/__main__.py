@@ -7,6 +7,7 @@ from machin.auto.config import (
     generate_algorithm_config,
     generate_env_config,
     generate_training_config,
+    launch,
 )
 
 if __name__ == "__main__":
@@ -41,6 +42,14 @@ if __name__ == "__main__":
         type=str,
         default="config.json",
         help="JSON config file output path.",
+    )
+
+    p_launch = subparsers.add_parser(
+        "launch", help="Launch training with pytorch-lightning."
+    )
+
+    p_launch.add_argument(
+        "--config", type=str, default="config.json", help="JSON config file path.",
     )
 
     args = parser.parse_args()
@@ -80,3 +89,8 @@ if __name__ == "__main__":
         with open(args.output, "w") as f:
             json.dump(config, f, indent=4, sort_keys=True)
         print(f"Config saved to {args.output}")
+
+    elif args.command == "launch":
+        with open(args.config, "r") as f:
+            conf = json.load(f)
+        launch(conf)

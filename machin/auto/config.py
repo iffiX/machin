@@ -110,11 +110,27 @@ def is_algorithm_distributed(config: Union[Dict[str, Any], Config]):
     return frame.is_distributed()
 
 
+def assert_training_config_complete(config: Union[Dict[str, Any], Config]):
+    assert "root_dir" in config, 'Missing key "root_dir"'
+    assert "episode_per_epoch" in config, 'Missing key "episode_per_epoch"'
+    assert "max_episodes" in config, 'Missing key "max_episodes"'
+    assert "early_stopping_patience" in config, 'Missing key "early_stopping_patience"'
+
+
 def assert_algorithm_config_complete(config: Union[Dict[str, Any], Config]):
     assert "frame" in config, 'Missing key "frame" in config.'
     assert "frame_config" in config, 'Missing key "frame_config" in config.'
 
 
 def assert_env_config_complete(config: Union[Dict[str, Any], Config]):
+    assert "env" in config, 'Missing key "env" ' "in config."
     assert "train_env_config" in config, 'Missing key "train_env_config" ' "in config."
     assert "test_env_config" in config, 'Missing key "test_env_config" ' "in config."
+
+
+def launch(config: Union[Dict[str, Any], Config]):
+    assert_training_config_complete(config)
+    assert_env_config_complete(config)
+    assert_algorithm_config_complete(config)
+    e_module = getattr(envs, config["env"])
+    return e_module.launch(config)

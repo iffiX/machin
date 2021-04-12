@@ -1,4 +1,5 @@
 import os
+import time
 import tempfile
 import numpy as np
 import pytorch_lightning as pl
@@ -42,13 +43,27 @@ def log_image(module, name, image: np.ndarray):
 
 def log_video(module, name, video_frames: List[np.ndarray]):
     # create video temp file
-    _fd, path = tempfile.mkstemp(suffix=".gif")
+    fd, path = tempfile.mkstemp(suffix=".gif")
+    os.close(fd)
     try:
-        create_video(video_frames, os.path.dirname(path), os.path.basename(path))
+        create_video(
+            video_frames,
+            os.path.dirname(path),
+            os.path.basename(os.path.splitext(path)[0]),
+            extension=".gif",
+        )
     except Exception as e:
         print(e)
         os.remove(path)
         return
+
+    size = os.path.getsize(path)
+    while True:
+        time.sleep(1)
+        new_size = os.path.getsize(path)
+        if size != 0 and new_size == size:
+            break
+        size = new_size
 
     for logger in get_loggers_as_list(module):
         if hasattr(logger, "log_artifact") and callable(logger.log_artifact):
