@@ -11,7 +11,11 @@ def disable_view_window(display=None):
     org_constructor = rendering.Viewer.__init__
 
     def constructor(self, *args, **kwargs):
-        org_constructor(self, *args, display=display, **kwargs)
+        try:
+            org_constructor(self, *args, display=display, **kwargs)
+        except TypeError:
+            # display is included in args or kwargs
+            org_constructor(self, *args, **kwargs)
         self.window.set_visible(visible=False)
 
     rendering.Viewer.__init__ = constructor

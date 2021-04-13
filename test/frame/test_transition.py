@@ -14,14 +14,14 @@ class TestTransitionBase:
             [("sa1", 1)],
             [("ca", None)],
             ValueError,
-            "is a invalid tensor",
+            "is an invalid tensor",
         ),
         (
             [("ma1", {"ma1_1": t.zeros([])})],
             [("sa1", 1)],
             [("ca", None)],
             ValueError,
-            "is a invalid tensor",
+            "is an invalid tensor",
         ),
         (
             [("ma1", {"ma1_1": t.zeros([1, 2])}), ("ma2", {"ma2_1": t.zeros([2, 3])})],
@@ -63,7 +63,7 @@ class TestTransitionBase:
             [("sa1", t.zeros([]))],
             [("ca", None)],
             ValueError,
-            "Transition sub attribute .+ is a invalid tensor",
+            "Transition sub attribute .+ is an invalid tensor",
         ),
         (
             [("ma1", {"ma1_1": t.zeros([2, 2])}), ("ma2", {"ma2_1": t.zeros([2, 3])})],

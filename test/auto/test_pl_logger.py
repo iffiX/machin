@@ -33,7 +33,6 @@ class TestLocalMediaLogger:
         with open(artifact_path, "w") as f:
             f.write("1" * 1000)
         lm_logger.log_artifact(artifact_path, "test1.txt")
-        assert not os.path.exists(artifact_path)
         assert os.path.exists(new_artifact_path)
         os.remove(new_artifact_path)
 
