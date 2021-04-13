@@ -370,7 +370,7 @@ class TestLaunchGym:
             cb.max_total_reward >= 150
         ), f"Max total reward {cb.max_total_reward} below threshold 150."
 
-    def test_dqn_apex_cpu_spawn(self, tmpdir):
+    def test_dqn_apex_cpu_spawn_full_train(self, tmpdir):
         # by default, pytorch lightning will use ddp-spawn mode to replace ddp
         # if there are only cpus
         os.environ["WORLD_SIZE"] = "3"
@@ -416,7 +416,7 @@ class TestLaunchGym:
             sum(subproc_max_total_reward) / 3 >= 150
         ), f"Max total reward {sum(subproc_max_total_reward) / 3} below threshold 150."
 
-    def test_dqn_apex_gpu(self, tmpdir):
+    def test_dqn_apex_gpu_full_train(self, tmpdir):
         env = os.environ.copy()
         test_save_path = str(p.join(tmpdir.make_numbered_dir(), "test.save"))
         env["ROOT_DIR"] = str(tmpdir.make_numbered_dir())
