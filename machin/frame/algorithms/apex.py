@@ -11,6 +11,17 @@ def _disable_update(*_, **__):
     return None, None
 
 
+def apex_debug(func: Callable, args: Tuple, action: str, kwargs: dict = None):
+    debug_with_process(f"apex {action} begin")
+    kwargs = kwargs or {}
+    result = func(*args, **kwargs)
+    if result:
+        debug_with_process(f"apex {action} success")
+    else:
+        debug_with_process(f"apex {action} failed")
+    return result
+
+
 class DQNApex(DQNPer):
     """
     Massively parallel version of a Double DQN with prioritized replay.
@@ -105,6 +116,7 @@ class DQNApex(DQNPer):
         self.replay_buffer = DistributedPrioritizedBuffer(
             buffer_name="buffer", group=apex_group, buffer_size=replay_size
         )
+        self.apex_group = apex_group
         self.qnet_model_server = model_server[0]
         self.is_syncing = True
 
@@ -117,16 +129,12 @@ class DQNApex(DQNPer):
 
     def manual_sync(self):
         if not self._is_using_DP_or_DDP:
-            debug_with_process("apex pull begin")
-            self.qnet_model_server.pull(self.qnet)
-            debug_with_process("apex pull success")
+            apex_debug(self.qnet_model_server.pull, (self.qnet,), "pull")
 
     def act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            debug_with_process("apex pull begin")
-            self.qnet_model_server.pull(self.qnet)
-            debug_with_process("apex pull success")
+            apex_debug(self.qnet_model_server.pull, (self.qnet,), "pull")
         return super().act_discrete(state, use_target)
 
     def act_discrete_with_noise(
@@ -138,9 +146,7 @@ class DQNApex(DQNPer):
     ):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            debug_with_process("apex pull begin")
-            self.qnet_model_server.pull(self.qnet)
-            debug_with_process("apex pull success")
+            apex_debug(self.qnet_model_server.pull, (self.qnet,), "pull")
         return super().act_discrete_with_noise(state, use_target, decay_epsilon)
 
     def update(
@@ -149,13 +155,14 @@ class DQNApex(DQNPer):
         # DOC INHERITED
         result = super().update(update_value, update_target, concatenate_samples)
         if self._is_using_DP_or_DDP:
-            debug_with_process("apex push begin")
-            self.qnet_model_server.push(self.qnet.module, pull_on_fail=False)
-            debug_with_process("apex push success")
+            apex_debug(
+                self.qnet_model_server.push,
+                (self.qnet.module,),
+                "push",
+                kwargs={"pull_on_fail": False},
+            )
         else:
-            debug_with_process("apex push begin")
-            self.qnet_model_server.push(self.qnet)
-            debug_with_process("apex push success")
+            apex_debug(self.qnet_model_server.push, (self.qnet,), "push")
         return result
 
     @classmethod
@@ -290,7 +297,8 @@ class DDPGApex(DDPGPer):
         batch_size: int = 100,
         update_rate: float = 0.005,
         update_steps: Union[int, None] = None,
-        learning_rate: float = 0.001,
+        actor_learning_rate: float = 0.0005,
+        critic_learning_rate: float = 0.001,
         discount: float = 0.99,
         gradient_max: float = np.inf,
         replay_size: int = 500000,
@@ -330,8 +338,10 @@ class DDPGApex(DDPGPer):
 
                 :math:`\\theta_t = \\theta * \\tau + \\theta_t * (1 - \\tau)`
             update_steps: Training step number used to update target networks.
-            learning_rate: Learning rate of the optimizer, not compatible with
-                ``lr_scheduler``.
+            actor_learning_rate: Learning rate of the actor optimizer,
+                not compatible with ``lr_scheduler``.
+            critic_learning_rate: Learning rate of the critic optimizer,
+                not compatible with ``lr_scheduler``.
             discount: :math:`\\gamma` used in the bellman function.
             gradient_max: Maximum gradient.
             replay_size: Local replay buffer size of a single worker.
@@ -349,7 +359,8 @@ class DDPGApex(DDPGPer):
             batch_size=batch_size,
             update_rate=update_rate,
             update_steps=update_steps,
-            learning_rate=learning_rate,
+            actor_learning_rate=actor_learning_rate,
+            critic_learning_rate=critic_learning_rate,
             discount=discount,
             gradient_max=gradient_max,
         )
@@ -374,12 +385,12 @@ class DDPGApex(DDPGPer):
 
     def manual_sync(self):
         if not self._is_using_DP_or_DDP:
-            self.actor_model_server.pull(self.actor)
+            apex_debug(self.actor_model_server.pull, (self.actor,), "pull")
 
     def act(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            self.actor_model_server.pull(self.actor)
+            apex_debug(self.actor_model_server.pull, (self.actor,), "pull")
         return super().act(state, use_target)
 
     def act_with_noise(
@@ -393,7 +404,7 @@ class DDPGApex(DDPGPer):
     ):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            self.actor_model_server.pull(self.actor)
+            apex_debug(self.actor_model_server.pull, (self.actor,), "pull")
         return super().act_with_noise(
             state,
             noise_param=noise_param,
@@ -405,7 +416,7 @@ class DDPGApex(DDPGPer):
     def act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            self.actor_model_server.pull(self.actor)
+            apex_debug(self.actor_model_server.pull, (self.actor,), "pull")
         return super().act_discrete(state, use_target)
 
     def act_discrete_with_noise(
@@ -413,7 +424,7 @@ class DDPGApex(DDPGPer):
     ):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            self.actor_model_server.pull(self.actor)
+            apex_debug(self.actor_model_server.pull, (self.actor,), "pull")
         return super().act_discrete_with_noise(state, use_target)
 
     def update(
@@ -429,9 +440,15 @@ class DDPGApex(DDPGPer):
             update_value, update_policy, update_target, concatenate_samples
         )
         if self._is_using_DP_or_DDP:
-            self.actor_model_server.push(self.actor.module, pull_on_fail=False)
+            apex_debug(
+                self.actor_model_server.push,
+                (self.actor.module,),
+                "push",
+                kwargs={"pull_on_fail": False},
+            )
+
         else:
-            self.actor_model_server.push(self.actor)
+            apex_debug(self.actor_model_server.push, (self.actor,), "push")
         return result
 
     @classmethod

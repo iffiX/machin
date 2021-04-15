@@ -330,6 +330,7 @@ class TestDQNApex:
                 sleep(0.1)
             while all_group.is_paired("0_running") or all_group.is_paired("1_running"):
                 dqn_apex.update()
+                default_logger.info("Updated")
             return True
 
         raise RuntimeError("DQN-Apex Training failed.")
@@ -349,6 +350,7 @@ class TestDDPGApex:
     c.noise_param = (0, 0.2)
     c.noise_mode = "normal"
     c.replay_size = 100000
+    c.noise_interval = 2
     # takes too much computing resource
     # decrease standard for faster validation
     c.solved_reward = -400
@@ -570,6 +572,11 @@ class TestDDPGApex:
     @run_multi(expected_results=[True, True, True], timeout=1800)
     @WorldTestBase.setup_world
     def test_full_train(rank):
+        # from logging import DEBUG
+        # from machin.utils.logging import default_logger as df
+        #
+        # df.setLevel(DEBUG)
+
         c = TestDDPGApex.c
         ddpg_apex = TestDDPGApex.ddpg_apex("cpu", t.float32)
         # perform manual syncing to decrease the number of rpc calls
@@ -577,6 +584,7 @@ class TestDDPGApex:
 
         # begin training
         episode, step = Counter(), Counter()
+        avg_step = Smooth()
         reward_fulfilled = Counter()
         smoother = Smooth()
         terminal = False
@@ -585,6 +593,7 @@ class TestDDPGApex:
         world = get_world()
         all_group = world.create_rpc_group("all", ["0", "1", "2"])
         all_group.pair(f"{rank}_running", True)
+        all_group.pair(f"{rank}_step", avg_step)
         default_logger.info(f"{rank}, pid {os.getpid()}")
         if rank == 0:
             all_group.pair("episode", episode)
@@ -592,7 +601,7 @@ class TestDDPGApex:
         if rank in (0, 1):
             while episode < c.max_episodes:
                 # wait for trainer to keep up
-                sleep(0.2)
+                sleep(1)
                 episode.count()
 
                 # batch size = 1
@@ -604,11 +613,16 @@ class TestDDPGApex:
                     step.count()
                     with t.no_grad():
                         old_state = state
-                        action = ddpg_apex.act_with_noise(
-                            {"state": old_state.unsqueeze(0)},
-                            noise_param=c.noise_param,
-                            mode=c.noise_mode,
-                        )
+                        if episode.get() % c.noise_interval == 0:
+                            action = ddpg_apex.act_with_noise(
+                                {"state": old_state.unsqueeze(0)},
+                                noise_param=c.noise_param,
+                                mode=c.noise_mode,
+                            )
+                        else:
+                            action = ddpg_apex.act(
+                                {"state": old_state.unsqueeze(0)}
+                            ).clamp(-c.action_range, c.action_range)
 
                         state, reward, terminal, _ = env.step(action.cpu().numpy())
                         state = t.tensor(state, dtype=t.float32).flatten()
@@ -625,13 +639,16 @@ class TestDDPGApex:
                         )
 
                 smoother.update(total_reward)
+                avg_step.update(step.get())
                 step.reset()
                 terminal = False
 
-                default_logger.info(
-                    "Process {} Episode {} "
-                    "total reward={:.2f}".format(rank, episode, smoother.value)
-                )
+                if episode.get() % c.noise_interval != 0:
+                    # only log result without noise
+                    default_logger.info(
+                        "Process {} Episode {} "
+                        "total reward={:.2f}".format(rank, episode, smoother.value)
+                    )
 
                 if smoother.value > c.solved_reward:
                     reward_fulfilled.count()
@@ -654,7 +671,15 @@ class TestDDPGApex:
             while ddpg_apex.replay_buffer.all_size() < 500:
                 sleep(0.1)
             while all_group.is_paired("0_running") or all_group.is_paired("1_running"):
-                ddpg_apex.update()
+                p0_step = all_group.get_paired("0_step").to_here().value
+                p1_step = all_group.get_paired("1_step").to_here().value
+                # not accurate since sampler processes are not synchronized, but works.
+                update_times = int((p0_step + p1_step) / 2)
+                if update_times == 0:
+                    continue
+                for i in range(update_times):
+                    ddpg_apex.update()
+                default_logger.info(f"Update {update_times} times")
             return True
 
         raise RuntimeError("DDPG-Apex Training failed.")

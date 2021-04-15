@@ -187,7 +187,7 @@ def assert_output_is_probs(tensor):
     if (
         tensor.dim() == 2
         and torch.all(torch.abs(torch.sum(tensor, dim=1) - 1.0) < 1e-5)
-        and torch.all(tensor > 0)
+        and torch.all(tensor >= 0)
     ):
         return
     else:

@@ -443,6 +443,7 @@ class TestIMPALA:
                 sleep(0.1)
             while all_group.is_paired("0_running") or all_group.is_paired("1_running"):
                 impala.update()
+                default_logger.info("Updated")
             return True
 
         raise RuntimeError("IMPALA Training failed.")

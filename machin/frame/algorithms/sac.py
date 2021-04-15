@@ -428,7 +428,7 @@ class SAC(TorchFramework):
     def reward_function(reward, discount, next_value, terminal, _):
         next_value = next_value.type_as(reward)
         terminal = terminal.type_as(reward)
-        return reward + discount * ~terminal * next_value
+        return reward + discount * (1 - terminal) * next_value
 
     @classmethod
     def generate_config(cls, config: Union[Dict[str, Any], Config]):
