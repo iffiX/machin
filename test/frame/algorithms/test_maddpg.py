@@ -12,8 +12,7 @@ import pytest
 import torch as t
 import torch.nn as nn
 
-from .utils import Smooth
-
+from test.frame.algorithms.utils import Smooth
 from test.util_create_ma_env import create_env
 from test.util_fixtures import *
 

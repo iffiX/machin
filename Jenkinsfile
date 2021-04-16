@@ -69,7 +69,7 @@ pipeline {
                        '--html=test_results/test_api.html ' +
                        '--self-contained-html ' +
                        '--alluredir="test_allure_data" ' +
-                       'test || [ $? -eq 1 ]'
+                       '. || [ $? -eq 1 ]'
                     junit 'test_results/test_api.xml'
                     archiveArtifacts 'test_results/test_api.html'
                     archiveArtifacts 'test_results/cov_report.xml'
@@ -111,7 +111,7 @@ pipeline {
                        '--html=test_results/test_full_train.html ' +
                        '--self-contained-html ' +
                        '--alluredir="test_allure_data" ' +
-                       'test || [ $? -eq 1 ]'
+                       '. || [ $? -eq 1 ]'
                     junit 'test_results/test_full_train.xml'
                     archiveArtifacts 'test_results/test_full_train.xml'
                     archiveArtifacts 'test_results/test_full_train.html'

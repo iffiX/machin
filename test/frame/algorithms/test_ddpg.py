@@ -12,7 +12,7 @@ import torch as t
 import torch.nn as nn
 import gym
 
-from .utils import unwrap_time_limit, Smooth
+from test.frame.algorithms.utils import unwrap_time_limit, Smooth
 from test.util_fixtures import *
 
 
