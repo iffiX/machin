@@ -54,6 +54,7 @@ pipeline {
             steps {
                 dir('test_api') {
                     // run basic test
+                    sh 'ln -s ../test test'
                     sh 'mkdir -p test_results'
                     sh 'mkdir -p test_allure_data'
                     // -eq 1  is used to tell jenkins to not mark
@@ -68,7 +69,7 @@ pipeline {
                        '--html=test_results/test_api.html ' +
                        '--self-contained-html ' +
                        '--alluredir="test_allure_data" ' +
-                       '../test || [ $? -eq 1 ]'
+                       'test || [ $? -eq 1 ]'
                     junit 'test_results/test_api.xml'
                     archiveArtifacts 'test_results/test_api.html'
                     archiveArtifacts 'test_results/cov_report.xml'
@@ -100,6 +101,7 @@ pipeline {
             steps {
                 dir('test_full_train') {
                     // run full training test
+                    sh 'ln -s ../test test'
                     sh 'mkdir -p test_results'
                     sh 'mkdir -p test_allure_data'
                     sh 'pytest ' +
@@ -109,7 +111,7 @@ pipeline {
                        '--html=test_results/test_full_train.html ' +
                        '--self-contained-html ' +
                        '--alluredir="test_allure_data" ' +
-                       '../test || [ $? -eq 1 ]'
+                       'test || [ $? -eq 1 ]'
                     junit 'test_results/test_full_train.xml'
                     archiveArtifacts 'test_results/test_full_train.xml'
                     archiveArtifacts 'test_results/test_full_train.html'
