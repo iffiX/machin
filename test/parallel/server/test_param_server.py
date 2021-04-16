@@ -86,9 +86,15 @@ class TestPushPullModelServer(WorldTestBase):
                 )
                 sleep(random.random() * 0.2)
             server.pull(pull_model)
-            assert pull_model.fc1.weight.item() == 11
-            assert pull_model.fc2.weight.item() == 12
-            assert pull_model.fc3.weight.item() == 13
+            assert (
+                pull_model.fc1.weight.item() == 11
+            ), f"Actual weight: {pull_model.fc1.weight.item()}, expected 11"
+            assert (
+                pull_model.fc2.weight.item() == 12
+            ), f"Actual weight: {pull_model.fc2.weight.item()}, expected 12"
+            assert (
+                pull_model.fc3.weight.item() == 13
+            ), f"Actual weight: {pull_model.fc3.weight.item()}, expected 13"
             group.barrier()
         return True
 
@@ -140,8 +146,9 @@ class TestPushPullGradServer(WorldTestBase):
                 server.push(model)
                 _log(rank, f"iter {i}, model: {model}")
                 sleep(random.random() * 0.2)
-            sleep(3)
-            server.pull(model)
+            begin = time()
+            while not server.pull(model) and time() - begin < 10:
+                sleep(0.1)
             _log(rank, f"reduced model: {model}")
             # reduce_method = "mean":
             # fc1: weight(1) - 6 = -5
@@ -151,8 +158,14 @@ class TestPushPullGradServer(WorldTestBase):
             # fc1: weight(1) - 4 * 6 = -23
             # fc2: weight(2) - 4 * 3 = -10
             # fc3: weight(3) - 4 * 2 = -5
-            assert model.fc1.weight.item() == new_weight[0]
-            assert model.fc2.weight.item() == new_weight[1]
-            assert model.fc3.weight.item() == new_weight[2]
+            assert (
+                model.fc1.weight.item() == new_weight[0]
+            ), f"Actual weight: {model.fc1.weight.item()}, expected {new_weight[0]}"
+            assert (
+                model.fc2.weight.item() == new_weight[1]
+            ), f"Actual weight: {model.fc2.weight.item()}, expected {new_weight[1]}"
+            assert (
+                model.fc3.weight.item() == new_weight[2]
+            ), f"Actual weight: {model.fc3.weight.item()}, expected {new_weight[2]}"
             group.barrier()
         return True

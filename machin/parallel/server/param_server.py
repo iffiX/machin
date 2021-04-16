@@ -42,6 +42,9 @@ class PushPullModelServer:
         Args:
             model: Model to push.
             pull_on_fail: Pull the newest parameters if push failed.
+
+        Returns:
+            True if push succeeded, else False.
         """
         if not hasattr(model, "pp_version"):
             model.pp_version = 0
@@ -74,6 +77,9 @@ class PushPullModelServer:
 
         Args:
             model: Model to pull.
+
+        Returns:
+            True if pull succeeded, else False.
         """
         result = self.o_server.pull(self.model_name)
         if result is None:  # pragma: no cover
@@ -162,6 +168,9 @@ class PushPullGradServer:
 
         Args:
             model: Model to push.
+
+        Returns:
+            True if push succeeded, else False.
         """
         # extract gradients from the model
         grad_dict = {}
@@ -173,7 +182,7 @@ class PushPullGradServer:
             choice(self.secondary_services),
             args=(grad_dict, ReduceType.REDUCE_SECONDARY),
         )
-        self.pull(model)
+        return self.pull(model)
 
     def pull(self, model: nn.Module):
         """
@@ -181,6 +190,9 @@ class PushPullGradServer:
 
         Args:
             model: Model to push.
+
+        Returns:
+            True if pull succeeded, else False.
         """
         model.zero_grad()
         params = self.o_server.pull(self.model_name)
@@ -188,6 +200,9 @@ class PushPullGradServer:
             # params could be None if the master reducer has't performed
             # a single reduction operation yet
             prep_load_state_dict(model, params[0])
+            return True
+        else:
+            return False
 
 
 class PushPullGradServerImpl:

@@ -37,10 +37,13 @@ pipeline {
                     sh 'apt clean'
                     sh 'apt update'
                     sh 'apt -o APT::Acquire::Retries="3" --fix-missing install -y wget freeglut3-dev xvfb fonts-dejavu graphviz'
-                    sh 'pip install -e .'
-                    sh 'pip install -e ./test_lib/multiagent-particle-envs/'
+                    // Instead of installing in development mode, we use normal to install
+                    // So that import errors can be detected.
+                    // sh 'pip install -e .'
+                    sh 'pip install .'
+                    sh 'pip install ./test_lib/multiagent-particle-envs/'
                     sh 'pip install "gym[atari, box2d, classic_control]"'
-                    sh 'pip install mock pytest==5.4.3 pytest-cov==2.10.0 allure-pytest==2.8.16 pytest-xvfb==2.0.0 pytest-html==1.22.1 pytest-repeat==0.8.0'
+                    sh 'pip install mock pytest==6.0.0 pytest-cov==2.10.0 allure-pytest==2.8.16 pytest-xvfb==2.0.0 pytest-html==1.22.1 pytest-repeat==0.8.0'
                     // This line must be included, otherwise matplotlib will
                     // segfault when it tries to build the font cache.
                     sh "python3 -c 'import matplotlib.pyplot as plt'"
@@ -49,30 +52,34 @@ pipeline {
         }
         stage('Test API') {
             steps {
-                // run basic test
-                sh 'mkdir -p test_results'
-                sh 'mkdir -p test_allure_data/api'
-                // -eq 1  is used to tell jenkins to not mark
-                // the test as failure when sub tests failed.
-                sh 'pytest -s --gpu_device="cuda:1" --assert=plain --cov-report term-missing --cov=machin ' +
-                   '-k \'not full_train\' ' +
-                   '-o junit_family=xunit1 ' +
-                   '--junitxml test_results/test_api.xml ./test ' +
-                   '--cov-report xml:test_results/cov_report.xml ' +
-                   '--html=test_results/test_api.html ' +
-                   '--self-contained-html ' +
-                   '--alluredir="test_allure_data/api"' +
-                   '|| [ $? -eq 1 ]'
-                junit 'test_results/test_api.xml'
-                archiveArtifacts 'test_results/test_api.html'
-                archiveArtifacts 'test_results/cov_report.xml'
+                dir('test_api') {
+                    // run basic test
+                    sh 'mkdir -p test_results'
+                    sh 'mkdir -p test_allure_data'
+                    // -eq 1  is used to tell jenkins to not mark
+                    // the test as failure when sub tests failed.
+                    sh 'pytest ' +
+                       '-s --import-mode=importlib --gpu_device="cuda:1" --assert=plain ' +
+                       '--cov-report term-missing --cov=machin ' +
+                       '-k \'not full_train\' ' +
+                       '-o junit_family=xunit1 ' +
+                       '--junitxml test_results/test_api.xml ' +
+                       '--cov-report xml:test_results/cov_report.xml ' +
+                       '--html=test_results/test_api.html ' +
+                       '--self-contained-html ' +
+                       '--alluredir="test_allure_data" ' +
+                       '../test || [ $? -eq 1 ]'
+                    junit 'test_results/test_api.xml'
+                    archiveArtifacts 'test_results/test_api.html'
+                    archiveArtifacts 'test_results/cov_report.xml'
+                }
             }
             post {
                 always {
                     step([$class: 'CoberturaPublisher',
                                    autoUpdateHealth: false,
                                    autoUpdateStability: false,
-                                   coberturaReportFile: 'test_results/cov_report.xml',
+                                   coberturaReportFile: 'test_api/test_results/cov_report.xml',
                                    failNoReports: false,
                                    failUnhealthy: false,
                                    failUnstable: false,
@@ -91,20 +98,22 @@ pipeline {
                 }
             }
             steps {
-                // run full training test
-                sh 'mkdir -p test_results'
-                sh 'mkdir -p test_allure_data/full_train'
-                sh 'pytest ' +
-                   '-s --gpu_device="cuda:1" --assert=plain -k \'full_train\' ' +
-                   '-o junit_family=xunit1 ' +
-                   '--junitxml test_results/test_full_train.xml ./test ' +
-                   '--html=test_results/test_full_train.html ' +
-                   '--self-contained-html ' +
-                   '--alluredir="test_allure_data/full_train"' +
-                   '|| [ $? -eq 1 ]'
-                junit 'test_results/test_full_train.xml'
-                archiveArtifacts 'test_results/test_full_train.xml'
-                archiveArtifacts 'test_results/test_full_train.html'
+                dir('test_full_train') {
+                    // run full training test
+                    sh 'mkdir -p test_results'
+                    sh 'mkdir -p test_allure_data'
+                    sh 'pytest ' +
+                       '-s --import-mode=importlib --gpu_device="cuda:1" --assert=plain -k \'full_train\' ' +
+                       '-o junit_family=xunit1 ' +
+                       '--junitxml test_results/test_full_train.xml ' +
+                       '--html=test_results/test_full_train.html ' +
+                       '--self-contained-html ' +
+                       '--alluredir="test_allure_data" ' +
+                       '../test || [ $? -eq 1 ]'
+                    junit 'test_results/test_full_train.xml'
+                    archiveArtifacts 'test_results/test_full_train.xml'
+                    archiveArtifacts 'test_results/test_full_train.html'
+                }
             }
         }
         stage('Check test result') {
@@ -139,8 +148,8 @@ pipeline {
                    '\'http://file.node2/allure-commandline-2.8.1.tgz\''
                 sh 'tar -xvzf allure-commandline-2.8.1.tgz'
                 sh 'chmod a+x allure-2.8.1/bin/allure'
-                sh 'allure-2.8.1/bin/allure generate test_allure_data/api ' +
-                   'test_allure_data/full_train -o test_allure_report'
+                sh 'allure-2.8.1/bin/allure generate test_api/test_allure_data ' +
+                   'test_full_train/test_allure_data -o test_allure_report'
             }
             post {
                 always {
