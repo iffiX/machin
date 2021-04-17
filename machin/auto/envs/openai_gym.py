@@ -106,9 +106,9 @@ class RLGymDiscActDataset(RLDataset):
                         {"state": old_state}, **self.act_kwargs
                     )
                 elif type(self.frame) in (DDPG, DDPGPer, HDDPG, TD3, DDPGApex):
-                    action = self.frame.act_discrete_with_noise(
+                    action, probs = self.frame.act_discrete_with_noise(
                         {"state": old_state}, **self.act_kwargs
-                    )[0]
+                    )
                 elif type(self.frame) in (ARS,):
                     action = self.frame.act({"state": old_state}, **self.act_kwargs)
                 else:
@@ -118,6 +118,8 @@ class RLGymDiscActDataset(RLDataset):
                 state = state.flatten().unsqueeze(0)
                 reward = float(reward)
                 total_reward += reward
+                if type(self.frame) in (DDPG, DDPGPer, HDDPG, TD3, DDPGApex):
+                    action = probs
                 result.add_observation(
                     {
                         "state": {"state": old_state},

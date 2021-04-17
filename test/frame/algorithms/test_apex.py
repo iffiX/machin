@@ -340,21 +340,21 @@ class TestDDPGApex:
     # configs and definitions
     disable_view_window()
     c = Config()
-    c.env_name = "Pendulum-v0"
+    # Use cartpole-v0 instead since pendulum training is too slow on test machine.
+    c.env_name = "CartPole-v0"
     c.env = unwrap_time_limit(gym.make(c.env_name))
-    c.observe_dim = 3
-    c.action_dim = 1
-    c.action_range = 2
+    c.observe_dim = 4
+    # use dim instead of num here
+    c.action_dim = 2
+    c.action_range = 1
     c.max_episodes = 2000
     c.max_steps = 200
-    c.noise_param = (0, 0.2)
-    c.noise_mode = "normal"
     c.replay_size = 100000
-    c.noise_interval = 2
-    # takes too much computing resource
-    # decrease standard for faster validation
-    c.solved_reward = -400
+    c.solved_reward = 150
     c.solved_repeat = 5
+
+    # only for continuous mode testings
+    c.action_range = 1
 
     @staticmethod
     def ddpg_apex(device, dtype, discrete=False):
@@ -573,7 +573,7 @@ class TestDDPGApex:
     @WorldTestBase.setup_world
     def test_full_train(rank):
         c = TestDDPGApex.c
-        ddpg_apex = TestDDPGApex.ddpg_apex("cpu", t.float32)
+        ddpg_apex = TestDDPGApex.ddpg_apex("cpu", t.float32, discrete=True)
         # perform manual syncing to decrease the number of rpc calls
         ddpg_apex.set_sync(False)
 
@@ -588,7 +588,6 @@ class TestDDPGApex:
         world = get_world()
         all_group = world.create_rpc_group("all", ["0", "1", "2"])
         all_group.pair(f"{rank}_running", True)
-        all_group.pair(f"{rank}_step", avg_step)
         default_logger.info(f"{rank}, pid {os.getpid()}")
         if rank == 0:
             all_group.pair("episode", episode)
@@ -596,7 +595,7 @@ class TestDDPGApex:
         if rank in (0, 1):
             while episode < c.max_episodes:
                 # wait for trainer to keep up
-                sleep(1)
+                sleep(0.2)
                 episode.count()
 
                 # batch size = 1
@@ -608,25 +607,18 @@ class TestDDPGApex:
                     step.count()
                     with t.no_grad():
                         old_state = state
-                        if episode.get() % c.noise_interval == 0:
-                            action = ddpg_apex.act_with_noise(
-                                {"state": old_state.unsqueeze(0)},
-                                noise_param=c.noise_param,
-                                mode=c.noise_mode,
-                            )
-                        else:
-                            action = ddpg_apex.act(
-                                {"state": old_state.unsqueeze(0)}
-                            ).clamp(-c.action_range, c.action_range)
+                        action, probs = ddpg_apex.act_discrete_with_noise(
+                            {"state": old_state.unsqueeze(0)}
+                        )
 
-                        state, reward, terminal, _ = env.step(action.cpu().numpy())
+                        state, reward, terminal, _ = env.step(action.cpu().item())
                         state = t.tensor(state, dtype=t.float32).flatten()
                         total_reward += float(reward)
 
                         ddpg_apex.store_transition(
                             {
                                 "state": {"state": old_state.unsqueeze(0)},
-                                "action": {"action": action},
+                                "action": {"action": probs},
                                 "next_state": {"state": state.unsqueeze(0)},
                                 "reward": float(reward),
                                 "terminal": terminal or step == c.max_steps,
@@ -638,12 +630,10 @@ class TestDDPGApex:
                 step.reset()
                 terminal = False
 
-                if episode.get() % c.noise_interval != 0:
-                    # only log result without noise
-                    default_logger.info(
-                        "Process {} Episode {} "
-                        "total reward={:.2f}".format(rank, episode, smoother.value)
-                    )
+                default_logger.info(
+                    "Process {} Episode {} "
+                    "total reward={:.2f}".format(rank, episode, smoother.value)
+                )
 
                 if smoother.value > c.solved_reward:
                     reward_fulfilled.count()
@@ -666,15 +656,8 @@ class TestDDPGApex:
             while ddpg_apex.replay_buffer.all_size() < 500:
                 sleep(0.1)
             while all_group.is_paired("0_running") or all_group.is_paired("1_running"):
-                p0_step = all_group.get_paired("0_step").to_here().value
-                p1_step = all_group.get_paired("1_step").to_here().value
-                # not accurate since sampler processes are not synchronized, but works.
-                update_times = int((p0_step + p1_step) / 2)
-                if update_times == 0:
-                    continue
-                for i in range(update_times):
-                    ddpg_apex.update()
-                default_logger.info(f"Update {update_times} times")
+                ddpg_apex.update()
+                default_logger.info(f"Updated")
             return True
 
         raise RuntimeError("DDPG-Apex Training failed.")

@@ -284,7 +284,11 @@ class DDPG(TorchFramework):
         return (result, action, *others)
 
     def act_discrete_with_noise(
-        self, state: Dict[str, Any], use_target: bool = False, **__
+        self,
+        state: Dict[str, Any],
+        use_target: bool = False,
+        choose_max_prob: float = 0.95,
+        **__
     ):
         """
         Use actor network to produce a noisy discrete action for
@@ -298,6 +302,8 @@ class DDPG(TorchFramework):
         Args:
             state: Current state.
             use_target: Whether to use the target network.
+            choose_max_prob: Probability to choose the largest component when actor
+                is outputing extreme probability vector like ``[0, 1, 0, 0]``.
 
         Returns:
             Noisy action of shape ``[batch_size, 1]``.
@@ -310,9 +316,15 @@ class DDPG(TorchFramework):
             action, *others = safe_call(self.actor, state)
 
         assert_output_is_probs(action)
-        dist = Categorical(action)
         batch_size = action.shape[0]
-        return (dist.sample([batch_size, 1]).view(batch_size, 1), *others)
+        action_dim = action.shape[1]
+        if action_dim > 1 and choose_max_prob < 1.0:
+            scale = np.log((action_dim - 1) / (1 - choose_max_prob) * choose_max_prob)
+            action = t.softmax(action * scale, dim=1)
+        dist = Categorical(action)
+
+        result = dist.sample([batch_size, 1]).view(batch_size, 1)
+        return (result, action, *others)
 
     def _act(self, state: Dict[str, Any], use_target: bool = False, **__):
         """
