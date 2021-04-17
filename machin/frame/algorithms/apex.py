@@ -3,23 +3,12 @@ from .ddpg_per import *
 from ..buffers.prioritized_buffer_d import DistributedPrioritizedBuffer
 from torch.nn.parallel import DistributedDataParallel
 from machin.parallel.server import PushPullModelServer
-from machin.parallel.distributed import get_world, RpcGroup, debug_with_process
+from machin.parallel.distributed import get_world, RpcGroup
 from machin.frame.helpers.servers import model_server_helper
 
 
 def _disable_update(*_, **__):
     return None, None
-
-
-def apex_debug(func: Callable, args: Tuple, action: str, kwargs: dict = None):
-    debug_with_process(f"apex {action} begin")
-    kwargs = kwargs or {}
-    result = func(*args, **kwargs)
-    if result:
-        debug_with_process(f"apex {action} success")
-    else:
-        debug_with_process(f"apex {action} failed")
-    return result
 
 
 class DQNApex(DQNPer):
@@ -129,12 +118,12 @@ class DQNApex(DQNPer):
 
     def manual_sync(self):
         if not self._is_using_DP_or_DDP:
-            apex_debug(self.qnet_model_server.pull, (self.qnet,), "pull")
+            self.qnet_model_server.pull(self.qnet)
 
     def act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            apex_debug(self.qnet_model_server.pull, (self.qnet,), "pull")
+            self.qnet_model_server.pull(self.qnet)
         return super().act_discrete(state, use_target)
 
     def act_discrete_with_noise(
@@ -146,7 +135,7 @@ class DQNApex(DQNPer):
     ):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            apex_debug(self.qnet_model_server.pull, (self.qnet,), "pull")
+            self.qnet_model_server.pull(self.qnet)
         return super().act_discrete_with_noise(state, use_target, decay_epsilon)
 
     def update(
@@ -155,14 +144,9 @@ class DQNApex(DQNPer):
         # DOC INHERITED
         result = super().update(update_value, update_target, concatenate_samples)
         if self._is_using_DP_or_DDP:
-            apex_debug(
-                self.qnet_model_server.push,
-                (self.qnet.module,),
-                "push",
-                kwargs={"pull_on_fail": False},
-            )
+            self.qnet_model_server.push(self.qnet.module, pull_on_fail=False)
         else:
-            apex_debug(self.qnet_model_server.push, (self.qnet,), "push")
+            self.qnet_model_server.push(self.qnet)
         return result
 
     @classmethod
@@ -385,12 +369,12 @@ class DDPGApex(DDPGPer):
 
     def manual_sync(self):
         if not self._is_using_DP_or_DDP:
-            apex_debug(self.actor_model_server.pull, (self.actor,), "pull")
+            self.actor_model_server.pull(self.actor)
 
     def act(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            apex_debug(self.actor_model_server.pull, (self.actor,), "pull")
+            self.actor_model_server.pull(self.actor)
         return super().act(state, use_target)
 
     def act_with_noise(
@@ -404,7 +388,7 @@ class DDPGApex(DDPGPer):
     ):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            apex_debug(self.actor_model_server.pull, (self.actor,), "pull")
+            self.actor_model_server.pull(self.actor)
         return super().act_with_noise(
             state,
             noise_param=noise_param,
@@ -416,7 +400,7 @@ class DDPGApex(DDPGPer):
     def act_discrete(self, state: Dict[str, Any], use_target: bool = False, **__):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            apex_debug(self.actor_model_server.pull, (self.actor,), "pull")
+            self.actor_model_server.pull(self.actor)
         return super().act_discrete(state, use_target)
 
     def act_discrete_with_noise(
@@ -424,7 +408,7 @@ class DDPGApex(DDPGPer):
     ):
         # DOC INHERITED
         if self.is_syncing and not use_target and not self._is_using_DP_or_DDP:
-            apex_debug(self.actor_model_server.pull, (self.actor,), "pull")
+            self.actor_model_server.pull(self.actor)
         return super().act_discrete_with_noise(state, use_target)
 
     def update(
@@ -440,15 +424,9 @@ class DDPGApex(DDPGPer):
             update_value, update_policy, update_target, concatenate_samples
         )
         if self._is_using_DP_or_DDP:
-            apex_debug(
-                self.actor_model_server.push,
-                (self.actor.module,),
-                "push",
-                kwargs={"pull_on_fail": False},
-            )
-
+            self.actor_model_server.push(self.actor.module, pull_on_fail=False)
         else:
-            apex_debug(self.actor_model_server.push, (self.actor,), "push")
+            self.actor_model_server.push(self.actor)
         return result
 
     @classmethod

@@ -6,6 +6,7 @@ from time import sleep
 from torch.distributed import rpc
 from machin.parallel.exception import ExceptionWithTraceback
 from machin.utils.logging import default_logger
+from logging import DEBUG
 
 import enum
 import torch as t
@@ -21,6 +22,8 @@ class LUTType(enum.Enum):
 
 
 def debug_with_process(message):
+    if default_logger.level != DEBUG:
+        return
     caller = getframeinfo(stack()[1][0])
     default_logger.debug(
         f"Process [{get_cur_rank()}]: "

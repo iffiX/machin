@@ -572,11 +572,6 @@ class TestDDPGApex:
     @run_multi(expected_results=[True, True, True], timeout=1800)
     @WorldTestBase.setup_world
     def test_full_train(rank):
-        # from logging import DEBUG
-        # from machin.utils.logging import default_logger as df
-        #
-        # df.setLevel(DEBUG)
-
         c = TestDDPGApex.c
         ddpg_apex = TestDDPGApex.ddpg_apex("cpu", t.float32)
         # perform manual syncing to decrease the number of rpc calls

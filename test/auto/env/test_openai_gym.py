@@ -352,7 +352,7 @@ class LoggerDebugCallback(Callback):
 
 
 class TestLaunchGym:
-    def test_dqn(self, tmpdir):
+    def test_dqn_full_train(self, tmpdir):
         config = generate_env_config("CartPole-v0", {})
         config = generate_training_config(
             root_dir=str(tmpdir.make_numbered_dir()), config=config
