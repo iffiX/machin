@@ -60,7 +60,7 @@ pipeline {
                     // -eq 1  is used to tell jenkins to not mark
                     // the test as failure when sub tests failed.
                     sh 'python -m pytest ' +
-                       '-s --import-mode=importlib --gpu_device="cuda:1" --assert=plain ' +
+                       '-s --gpu_device="cuda:1" --assert=plain ' +
                        '--cov-report term-missing --cov=machin ' +
                        '-k \'not full_train\' ' +
                        '-o junit_family=xunit1 ' +
@@ -105,7 +105,7 @@ pipeline {
                     sh 'mkdir -p test_results'
                     sh 'mkdir -p test_allure_data'
                     sh 'python -m pytest ' +
-                       '-s --import-mode=importlib --gpu_device="cuda:1" --assert=plain -k \'full_train\' ' +
+                       '-s --gpu_device="cuda:1" --assert=plain -k \'full_train\' ' +
                        '-o junit_family=xunit1 ' +
                        '--junitxml test_results/test_full_train.xml ' +
                        '--html=test_results/test_full_train.html ' +
