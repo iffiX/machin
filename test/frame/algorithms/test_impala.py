@@ -63,7 +63,7 @@ class TestIMPALA:
     c.env = unwrap_time_limit(gym.make(c.env_name))
     c.observe_dim = 4
     c.action_num = 2
-    c.max_episodes = 2000
+    c.max_episodes = 20000
     c.max_steps = 200
     c.replay_size = 10000
     c.solved_reward = 150

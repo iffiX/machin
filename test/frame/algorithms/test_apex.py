@@ -87,7 +87,7 @@ class TestDQNApex:
     c.env = unwrap_time_limit(gym.make(c.env_name))
     c.observe_dim = 4
     c.action_num = 2
-    c.max_episodes = 2000
+    c.max_episodes = 20000
     c.max_steps = 200
     c.replay_size = 100000
     c.solved_reward = 150
@@ -347,7 +347,7 @@ class TestDDPGApex:
     # use dim instead of num here
     c.action_dim = 2
     c.action_range = 1
-    c.max_episodes = 2000
+    c.max_episodes = 20000
     c.max_steps = 200
     c.replay_size = 100000
     c.solved_reward = 150
