@@ -49,7 +49,7 @@ def determine_device(model):
     return list(devices)
 
 
-def safe_call(model, *named_args):
+def safe_call(model, *named_args, method="__call__"):
     """
     Call a model and discard unnecessary arguments. safe_call will automatically
     move tensors in named_args to the input device of the model
@@ -148,9 +148,9 @@ def safe_call(model, *named_args):
         )
 
     if org_model is not None:
-        result = org_model(**args_dict)
+        result = getattr(org_model, method)(**args_dict)
     else:
-        result = model(**args_dict)
+        result = getattr(model, method)(**args_dict)
 
     if isinstance(result, tuple):
         return result

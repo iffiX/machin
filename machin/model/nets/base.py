@@ -101,7 +101,7 @@ class NeuralNetworkModule(nn.Module, ABC):
         else:
             return seq
 
-    def forward(self, *_):
+    def forward(self, *_, **__):
         pass
 
 

@@ -1,3 +1,4 @@
 from . import nets
+from . import algorithms
 
-__all__ = ["nets"]
+__all__ = ["nets", "algorithms"]

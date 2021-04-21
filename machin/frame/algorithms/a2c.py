@@ -54,7 +54,7 @@ class A2C(TorchFramework):
     ):
         """
         Important:
-            when given a state, and an optional, action actor must
+            When given a state, and an optional action, actor must
             at least return two values:
 
             **1. Action**
@@ -65,6 +65,9 @@ class A2C(TorchFramework):
               ``[batch_size, action_dim]`` if it is a one hot vector, or
               ``[batch_size, 1]`` if it is a categorically encoded integer.
 
+              When the given action is not None, actor must return the given
+              action.
+
             **2. Log likelihood of action (action probability)**
 
               For either type of environment, log likelihood is of shape
@@ -72,6 +75,9 @@ class A2C(TorchFramework):
 
               Action probability must be differentiable, Gradient of actor
               is calculated from the gradient of action probability.
+
+              When the given action is not None, actor must return the log
+              likelihood of the given action.
 
             The third entropy value is optional:
 
@@ -161,7 +167,8 @@ class A2C(TorchFramework):
             gae_lambda: :math:`\\lambda` used in generalized advantage
                 estimation.
             discount: :math:`\\gamma` used in the bellman function.
-            normalize_advantage: Whether to normalize the advantage function.
+            normalize_advantage: Whether to normalize sampled advantage values in
+                the batch.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
             replay_device: Device where the replay buffer locates on, Not

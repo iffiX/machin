@@ -64,6 +64,8 @@ class PPO(A2C):
             gae_lambda: :math:`\\lambda` used in generalized advantage
                 estimation.
             discount: :math:`\\gamma` used in the bellman function.
+            normalize_advantage: Whether to normalize sampled advantage values in
+                the batch.
             replay_size: Replay buffer size. Not compatible with
                 ``replay_buffer``.
             replay_device: Device where the replay buffer locates on, Not
