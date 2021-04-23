@@ -59,6 +59,7 @@ Currently Machin has implemented the following algorithms, the list is still gro
 * [Hystereric DDPG (Modified from Hys-DQN)](https://hal.archives-ouvertes.fr/hal-00187279/document)
 * [Advantage Actor-Critic (A2C)](https://openai.com/blog/baselines-acktr-a2c/)
 * [Proximal Policy Optimization (PPO)](https://arxiv.org/pdf/1707.06347.pdf)
+* [Trust Region Policy Optimization (TRPO)](https://arxiv.org/pdf/1502.05477.pdf)
 * [Soft Actor Critic (SAC)](https://arxiv.org/pdf/1812.05905.pdf)
 
 #### Multi-agent algorithms:
