@@ -25,11 +25,17 @@ class ActorDiscrete(NeuralNetworkModule):
             Action tensor of shape ``[batch, 1]``,
             Action log probability tensor of shape ``[batch, 1]``.
         """
+        batch_size = probability.shape[0]
         self.action_param = probability
         dist = Categorical(probs=probability)
-        if not action:
+        if action is None:
             action = dist.sample()
-        return action, dist.log_prob(action)
+
+        # since categorical sample returns a flat tensor, we need to reshape it.
+        return (
+            action.view(batch_size, 1),
+            dist.log_prob(action.flatten()).view(batch_size, 1),
+        )
 
     def get_kl(self, *args, **kwargs):
         self.forward(*args, **kwargs)
@@ -51,7 +57,7 @@ class ActorDiscrete(NeuralNetworkModule):
             action_prob_new = self.action_param
 
             kl = action_prob_old * (t.log(action_prob_old) - t.log(action_prob_new))
-            return kl.sum(1, keepdim=True)
+            return kl.sum(1).mean().item()
 
     def get_fim(self, *args, **kwargs):
         self.forward(*args, **kwargs)
@@ -66,7 +72,7 @@ class ActorContinuous(NeuralNetworkModule):
     def __init__(self, action_dim, log_std=0):
         super().__init__()
         self.action_param = None
-        self.action_log_std = nn.Parameter(t.full([1, action_dim], log_std))
+        self.action_log_std = nn.Parameter(t.full([1, action_dim], float(log_std)))
 
     def sample(self, mean: t.tensor, action=None):
         """
@@ -80,14 +86,14 @@ class ActorContinuous(NeuralNetworkModule):
                 a new batch of actions.
 
         Returns:
-            Action tensor of shape ``[batch, 1]``,
+            Action tensor of shape ``[batch, action_dim]``,
             Action log probability tensor of shape ``[batch, 1]``.
         """
         self.action_param = mean
         dist = Normal(loc=mean, scale=t.exp(self.action_log_std))
-        if not action:
+        if action is None:
             action = dist.sample()
-        return action, dist.log_prob(action)
+        return action, dist.log_prob(action).sum(dim=1, keepdims=True)
 
     def get_kl(self, *args, **kwargs):
         self.forward(*args, **kwargs)
@@ -130,7 +136,7 @@ class ActorContinuous(NeuralNetworkModule):
                 + (std0.pow(2) + (mean0 - mean1).pow(2)) / (2.0 * std1.pow(2))
                 - 0.5
             )
-            return kl.sum(1, keepdim=True)
+            return kl.sum(1).mean().item()
 
     def get_fim(self, *args, **kwargs):
         self.forward(*args, **kwargs)

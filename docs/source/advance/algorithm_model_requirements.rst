@@ -192,9 +192,9 @@ Example::
             q = self.fc3(q)
             return q
 
-A2C, PPO, A3C, IMPALA
+A2C, PPO, TRPO, A3C, IMPALA
 ------------------------------------------------------------------
-For :class:`.A2C`, :class:`.PPO`, :class:`.A3C`, :class:`.IMPALA`,
+For :class:`.A2C`, :class:`.PPO`, :class:`.TRPO`, :class:`.A3C`, :class:`.IMPALA`,
 Machin expects multiple actor and critic networks like::
 
     Actor(state_0[batch_size, ...],
@@ -202,8 +202,8 @@ Machin expects multiple actor and critic networks like::
           state_n[batch_size, ...],
           action[batch_size, ...]=None)
     -> action[batch_size, ...], <...>
-       action_log_prob[batch_size, 1]
-       distribution_entropy[batch_size, 1]
+       action_log_prob[batch_size, <1>]
+       distribution_entropy[batch_size, <1>]
 
     Critic(state_0[batch_size, ...],
            ...,
@@ -239,7 +239,7 @@ Example::
             act_log_prob = dist.log_prob(act.flatten())
             return act, act_log_prob, act_entropy
 
-    class ActorContiguous(nn.Module):
+    class ActorContinuous(nn.Module):
         def __init__(self, state_dim, action_dim, action_range):
             super(Actor, self).__init__()
 
@@ -258,7 +258,7 @@ Example::
             act = (action
                    if action is not None
                    else dist.sample())
-            act_entropy = dist.entropy()
+            act_entropy = dist.entropy().sum(1, keepdim=True)
 
             # If your distribution is different from "Normal" then you may either:
             # 1. deduce the remapping function for your distribution and clamping
@@ -317,8 +317,8 @@ used in :class:`.DDPG`::
           state_n[batch_size, ...],
           action[batch_size, ...]=None)
     -> action[batch_size, ...]
-       action_log_prob[batch_size, 1]
-       distribution_entropy[batch_size, 1],
+       action_log_prob[batch_size, <1>]
+       distribution_entropy[batch_size, <1>],
        <...>
 
     Critic(state_0[batch_size, ...],
@@ -337,26 +337,6 @@ where:
 Example::
 
     class Actor(nn.Module):
-        def __init__(self, state_dim, action_num):
-            super(Actor, self).__init__()
-
-            self.fc1 = nn.Linear(state_dim, 16)
-            self.fc2 = nn.Linear(16, 16)
-            self.fc3 = nn.Linear(16, action_num)
-
-        def forward(self, state, action=None):
-            a = t.relu(self.fc1(state))
-            a = t.relu(self.fc2(a))
-            probs = t.softmax(self.fc3(a), dim=1)
-            dist = Categorical(probs=probs)
-            act = (action
-                   if action is not None
-                   else dist.sample())
-            act_entropy = dist.entropy()
-            act_log_prob = dist.log_prob(act.flatten())
-            return act, act_log_prob, act_entropy
-
-    class ActorContiguous(nn.Module):
         def __init__(self, state_dim, action_dim, action_range):
             super(Actor, self).__init__()
 
@@ -375,7 +355,7 @@ Example::
             act = (action
                    if action is not None
                    else dist.rsample())
-            act_entropy = dist.entropy()
+            act_entropy = dist.entropy().sum(1, keepdim=True)
 
             # the suggested way to confine your actions within a valid range
             # is not clamping, but remapping the distribution

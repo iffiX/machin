@@ -63,7 +63,8 @@ class A2C(TorchFramework):
               ``[batch_size, action_dim]`` and *clamped by action space*.
               For **discrete environments**, action could be of shape
               ``[batch_size, action_dim]`` if it is a one hot vector, or
-              ``[batch_size, 1]`` if it is a categorically encoded integer.
+              ``[batch_size, 1]`` or [batch_size] if it is a categorically
+              encoded integer.
 
               When the given action is not None, actor must return the given
               action.
@@ -71,7 +72,7 @@ class A2C(TorchFramework):
             **2. Log likelihood of action (action probability)**
 
               For either type of environment, log likelihood is of shape
-              ``[batch_size, 1]``.
+              ``[batch_size, 1]`` or ``[batch_size]``.
 
               Action probability must be differentiable, Gradient of actor
               is calculated from the gradient of action probability.
@@ -84,8 +85,8 @@ class A2C(TorchFramework):
             **3. Entropy of action distribution**
 
               Entropy is usually calculated using dist.entropy(), its shape
-              is ``[batch_size, 1]``. You must specify ``entropy_weight``
-              to make it effective.
+              is ``[batch_size, 1]`` or ``[batch_size]``. You must specify
+              ``entropy_weight`` to make it effective.
 
         Hint:
             For contiguous environments, action's are not directly output by
@@ -128,7 +129,12 @@ class A2C(TorchFramework):
                                   else dist.sample())
                         action_entropy = dist.entropy()
                         action = action.clamp(-2.0, 2.0)
-                        action_log_prob = dist.log_prob(action)
+
+                        # Since we are representing a multivariate gaussian
+                        # distribution in terms of independent univariate gaussians:
+                        action_log_prob = dist.log_prob(action).sum(
+                            dim=1, keepdim=True
+                        )
                         return action, action_log_prob, action_entropy
 
         Hint:

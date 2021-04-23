@@ -47,7 +47,7 @@ depending on the implementation and type of the RL framework.
 Below is a list of supported acting APIs of different frameworks:
 
 +-----------------+-------------------------+---------------------------------------------+---------------------+-----------------------+
-| Algorithm class | Acting API              | Input & output                              | Discreet/Contiguous | Note                  |
+| Algorithm class | Acting API              | Input & output                              | Discreet/Continuous | Note                  |
 +-----------------+-------------------------+---------------------------------------------+---------------------+-----------------------+
 | | DQN           | act_discreet            | | Dict[str, State[batch_size, ...]]         | D                   |                       |
 | | DQNPer        |                         | | -> Action[batch_size, 1], <...>           |                     |                       |
@@ -73,12 +73,12 @@ Below is a list of supported acting APIs of different frameworks:
 |                 |                         | | Prob[batch_size, action_num],             |                     |                       |
 |                 |                         | | <...>                                     |                     |                       |
 +-----------------+-------------------------+---------------------------------------------+---------------------+-----------------------+
-| | A2C           | act                     | | Dict[str, State[batch_size, ...]] ->      | C/D                 | | Contiguous/Discreet |
+| | A2C           | act                     | | Dict[str, State[batch_size, ...]] ->      | C/D                 | | Continuous/Discreet |
 | | A3C           |                         |                                             |                     | | depends on the      |
 | | PPO           |                         | | Action[batch_size, ...],                  |                     | | distribution you    |
-| | IMPALA        |                         | | Log_Prob[batch_size, 1],                  |                     | | are using to        |
-| | SAC           |                         | | Entropy[batch_size, 1],                   |                     | | reparameterize      |
-|                 |                         | | <...>                                     |                     | | your network        |
+| | TRPO          |                         | | Log_Prob[batch_size, <1>],                |                     | | are using to        |
+| | SAC           |                         | | Entropy[batch_size, <1>],                 |                     | | reparameterize      |
+| | IMPALA        |                         | | <...>                                     |                     | | your network        |
 +-----------------+-------------------------+---------------------------------------------+---------------------+-----------------------+
 | MADDPG          | act                     | | List[Dict[str, State[batch_size, ...]]]   | C                   |                       |
 |                 |                         | | -> List[Action[batch_size, action_dim],   |                     |                       |

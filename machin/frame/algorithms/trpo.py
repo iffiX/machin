@@ -1,4 +1,5 @@
 from .a2c import *
+from .utils import safe_return
 from machin.utils.logging import default_logger
 
 # Implementation Reference: https://github.com/Khrylx/PyTorch-RL
@@ -23,7 +24,7 @@ class TRPO(A2C):
         lr_scheduler_kwargs: Tuple[Dict, Dict] = (),
         batch_size: int = 100,
         critic_update_times: int = 10,
-        actor_learning_rate: float = 0.001,
+        actor_learning_rate: float = 0.003,
         critic_learning_rate: float = 0.001,
         entropy_weight: float = None,
         value_weight: float = 0.5,
@@ -34,6 +35,7 @@ class TRPO(A2C):
         kl_max_delta: float = 0.01,
         damping: float = 0.1,
         line_search_backtracks: int = 10,
+        conjugate_eps: float = 1e-8,
         conjugate_iterations: int = 10,
         conjugate_res_threshold: float = 1e-10,
         hv_mode: str = "fim",
@@ -129,6 +131,8 @@ PDF/[JMT]Fisher_inf.pdf>` on how to compute this matrix, note we only need fishe
                 See `Conjugate gradient bundle adjustment <https://www1.maths.lth.se/
 matematiklth/vision/publdb/reports/pdf/byrod-eccv-10.pdf>` equation 6.
             line_search_backtracks: Maximum number of times to try in the line search.
+            conjugate_eps: A small constant used to prevent conjugate gradient from
+                outputing nan value in the first iteration.
             conjugate_iterations: Maximum number of iterations of the conjugate gradient
                 algorithm.
             conjugate_res_threshold: The threshold squared length of the residual
@@ -172,6 +176,7 @@ matematiklth/vision/publdb/reports/pdf/byrod-eccv-10.pdf>` equation 6.
         self.line_search_backtracks = line_search_backtracks
         self.kl_max_delta = kl_max_delta
         self.damping = damping
+        self.conjugate_eps = conjugate_eps
         self.conjugate_iterations = conjugate_iterations
         self.conjugate_res_threshold = conjugate_res_threshold
         self.hv_mode = hv_mode
@@ -201,16 +206,20 @@ matematiklth/vision/publdb/reports/pdf/byrod-eccv-10.pdf>` equation 6.
         # Train actor
         # define two closures needed by fvp functions
         ___, fixed_action_log_prob, *_ = self._eval_act(state, action)
+        fixed_action_log_prob = fixed_action_log_prob.view(batch_size, 1).detach()
         fixed_params = self.get_flat_params(self.actor)
 
         def actor_loss_func():
             ____, action_log_prob, *_ = self._eval_act(state, action)
-            action_loss = -advantage * t.exp(action_log_prob - fixed_action_log_prob)
+            action_log_prob = action_log_prob.view(batch_size, 1)
+            action_loss = -advantage.to(action_log_prob.device) * t.exp(
+                action_log_prob - fixed_action_log_prob
+            )
             return action_loss.mean()
 
         def actor_kl_func():
             state["params"] = fixed_params
-            return safe_call(self.actor, state, method="compare_kl")
+            return safe_return(safe_call(self.actor, state, method="compare_kl"))
 
         act_policy_loss = actor_loss_func()
 
@@ -227,15 +236,23 @@ matematiklth/vision/publdb/reports/pdf/byrod-eccv-10.pdf>` equation 6.
                     return self._fvp_direct(state, v, self.damping)
 
             loss_grad = self.get_flat_grad(
-                act_policy_loss, self.actor.parameters()
+                act_policy_loss, list(self.actor.parameters())
             ).detach()
 
+            # usually 1e-15 is low enough
+            if t.allclose(loss_grad, t.zeros_like(loss_grad), atol=1e-15):
+                default_logger.warning("TRPO detects zero gradient.")
+
             step_dir = self._conjugate_gradients(
-                fvp, -loss_grad, self.conjugate_iterations, self.conjugate_res_threshold
+                fvp,
+                -loss_grad,
+                eps=self.conjugate_eps,
+                iterations=self.conjugate_iterations,
+                res_threshold=self.conjugate_res_threshold,
             )
 
             # Maximum step size mentioned in appendix C of the paper.
-            beta = np.sqrt(2 * self.kl_max_delta / step_dir.dot(fvp(step_dir)))
+            beta = np.sqrt(2 * self.kl_max_delta / step_dir.dot(fvp(step_dir)).item())
 
             full_step = step_dir * beta
             if not self._line_search(
@@ -281,7 +298,7 @@ matematiklth/vision/publdb/reports/pdf/byrod-eccv-10.pdf>` equation 6.
         )
 
     @staticmethod
-    def _conjugate_gradients(Avp_f, b, iterations, res_threshold):
+    def _conjugate_gradients(Avp_f, b, eps, iterations, res_threshold):
         """
         The conjugate gradient method, which solves a linear system :math`Ax = b`.
         See `Conjugate gradient method \
@@ -299,17 +316,17 @@ matematiklth/vision/publdb/reports/pdf/byrod-eccv-10.pdf>` equation 6.
             Solution of :math:`x`.
         """
 
-        x = t.zeros(b.size(), device=b.device)
+        x = t.zeros(b.shape, dtype=b.dtype, device=b.device)
         r = b.clone()
         p = b.clone()
         r_dot_r = t.dot(r, r)
         for i in range(iterations):
             Avp = Avp_f(p)
-            alpha = r_dot_r / t.dot(p, Avp)
+            alpha = r_dot_r / (t.dot(p, Avp) + eps)
             x += alpha * p
             r -= alpha * Avp
             new_r_dot_r = t.dot(r, r)
-            beta = new_r_dot_r / r_dot_r
+            beta = new_r_dot_r / (r_dot_r + eps)
             p = r + beta * p
             r_dot_r = new_r_dot_r
             if r_dot_r < res_threshold:
@@ -363,7 +380,7 @@ matematiklth/vision/publdb/reports/pdf/byrod-eccv-10.pdf>` equation 6.
         Returns:
             Matrix product of :math:`Hv`
         """
-        kl = safe_call(self.actor, state, method="get_kl")
+        kl = safe_return(safe_call(self.actor, state, method="get_kl"))
         kl = kl.mean()
 
         grads = t.autograd.grad(kl, list(self.actor.parameters()), create_graph=True)
@@ -393,11 +410,11 @@ tly-computing-the-fisher-vector-product-in-trpo/>`_ for more details
         Returns:
             Matrix product of :math:`Hv`
         """
-        batch_size = next(st.size[0] for st in state if t.is_tensor(st))
+        batch_size = next(st.shape[0] for st in state.values() if t.is_tensor(st))
 
         # M is the second derivative of the KL distance w.r.t. network output
         # (M*M diagonal matrix compressed into a M*1 vector)
-        M, act_param, info = safe_call(self.actor, state, method="get_fim")
+        M, act_param = safe_call(self.actor, state, method="get_fim")
 
         # From now on we will use symbol `mu` as the action parameter of the
         # distribution, this symbol is used in equation 56. and 57. of the
@@ -406,7 +423,7 @@ tly-computing-the-fisher-vector-product-in-trpo/>`_ for more details
 
         # t is an arbitrary constant vector that does not depend on actor parameter
         # theta, we use t_ here since torch is imported as t
-        t_ = t.ones(mu.size(), requires_grad=True, device=mu.device)
+        t_ = t.ones(mu.shape, requires_grad=True, device=mu.device)
         mu_t = (mu * t_).sum()
         Jt = self.get_flat_grad(mu_t, list(self.actor.parameters()), create_graph=True)
         Jtv = (Jt * vector).sum()
@@ -436,23 +453,41 @@ tly-computing-the-fisher-vector-product-in-trpo/>`_ for more details
         """
         idx = 0
         for param in model.parameters():
-            flat_size = int(np.prod(list(param.size())))
-            param.data.copy_(flat_params[idx : idx + flat_size].view(param.size()))
+            flat_size = int(np.prod(list(param.shape)))
+            param.data.copy_(flat_params[idx : idx + flat_size].view(param.shape))
             idx += flat_size
 
     @staticmethod
-    def get_flat_grad(output, parameters, retain_graph=False, create_graph=False):
+    def get_flat_grad(
+        output: t.Tensor,
+        parameters: List[nn.Parameter],
+        retain_graph=False,
+        create_graph=False,
+    ):
         """
         Compute gradient w.r.t. parameters and returns a flattened gradient tensor.
+
+        Note: use a list of parameters since it is hard to reset the iterator provided
+        by calling model.parameters() after t.autograd.grad call.
         """
         if create_graph:
             retain_graph = True
 
+        # allow unused parameters in graph since some parameter (like action log std)
+        # may not receive gradient in the first or both passes.
         grads = t.autograd.grad(
-            output, parameters, retain_graph=retain_graph, create_graph=create_graph
+            output,
+            parameters,
+            retain_graph=retain_graph,
+            create_graph=create_graph,
+            allow_unused=True,
         )
-
-        out_grads = [g.view(-1) for g in grads]
+        out_grads = []
+        for g, p in zip(grads, parameters):
+            if g is not None:
+                out_grads.append(g.view(-1))
+            else:
+                out_grads.append(t.zeros_like(p).view(-1))
         grads = t.cat(out_grads)
 
         for param in parameters:
@@ -466,7 +501,8 @@ tly-computing-the-fisher-vector-product-in-trpo/>`_ for more details
         config["frame_config"]["kl_max_delta"] = 0.01
         config["frame_config"]["damping"] = 0.1
         config["frame_config"]["line_search_backtracks"] = 10
+        config["frame_config"]["conjugate_eps"] = 1e-8
         config["frame_config"]["conjugate_iterations"] = 10
-        config["frame_config"]["conjugate_res_threshold"] = 10
+        config["frame_config"]["conjugate_res_threshold"] = 1e-10
         config["frame_config"]["hv_mode"] = "fim"
         return config

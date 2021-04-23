@@ -357,6 +357,7 @@ class SAC(TorchFramework):
 
         # Update actor network
         cur_action, cur_action_log_prob, *_ = self.act(state)
+        cur_action_log_prob = cur_action_log_prob.view(batch_size, 1)
         cur_action = self.action_transform_function(cur_action, state, others)
         act_value = self._criticize(state, cur_action)
         act_value2 = self._criticize2(state, cur_action)

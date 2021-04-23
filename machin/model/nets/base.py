@@ -115,6 +115,8 @@ def static_module_wrapper(
 
     Input device and output device are statically specified by user.
     """
+    if isinstance(wrapped_module, NeuralNetworkModule):
+        raise ValueError("Module is already a wrapped NeuralNetworkModule.")
     wrapped_module.input_device = input_device
     wrapped_module.output_device = output_device
     return wrapped_module
@@ -126,6 +128,8 @@ def dynamic_module_wrapper(wrapped_module: nn.Module):
 
     Input device and output device are automatically detected.
     """
+    if isinstance(wrapped_module, NeuralNetworkModule):
+        raise ValueError("Module is already a wrapped NeuralNetworkModule.")
     wrapper = NeuralNetworkModule()
     wrapper.add_module("wrapped_module", wrapped_module)
     wrapper.set_input_module(wrapped_module)

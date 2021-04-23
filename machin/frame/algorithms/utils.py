@@ -108,7 +108,10 @@ def safe_call(model, *named_args, method="__call__"):
             model = static_module_wrapper(model, device[0], device[0])
 
     input_device = model.input_device
-    arg_spec = inspect.getfullargspec(model.forward)
+    if method == "__call__":
+        arg_spec = inspect.getfullargspec(model.forward)
+    else:
+        arg_spec = inspect.getfullargspec(getattr(model, method))
     # exclude self in arg_spec.args
     args = arg_spec.args[1:] + arg_spec.kwonlyargs
     if arg_spec.defaults is not None:
@@ -129,7 +132,7 @@ def safe_call(model, *named_args, method="__call__"):
     # fill in args
     for na in named_args:
         for k, v in na.items():
-            if k in args:
+            if k in args or arg_spec.varargs is not None or arg_spec.varkw is not None:
                 if torch.is_tensor(v):
                     args_dict[k] = v.to(input_device)
                 else:

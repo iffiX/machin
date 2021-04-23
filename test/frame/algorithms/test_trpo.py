@@ -1,10 +1,10 @@
 from machin.model.nets.base import static_module_wrapper as smw
-from machin.frame.algorithms.ppo import PPO
+from machin.model.algorithms.trpo import ActorDiscrete, ActorContinuous
+from machin.frame.algorithms.trpo import TRPO
 from machin.utils.logging import default_logger as logger
 from machin.utils.helper_classes import Counter
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
-from torch.distributions import Categorical
 
 import pytest
 import torch as t
@@ -15,23 +15,36 @@ from test.frame.algorithms.utils import unwrap_time_limit, Smooth
 from test.util_fixtures import *
 
 
-class Actor(nn.Module):
+class Actor(ActorDiscrete):
     def __init__(self, state_dim, action_num):
         super().__init__()
-
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
         self.fc3 = nn.Linear(16, action_num)
+        self.input_module = self.fc1
+        self.output_module = self.fc3
 
     def forward(self, state, action=None):
         a = t.relu(self.fc1(state))
         a = t.relu(self.fc2(a))
         probs = t.softmax(self.fc3(a), dim=1)
-        dist = Categorical(probs=probs)
-        act = action if action is not None else dist.sample()
-        act_entropy = dist.entropy()
-        act_log_prob = dist.log_prob(act.flatten())
-        return act, act_log_prob, act_entropy
+        return self.sample(probs, action)
+
+
+class ActorC(ActorContinuous):
+    def __init__(self, state_dim, action_dim):
+        super().__init__(action_dim)
+        self.fc1 = nn.Linear(state_dim, 16)
+        self.fc2 = nn.Linear(16, 16)
+        self.fc3 = nn.Linear(16, action_dim)
+        self.input_module = self.fc1
+        self.output_module = self.fc3
+
+    def forward(self, state, action=None):
+        a = t.relu(self.fc1(state))
+        a = t.relu(self.fc2(a))
+        mean = t.softmax(self.fc3(a), dim=1)
+        return self.sample(mean, action)
 
 
 class Critic(nn.Module):
@@ -49,7 +62,7 @@ class Critic(nn.Module):
         return v
 
 
-class TestPPO:
+class TestTRPO:
     # configs and definitions
     @pytest.fixture(scope="class")
     def train_config(self):
@@ -62,154 +75,205 @@ class TestPPO:
         c.env = unwrap_time_limit(gym.make(c.env_name))
         c.observe_dim = 4
         c.action_num = 2
-        c.max_episodes = 1000
+        c.max_episodes = 2000  # the actor learns a little bit slower
         c.max_steps = 200
         c.replay_size = 10000
         c.solved_reward = 150
         c.solved_repeat = 5
         return c
 
-    @pytest.fixture(scope="function")
-    def ppo_vis(self, train_config, device, dtype, tmpdir):
+    @pytest.fixture(scope="function", params=["fim", "direct"])
+    def trpo_vis_disc(self, train_config, device, dtype, tmpdir, request):
         # not used for training, only used for testing apis
         c = train_config
         tmp_dir = tmpdir.make_numbered_dir()
-        actor = smw(
-            Actor(c.observe_dim, c.action_num).type(dtype).to(device), device, device
-        )
+        actor = Actor(c.observe_dim, c.action_num).type(dtype).to(device)
         critic = smw(Critic(c.observe_dim).type(dtype).to(device), device, device)
-        ppo = PPO(
+        trpo = TRPO(
             actor,
             critic,
             t.optim.Adam,
             nn.MSELoss(reduction="sum"),
+            hv_mode=request.param,
             replay_device="cpu",
             replay_size=c.replay_size,
             visualize=True,
             visualize_dir=str(tmp_dir),
         )
-        return ppo
+        return trpo
 
-    @pytest.fixture(scope="function")
-    def ppo_train(self, train_config):
+    @pytest.fixture(scope="function", params=["fim", "direct"])
+    def trpo_vis_cont(self, train_config, device, dtype, tmpdir, request):
+        # not used for training, only used for testing apis
         c = train_config
-        actor = smw(Actor(c.observe_dim, c.action_num), "cpu", "cpu")
-        critic = smw(Critic(c.observe_dim), "cpu", "cpu")
-        ppo = PPO(
+        tmp_dir = tmpdir.make_numbered_dir()
+        actor = ActorC(c.observe_dim, c.action_num).type(dtype).to(device)
+        critic = smw(Critic(c.observe_dim).type(dtype).to(device), device, device)
+        trpo = TRPO(
             actor,
             critic,
             t.optim.Adam,
             nn.MSELoss(reduction="sum"),
+            hv_mode=request.param,
+            replay_device="cpu",
+            replay_size=c.replay_size,
+            visualize=True,
+            visualize_dir=str(tmp_dir),
+        )
+        return trpo
+
+    @pytest.fixture(scope="function", params=["fim", "direct"])
+    def trpo_train(self, train_config, request):
+        c = train_config
+        actor = Actor(c.observe_dim, c.action_num)
+        critic = smw(Critic(c.observe_dim), "cpu", "cpu")
+        trpo = TRPO(
+            actor,
+            critic,
+            t.optim.Adam,
+            nn.MSELoss(reduction="sum"),
+            hv_mode=request.param,
             replay_device="cpu",
             replay_size=c.replay_size,
         )
-        return ppo
+        return trpo
 
     ########################################################################
-    # Test for PPO acting
+    # Test for TRPO acting
     ########################################################################
     # Skipped, it is the same as A2C
 
     ########################################################################
-    # Test for PPO action evaluation
+    # Test for TRPO action evaluation
     ########################################################################
     # Skipped, it is the same as A2C
 
     ########################################################################
-    # Test for PPO criticizing
+    # Test for TRPO criticizing
     ########################################################################
     # Skipped, it is the same as A2C
 
     ########################################################################
-    # Test for PPO storage
+    # Test for TRPO storage
     ########################################################################
     # Skipped, it is the same as A2C
 
     ########################################################################
-    # Test for PPO update
+    # Test for TRPO update
     ########################################################################
-    def test_update(self, train_config, ppo_vis, dtype):
+    def test_update_discrete(self, train_config, trpo_vis_disc, dtype):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
-        action = t.zeros([1, 1], dtype=dtype)
-        ppo_vis.store_episode(
+        trpo_vis_disc.store_episode(
             [
                 {
                     "state": {"state": old_state},
-                    "action": {"action": action},
+                    "action": {"action": t.ones([1, 1], dtype=dtype) * idx % 2},
                     "next_state": {"state": state},
-                    "reward": 0,
+                    "reward": idx * 0.1,
                     "terminal": False,
                 }
-                for _ in range(3)
+                for idx in range(3)
             ]
         )
-        ppo_vis.update(
+        trpo_vis_disc.update(
             update_value=True, update_policy=True, concatenate_samples=True,
         )
-        ppo_vis.entropy_weight = 1e-3
-        ppo_vis.store_episode(
+        trpo_vis_disc.store_episode(
             [
                 {
                     "state": {"state": old_state},
-                    "action": {"action": action},
+                    "action": {"action": t.ones([1, 1], dtype=dtype) * idx % 2},
                     "next_state": {"state": state},
-                    "reward": 0,
+                    "reward": idx * 0.1,
                     "terminal": False,
                 }
-                for _ in range(3)
+                for idx in range(3)
             ]
         )
-        ppo_vis.update(
+        trpo_vis_disc.update(
+            update_value=False, update_policy=False, concatenate_samples=True,
+        )
+
+    def test_update_continuous(self, train_config, trpo_vis_cont, dtype):
+        c = train_config
+        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
+        trpo_vis_cont.store_episode(
+            [
+                {
+                    "state": {"state": old_state},
+                    "action": {"action": t.rand([1, c.action_num], dtype=dtype)},
+                    "next_state": {"state": state},
+                    "reward": idx * 0.1,
+                    "terminal": False,
+                }
+                for idx in range(3)
+            ]
+        )
+        trpo_vis_cont.update(
+            update_value=True, update_policy=True, concatenate_samples=True,
+        )
+        trpo_vis_cont.store_episode(
+            [
+                {
+                    "state": {"state": old_state},
+                    "action": {"action": t.ones([1, c.action_num], dtype=dtype)},
+                    "next_state": {"state": state},
+                    "reward": idx * 0.1,
+                    "terminal": False,
+                }
+                for idx in range(3)
+            ]
+        )
+        trpo_vis_cont.update(
             update_value=False, update_policy=False, concatenate_samples=True,
         )
 
     ########################################################################
-    # Test for PPO save & load
+    # Test for TRPO save & load
     ########################################################################
     # Skipped, it is the same as A2C
 
     ########################################################################
-    # Test for PPO lr_scheduler
+    # Test for TRPO lr_scheduler
     ########################################################################
     # Skipped, it is the same as A2C
 
     ########################################################################
-    # Test for PPO config & init
+    # Test for TRPO config & init
     ########################################################################
     def test_config_init(self, train_config):
         c = train_config
-        config = PPO.generate_config({})
+        config = TRPO.generate_config({})
         config["frame_config"]["models"] = ["Actor", "Critic"]
         config["frame_config"]["model_kwargs"] = [
             {"state_dim": c.observe_dim, "action_num": c.action_num},
             {"state_dim": c.observe_dim},
         ]
-        ppo = PPO.init_from_config(config)
+        trpo = TRPO.init_from_config(config)
 
         old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
-        action = t.zeros([1, 1], dtype=t.float32)
-        ppo.store_episode(
+        trpo.store_episode(
             [
                 {
                     "state": {"state": old_state},
-                    "action": {"action": action},
+                    "action": {"action": t.ones([1, 1], dtype=t.float32) * idx % 2},
                     "next_state": {"state": state},
-                    "reward": 0,
+                    "reward": idx * 0.1,
                     "terminal": False,
                 }
-                for _ in range(3)
+                for idx in range(3)
             ]
         )
-        ppo.update()
+        trpo.update()
 
     ########################################################################
-    # Test for PPO full training.
+    # Test for TRPO full training.
     ########################################################################
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
-    def test_full_train(self, train_config, ppo_train, gae_lambda):
+    def test_full_train(self, train_config, trpo_train, gae_lambda):
         c = train_config
-        ppo_train.gae_lambda = gae_lambda
+        trpo_train.gae_lambda = gae_lambda
 
         # begin training
         episode, step = Counter(), Counter()
@@ -231,7 +295,7 @@ class TestPPO:
                 with t.no_grad():
                     old_state = state
                     # agent model inference
-                    action = ppo_train.act({"state": old_state.unsqueeze(0)})[0]
+                    action = trpo_train.act({"state": old_state.unsqueeze(0)})[0]
                     state, reward, terminal, _ = env.step(action.item())
                     state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
@@ -247,8 +311,8 @@ class TestPPO:
                     )
 
             # update
-            ppo_train.store_episode(tmp_observations)
-            ppo_train.update()
+            trpo_train.store_episode(tmp_observations)
+            trpo_train.update()
 
             smoother.update(total_reward)
             step.reset()
@@ -264,4 +328,4 @@ class TestPPO:
             else:
                 reward_fulfilled.reset()
 
-        pytest.fail("PPO Training failed.")
+        pytest.fail("TRPO Training failed.")

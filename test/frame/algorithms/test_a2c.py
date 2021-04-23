@@ -238,10 +238,7 @@ class TestA2C:
             ]
         )
         a2c_vis.update(
-            update_value=True,
-            update_policy=True,
-            update_target=True,
-            concatenate_samples=True,
+            update_value=True, update_policy=True, concatenate_samples=True,
         )
         a2c_vis.entropy_weight = 1e-3
         a2c_vis.store_episode(
@@ -257,10 +254,7 @@ class TestA2C:
             ]
         )
         a2c_vis.update(
-            update_value=False,
-            update_policy=False,
-            update_target=False,
-            concatenate_samples=True,
+            update_value=False, update_policy=False, concatenate_samples=True,
         )
 
     ########################################################################

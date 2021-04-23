@@ -13,6 +13,7 @@ from .ddpg_per import DDPGPer
 from .a2c import A2C
 from .a3c import A3C
 from .ppo import PPO
+from .trpo import TRPO
 from .sac import SAC
 
 from .maddpg import MADDPG
@@ -43,6 +44,7 @@ __all__ = [
     "A2C",
     "A3C",
     "PPO",
+    "TRPO",
     "SAC",
     "DQNApex",
     "DDPGApex",
