@@ -18,6 +18,8 @@ from .sac import SAC
 
 from .maddpg import MADDPG
 
+from .gail import GAIL
+
 try:
     from .apex import DQNApex, DDPGApex
     from .impala import IMPALA
@@ -51,4 +53,5 @@ __all__ = [
     "IMPALA",
     "ARS",
     "MADDPG",
+    "GAIL",
 ]
