@@ -9,7 +9,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-        key: deps-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          key: deps-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
       - run:
           name: install dependencies
           command: |
