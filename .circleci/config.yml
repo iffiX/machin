@@ -24,10 +24,11 @@ jobs:
           paths:
             - "venv"
       - run:
+          name: make test directory
+          command: mkdir test_results -Force
+      - run:
           name: test API
-          command: |
-            mkdir test_results -Force
-            >-
+          command: >-
             pipenv run python -m pytest
             -s --assert=plain
             --cov-report term-missing
@@ -39,9 +40,9 @@ jobs:
             --html=test_results\test_api.html
             --self-contained-html
       - store_artifacts:
-        path: ~\test_results\
+        path: test_results\test_api.xml
       - store_test_results:
-        path: ~\test_results\
+        path: test_results\
 
 workflows:
   main:
