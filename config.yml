@@ -1,0 +1,49 @@
+version: 2.1
+
+orbs:
+  win: circleci/windows@2.2.0
+
+jobs:
+  win-test:
+    executor: win/default
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+      - run:
+          name: install dependencies
+          command: |
+            python --version
+            pip install pipenv
+            pipenv install .
+            pipenv install .\test_lib\multiagent-particle-envs\
+            pipenv install gym
+            pipenv install mock pytest==6.0.0 pytest-cov==2.10.0 allure-pytest==2.8.16 pytest-html==1.22.1 pytest-repeat==0.8.0
+      - save_cache:
+          key: deps-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          paths:
+            - "venv"
+      - run:
+          name: test API
+          command: |
+            mkdir test_results -Force
+            >-
+            pipenv run python -m pytest
+            -s --assert=plain
+            --cov-report term-missing
+            --cov=machin
+            -k "not full_train"
+            -o junit_family=xunit1
+            --junitxml test_results\test_api.xml
+            --cov-report xml:test_results\cov_report.xml
+            --html=test_results\test_api.html
+            --self-contained-html
+      - store_artifacts:
+        path: ~\test_results\
+      - store_test_results:
+        path: ~\test_results\
+
+workflows:
+  main:
+    jobs:
+      - win-test

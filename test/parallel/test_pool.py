@@ -7,6 +7,7 @@ import dill
 import pytest
 import torch as t
 
+from test.util_fixtures import *
 
 # enable pool logging
 # log_to_stderr(DEBUG)
@@ -136,9 +137,9 @@ class TestPool:
     #     event_sync_required)
     # RuntimeError: CUDA error: peer access is not supported between these two devices
 
-    # def test_gpu_tensor(self, pytestconfig):
+    # def test_gpu_tensor(self, gpu):
     #     x = [
-    #         t.ones([10], device=pytestconfig.getoption("gpu_device")) * i
+    #         t.ones([10], device=gpu) * i
     #         for i in range(5)
     #     ]
     #     logger.info("GPU tensors created.")

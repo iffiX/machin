@@ -24,7 +24,7 @@ try:
     from .apex import DQNApex, DDPGApex
     from .impala import IMPALA
     from .ars import ARS
-except ImportError as _:
+except Exception as _:
     warnings.warn(
         "Failed to import algorithms relying on torch.distributed." " Set them to None."
     )

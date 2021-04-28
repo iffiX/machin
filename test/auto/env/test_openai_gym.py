@@ -11,7 +11,6 @@ from machin.auto.envs.openai_gym import (
     launch,
 )
 import os
-import sys
 import pickle
 import os.path as p
 from test.util_run_multi import *
@@ -30,6 +29,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import subprocess as sp
 import multiprocessing as mp
+
+
+if not sys.platform.startswith("linux"):
+    pytest.skip("Gym testing requires Linux platform", allow_module_level=True)
 
 
 class QNet(nn.Module):

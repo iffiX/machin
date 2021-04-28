@@ -4,6 +4,7 @@ from logging.handlers import QueueHandler, QueueListener
 from typing import List, Tuple, Dict, Any
 from machin.parallel.distributed import World, get_world as gw
 from machin.parallel.process import Process, ProcessException
+import sys
 import dill
 import pytest
 import itertools
@@ -82,6 +83,9 @@ def processes():
 def exec_with_process(
     processes, func, args_list, kwargs_list, expected_results, timeout, *pass_through
 ):
+    if getattr(func, "require_dist", False) and not sys.platform.startswith("linux"):
+        raise pytest.skip("Distributed testing requires Linux platform")
+
     procs, proc_pipes = processes
     args_list = args_list if args_list is not None else itertools.repeat([])
     kwargs_list = kwargs_list if kwargs_list is not None else itertools.repeat({})
@@ -169,4 +173,5 @@ class WorldTestBase:
             default_logger.info(f"World stopped on {rank}")
             return result
 
+        wrapped.require_dist = True
         return wrapped

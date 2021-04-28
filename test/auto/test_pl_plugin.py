@@ -5,6 +5,11 @@ import pickle
 import os.path as p
 import subprocess as sp
 
+if not sys.platform.startswith("linux"):
+    pytest.skip(
+        "Lightning DDP testing requires Linux platform", allow_module_level=True
+    )
+
 
 class TestDDPPlugin:
     def test_all(self, tmpdir):

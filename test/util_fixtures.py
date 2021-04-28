@@ -4,14 +4,21 @@ import pytest
 
 @pytest.fixture()
 def gpu(pytestconfig):
-    return pytestconfig.getoption("gpu_device") or "cpu"
+    dev = pytestconfig.getoption("gpu_device")
+    if dev is not None and dev.startswith("cuda"):
+        return dev
+    pytest.skip(f"Requiring GPU but provided `gpu_device` is {dev}")
 
 
 @pytest.fixture(params=["cpu", "gpu"])
 def device(pytestconfig, request):
     if request.param == "cpu":
         return "cpu"
-    return pytestconfig.getoption("gpu_device", skip=True)
+    else:
+        dev = pytestconfig.getoption("gpu_device")
+        if dev is not None and dev.startswith("cuda"):
+            return dev
+        pytest.skip(f"Requiring GPU but provided `gpu_device` is {dev}")
 
 
 @pytest.fixture(params=["float32", "float64"])
