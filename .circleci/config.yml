@@ -9,7 +9,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: deps-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+        key: deps-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
       - run:
           name: install dependencies
           command: |
@@ -40,9 +40,9 @@ jobs:
             --html=test_results\test_api.html
             --self-contained-html
       - store_artifacts:
-        path: test_results\test_api.xml
+          path: test_results\test_api.xml
       - store_test_results:
-        path: test_results\
+          path: test_results\
 
 workflows:
   main:
