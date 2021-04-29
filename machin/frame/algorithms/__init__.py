@@ -11,7 +11,6 @@ from .td3 import TD3
 from .ddpg_per import DDPGPer
 
 from .a2c import A2C
-from .a3c import A3C
 from .ppo import PPO
 from .trpo import TRPO
 from .sac import SAC
@@ -21,6 +20,7 @@ from .maddpg import MADDPG
 from .gail import GAIL
 
 try:
+    from .a3c import A3C
     from .apex import DQNApex, DDPGApex
     from .impala import IMPALA
     from .ars import ARS
@@ -28,6 +28,7 @@ except Exception as _:
     warnings.warn(
         "Failed to import algorithms relying on torch.distributed." " Set them to None."
     )
+    A3C = None
     DQNApex = None
     DDPGApex = None
     IMPALA = None
