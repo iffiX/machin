@@ -15,6 +15,7 @@ import pickle
 import os.path as p
 from test.util_run_multi import *
 from test.util_fixtures import *
+from test.util_marks import linux_only
 from pytorch_lightning.callbacks import Callback
 from torch.distributions import Categorical, Normal
 from machin.parallel.distributed import get_cur_rank
@@ -29,10 +30,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import subprocess as sp
 import multiprocessing as mp
-
-
-if not sys.platform.startswith("linux"):
-    pytest.skip("Gym testing requires Linux platform", allow_module_level=True)
 
 
 class QNet(nn.Module):
@@ -152,6 +149,7 @@ class DDPGCritic(nn.Module):
         return q
 
 
+@linux_only
 class TestRLGymDiscActDataset:
     @staticmethod
     def assert_valid_disc_output(result):
@@ -208,6 +206,7 @@ class TestRLGymDiscActDataset:
         self.assert_valid_disc_output(next(dataset))
 
 
+@linux_only
 class TestRLGymContActDataset:
     @staticmethod
     def assert_valid_cont_output(result):
@@ -253,6 +252,7 @@ class TestRLGymContActDataset:
         self.assert_valid_cont_output(next(dataset))
 
 
+@linux_only
 def test_gym_env_dataset_creator():
     # Discrete action environment
     config = generate_env_config("CartPole-v0", {})
@@ -354,6 +354,7 @@ class LoggerDebugCallback(Callback):
         default_logger.setLevel(DEBUG)
 
 
+@linux_only
 class TestLaunchGym:
     def test_dqn_full_train(self, tmpdir):
         config = generate_env_config("CartPole-v0", {})

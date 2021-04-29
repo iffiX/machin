@@ -1,11 +1,13 @@
 from machin.frame.buffers import DistributedPrioritizedBuffer
 from test.util_run_multi import *
+from test.util_platforms import linux_only
 
 import random
 import torch as t
 import numpy as np
 
 
+@linux_only
 class TestDistributedPrioritizedBuffer(WorldTestBase):
     BUFFER_SIZE = 1
     SAMPLE_BUFFER_SIZE = 10

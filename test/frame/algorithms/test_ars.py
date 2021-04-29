@@ -15,6 +15,7 @@ import gym
 from test.frame.algorithms.utils import unwrap_time_limit, Smooth
 from test.util_run_multi import *
 from test.util_fixtures import *
+from test.util_platforms import linux_only
 
 
 class TestRunningStat:
@@ -76,6 +77,7 @@ class ActorDiscrete(nn.Module):
         return a
 
 
+@linux_only
 class TestARS:
     # configs and definitions
     # Cartpole-v0 can be solved:

@@ -40,6 +40,7 @@ jobs:
             --cov-report xml:test_results\cov_report.xml
             --html=test_results\test_api.html
             --self-contained-html
+            .\test\
       - store_artifacts:
           path: test_results\test_api.xml
       - store_test_results:

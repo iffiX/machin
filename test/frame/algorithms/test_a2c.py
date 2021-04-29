@@ -15,6 +15,7 @@ import gym
 
 from test.frame.algorithms.utils import unwrap_time_limit, Smooth
 from test.util_fixtures import *
+from test.util_platforms import linux_only
 
 
 class Actor(nn.Module):
@@ -299,6 +300,7 @@ class TestA2C:
     ########################################################################
     # Test for A2C full training.
     ########################################################################
+    @linux_only
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
     def test_full_train(self, train_config, a2c_train, gae_lambda):
         c = train_config

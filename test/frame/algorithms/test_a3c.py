@@ -12,6 +12,7 @@ import torch.nn as nn
 import gym
 
 from test.frame.algorithms.utils import unwrap_time_limit, Smooth
+from test.util_platforms import linux_only
 from test.util_run_multi import *
 from test.util_fixtures import *
 
@@ -50,6 +51,7 @@ class Critic(nn.Module):
         return v
 
 
+@linux_only
 class TestA3C:
     # configs and definitions
     disable_view_window()

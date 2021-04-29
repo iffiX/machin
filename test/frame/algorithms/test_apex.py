@@ -13,6 +13,7 @@ import gym
 from test.frame.algorithms.utils import unwrap_time_limit, Smooth
 from test.util_run_multi import *
 from test.util_fixtures import *
+from test.util_platforms import linux_only
 
 
 class QNet(nn.Module):
@@ -76,6 +77,7 @@ class Critic(nn.Module):
         return q
 
 
+@linux_only
 class TestDQNApex:
     # configs and definitions
     disable_view_window()
@@ -336,6 +338,7 @@ class TestDQNApex:
         raise RuntimeError("DQN-Apex Training failed.")
 
 
+@linux_only
 class TestDDPGApex:
     # configs and definitions
     disable_view_window()

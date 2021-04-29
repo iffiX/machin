@@ -9,6 +9,7 @@ Submit us a issue if you have found any problem.
 from machin.env.wrappers import openai_gym
 from random import choice, sample
 from colorlog import getLogger
+from test.util_platforms import linux_only_forall
 import sys
 import pytest
 import gym
@@ -19,8 +20,7 @@ ENV_NUM = 2
 SAMPLE_NUM = 2
 WORKER_NUM = 2
 
-if not sys.platform.startswith("linux"):
-    pytest.skip("Gym testing requires Linux platform", allow_module_level=True)
+linux_only_forall()
 
 
 def mock_action(action_space: gym.spaces.Space):

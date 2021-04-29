@@ -12,6 +12,7 @@ import gym
 
 from test.frame.algorithms.utils import unwrap_time_limit, Smooth
 from test.util_fixtures import *
+from test.util_platforms import linux_only
 
 
 class QNet(nn.Module):
@@ -252,6 +253,7 @@ class TestRAINBOW:
     ########################################################################
     # Test for RAINBOW full training.
     ########################################################################
+    @linux_only
     def test_full_train(self, train_config, rainbow_train):
         c = train_config
 

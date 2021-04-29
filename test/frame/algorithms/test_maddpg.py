@@ -15,6 +15,7 @@ import torch.nn as nn
 from test.frame.algorithms.utils import Smooth
 from test.util_create_ma_env import create_env
 from test.util_fixtures import *
+from test.util_platforms import linux_only
 
 
 class Actor(nn.Module):
@@ -521,6 +522,7 @@ class TestMADDPG:
     ########################################################################
     # Test for MADDPG full training.
     ########################################################################
+    @linux_only
     def test_full_train(self, train_config, maddpg_train):
         c = train_config
 

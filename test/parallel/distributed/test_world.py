@@ -1,7 +1,10 @@
 from machin.parallel.distributed import get_cur_name, get_cur_rank
 from test.util_run_multi import *
 from test.util_fixtures import *
+from test.util_platforms import linux_only_forall
 import torch as t
+
+linux_only_forall()
 
 
 class WorkerService:

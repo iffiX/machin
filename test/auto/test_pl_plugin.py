@@ -1,3 +1,4 @@
+from test.util_marks import linux_only
 import os
 import sys
 import pytest
@@ -5,12 +6,8 @@ import pickle
 import os.path as p
 import subprocess as sp
 
-if not sys.platform.startswith("linux"):
-    pytest.skip(
-        "Lightning DDP testing requires Linux platform", allow_module_level=True
-    )
 
-
+@linux_only
 class TestDDPPlugin:
     def test_all(self, tmpdir):
         test_save_path = str(p.join(tmpdir.make_numbered_dir(), "test.save"))
@@ -34,6 +31,7 @@ class TestDDPPlugin:
             assert flags == [True], f"Not properly_inited, flags are: {flags}"
 
 
+@linux_only
 class TestDDPSpawnPlugin:
     def test_all(self, tmpdir):
         test_save_path = str(p.join(tmpdir.make_numbered_dir(), "test.save"))

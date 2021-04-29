@@ -14,6 +14,7 @@ import gym
 
 from test.frame.algorithms.utils import unwrap_time_limit, Smooth
 from test.util_fixtures import *
+from test.util_platforms import linux_only
 
 
 class Actor(nn.Module):
@@ -372,6 +373,7 @@ class TestTD3:
     ########################################################################
     # Test for TD3 full training.
     ########################################################################
+    @linux_only
     def test_full_train(self, train_config, td3_train):
         c = train_config
 

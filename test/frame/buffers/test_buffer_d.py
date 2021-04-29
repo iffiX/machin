@@ -1,9 +1,11 @@
 from machin.frame.buffers import DistributedBuffer
 from test.util_run_multi import *
+from test.util_platforms import linux_only
 
 import torch as t
 
 
+@linux_only
 class TestDistributedBuffer(WorldTestBase):
     BUFFER_SIZE = 1
     SAMPLE_BUFFER_SIZE = 10
