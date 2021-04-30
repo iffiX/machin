@@ -31,7 +31,7 @@ jobs:
       - run:
           name: test API
           command: >-
-            python -m pytest
+            pytest
             -s --assert=plain
             --cov-report term-missing
             --cov=machin
