@@ -291,6 +291,7 @@ class World:
                 self.name,
                 rank=rank,
                 world_size=world_size,
+                backend=rpc.BackendType.TENSORPIPE,
                 rpc_backend_options=rpc.TensorPipeRpcBackendOptions(
                     init_method=rpc_init_method, rpc_timeout=rpc_timeout
                 ),
