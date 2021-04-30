@@ -30,16 +30,11 @@ jobs:
           command: mkdir test_results -Force
       - run:
           name: test API
-<<<<<<< HEAD
           command:
             # each step runs in its own shell and venv activate does
             # does not persist.
             >-
             venv/bin/python -m pytest
-=======
-          command: >-
-            pytest
->>>>>>> f338553a970f36f6a778dad65643a4dff9c45e77
             -s --assert=plain
             --cov-report term-missing
             --cov=machin
