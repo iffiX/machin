@@ -34,7 +34,8 @@ jobs:
             # each step runs in its own shell and venv activate does
             # does not persist.
             >-
-            venv\bin\python -m pytest
+            .\venv\Scripts\activate &&
+            python -m pytest
             -s --assert=plain
             --cov-report term-missing
             --cov=machin
