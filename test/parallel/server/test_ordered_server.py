@@ -1,6 +1,8 @@
 from machin.parallel.server import OrderedServerSimpleImpl
 from test.util_run_multi import *
-from test.util_platforms import linux_only
+from test.util_platforms import linux_only_forall
+
+linux_only_forall()
 
 
 def _log(rank, msg):
@@ -11,7 +13,6 @@ class Object:
     pass
 
 
-@linux_only
 class TestOrderedServerSimple(WorldTestBase):
     def test__push_pull_service(self):
         fake_group = Object()

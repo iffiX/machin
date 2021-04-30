@@ -1,9 +1,11 @@
 from machin.parallel.server import PushPullGradServerImpl, PushPullModelServerImpl
 from test.util_run_multi import *
-from test.util_platforms import linux_only
+from test.util_platforms import linux_only_forall
 import random
 import torch as t
 import torch.nn as nn
+
+linux_only_forall()
 
 
 def _log(rank, msg):
@@ -50,7 +52,6 @@ class Optimizer:
                 p -= p.grad
 
 
-@linux_only
 class TestPushPullModelServer(WorldTestBase):
     @staticmethod
     @run_multi(expected_results=[True, True, True])
@@ -101,7 +102,6 @@ class TestPushPullModelServer(WorldTestBase):
         return True
 
 
-@linux_only
 class TestPushPullGradServer(WorldTestBase):
     @staticmethod
     @pytest.mark.parametrize(

@@ -3,11 +3,10 @@ from torch import distributed as dist
 from torch.utils.data.dataloader import DataLoader
 from .dataset import RLDataset
 from .config import init_algorithm_from_config, is_algorithm_distributed
-from . import pl_plugin
+from .pl_plugin import DDPPlugin, DDPSpawnPlugin
 from machin.parallel.distributed import get_world, debug_with_process as debug
 from machin.frame.algorithms import TorchFramework
 from machin.utils.conf import Config
-import warnings
 import pytorch_lightning as pl
 
 
@@ -207,8 +206,8 @@ class DistributedLauncher(pl.LightningModule):
 
             # For distributed frame, use default settings, don't change optimizers.
             if not acc_con.use_ddp or type(acc_con.training_type_plugin) not in (
-                pl_plugin.DDPPlugin,
-                pl_plugin.DDPSpawnPlugin,
+                DDPPlugin,
+                DDPSpawnPlugin,
             ):
                 raise RuntimeError(
                     f"Current framework: {self.config['frame']} is a distributed "
@@ -238,8 +237,3 @@ class DistributedLauncher(pl.LightningModule):
                         )
                     else:
                         self.log(log_key, log_val, prog_bar=True)
-
-
-if pl_plugin is None:
-    DistributedLauncher = None
-    warnings.warn("DistributedLauncher relies on torch.distributed." " Set it to None.")

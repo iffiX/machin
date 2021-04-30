@@ -1,4 +1,7 @@
-from test.util_marks import linux_only
+from test.util_platforms import linux_only_forall
+
+linux_only_forall()
+
 import os
 import sys
 import pytest
@@ -7,7 +10,6 @@ import os.path as p
 import subprocess as sp
 
 
-@linux_only
 class TestDDPPlugin:
     def test_all(self, tmpdir):
         test_save_path = str(p.join(tmpdir.make_numbered_dir(), "test.save"))
@@ -31,7 +33,6 @@ class TestDDPPlugin:
             assert flags == [True], f"Not properly_inited, flags are: {flags}"
 
 
-@linux_only
 class TestDDPSpawnPlugin:
     def test_all(self, tmpdir):
         test_save_path = str(p.join(tmpdir.make_numbered_dir(), "test.save"))

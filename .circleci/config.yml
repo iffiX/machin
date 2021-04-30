@@ -9,7 +9,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: deps-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          key: deps-{{ .Branch }}
       - run:
           name: install dependencies
           command: |
@@ -19,9 +19,8 @@ jobs:
             pipenv install .\test_lib\multiagent-particle-envs\
             pipenv install gym
             pipenv install mock pytest==6.0.0 pytest-cov==2.10.0 allure-pytest==2.8.16 pytest-html==1.22.1 pytest-repeat==0.8.0
-            pipenv lock
       - save_cache:
-          key: deps-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          key: deps-{{ .Branch }}
           paths:
             - "venv"
       - run:

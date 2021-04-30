@@ -6,11 +6,13 @@ should work just fine.
 
 Submit us a issue if you have found any problem.
 """
+from test.util_platforms import linux_only_forall
+
+linux_only_forall()
+
 from machin.env.wrappers import openai_gym
 from random import choice, sample
 from colorlog import getLogger
-from test.util_platforms import linux_only_forall
-import sys
 import pytest
 import gym
 import numpy as np
@@ -19,8 +21,6 @@ logger = getLogger("default")
 ENV_NUM = 2
 SAMPLE_NUM = 2
 WORKER_NUM = 2
-
-linux_only_forall()
 
 
 def mock_action(action_space: gym.spaces.Space):
