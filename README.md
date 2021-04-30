@@ -140,6 +140,13 @@ conda activate some_env
 pip install machin
 ```
 
+**Note**: Currently only a fraction of all functions is supported on Windows, to test whether
+the code is running correctly, you can run the corresponding test script in the root directory:
+```
+run_win_test.bat
+run_lunux_test.sh
+```
+
 ### Contributing
 ---
 Any contribution would be great, don't hesitate to submit a PR request to us! Please follow the instructions in [this](https://github.com/iffiX/machin/tree/master/docs/misc/contribute.md) file.
