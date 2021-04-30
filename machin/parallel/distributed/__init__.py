@@ -29,6 +29,7 @@ except Exception as e:
     RpcGroup = None
     get_world = None
     get_cur_rank = None
+    get_cur_name = None
     is_world_initialized = None
     debug_with_process = None
 
