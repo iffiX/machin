@@ -140,12 +140,16 @@ conda activate some_env
 pip install machin
 ```
 
-**Note**: Currently only a fraction of all functions is supported on Windows, to test whether
-the code is running correctly, you can run the corresponding test script in the root directory:
+**Note**: Currently only a fraction of all functions is supported on platforms other than linux
+(mainly distributed algorithms), to test whether the code is running correctly, you can run the 
+corresponding test script for your platform in the root directory:
 ```
 run_win_test.bat
-run_lunux_test.sh
+run_linux_test.sh
+run_macos_test.sh
 ```
+Some errors may occur due to incorrect setup of libraries, make sure you have installed `graphviz` 
+etc.
 
 ### Contributing
 ---

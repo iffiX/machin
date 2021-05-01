@@ -2,6 +2,7 @@ from machin.parallel.pickle import dumps, loads
 from machin.parallel.process import Process
 import torch as t
 from multiprocessing import Pipe, get_context
+from test.util_platforms import linux_only
 
 
 def subproc_test_dumps_copy_tensor(pipe):
@@ -25,6 +26,7 @@ def subproc_test_dumps_not_copy_tensor(pipe):
     pipe.send(dumps(tensor, copy_tensor=False))
 
 
+@linux_only
 def test_dumps_not_copy_tensor():
     pipe_0, pipe_1 = Pipe(duplex=True)
     ctx = get_context("fork")
@@ -49,6 +51,7 @@ def subproc_test_dumps_local_func(pipe):
     pipe.send(dumps(local_func, copy_tensor=False))
 
 
+@linux_only
 def test_dumps_local_func():
     pipe_0, pipe_1 = Pipe(duplex=True)
     ctx = get_context("fork")

@@ -8,6 +8,7 @@ import pytest
 import torch as t
 
 from test.util_fixtures import *
+from test.util_fixtures import linux_only
 
 # enable pool logging
 # log_to_stderr(DEBUG)
@@ -163,6 +164,7 @@ class TestPool:
     #     pool.join()
     #     logger.info("Pool 2 joined.")
 
+    @linux_only
     def test_cpu_shared_tensor(self):
         x = [t.ones([10]) * i for i in range(5)]
         for xx in x:

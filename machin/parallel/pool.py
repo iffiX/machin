@@ -1,4 +1,6 @@
 import os
+import sys
+import warnings
 import threading
 import multiprocessing.pool as pool
 from multiprocessing.pool import TERMINATE
@@ -7,6 +9,9 @@ from torch.multiprocessing import get_context
 
 from .pickle import dumps, loads
 from .queue import SimpleQueue, MultiP2PQueue
+
+# TODO: fix pool support pools in python 3.8 etc.
+# Since future implementations are different.
 
 
 def proxy_caller(*input_):
@@ -52,6 +57,10 @@ class Pool(pool.Pool):
      1. Support for lambdas and local functions.
      2. Ability to select the tensor serialize scheme.
     """
+
+    def Process(self, *args, **kwds):
+        # Prevent future versions of pool from changing this implementation.
+        return self._ctx.Process(*args, **kwds)
 
     def __init__(
         self,
@@ -101,19 +110,27 @@ class Pool(pool.Pool):
             processes = os.cpu_count() or 1
         if processes < 1:
             raise ValueError("Number of processes must be at least 1")
+
+        context = get_context("spawn")
+        if sys.platform.startswith("linux") and not is_copy_tensor:
+            if share_method not in ("cpu", "cuda"):
+                raise RuntimeError(f'Invalid share method: "{share_method}"')
+            if share_method == "cpu":
+                context = get_context("fork")
+        else:
+            warnings.warn(
+                "Sharing but not copying a tensor is not supported "
+                "on platforms other than linux."
+            )
+            is_copy_tensor = True
+
+        self._ctx = context
         self._processes = processes
 
         self._is_recursive = is_recursive
         self._is_daemon = is_daemon
         self._is_copy_tensor = is_copy_tensor
         self._caller = proxy_caller
-
-        context = get_context("spawn")
-        if not is_copy_tensor:
-            if share_method not in ("cpu", "cuda"):
-                raise RuntimeError(f'Invalid share method: "{share_method}"')
-            if share_method == "cpu":
-                context = get_context("fork")
 
         super().__init__(
             processes=processes,

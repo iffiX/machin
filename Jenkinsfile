@@ -52,7 +52,7 @@ pipeline {
                             sh 'pip install .'
                             sh 'pip install ./test_lib/multiagent-particle-envs/'
                             sh 'pip install "gym[atari, box2d, classic_control]"'
-                            sh 'pip install mock pytest==6.0.0 pytest-cov==2.10.0 allure-pytest==2.8.16 pytest-xvfb==2.0.0 pytest-html==1.22.1 pytest-repeat==0.8.0'
+                            sh 'pip install mock pytest==6.0.1 pytest-cov==2.10.0 allure-pytest==2.8.16 pytest-xvfb==2.0.0 pytest-html==1.22.1 pytest-repeat==0.8.0'
                             // This line must be included, otherwise matplotlib will
                             // segfault when it tries to build the font cache.
                             sh "python3 -c 'import matplotlib.pyplot as plt'"
