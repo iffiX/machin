@@ -41,6 +41,16 @@
 
 <br/>
 
+### Build status
+
+| Platform | Status                                                       |
+| -------- | ------------------------------------------------------------ |
+| Linux    | <a href="http://ci.beyond-infinity.com/jenkins/blue/organizations/jenkins/machin/branches/">    <img alt="Jenkins build" src="https://img.shields.io/jenkins/build?jobUrl=http%3A%2F%2Fci.beyond-infinity.com%2Fjenkins%2Fjob%2Fmachin%2Fjob%2Fmaster%2F"> </a> |
+| Windows  | <a href="https://htmlpreview.github.io/?https://github.com/iffiX/machin/blob/master/platform_test_results/windows/test_api.html">    <img alt="Windows build" src="https://img.shields.io/badge/build-report-blue"> </a> |
+
+
+
+
 ### Supported Models
 ---
 **Anything**, including recurrent networks.
