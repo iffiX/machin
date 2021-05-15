@@ -452,6 +452,11 @@ class CollectiveGroup:
         # Original irecv doesn't support recv from any
         # but original recv does. They are essentially
         # the same except recv have a wait() call
+
+        # Note: starting from torch 1.8.0 irecv supports recv from
+        # any source, but you need to access work._source_rank to
+        # get source.
+
         dist_c10d._check_single_tensor(tensor, "tensor")
         if dist_c10d._rank_not_in_group(self.group):
 
@@ -475,7 +480,10 @@ class CollectiveGroup:
                     def wait(self):
                         nonlocal work
                         work.wait()
-                        return work.source_rank()
+                        if _torch_version_less_than(1, 7):
+                            return work.source_rank()
+                        else:
+                            return work._source_rank()
 
                 return Waiter()
             else:
@@ -484,7 +492,10 @@ class CollectiveGroup:
                     def wait(self):
                         nonlocal work, pg
                         work.wait()
-                        src_rank = work.source_rank()
+                        if _torch_version_less_than(1, 7):
+                            src_rank = work.source_rank()
+                        else:
+                            src_rank = work._source_rank()
                         return dist_c10d._get_global_rank(pg, src_rank)
 
                 return Waiter()

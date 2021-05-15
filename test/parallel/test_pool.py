@@ -1,4 +1,3 @@
-from multiprocessing import log_to_stderr
 from machin.parallel.pool import Pool, P2PPool, CtxPool, ThreadPool, CtxThreadPool
 from machin.utils.logging import default_logger as logger
 from logging import DEBUG
@@ -8,10 +7,10 @@ import pytest
 import torch as t
 
 from test.util_fixtures import *
-from test.util_fixtures import linux_only
+from test.util_platforms import linux_only
 
 # enable pool logging
-# log_to_stderr(DEBUG)
+logger.setLevel(DEBUG)
 
 
 def init_func(*_):
@@ -219,7 +218,7 @@ class TestPool:
         pool.join()
 
     def test_reduce(self):
-        with pytest.raises(RuntimeError, match="not reducible"):
+        with pytest.raises(NotImplementedError, match="cannot be passed"):
             dill.dumps(Pool(processes=2))
 
 
@@ -295,7 +294,7 @@ class TestThreadPool:
         pool.join()
 
     def test_reduce(self):
-        with pytest.raises(RuntimeError, match="not reducible"):
+        with pytest.raises(NotImplementedError, match="cannot be passed"):
             dill.dumps(ThreadPool(processes=2))
 
 
@@ -388,6 +387,7 @@ class TestCtxThreadPool:
         x = [i for i in range(50000)]
         result = pool.map(ctx_func, x)
         result2 = pool2.map(ctx_func, x)
+
         assert sorted([r[1] for r in result]) == x
         assert {r[0] for r in result}.issubset({0, 1})
         assert sorted([r[1] for r in result2]) == x

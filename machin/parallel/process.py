@@ -33,6 +33,7 @@ class Process(BaseProcess):
         self._cleaner = cleaner
         self._ctx = ctx
         self._start_method = ctx.Process._start_method
+        self._exception = None
 
     @staticmethod
     def _Popen(process_obj):
@@ -41,10 +42,12 @@ class Process(BaseProcess):
 
     @property
     def exception(self):
-        if not self._exc_pipe[0].poll(timeout=1e-4):
+        if self._exception is not None:
+            return self._exception
+        elif not self._exc_pipe[0].poll(timeout=1e-4):
             return None
-        exc = ProcessException(self._exc_pipe[0].recv())
-        return exc
+        self._exception = ProcessException(self._exc_pipe[0].recv())
+        return self._exception
 
     def watch(self):
         if self._exc_pipe[0].poll(timeout=1e-4):

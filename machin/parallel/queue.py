@@ -1,6 +1,6 @@
 from time import time
 from typing import Any
-from multiprocessing import context, connection, get_context
+from multiprocessing import context, connection, get_context, TimeoutError
 import sys
 
 from .pickle import dumps, loads
@@ -82,7 +82,7 @@ class SimpleQueue:  # pragma: no cover
 
     def __getstate__(self):
         context.assert_spawning(self)
-        return (self._reader, self._writer, self._rlock, self._wlock, self._copy_tensor)
+        return self._reader, self._writer, self._rlock, self._wlock, self._copy_tensor
 
     def __setstate__(self, state):
         (
@@ -254,13 +254,13 @@ class MultiP2PQueue:
             SimpleP2PQueue(copy_tensor=copy_tensor) for _ in range(queue_num)
         ]
 
-    def put(self, obj: Any):
+    def quick_put(self, obj: Any):
         # randomly choose a worker's queue
         queue = self.queues[self.counter]
         self.counter = (self.counter + 1) % len(self.queues)
         queue.put(obj)
 
-    def get(self, timeout=None):
+    def quick_get(self, timeout=None):
         begin = time()
         while True:
             if timeout is not None and time() - begin > timeout:
@@ -280,4 +280,4 @@ class MultiP2PQueue:
             q.close()
 
 
-__all__ = ["SimpleQueue"]
+__all__ = ["SimpleQueue", "MultiP2PQueue"]
