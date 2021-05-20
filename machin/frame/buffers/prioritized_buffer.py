@@ -1,5 +1,5 @@
 from typing import Union, Dict, List, Any
-from ..transition import Transition
+from ..transition import TransitionBase
 from .buffer import Buffer
 import torch as t
 import numpy as np
@@ -279,7 +279,7 @@ class PrioritizedBuffer(Buffer):
 
     def append(
         self,
-        transition: Union[Transition, Dict],
+        transition: Union[TransitionBase, Dict],
         priority: Union[float, None] = None,
         required_attrs=("state", "action", "next_state", "reward", "terminal"),
     ):

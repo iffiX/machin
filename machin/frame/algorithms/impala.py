@@ -4,7 +4,8 @@ import numpy as np
 import torch as t
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
-from machin.frame.buffers.buffer_d import Transition, DistributedBuffer
+from machin.frame.buffers.buffer_d import DistributedBuffer
+from machin.frame.transition import Transition
 from machin.frame.helpers.servers import model_server_helper
 from machin.model.nets.base import NeuralNetworkModule
 from machin.parallel.server import PushPullModelServer

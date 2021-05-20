@@ -280,4 +280,4 @@ class MultiP2PQueue:
             q.close()
 
 
-__all__ = ["SimpleQueue", "MultiP2PQueue"]
+__all__ = ["SimpleQueue", "MultiP2PQueue", "TimeoutError"]

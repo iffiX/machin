@@ -233,6 +233,8 @@ class Transition(TransitionBase):
     Store one transition step of one agent.
     """
 
+    # for auto suggestion in IDEs
+
     state = None  # type: Dict[str, t.Tensor]
     action = None  # type: Dict[str, t.Tensor]
     next_state = None  # type: Dict[str, t.Tensor]

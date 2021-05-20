@@ -1,9 +1,10 @@
 from typing import Union, Dict, List, Tuple, Any, Callable
 from ..transition import (
+    TransitionBase,
     Transition,
     Scalar,
     TransitionStorageSmart,
-    TransitionStorageBasic,
+    # TransitionStorageBasic,
 )
 import torch as t
 import random
@@ -37,11 +38,16 @@ class Buffer:
 
     def append(
         self,
-        transition: Union[Transition, Dict],
+        transition: Union[TransitionBase, Dict],
         required_attrs=("state", "action", "next_state", "reward", "terminal"),
     ):
         """
         Store a transition object to buffer.
+
+        Note:
+            If you pass in a dict type transition object, it will be automatically
+            converted to ``Transition``, which requires attributes "state", "action"
+            "next_state", "reward" and "terminal" to be present in the dict keys.
 
         Args:
             transition: A transition object.
@@ -55,7 +61,7 @@ class Buffer:
         """
         if isinstance(transition, dict):
             transition = Transition(**transition)
-        elif isinstance(transition, Transition):
+        elif isinstance(transition, TransitionBase):
             pass
         else:  # pragma: no cover
             raise RuntimeError(

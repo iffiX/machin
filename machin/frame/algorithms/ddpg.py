@@ -5,7 +5,8 @@ import torch as t
 import torch.nn as nn
 import numpy as np
 
-from machin.frame.buffers.buffer import Transition, Buffer
+from machin.frame.buffers.buffer import Buffer
+from machin.frame.transition import Transition
 from machin.frame.noise.action_space_noise import (
     add_normal_noise_to_action,
     add_clipped_normal_noise_to_action,

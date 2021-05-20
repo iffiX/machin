@@ -1,6 +1,6 @@
 from typing import Union, Dict, List, Any, Callable
 from threading import RLock
-from ..transition import Transition
+from ..transition import TransitionBase
 from .buffer import Buffer
 from machin.parallel.distributed import RpcGroup
 import torch as t
@@ -60,7 +60,7 @@ class DistributedBuffer(Buffer):
 
     def append(
         self,
-        transition: Union[Transition, Dict],
+        transition: Union[TransitionBase, Dict],
         required_attrs=("state", "action", "next_state", "reward", "terminal"),
     ):
         # DOC INHERITED

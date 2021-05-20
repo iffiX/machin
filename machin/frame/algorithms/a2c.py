@@ -5,7 +5,8 @@ import torch.nn as nn
 import numpy as np
 
 from machin.model.nets.base import NeuralNetworkModule
-from machin.frame.buffers.buffer import Transition, Buffer
+from machin.frame.buffers.buffer import Buffer
+from machin.frame.transition import Transition
 from .base import TorchFramework, Config
 from .utils import (
     safe_call,

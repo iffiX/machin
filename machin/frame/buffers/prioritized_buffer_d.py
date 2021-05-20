@@ -1,7 +1,7 @@
 from typing import Union, Dict, List, Any
 from threading import RLock
 from collections import OrderedDict
-from ..transition import Transition
+from ..transition import TransitionBase
 from .prioritized_buffer import PrioritizedBuffer
 from machin.parallel.distributed import RpcGroup
 import numpy as np
@@ -72,7 +72,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
 
     def append(
         self,
-        transition: Union[Transition, Dict],
+        transition: Union[TransitionBase, Dict],
         priority: Union[float, None] = None,
         required_attrs=("state", "action", "next_state", "reward", "terminal"),
     ):

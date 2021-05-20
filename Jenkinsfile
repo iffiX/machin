@@ -82,6 +82,9 @@ pipeline {
                             junit 'test_results/test_api.xml'
                             archiveArtifacts 'test_results/test_api.html'
                             archiveArtifacts 'test_results/cov_report.xml'
+                            cache(maxCacheSize: 1024, caches: [
+                                [$class: 'ArbitraryFileCache', excludes: '', includes: '*', path: '../test/data/generated']
+                            ])
                         }
                     }
                     post {

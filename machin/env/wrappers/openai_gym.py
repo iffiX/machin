@@ -5,8 +5,9 @@ from multiprocessing import get_context
 import gym
 import numpy as np
 
+from machin.parallel.process import Process
 from machin.parallel.exception import ExceptionWithTraceback
-from machin.parallel.queue import SimpleQueue
+from machin.parallel.queue import SimpleQueue, TimeoutError
 from machin.parallel.pickle import dumps, loads
 
 from .base import *
@@ -203,7 +204,7 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
             # enable recursive serialization to support
             # lambda & local function creators.
             self.workers.append(
-                ctx.Process(
+                Process(
                     target=self._worker,
                     args=(
                         cmd_queue,
@@ -211,6 +212,7 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
                         dumps(ec, recurse=True, copy_tensor=True),
                         env_idx,
                     ),
+                    ctx=ctx,
                 )
             )
 
@@ -366,14 +368,7 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
         result = {}
         # Check whether any process has exited with error code:
         for worker, worker_id in zip(self.workers, range(len(self.workers))):
-            if worker.exitcode is None:
-                continue
-            if worker.exitcode == 2:
-                raise RuntimeError(f"Worker {worker_id} failed to create environment.")
-            elif worker.exitcode != 0:
-                raise RuntimeError(
-                    f"Worker {worker_id} exited with code {worker.exitcode}."
-                )
+            worker.watch()
 
         for env_idx, i in zip(env_idxs, range(len(env_idxs))):
             self.cmd_queues[env_idx].quick_put((method, args[i], kwargs[i]))
@@ -395,7 +390,9 @@ class ParallelWrapperSubProc(ParallelWrapperBase):
         except Exception:
             # Something has gone wrong during environment creation,
             # exit with error.
-            exit(2)
+            raise RuntimeError(
+                f"Worker failed to create environment with index {env_idx}."
+            )
         try:
             while True:
                 try:

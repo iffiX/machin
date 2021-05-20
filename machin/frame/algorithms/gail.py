@@ -5,7 +5,7 @@ import torch.nn as nn
 import numpy as np
 
 from machin.model.nets.base import NeuralNetworkModule
-from machin.frame.buffers.buffer import Transition, Buffer
+from machin.frame.buffers.buffer import TransitionBase, Transition, Buffer
 from .ppo import PPO
 from .trpo import TRPO
 from .base import TorchFramework, Config
@@ -13,9 +13,47 @@ from .utils import (
     safe_call,
     assert_and_get_valid_models,
     assert_and_get_valid_optimizer,
-    assert_and_get_valid_criterion,
     assert_and_get_valid_lr_scheduler,
 )
+
+
+class ExpertTransition(TransitionBase):
+    """
+    The ExpertTransition class for expert steps.
+
+    Have two main attributes: ``state`` and ``action``.
+    """
+
+    # for auto suggestion in IDEs
+
+    state = None  # type: Dict[str, t.Tensor]
+    action = None  # type: Dict[str, t.Tensor]
+
+    def __init__(
+        self, state: Dict[str, t.Tensor], action: Dict[str, t.Tensor],
+    ):
+        """
+        Args:
+            state: Previous observed state.
+            action: Action of expert.
+        """
+        super().__init__(
+            major_attr=["state", "action"],
+            sub_attr=[],
+            custom_attr=[],
+            major_data=[state, action],
+            sub_data=[],
+            custom_data=[],
+        )
+
+    def _check_validity(self):
+        # fix batch size to 1
+        super()._check_validity()
+        if self._batch_size != 1:
+            raise ValueError(
+                "Batch size of the expert transition "
+                f"implementation must be 1, is {self._batch_size}"
+            )
 
 
 class GAIL(TorchFramework):
@@ -44,7 +82,7 @@ class GAIL(TorchFramework):
         expert_replay_buffer: Buffer = None,
         visualize: bool = False,
         visualize_dir: str = "",
-        **__
+        **__,
     ):
         """
         Note:
@@ -54,7 +92,8 @@ class GAIL(TorchFramework):
                             state: Dict[str, t.Tensor],
                             action: Dict[str, t.Tensor])
 
-            And return a tag vector (float type) of size ``[batch_size, 1]``.
+            And return a tag vector (float type) of size ``[batch_size, 1]``, usually
+            you can do this by using a sigmoid output layer.
 
             If you set ``concatenate_samples`` to ``False`` during the ``update()``
             call, then you should expect ``Dict[str, List[t.Tensor]]``.
@@ -168,25 +207,6 @@ class GAIL(TorchFramework):
         # returned values is always more than one
         return safe_call(self.actor, state)
 
-    def _eval_act(self, state: Dict[str, Any], action: Dict[str, Any], *_, **__):
-        """
-        Use actor network to evaluate the log-likelihood of a given
-        action in the current state.
-
-        Returns:
-            Anything produced by actor.
-        """
-        return safe_call(self.actor, state, action)
-
-    def _criticize(self, state: Dict[str, Any], *_, **__):
-        """
-        Use critic network to evaluate current value.
-
-        Returns:
-            Value of shape ``[batch_size, 1]``
-        """
-        return safe_call(self.critic, state)[0]
-
     def _discriminate(self, state: Dict[str, Any], action: Dict[str, Any], *_, **__):
         """
         Use discriminator network to assign a real (0) / fake (1) tag to state-action
@@ -209,7 +229,7 @@ class GAIL(TorchFramework):
             trans["reward"] = -np.log(self._discriminate(**trans).item())
         self.constrained_policy_optimization.store_episode(episode)
 
-    def store_expert_episode(self, episode: List[Union[Transition, Dict]]):
+    def store_expert_episode(self, episode: List[Union[ExpertTransition, Dict]]):
         """
         Add a full episode of transition samples from the expert trajectory
         to the replay buffer.
@@ -217,6 +237,8 @@ class GAIL(TorchFramework):
         Only states and actions are required.
         """
         for trans in episode:
+            if isinstance(trans, dict):
+                trans = ExpertTransition(**trans)
             self.expert_replay_buffer.append(trans, required_attrs=("state", "action"))
 
     def update(
@@ -225,7 +247,7 @@ class GAIL(TorchFramework):
         update_policy=True,
         update_discriminator=True,
         concatenate_samples=True,
-        **__
+        **__,
     ):
         """
         Update network weights by sampling from buffer. Buffer
@@ -234,6 +256,7 @@ class GAIL(TorchFramework):
         Args:
             update_value: Whether update the Q network.
             update_policy: Whether update the actor network.
+            update_discriminator: Whether update the discriminator network.
             concatenate_samples: Whether concatenate the samples.
 
         Returns:
@@ -254,7 +277,7 @@ class GAIL(TorchFramework):
             )
             exp_out = self._discriminate(e_state, e_action)
 
-            batch_size, state, action = self.replay_buffer.sample_batch(
+            batch_size, (state, action) = self.replay_buffer.sample_batch(
                 self.batch_size,
                 sample_method="random_unique",
                 concatenate=concatenate_samples,
@@ -264,6 +287,19 @@ class GAIL(TorchFramework):
             discrim_loss = self.discriminator_criterion(
                 gen_out, t.ones_like(gen_out)
             ) + self.discriminator_criterion(exp_out, t.zeros_like(exp_out))
+
+            # Update discriminator network
+            if update_discriminator:
+                self.discriminator.zero_grad()
+                self._backward(discrim_loss)
+                nn.utils.clip_grad_norm_(
+                    self.discriminator.parameters(), self.gradient_max
+                )
+                self.discriminator_optim.step()
+
+            if self.visualize:
+                self.visualize_model(discrim_loss, "discriminator", self.visualize_dir)
+
             sum_discrim_loss += discrim_loss.item()
 
         # perform mini-batch PPO or TRPO update
@@ -335,7 +371,7 @@ class GAIL(TorchFramework):
         else:
             raise ValueError("constrained_policy_optimization must be PPO or TRPO.")
 
-        discrim_model = assert_and_get_valid_models([f_config["models"][0]])
+        discrim_model = assert_and_get_valid_models(f_config["models"])[0]
         discrim_model_args = f_config["model_args"][0]
         discrim_model_kwargs = f_config["model_kwargs"][0]
         discrim = discrim_model(*discrim_model_args, **discrim_model_kwargs)

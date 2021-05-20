@@ -1,5 +1,7 @@
 import torch as t
 import pytest
+from test.data.archive import Archive
+from test.data.all import generate_all, get_all
 
 
 @pytest.fixture()
@@ -36,4 +38,11 @@ def mp_tmpdir(tmpdir):
     return tmpdir.make_numbered_dir()
 
 
-__all__ = ["gpu", "device", "dtype", "mp_tmpdir"]
+@pytest.fixture(scope="session")
+def archives():
+    # prepare all test data archives
+    generate_all()
+    return get_all()
+
+
+__all__ = ["gpu", "device", "dtype", "mp_tmpdir", "archives"]
