@@ -99,7 +99,7 @@ class RLGymDiscActDataset(RLDataset):
             with t.no_grad():
                 old_state = state
                 # agent model inference
-                if type(self.frame) in (A2C, PPO, SAC, A3C, IMPALA):
+                if type(self.frame) in (A2C, PPO, SAC, GAIL, A3C, IMPALA):
                     action = self.frame.act({"state": old_state}, **self.act_kwargs)[0]
                 elif type(self.frame) in (DQN, DQNPer, DQNApex, RAINBOW):
                     action = self.frame.act_discrete_with_noise(
@@ -209,7 +209,7 @@ class RLGymContActDataset(RLDataset):
             with t.no_grad():
                 old_state = state
                 # agent model inference
-                if type(self.frame) in (A2C, PPO, SAC, A3C, IMPALA):
+                if type(self.frame) in (A2C, PPO, SAC, GAIL, A3C, IMPALA):
                     action = self.frame.act({"state": old_state}, **self.act_kwargs)[0]
                 elif type(self.frame) in (DDPG, DDPGPer, HDDPG, TD3, DDPGApex):
                     action = self.frame.act_with_noise(
@@ -269,9 +269,7 @@ def gym_env_dataset_creator(frame, env_config):
         )
 
 
-def generate_env_config(
-    env_name: str = None, config: Union[Dict[str, Any], Config] = None
-):
+def generate_env_config(config: Union[Dict[str, Any], Config] = None):
     """
     Generate example OpenAI gym config.
     """
@@ -280,12 +278,12 @@ def generate_env_config(
         {
             "env": "openai_gym",
             "train_env_config": {
-                "env_name": env_name or "CartPole-v1",
+                "env_name": "CartPole-v1",
                 "render_every_episode": 100,
                 "act_kwargs": {},
             },
             "test_env_config": {
-                "env_name": env_name or "CartPole-v1",
+                "env_name": "CartPole-v1",
                 "render_every_episode": 100,
                 "act_kwargs": {},
             },

@@ -99,6 +99,14 @@ SAC
     :show-inheritance:
     :inherited-members:
 
+GAIL
+------------------------------
+.. automodule:: machin.frame.algorithms.gail
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
 APEX
 ------------------------------
 .. automodule:: machin.frame.algorithms.apex

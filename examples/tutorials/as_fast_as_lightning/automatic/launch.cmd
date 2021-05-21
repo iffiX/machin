@@ -1,0 +1,1 @@
+python -m machin.auto launch --config config.json

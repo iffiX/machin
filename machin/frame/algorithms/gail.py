@@ -1,5 +1,6 @@
 from typing import Union, Dict, List, Tuple, Callable, Any
 from copy import deepcopy
+import os
 import torch as t
 import torch.nn as nn
 import numpy as np
@@ -342,6 +343,7 @@ class GAIL(TorchFramework):
             "discriminator_update_times": 1,
             "discriminator_learning_rate": 0.001,
             "gradient_max": np.inf,
+            "expert_trajectory_path": "trajectory.data",
             "expert_replay_size": 500000,
             "expert_replay_device": "cpu",
             "expert_replay_buffer": None,
@@ -384,4 +386,9 @@ class GAIL(TorchFramework):
         f_config["optimizer"] = optimizer
         f_config["lr_scheduler"] = lr_scheduler
         frame = cls(discrim, **f_config)
+
+        if os.path.isfile(f_config["expert_trajectory_path"]):
+            trajectory_list = t.load(f_config["expert_trajectory_path"])
+            for trajectory in trajectory_list:
+                frame.store_expert_episode(trajectory)
         return frame

@@ -1,0 +1,55 @@
+{
+    "early_stopping_patience": 3,
+    "env": "openai_gym",
+    "episode_per_epoch": 10,
+    "frame": "DQN",
+    "frame_config": {
+        "batch_size": 100,
+        "criterion": "MSELoss",
+        "criterion_args": [],
+        "criterion_kwargs": {},
+        "discount": 0.99,
+        "epsilon_decay": 0.9999,
+        "gradient_max": Infinity,
+        "learning_rate": 0.001,
+        "lr_scheduler": null,
+        "lr_scheduler_args": null,
+        "lr_scheduler_kwargs": null,
+        "mode": "double",
+        "model_args": [
+            [],
+            []
+        ],
+        "model_kwargs": [
+            {"state_dim": 4, "action_num": 2},
+            {"state_dim": 4, "action_num": 2}
+        ],
+        "models": [
+            "qnet.QNet",
+            "qnet.QNet"
+        ],
+        "optimizer": "Adam",
+        "replay_buffer": null,
+        "replay_device": "cpu",
+        "replay_size": 500000,
+        "update_rate": 0.005,
+        "update_steps": null,
+        "visualize": false,
+        "visualize_dir": ""
+    },
+    "gpus": [
+        0
+    ],
+    "max_episodes": 10000,
+    "root_dir": "trial",
+    "test_env_config": {
+        "act_kwargs": {},
+        "env_name": "CartPole-v1",
+        "render_every_episode": 100
+    },
+    "train_env_config": {
+        "act_kwargs": {},
+        "env_name": "CartPole-v1",
+        "render_every_episode": 100
+    }
+}

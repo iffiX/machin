@@ -9,6 +9,7 @@ from machin.env.utils.openai_gym import disable_view_window
 from torch.optim.lr_scheduler import LambdaLR
 from torch.distributions import Categorical
 
+import os
 import pytest
 import torch as t
 import torch.nn as nn
@@ -324,7 +325,13 @@ class TestGAIL:
     ########################################################################
     # Test for GAIL config & init
     ########################################################################
-    def test_config_init(self, train_config):
+    def test_config_init(self, train_config, tmpdir, archives):
+        dir = tmpdir.make_numbered_dir()
+        t.save(
+            archives["gail"].load().item("expert_trajectories"),
+            os.path.join(dir, "trajectory.data"),
+        )
+
         c = train_config
         config = GAIL.generate_config({})
         config["frame_config"]["PPO_config"]["frame_config"]["models"] = [
@@ -339,6 +346,9 @@ class TestGAIL:
         config["frame_config"]["model_kwargs"] = [
             {"state_dim": c.observe_dim, "action_num": c.action_num},
         ]
+        config["frame_config"]["expert_trajectory_path"] = os.path.join(
+            dir, "trajectory.data"
+        )
         gail = GAIL.init_from_config(config)
 
         old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)

@@ -104,5 +104,5 @@ class RLDataset(IterableDataset):
     def __iter__(self) -> Iterable:
         return self
 
-    def __next__(self):
+    def __next__(self) -> DatasetResult:
         raise StopIteration()
