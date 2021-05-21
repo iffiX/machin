@@ -1,5 +1,6 @@
 from copy import deepcopy
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, List
+from pytorch_lightning.callbacks import Callback
 from machin.frame.algorithms import TorchFramework
 from machin.utils.conf import Config
 from . import envs
@@ -128,9 +129,9 @@ def assert_env_config_complete(config: Union[Dict[str, Any], Config]):
     assert "test_env_config" in config, 'Missing key "test_env_config" ' "in config."
 
 
-def launch(config: Union[Dict[str, Any], Config]):
+def launch(config: Union[Dict[str, Any], Config], pl_callbacks: List[Callback] = None):
     assert_training_config_complete(config)
     assert_env_config_complete(config)
     assert_algorithm_config_complete(config)
     e_module = getattr(envs, config["env"])
-    return e_module.launch(config)
+    return e_module.launch(config, pl_callbacks)
