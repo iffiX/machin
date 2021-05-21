@@ -75,6 +75,9 @@ Currently Machin has implemented the following algorithms, the list is still gro
 #### Multi-agent algorithms:
 * [Multi-agent DDPG (MADDPG)](https://arxiv.org/pdf/1706.02275.pdf)
 
+#### Immitation learning algorithms (Behavioral Cloning, Inverse RL, GAIL)
+* [Generative Adversarial Imitation Learning (GAIL)](https://arxiv.org/abs/1606.03476)
+
 #### Massively parallel algorithms:
 * [Asynchronous A2C (A3C)](https://arxiv.org/abs/1602.01783)
 * [APEX-DQN, APEX-DDPG](https://arxiv.org/pdf/1803.00933)
@@ -86,7 +89,7 @@ Currently Machin has implemented the following algorithms, the list is still gro
 * [Generalized Advantage Estimation (GAE)](https://arxiv.org/pdf/1506.02438.pdf)
 * [Recurrent networks in DQN, etc.](https://arxiv.org/pdf/1507.06527.pdf)
 #### Algorithms to be supported:
-* [Generative Adversarial Imitation Learning (GAIL)](https://arxiv.org/abs/1606.03476)
+
 * Evolution Strategies
 * [QMIX (multi agent)](https://arxiv.org/abs/1803.11485)
 * Model-based methods
