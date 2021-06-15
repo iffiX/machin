@@ -101,6 +101,10 @@ Below is a list of supported acting APIs of different frameworks:
 
 Storing API
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+.. note::
+    `store_transition` api is now deprecated, please use `store_episode`
+    only.
+
 Algorithms generally encapsulate a replay buffer inside, the replay buffer is not
 necessarily a "real" replay buffer. For online algorithms such as A2C and PPO with
 no replaying mechanisms, the replay buffer is used as a place to put all of the
@@ -116,47 +120,10 @@ samples, and is cleared after every training/update step::
     ...
     self.replay_buffer.clear()
 
-Most frameworks supports storing a single transition step of a MDP process, or
-storing the whole MDP process at once::
+All frameworks use the same `store_episode` API to store a full episode into
+the replay buffer::
 
-    some_framework.store_transition(transition: Union[Transition, Dict])
     some_framework.store_episode(episode: List[Union[Transition, Dict]])
-
-However, some frameworks may only support the latter one of these two APIs (Eg: IMPALA),
-due to the special sampling requirements of the algorithm.
-
-Below is a list of supported storing APIs of different frameworks:
-
-+-----------------+--------------------------------+---------------------------------+
-| Algorithm class | Storing API                    | Note                            |
-+-----------------+--------------------------------+---------------------------------+
-| | DQN           | store_transition/store_episode |                                 |
-| | DQNPer        |                                |                                 |
-| | DQNApex       |                                |                                 |
-| | DDPG          |                                |                                 |
-| | DDPGPer       |                                |                                 |
-| | DDPGApex      |                                |                                 |
-| | HDDPG         |                                |                                 |
-| | TD3           |                                |                                 |
-| | SAC           |                                |                                 |
-+-----------------+--------------------------------+---------------------------------+
-| | MADDPG        | store_transition/store_episode | | Requires you to store         |
-|                 |                                | | transitions/episodes          |
-|                 |                                | | of all agents at the          |
-|                 |                                | | same time.                    |
-+-----------------+--------------------------------+---------------------------------+
-| | RAINBOW       | store_transition/store_episode | | ``store_transition`` requires |
-|                 |                                | | you to calculate the n-step   |
-|                 |                                | | value manually.               |
-+-----------------+--------------------------------+---------------------------------+
-| | A2C           | store_transition/store_episode | | ``store_transition`` requires |
-| | PPO           |                                | | you to calculate the n-step   |
-| | A3C           |                                | | value, and the generalized    |
-|                 |                                | | advantage estimation (GAE)    |
-|                 |                                | | manually.                     |
-+-----------------+--------------------------------+---------------------------------+
-| | IMPALA        | store_episode                  |                                 |
-+-----------------+--------------------------------+---------------------------------+
 
 Training API
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

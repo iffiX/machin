@@ -170,25 +170,6 @@ class RAINBOW(DQN):
         else:
             return (result, *others)
 
-    def store_transition(self, transition: Union[Transition, Dict]):
-        """
-        Add a transition sample to the replay buffer.
-
-        Not suggested, since you will have to calculate "value"
-        by yourself.
-        """
-        self.replay_buffer.append(
-            transition,
-            required_attrs=(
-                "state",
-                "action",
-                "next_state",
-                "reward",
-                "value",
-                "terminal",
-            ),
-        )
-
     def store_episode(self, episode: List[Union[Transition, Dict]]):
         """
         Add a full episode of transition samples to the replay buffer.

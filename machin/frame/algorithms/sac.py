@@ -267,15 +267,6 @@ class SAC(TorchFramework):
         else:
             return safe_call(self.critic2, state, action)[0]
 
-    def store_transition(self, transition: Union[Transition, Dict]):
-        """
-        Add a transition sample to the replay buffer.
-        """
-        self.replay_buffer.append(
-            transition,
-            required_attrs=("state", "action", "next_state", "reward", "terminal"),
-        )
-
     def store_episode(self, episode: List[Union[Transition, Dict]]):
         """
         Add a full episode of transition samples to the replay buffer.

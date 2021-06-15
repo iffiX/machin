@@ -498,21 +498,6 @@ class MADDPG(TorchFramework):
                 self.action_concat_function(actions),
             )
 
-    def store_transitions(self, transitions: List[Union[Transition, Dict]]):
-        """
-        Add a list of transition samples, from all actors at the same time
-        step, to the replay buffers.
-
-        Args:
-            transitions: List of transition objects.
-        """
-        assert len(transitions) == len(self.replay_buffers)
-        for buff, trans in zip(self.replay_buffers, transitions):
-            buff.append(
-                trans,
-                required_attrs=("state", "action", "next_state", "reward", "terminal"),
-            )
-
     def store_episodes(self, episodes: List[List[Union[Transition, Dict]]]):
         """
         Add a List of full episodes, from all actors, to the replay buffers.

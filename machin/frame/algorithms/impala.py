@@ -236,13 +236,6 @@ class IMPALA(TorchFramework):
         """
         return safe_call(self.critic, state)[0]
 
-    def store_transition(self, transition: Union[Transition, Dict]):
-        """
-        Warning:
-            Not supported in IMPALA due to v-trace requirements.
-        """
-        raise NotImplementedError
-
     def store_episode(self, episode: List[Union[Transition, Dict]]):
         """
         Add a full episode of transition samples to the replay buffer.
