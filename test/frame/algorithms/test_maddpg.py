@@ -356,22 +356,10 @@ class TestMADDPG:
     ########################################################################
     # Test for MADDPG storage
     ########################################################################
-    def test_store(self, train_config, maddpg_cont, dtype):
+    def test_store_episodes(self, train_config, maddpg_cont, dtype):
         c = train_config
         old_state = state = t.zeros([1, c.test_observe_dim], dtype=dtype)
         action = t.zeros([1, c.test_action_dim], dtype=dtype)
-        maddpg_cont.store_transitions(
-            [
-                {
-                    "state": {"state": old_state},
-                    "action": {"action": action},
-                    "next_state": {"state": state},
-                    "reward": 0,
-                    "terminal": False,
-                }
-            ]
-            * c.test_agent_num
-        )
         maddpg_cont.store_episodes(
             [
                 [
@@ -541,6 +529,7 @@ class TestMADDPG:
             # batch size = 1
             total_reward = 0
             states = [t.tensor(st, dtype=t.float32) for st in env.reset()]
+            tmp_observations_list = [[] for _ in range(agent_num)]
 
             while not terminal and step <= c.max_steps:
                 step.count()
@@ -559,21 +548,27 @@ class TestMADDPG:
 
                     total_reward += float(sum(rewards)) / c.agent_num
 
-                    maddpg_train.store_transitions(
-                        [
-                            {
-                                "state": {"state": ost.unsqueeze(0)},
-                                "action": {"action": act},
-                                "next_state": {"state": st.unsqueeze(0)},
-                                "reward": float(rew),
-                                "terminal": term or step == c.max_steps,
-                            }
-                            for ost, act, st, rew, term in zip(
-                                old_states, action_probs, states, rewards, terminals
-                            )
-                        ]
-                    )
+                    for tmp_observations, ost, act, st, rew, term in zip(
+                        tmp_observations_list,
+                        old_states,
+                        action_probs,
+                        states,
+                        rewards,
+                        terminals,
+                    ):
+                        tmp_observations.append(
+                            [
+                                {
+                                    "state": {"state": ost},
+                                    "action": {"action": act},
+                                    "next_state": {"state": st},
+                                    "reward": float(rew),
+                                    "terminal": term or step == max_steps,
+                                }
+                            ]
+                        )
 
+            maddpg_train.store_episodes(tmp_observations_list)
             # update
             if episode > 5:
                 for i in range(step.get()):

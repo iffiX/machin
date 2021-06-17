@@ -91,9 +91,9 @@ if __name__ == "__main__":
         [deepcopy(actor) for _ in range(agent_num)],
         [deepcopy(critic) for _ in range(agent_num)],
         [deepcopy(critic) for _ in range(agent_num)],
-        [list(range(agent_num))] * agent_num,
         t.optim.Adam,
         nn.MSELoss(reduction="sum"),
+        critic_visible_actors=[list(range(agent_num))] * agent_num,
     )
 
     episode, step, reward_fulfilled = 0, 0, 0
@@ -107,6 +107,7 @@ if __name__ == "__main__":
         states = [
             t.tensor(st, dtype=t.float32).view(1, observe_dim) for st in env.reset()
         ]
+        tmp_observations_list = [[] for _ in range(agent_num)]
 
         while not terminal and step <= max_steps:
             step += 1
@@ -125,21 +126,27 @@ if __name__ == "__main__":
                 ]
                 total_reward += float(sum(rewards)) / agent_num
 
-                maddpg.store_transitions(
-                    [
-                        {
-                            "state": {"state": ost},
-                            "action": {"action": act},
-                            "next_state": {"state": st},
-                            "reward": float(rew),
-                            "terminal": term or step == max_steps,
-                        }
-                        for ost, act, st, rew, term in zip(
-                            old_states, action_probs, states, rewards, terminals
-                        )
-                    ]
-                )
+                for tmp_observations, ost, act, st, rew, term in zip(
+                    tmp_observations_list,
+                    old_states,
+                    action_probs,
+                    states,
+                    rewards,
+                    terminals,
+                ):
+                    tmp_observations.append(
+                        [
+                            {
+                                "state": {"state": ost},
+                                "action": {"action": act},
+                                "next_state": {"state": st},
+                                "reward": float(rew),
+                                "terminal": term or step == max_steps,
+                            }
+                        ]
+                    )
 
+        maddpg.store_episodes(tmp_observations_list)
         # total reward is divided by steps here, since:
         # "Agents are rewarded based on minimum agent distance
         #  to each landmark, penalized for collisions"

@@ -174,33 +174,6 @@ class TestIMPALA:
         timeout=180,
     )
     @WorldTestBase.setup_world
-    def test_store_step(_, device, dtype):
-        c = TestIMPALA.c
-        impala = TestIMPALA.impala(device, dtype)
-
-        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
-        action = t.zeros([1, 1], dtype=t.int)
-
-        with pytest.raises(NotImplementedError):
-            impala.store_transition(
-                {
-                    "state": {"state": old_state},
-                    "action": {"action": action},
-                    "next_state": {"state": state},
-                    "reward": 0,
-                    "action_log_prob": 0.1,
-                    "terminal": False,
-                }
-            )
-        return True
-
-    @staticmethod
-    @run_multi(
-        expected_results=[True, True, True],
-        pass_through=["device", "dtype"],
-        timeout=180,
-    )
-    @WorldTestBase.setup_world
     def test_store_episode(_, device, dtype):
         c = TestIMPALA.c
         impala = TestIMPALA.impala(device, dtype)

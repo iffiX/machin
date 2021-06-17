@@ -52,14 +52,17 @@ class ParallelModule(pl.LightningModule):
 
 if __name__ == "__main__":
     os.environ["WORLD_SIZE"] = "3"
+    os.environ["NODE_RANK"] = "0"
+    os.environ["LOCAL_RANK"] = sys.argv[2]
     print(os.environ["TEST_SAVE_PATH"])
+    print(sys.argv[1])
     trainer = pl.Trainer(
-        gpus=0,
         num_nodes=1,
         num_processes=3,
         limit_train_batches=1,
         max_steps=1,
         accelerator="ddp" if sys.argv[1] == "ddp" else "ddp_spawn",
     )
+    assert trainer.distributed_backend == sys.argv[1]
     model = ParallelModule()
     trainer.fit(model)

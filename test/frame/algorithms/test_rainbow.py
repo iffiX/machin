@@ -143,21 +143,6 @@ class TestRAINBOW:
     ########################################################################
     # Test for RAINBOW storage
     ########################################################################
-    def test_store_step(self, train_config, rainbow, dtype):
-        c = train_config
-        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
-        action = t.zeros([1, 1], dtype=t.int)
-        rainbow.store_transition(
-            {
-                "state": {"state": old_state},
-                "action": {"action": action},
-                "next_state": {"state": state},
-                "reward": 0,
-                "value": 0,
-                "terminal": False,
-            }
-        )
-
     def test_store_episode(self, train_config, rainbow, dtype):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)

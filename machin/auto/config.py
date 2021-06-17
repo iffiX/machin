@@ -79,7 +79,12 @@ def generate_env_config(environment: str, config: Union[Dict[str, Any], Config] 
     config = deepcopy(config) or {}
     if hasattr(envs, environment):
         e_module = getattr(envs, environment)
-        if hasattr(e_module, "launch") and hasattr(e_module, "generate_env_config"):
+        if (
+            hasattr(e_module, "launch")
+            and isinstance(e_module.launch, callable)
+            and hasattr(e_module, "generate_env_config")
+            and isinstance(e_module.generate_env_config, callable)
+        ):
             return e_module.generate_env_config(config)
     raise ValueError(
         f"Invalid environment: {environment}, "

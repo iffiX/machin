@@ -218,20 +218,6 @@ class TestDQN:
     ########################################################################
     # Test for DQN storage
     ########################################################################
-    def test_store_step(self, train_config, dqn, dtype):
-        c = train_config
-        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
-        action = t.zeros([1, 1], dtype=t.int)
-        dqn.store_transition(
-            {
-                "state": {"state": old_state},
-                "action": {"action": action},
-                "next_state": {"state": state},
-                "reward": 0,
-                "terminal": False,
-            }
-        )
-
     def test_store_episode(self, train_config, dqn, dtype):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
@@ -357,6 +343,7 @@ class TestDQN:
             total_reward = 0
             state = t.tensor(env.reset(), dtype=t.float32)
 
+            tmp_observations = []
             while not terminal and step <= c.max_steps:
                 step.count()
                 with t.no_grad():
@@ -369,7 +356,7 @@ class TestDQN:
                     state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    dqn_train.store_transition(
+                    tmp_observations.append(
                         {
                             "state": {"state": old_state.unsqueeze(0)},
                             "action": {"action": action},
@@ -379,6 +366,7 @@ class TestDQN:
                         }
                     )
 
+            dqn.store_episode(tmp_observations)
             # update
             if episode.get() > 100:
                 for _ in range(step.get()):

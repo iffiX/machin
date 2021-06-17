@@ -280,6 +280,7 @@ class TestDQNApex:
                 state = t.tensor(env.reset(), dtype=t.float32)
 
                 dqn_apex.manual_sync()
+                tmp_observations = []
                 while not terminal and step <= c.max_steps:
                     step.count()
                     with t.no_grad():
@@ -292,7 +293,7 @@ class TestDQNApex:
                         state = t.tensor(state, dtype=t.float32).flatten()
                         total_reward += float(reward)
 
-                        dqn_apex.store_transition(
+                        tmp_observations.append(
                             {
                                 "state": {"state": old_state.unsqueeze(0)},
                                 "action": {"action": action},
@@ -301,6 +302,7 @@ class TestDQNApex:
                                 "terminal": terminal or step == c.max_steps,
                             }
                         )
+                dqn_apex.store_episode(tmp_observations)
                 smoother.update(total_reward)
                 step.reset()
                 terminal = False
@@ -498,14 +500,17 @@ class TestDDPGApex:
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, c.action_dim], dtype=dtype)
         if rank in (0, 1):
-            ddpg_apex.store_transition(
-                {
-                    "state": {"state": old_state},
-                    "action": {"action": action},
-                    "next_state": {"state": state},
-                    "reward": 0,
-                    "terminal": False,
-                }
+            ddpg_apex.store_episode(
+                [
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": 0,
+                        "terminal": False,
+                    }
+                    for _ in range(3)
+                ]
             )
             sleep(5)
             ddpg_apex.manual_sync()
@@ -551,14 +556,17 @@ class TestDDPGApex:
         old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
         action = t.zeros([1, c.action_dim], dtype=t.float32)
         if rank in (1, 2):
-            ddpg_apex.store_transition(
-                {
-                    "state": {"state": old_state},
-                    "action": {"action": action},
-                    "next_state": {"state": state},
-                    "reward": 0,
-                    "terminal": False,
-                }
+            ddpg_apex.store_episode(
+                [
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": 0,
+                        "terminal": False,
+                    }
+                    for _ in range(3)
+                ]
             )
             sleep(5)
             ddpg_apex.manual_sync()
@@ -606,6 +614,7 @@ class TestDDPGApex:
                 state = t.tensor(env.reset(), dtype=t.float32)
 
                 ddpg_apex.manual_sync()
+                tmp_observations = []
                 while not terminal and step <= c.max_steps:
                     step.count()
                     with t.no_grad():
@@ -618,7 +627,7 @@ class TestDDPGApex:
                         state = t.tensor(state, dtype=t.float32).flatten()
                         total_reward += float(reward)
 
-                        ddpg_apex.store_transition(
+                        tmp_observations.append(
                             {
                                 "state": {"state": old_state.unsqueeze(0)},
                                 "action": {"action": probs},
@@ -627,7 +636,7 @@ class TestDDPGApex:
                                 "terminal": terminal or step == c.max_steps,
                             }
                         )
-
+                ddpg_apex.store_episode(tmp_observations)
                 smoother.update(total_reward)
                 avg_step.update(step.get())
                 step.reset()

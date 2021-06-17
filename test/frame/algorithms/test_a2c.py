@@ -185,22 +185,6 @@ class TestA2C:
     ########################################################################
     # Test for A2C storage
     ########################################################################
-    def test_store_step(self, train_config, a2c, dtype):
-        c = train_config
-        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
-        action = t.zeros([1, 1], dtype=t.int)
-        a2c.store_transition(
-            {
-                "state": {"state": old_state},
-                "action": {"action": action},
-                "next_state": {"state": state},
-                "reward": 0,
-                "value": 0,
-                "gae": 0,
-                "terminal": False,
-            }
-        )
-
     @pytest.mark.parametrize("gae_lambda", [0.0, 0.5, 1.0])
     def test_store_episode(self, train_config, a2c, dtype, gae_lambda):
         c = train_config

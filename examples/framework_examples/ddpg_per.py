@@ -69,6 +69,7 @@ if __name__ == "__main__":
         terminal = False
         step = 0
         state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
+        tmp_observations = []
 
         while not terminal and step <= max_steps:
             step += 1
@@ -82,7 +83,7 @@ if __name__ == "__main__":
                 state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
                 total_reward += reward[0]
 
-                ddpg_per.store_transition(
+                tmp_observations.append(
                     {
                         "state": {"state": old_state},
                         "action": {"action": action},
@@ -92,6 +93,7 @@ if __name__ == "__main__":
                     }
                 )
 
+        ddpg_per.store_episode(tmp_observations)
         # update, update more if episode is longer, else less
         if episode > 100:
             for _ in range(step):

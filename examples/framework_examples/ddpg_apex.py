@@ -100,6 +100,8 @@ def main(rank):
 
             # manually pull the newest parameters
             ddpg_apex.manual_sync()
+            tmp_observations = []
+
             while not terminal and step <= max_steps:
                 step += 1
                 with t.no_grad():
@@ -112,7 +114,7 @@ def main(rank):
                     state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
                     total_reward += reward[0]
 
-                    ddpg_apex.store_transition(
+                    tmp_observations.append(
                         {
                             "state": {"state": old_state},
                             "action": {"action": action},
@@ -122,9 +124,11 @@ def main(rank):
                         }
                     )
 
+            ddpg_apex.store_episode(tmp_observations)
             smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
             logger.info(
-                f"Process {rank} Episode {episode} total reward={smoothed_total_reward:.2f}"
+                f"Process {rank} Episode {episode} "
+                f"total reward={smoothed_total_reward:.2f}"
             )
 
             if smoothed_total_reward > solved_reward:

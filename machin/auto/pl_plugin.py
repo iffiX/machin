@@ -2,9 +2,7 @@ import os
 import logging
 import pytorch_lightning as pl
 from time import sleep
-from torch import distributed
-from pytorch_lightning.utilities.seed import seed_everything
-from pytorch_lightning.utilities.distributed import rank_zero_only
+from typing import Optional
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin as DDP
 from pytorch_lightning.plugins.training_type.ddp_spawn import DDPSpawnPlugin as DDPS
 from machin.parallel.distributed import World, is_world_initialized
@@ -34,10 +32,22 @@ def assert_world_config(cluster_env, master_addr, master_port, world_size):
 
 
 class DDPPlugin(DDP):
-    def init_ddp_connection(self, global_rank: int, world_size: int) -> None:
+    def init_ddp_connection(
+        self, global_rank: Optional[int] = None, world_size: Optional[int] = None
+    ) -> None:
         master_addr = self.cluster_environment.master_address()
         master_port = self.cluster_environment.master_port()
         world_size = self.cluster_environment.world_size()
+        global_rank = (
+            global_rank
+            if global_rank is not None
+            else self.cluster_environment.global_rank()
+        )
+        world_size = (
+            world_size
+            if world_size is not None
+            else self.cluster_environment.world_size()
+        )
         assert_world_config(
             self.cluster_environment, master_addr, master_port, world_size
         )
@@ -48,7 +58,7 @@ class DDPPlugin(DDP):
                 f"MEMBER: {int(global_rank) + 1}/{world_size}"
             )
             # TODO: currently nccl is having problems with supporting
-            # different cnfigurations, use gloo as replacement.
+            # different configurations, use gloo as replacement.
             # See: https://github.com/pytorch/pytorch/issues/47885
             _w = World(
                 name=str(global_rank),
@@ -59,51 +69,7 @@ class DDPPlugin(DDP):
                 rpc_init_method=f"tcp://{master_addr}:{int(master_port) + 1}",
             )
 
-    def pre_dispatch(self):
-        """
-        This function is called by the trainer, before dispatch(), which
-        starts training/testing/... etc.
-
-        DDP plugin will initialize ddp connection at here.
-        """
-
-        # TODO: check if needed
-        seed = os.environ.get("PL_GLOBAL_SEED")
-        if seed is not None:
-            seed_everything(int(seed))
-
-        # determine which process we are and world size
-        self.set_world_ranks()
-
-        # set warning rank
-        rank_zero_only.rank = self.global_rank
-
-        # set up server using proc 0's ip address
-        # try to init for 20 times at max in case ports are taken
-        # where to store ip_table
-        self.init_ddp_connection(self.global_rank, self.world_size)
-
-        # on world_size=0 let everyone know training is starting
-        if self.is_global_zero and distributed.is_initialized():
-            pl_logger.info("-" * 100)
-            pl_logger.info(f"distributed_backend={self.distributed_backend}")
-            pl_logger.info(
-                f"All DDP processes registered. Starting ddp with {self.world_size} "
-                "processes"
-            )
-            pl_logger.info("-" * 100)
-
-        # set the ranks and devices
-        self.dist.rank = self.global_rank
-        self.dist.device = self.root_device
-
-        if self.sync_batchnorm:
-            self.model = self.configure_sync_batchnorm(self.model)
-
-        # Move the launcher to the correct device
-        # So in launcher, self.device would be set.
-        self.model_to_device()
-
+    def configure_ddp(self):
         # initialize framework in the launcher
         self._model.init_frame()
         if self._model.frame.optimizers is not None:
@@ -112,8 +78,7 @@ class DDPPlugin(DDP):
             self._model.trainer.accelerator.lr_schedulers = (
                 self._model.frame.lr_schedulers
             )
-
-        self.barrier()
+        super().configure_ddp()
 
     def training_step(self, *args, **kwargs):
         return self.lightning_module.training_step(*args, **kwargs)
@@ -132,10 +97,22 @@ class DDPPlugin(DDP):
 
 
 class DDPSpawnPlugin(DDPS):
-    def init_ddp_connection(self, global_rank: int, world_size: int) -> None:
+    def init_ddp_connection(
+        self, global_rank: Optional[int] = None, world_size: Optional[int] = None
+    ) -> None:
         master_addr = self.cluster_environment.master_address()
         master_port = self.cluster_environment.master_port()
         world_size = self.cluster_environment.world_size()
+        global_rank = (
+            global_rank
+            if global_rank is not None
+            else self.cluster_environment.global_rank()
+        )
+        world_size = (
+            world_size
+            if world_size is not None
+            else self.cluster_environment.world_size()
+        )
         assert_world_config(
             self.cluster_environment, master_addr, master_port, world_size
         )
@@ -146,7 +123,7 @@ class DDPSpawnPlugin(DDPS):
                 f"MEMBER: {int(global_rank) + 1}/{world_size}"
             )
             # TODO: currently nccl is having problems with supporting
-            # different cnfigurations, use gloo as replacement.
+            # different configurations, use gloo as replacement.
             # See: https://github.com/pytorch/pytorch/issues/47885
             _w = World(
                 name=str(global_rank),
@@ -157,51 +134,7 @@ class DDPSpawnPlugin(DDPS):
                 rpc_init_method=f"tcp://{master_addr}:{int(master_port) + 1}",
             )
 
-    def new_process(self, process_idx, trainer, mp_queue):
-        """
-        DDPSpawn does not pre-create processes. Instead it spawns processes as needed
-        when training, testing, etc. is started, therefore we need to overload the
-        process main function.
-        """
-        global trace_enabled
-        self.mp_queue = mp_queue
-
-        # TODO: check if needed
-        seed = os.environ.get("PL_GLOBAL_SEED")
-        if seed is not None:
-            seed_everything(int(seed))
-
-        self.set_world_ranks(process_idx)
-
-        # set warning rank
-        rank_zero_only.rank = self.global_rank
-
-        # set up server using proc 0's ip address
-        # try to init for 20 times at max in case ports are taken
-        # where to store ip_table
-        self.init_ddp_connection(self.global_rank, self.world_size)
-
-        # on world_size=0 let everyone know training is starting
-        if self.is_global_zero and distributed.is_initialized():
-            pl_logger.info("-" * 100)
-            pl_logger.info(f"distributed_backend={self.distributed_backend}")
-            pl_logger.info(
-                f"All DDP processes registered. Starting ddp with {self.world_size} "
-                "processes"
-            )
-            pl_logger.info("-" * 100)
-
-        # set the ranks and devices
-        self.dist.rank = self.global_rank
-        self.dist.device = self.root_device
-
-        if self.sync_batchnorm:
-            self.model = self.configure_sync_batchnorm(self.model)
-
-        # Move the launcher to the correct device
-        # So in launcher, self.device would be set.
-        self.model_to_device()
-
+    def configure_ddp(self):
         # initialize framework in the launcher
         self._model.init_frame()
         if self._model.frame.optimizers is not None:
@@ -210,13 +143,7 @@ class DDPSpawnPlugin(DDPS):
             self._model.trainer.accelerator.lr_schedulers = (
                 self._model.frame.lr_schedulers
             )
-
-        self.barrier()
-
-        results = trainer.train_or_test_or_predict()
-
-        # persist info in ddp_spawn
-        self.transfer_distrib_spawn_state_on_fit_end(results)
+        super().configure_ddp()
 
     def start_training(self, trainer):
         self._spawn()

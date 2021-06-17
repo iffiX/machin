@@ -1,8 +1,4 @@
 from test.util_platforms import linux_only_forall
-
-linux_only_forall()
-
-
 from machin.auto.config import (
     generate_training_config,
     generate_algorithm_config,
@@ -18,15 +14,6 @@ from machin.auto.envs.openai_gym import (
 import os
 import pickle
 import os.path as p
-from test.util_run_multi import *
-from test.util_fixtures import *
-from pytorch_lightning.callbacks import Callback
-from torch.distributions import Categorical, Normal
-from machin.parallel.distributed import get_cur_rank
-from machin.parallel.thread import Thread
-from machin.parallel.queue import SimpleQueue
-from machin.utils.logging import default_logger
-from pytorch_lightning.utilities.distributed import ReduceOp
 import gym
 import pytest
 import torch as t
@@ -34,6 +21,25 @@ import torch.nn as nn
 import torch.nn.functional as F
 import subprocess as sp
 import multiprocessing as mp
+from test.util_run_multi import *
+from test.util_fixtures import *
+from pytorch_lightning.callbacks import Callback
+from torch.distributions import Categorical, Normal
+from machin.parallel.distributed import get_cur_rank
+from machin.parallel.thread import Thread
+from machin.parallel.queue import SimpleQueue, TimeoutError
+from machin.utils.logging import default_logger
+from pytorch_lightning.utilities.distributed import ReduceOp
+
+linux_only_forall()
+
+
+def generate_gym_config_for_env(env: str, config: dict):
+    """Helper function for testing openai gym environments."""
+    config = generate_env_config(config)
+    config["train_env_config"]["env_name"] = env
+    config["test_env_config"]["env_name"] = env
+    return config
 
 
 class QNet(nn.Module):
@@ -256,7 +262,7 @@ class TestRLGymContActDataset:
 
 def test_gym_env_dataset_creator():
     # Discrete action environment
-    config = generate_env_config("CartPole-v0", {})
+    config = generate_gym_config_for_env("CartPole-v0", {})
     config = generate_algorithm_config("DDPG", config)
     config["frame_config"]["models"] = [
         "DDPGActorCont",
@@ -277,7 +283,7 @@ def test_gym_env_dataset_creator():
     )
 
     # Continuous action environment
-    config = generate_env_config("Pendulum-v0", {})
+    config = generate_gym_config_for_env("Pendulum-v0", {})
     assert isinstance(
         gym_env_dataset_creator(ddpg, config["train_env_config"]), RLGymContActDataset
     )
@@ -288,7 +294,7 @@ def test_gym_env_dataset_creator():
     # Unsupported environment,
     # like algorithmic, which uses a tuple action space
     # or robotics, which uses the goal action space
-    config = generate_env_config("Copy-v0", {})
+    config = generate_gym_config_for_env("Copy-v0", {})
     with pytest.raises(ValueError, match="not supported"):
         gym_env_dataset_creator(ddpg, config["train_env_config"])
 
@@ -297,6 +303,8 @@ def test_gym_env_dataset_creator():
 
 
 class InspectCallback(Callback):
+    """Helper class used by TestLaunchGym below."""
+
     def __init__(self):
         self.max_total_reward = 0
 
@@ -315,6 +323,8 @@ class InspectCallback(Callback):
 
 
 class SpawnInspectCallback(Callback):
+    """Helper class used by TestLaunchGym below."""
+
     def __init__(self, queue: SimpleQueue):
         self.max_total_reward = 0
         self.queue = queue
@@ -349,6 +359,8 @@ class SpawnInspectCallback(Callback):
 
 
 class LoggerDebugCallback(Callback):
+    """Helper class used by TestLaunchGym below."""
+
     def on_train_start(self, *_, **__):
         from logging import DEBUG
 
@@ -357,7 +369,7 @@ class LoggerDebugCallback(Callback):
 
 class TestLaunchGym:
     def test_dqn_full_train(self, tmpdir):
-        config = generate_env_config("CartPole-v0", {})
+        config = generate_gym_config_for_env("CartPole-v0", {})
         config = generate_training_config(
             root_dir=str(tmpdir.make_numbered_dir()), config=config
         )
@@ -378,7 +390,7 @@ class TestLaunchGym:
         # by default, pytorch lightning will use ddp-spawn mode to replace ddp
         # if there are only cpus
         os.environ["WORLD_SIZE"] = "3"
-        config = generate_env_config("CartPole-v0", {})
+        config = generate_gym_config_for_env("CartPole-v0", {})
         config = generate_training_config(
             root_dir=tmpdir.make_numbered_dir(), config=config
         )

@@ -75,11 +75,14 @@ class DDPInspectCallback(Callback):
 if __name__ == "__main__":
     os.environ["WORLD_SIZE"] = "3"
     print(os.environ["TEST_SAVE_PATH"])
-    config = generate_env_config("CartPole-v0", {})
+    config = generate_env_config({})
+    config["train_env_config"]["env_name"] = "CartPole-v0"
+    config["test_env_config"]["env_name"] = "CartPole-v0"
+
     config = generate_training_config(root_dir=os.environ["ROOT_DIR"], config=config)
     config = generate_algorithm_config("DQNApex", config)
 
-    # use ddp gpu
+    # use ddp gpu, processes will be created automatically
     config["gpus"] = [0, 0, 0]
     config["num_processes"] = 3
     # this testing process corresponds to this node

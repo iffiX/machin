@@ -245,6 +245,7 @@ class TestDQNPer:
             # batch size = 1
             total_reward = 0
             state = t.tensor(env.reset(), dtype=t.float32)
+            tmp_observations = []
 
             while not terminal and step <= c.max_steps:
                 step.count()
@@ -258,7 +259,7 @@ class TestDQNPer:
                     state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    dqn_per_train.store_transition(
+                    tmp_observations.append(
                         {
                             "state": {"state": old_state.unsqueeze(0)},
                             "action": {"action": action},
@@ -268,6 +269,7 @@ class TestDQNPer:
                         }
                     )
 
+            dqn_per_train.store_episode(tmp_observations)
             # update
             if episode.get() > 100:
                 for _ in range(step.get()):

@@ -295,19 +295,10 @@ class TestDDPG:
     ########################################################################
     # Test for DDPG storage
     ########################################################################
-    def test_store(self, train_config, ddpg, dtype):
+    def test_store_episode(self, train_config, ddpg, dtype):
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, c.action_dim], dtype=dtype)
-        ddpg.store_transition(
-            {
-                "state": {"state": old_state},
-                "action": {"action": action},
-                "next_state": {"state": state},
-                "reward": 0,
-                "terminal": False,
-            }
-        )
         ddpg.store_episode(
             [
                 {
@@ -327,14 +318,17 @@ class TestDDPG:
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, c.action_dim], dtype=dtype)
-        ddpg_vis.store_transition(
-            {
-                "state": {"state": old_state},
-                "action": {"action": action},
-                "next_state": {"state": state},
-                "reward": 0,
-                "terminal": False,
-            }
+        ddpg_vis.store_episode(
+            [
+                {
+                    "state": {"state": old_state},
+                    "action": {"action": action},
+                    "next_state": {"state": state},
+                    "reward": 0,
+                    "terminal": False,
+                }
+                for _ in range(3)
+            ]
         )
         ddpg_vis.update(
             update_value=True,
@@ -389,14 +383,17 @@ class TestDDPG:
 
         old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
         action = t.zeros([1, c.action_dim], dtype=t.float32)
-        ddpg.store_transition(
-            {
-                "state": {"state": old_state},
-                "action": {"action": action},
-                "next_state": {"state": state},
-                "reward": 0,
-                "terminal": False,
-            }
+        ddpg.store_episode(
+            [
+                {
+                    "state": {"state": old_state},
+                    "action": {"action": action},
+                    "next_state": {"state": state},
+                    "reward": 0,
+                    "terminal": False,
+                }
+                for _ in range(3)
+            ]
         )
         ddpg.update()
 
@@ -420,7 +417,7 @@ class TestDDPG:
             # batch size = 1
             total_reward = 0
             state = t.tensor(env.reset(), dtype=t.float32)
-
+            tmp_observations = []
             while not terminal and step <= c.max_steps:
                 step.count()
                 with t.no_grad():
@@ -442,7 +439,7 @@ class TestDDPG:
                     state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    ddpg_train.store_transition(
+                    tmp_observations.append(
                         {
                             "state": {"state": old_state.unsqueeze(0)},
                             "action": {"action": action},
@@ -451,6 +448,7 @@ class TestDDPG:
                             "terminal": terminal or step == c.max_steps,
                         }
                     )
+            ddpg_train.store_episode(tmp_observations)
             # update
             if episode > 100:
                 for i in range(step.get()):

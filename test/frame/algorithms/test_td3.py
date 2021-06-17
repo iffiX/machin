@@ -282,14 +282,17 @@ class TestTD3:
         c = train_config
         old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, c.action_dim], dtype=dtype)
-        td3_vis.store_transition(
-            {
-                "state": {"state": old_state},
-                "action": {"action": action},
-                "next_state": {"state": state},
-                "reward": 0,
-                "terminal": False,
-            }
+        td3_vis.store_episode(
+            [
+                {
+                    "state": {"state": old_state},
+                    "action": {"action": action},
+                    "next_state": {"state": state},
+                    "reward": 0,
+                    "terminal": False,
+                }
+                for _ in range(3)
+            ]
         )
         td3_vis.update(
             update_value=True,
@@ -359,14 +362,17 @@ class TestTD3:
 
         old_state = state = t.zeros([1, c.observe_dim], dtype=t.float32)
         action = t.zeros([1, c.action_dim], dtype=t.float32)
-        td3.store_transition(
-            {
-                "state": {"state": old_state},
-                "action": {"action": action},
-                "next_state": {"state": state},
-                "reward": 0,
-                "terminal": False,
-            }
+        td3.store_episode(
+            [
+                {
+                    "state": {"state": old_state},
+                    "action": {"action": action},
+                    "next_state": {"state": state},
+                    "reward": 0,
+                    "terminal": False,
+                }
+                for _ in range(3)
+            ]
         )
         td3.update()
 
@@ -390,6 +396,7 @@ class TestTD3:
             # batch size = 1
             total_reward = 0
             state = t.tensor(env.reset(), dtype=t.float32)
+            tmp_observations = []
 
             while not terminal and step <= c.max_steps:
                 step.count()
@@ -412,7 +419,7 @@ class TestTD3:
                     state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)
 
-                    td3_train.store_transition(
+                    tmp_observations.append(
                         {
                             "state": {"state": old_state.unsqueeze(0)},
                             "action": {"action": action},
@@ -421,6 +428,8 @@ class TestTD3:
                             "terminal": terminal or step == c.max_steps,
                         }
                     )
+
+            td3_train.store_episode(tmp_observations)
             # update
             if episode > 100:
                 for i in range(step.get()):
