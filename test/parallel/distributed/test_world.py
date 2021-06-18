@@ -51,7 +51,7 @@ class TestWorld(WorldTestBase):
         else:
             a = t.ones([5])
             assert group.recv(a) == 0
-            assert t.all(a == 0)
+            assert t.all(a == 0.0)
         group.destroy()
         return True
 
@@ -68,7 +68,7 @@ class TestWorld(WorldTestBase):
         else:
             a = t.ones([5])
             assert group.irecv(a).wait() == 0
-            assert t.all(a == 0)
+            assert t.all(a == 0.0)
         group.destroy()
         return True
 
@@ -84,7 +84,7 @@ class TestWorld(WorldTestBase):
         else:
             a = t.zeros([5])
         group.broadcast(a, 0)
-        assert t.all(a == 1)
+        assert t.all(a == 1.0)
         group.destroy()
         return True
 
@@ -94,9 +94,9 @@ class TestWorld(WorldTestBase):
     def test_cc_all_reduce(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
-        a = t.full([5], rank)
+        a = t.full([5], float(rank))
         group.all_reduce(a)
-        assert t.all(a == 3)
+        assert t.all(a == 3.0)
         group.destroy()
         return True
 
@@ -106,10 +106,10 @@ class TestWorld(WorldTestBase):
     def test_cc_reduce(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
-        a = t.full([5], 5 - rank)
+        a = t.full([5], float(5 - rank))
         group.reduce(a, 1)
         if rank == 1:
-            assert t.all(a == 12)
+            assert t.all(a == 12.0)
         group.destroy()
         return True
 
@@ -119,12 +119,12 @@ class TestWorld(WorldTestBase):
     def test_cc_all_gather(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
-        a = t.full([5], rank)
-        a_list = [t.full([5], -1), t.full([5], -1), t.full([5], -1)]
+        a = t.full([5], float(rank))
+        a_list = [t.full([5], -1.0), t.full([5], -1.0), t.full([5], -1.0)]
         group.all_gather(a_list, a)
-        assert t.all(a_list[0] == 0)
-        assert t.all(a_list[1] == 1)
-        assert t.all(a_list[2] == 2)
+        assert t.all(a_list[0] == 0.0)
+        assert t.all(a_list[1] == 1.0)
+        assert t.all(a_list[2] == 2.0)
         group.destroy()
         return True
 
@@ -134,16 +134,16 @@ class TestWorld(WorldTestBase):
     def test_cc_gather(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
-        a = t.full([5], rank)
+        a = t.full([5], float(rank))
         if rank == 1:
-            a_list = [t.full([5], -1), t.full([5], -1), t.full([5], -1)]
+            a_list = [t.full([5], -1.0), t.full([5], -1.0), t.full([5], -1.0)]
         else:
             a_list = None
         group.gather(a, a_list, 1)
         if rank == 1:
-            assert t.all(a_list[0] == 0)
-            assert t.all(a_list[1] == 1)
-            assert t.all(a_list[2] == 2)
+            assert t.all(a_list[0] == 0.0)
+            assert t.all(a_list[1] == 1.0)
+            assert t.all(a_list[2] == 2.0)
         group.destroy()
         return True
 
@@ -154,12 +154,12 @@ class TestWorld(WorldTestBase):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
         if rank == 0:
-            a_list = [t.full([5], 0), t.full([5], 1), t.full([5], 2)]
+            a_list = [t.full([5], 0.0), t.full([5], 1.0), t.full([5], 2.0)]
         else:
             a_list = None
-        a = t.full([5], -1)
+        a = t.full([5], -1.0)
         group.scatter(a, a_list, 0)
-        assert t.all(a == 0) or t.all(a == 1) or t.all(a == 2)
+        assert t.all(a == 0.0) or t.all(a == 1.0) or t.all(a == 2.0)
         group.destroy()
         return True
 
@@ -186,7 +186,7 @@ class TestWorld(WorldTestBase):
             else:
                 a = [t.zeros([5], device=gpu)]
             group.broadcast_multigpu(a, 0)
-            assert t.all(a[0] == 1)
+            assert t.all(a[0] == 1.0)
             group.destroy()
         return True
 
@@ -199,7 +199,7 @@ class TestWorld(WorldTestBase):
             group = world.create_collective_group(ranks=[0, 1, 2])
             a = [t.ones([5], device=gpu)]
             group.all_reduce_multigpu(a)
-            assert t.all(a[0] == 3)
+            assert t.all(a[0] == 3.0)
             group.destroy()
         return True
 

@@ -19,6 +19,7 @@ def first(iterable, condition=lambda x: True):
 
 def generate_all():
     print("Generating all needed data...")
+    os.makedirs(os.path.join(ROOT, "generated"), exist_ok=True)
     for gen in dir(generators):
         method = getattr(getattr(generators, gen), "generate", None)
         name = getattr(getattr(generators, gen), "generated_name", None)
@@ -42,6 +43,7 @@ def generate_all():
 
 def get_all():
     archives = {}
+    os.makedirs(os.path.join(ROOT, "generated"), exist_ok=True)
     for gen in dir(generators):
         method = getattr(getattr(generators, gen), "generate", None)
         name = getattr(getattr(generators, gen), "generated_name", None)

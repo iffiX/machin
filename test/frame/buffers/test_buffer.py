@@ -137,7 +137,7 @@ class TestBuffer:
                 "state": {"state_1": t.zeros([1, 2])},
                 "action": {"action_1": t.zeros([1, 3])},
                 "next_state": {"next_state_1": t.zeros([1, 4])},
-                "reward": 10,
+                "reward": 10.0,
                 "terminal": True,
                 "data_index": i,
                 "not_concatenable": (i, "some_str"),
@@ -287,7 +287,7 @@ class TestBuffer:
                             )
                     elif attr == "reward":
                         if concat:
-                            assert self.t_eq(data, t.full([bsize, 1], 10))
+                            assert self.t_eq(data, t.full([bsize, 1], 10.0))
                         else:
                             assert (
                                 isinstance(data, list)
@@ -296,7 +296,9 @@ class TestBuffer:
                             )
                     elif attr == "terminal":
                         if concat:
-                            assert self.t_eq(data, t.full([bsize, 1], True))
+                            assert self.t_eq(
+                                data, t.full([bsize, 1], True, dtype=t.bool)
+                            )
                         else:
                             assert (
                                 isinstance(data, list)

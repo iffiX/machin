@@ -11,13 +11,12 @@ from test.util_platforms import linux_only_forall
 linux_only_forall()
 
 from machin.env.wrappers import openai_gym
+from machin.utils.logging import default_logger
 from random import choice, sample
-from colorlog import getLogger
 import pytest
 import gym
 import numpy as np
 
-logger = getLogger("default")
 ENV_NUM = 2
 SAMPLE_NUM = 2
 WORKER_NUM = 2
@@ -51,27 +50,22 @@ def should_skip(spec):
     # Skip mujoco tests
     if ep.startswith("gym.envs.mujoco") or ep.startswith("gym.envs.robotics:"):
         return True
-    try:
-        import atari_py
-    except ImportError:
-        if ep.startswith("gym.envs.atari"):
-            return True
+
+    # Skip atari tests
+    if ep.startswith("gym.envs.atari"):
+        return True
+
+    # Skip other tests
+    if "GoEnv" in ep or "HexEnv" in ep:
+        return True
+
+    # Conditionally skip box2d tests
     try:
         import Box2D
     except ImportError:
         if ep.startswith("gym.envs.box2d"):
             return True
 
-    if (
-        "GoEnv" in ep
-        or "HexEnv" in ep
-        or (
-            ep.startswith("gym.envs.atari")
-            and not spec.id.startswith("Pong")
-            and not spec.id.startswith("Seaquest")
-        )
-    ):
-        return True
     return False
 
 
@@ -79,7 +73,6 @@ def should_skip(spec):
 def envs():
     all_envs = []
     env_map = {}
-    lg = getLogger(__file__)
     # Find the newest version of non-skippable environments.
     for env_raw_name, env_spec in gym.envs.registry.env_specs.items():
         if not should_skip(env_spec):
@@ -90,9 +83,11 @@ def envs():
     # Create environments.
     for env_name, env_version in env_map.items():
         env_name = env_name + "-v" + str(env_version)
-        lg.info(f"OpenAI gym {env_name} added")
+        default_logger.info(f"OpenAI gym {env_name} added")
         all_envs.append([lambda *_: gym.make(env_name) for _ in range(ENV_NUM)])
-    lg.info("{} OpenAI gym environments to be tested.".format(len(all_envs)))
+    default_logger.info(
+        "{} OpenAI gym environments to be tested.".format(len(all_envs))
+    )
     return all_envs
 
 
