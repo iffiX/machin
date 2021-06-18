@@ -56,7 +56,7 @@ def should_skip(spec):
         return True
 
     # Skip other tests
-    if "GoEnv" in ep or "HexEnv" in ep:
+    if "GoEnv" in ep or "HexEnv" in ep or "CarRacing" in ep:
         return True
 
     # Conditionally skip box2d tests
