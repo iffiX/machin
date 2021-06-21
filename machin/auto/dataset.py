@@ -3,7 +3,7 @@ import time
 import tempfile
 import numpy as np
 import pytorch_lightning as pl
-from typing import Iterable, List, Dict, Union, Any, Tuple, Callable
+from typing import Iterator, List, Dict, Union, Any, Tuple, Callable
 from torch.utils.data import IterableDataset
 from pytorch_lightning.loggers.base import LoggerCollection
 from machin.utils.media import create_video, numpy_array_to_pil_image
@@ -101,7 +101,7 @@ class RLDataset(IterableDataset):
     def __init__(self, **_kwargs):
         super().__init__()
 
-    def __iter__(self) -> Iterable:
+    def __iter__(self) -> Iterator:
         return self
 
     def __next__(self) -> DatasetResult:
