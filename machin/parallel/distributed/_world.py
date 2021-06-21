@@ -323,8 +323,8 @@ class World:
     ):
         """
         Create a sub process group for collective communications. This function
-        is blocking and requires that all processes in ``ranks`` to
-        enter this function.
+        is blocking and requires that all processes in world to enter this
+        function.
 
         Warning:
             Do not make collective communications call in sub-processes,
@@ -357,6 +357,7 @@ class World:
         Returns:
             A rpc group.
         """
+        members = sorted(members)
         if get_cur_name() not in members:  # pragma: no cover
             raise RuntimeError(
                 f"Creator Process [{get_cur_name()}] not in Group [{group_name}]"
@@ -395,19 +396,19 @@ class World:
                 sleep(0.1)
         return group
 
-    def get_ranks(self):
+    def get_ranks(self) -> List[int]:
         """
         Returns:
-            A list of ranks of all processes.
+            A list of ranks of all processes. Ranks are sorted in increasing order.
         """
-        return list(self.rank_name_map.keys())
+        return sorted(list(self.rank_name_map.keys()))
 
-    def get_members(self):
+    def get_members(self) -> List[str]:
         """
         Returns:
-            A list of names of all processes.
+            A list of names of all processes. Names are sorted in ascending order.
         """
-        return list(self.rank_name_map.values())
+        return sorted(list(self.rank_name_map.values()))
 
     def __reduce__(self):  # pragma: no cover
         raise RuntimeError("World is not picklable, create it per process!")
@@ -929,7 +930,7 @@ class RpcGroup:
     def get_group_members(self) -> List[str]:
         """
         Returns:
-            A list of group members.
+            A list of names of group members. Names are sorted in ascending order.
         """
         return self.group_members
 

@@ -135,15 +135,13 @@ if __name__ == "__main__":
                     terminals,
                 ):
                     tmp_observations.append(
-                        [
-                            {
-                                "state": {"state": ost},
-                                "action": {"action": act},
-                                "next_state": {"state": st},
-                                "reward": float(rew),
-                                "terminal": term or step == max_steps,
-                            }
-                        ]
+                        {
+                            "state": {"state": ost},
+                            "action": {"action": act},
+                            "next_state": {"state": st},
+                            "reward": float(rew),
+                            "terminal": term or step == max_steps,
+                        }
                     )
 
         maddpg.store_episodes(tmp_observations_list)

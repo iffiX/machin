@@ -30,7 +30,9 @@ class TestWorld(WorldTestBase):
     @run_multi(expected_results=[True, True, True])
     @WorldTestBase.setup_world
     def test_get_info(rank):
-        _world = get_world()
+        world = get_world()
+        assert world.get_ranks() == [0, 1, 2]
+        assert world.get_members() == ["0", "1", "2"]
         assert get_cur_rank() == rank
         assert get_cur_name() == str(rank)
         return True

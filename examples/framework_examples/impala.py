@@ -61,10 +61,10 @@ def main(rank):
     servers = model_server_helper(model_num=1)
     impala_group = world.create_rpc_group("impala", ["0", "1", "2", "3"])
 
-    if rank in (2, 3):
-        # learner_group.group is the wrapped torch.distributed.ProcessGroup
-        learner_group = world.create_collective_group(ranks=[2, 3])
+    # learner_group.group is the wrapped torch.distributed.ProcessGroup
+    learner_group = world.create_collective_group(ranks=[2, 3])
 
+    if rank in (2, 3):
         # wrap the model with DistributedDataParallel
         # if current process is learner process 2 or 3
         actor = DistributedDataParallel(
@@ -141,7 +141,8 @@ def main(rank):
             impala.store_episode(tmp_observations)
             smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
             logger.info(
-                f"Process {rank} Episode {episode} total reward={smoothed_total_reward:.2f}"
+                f"Process {rank} Episode {episode} "
+                f"total reward={smoothed_total_reward:.2f}"
             )
 
             if smoothed_total_reward > solved_reward:
