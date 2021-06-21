@@ -22,8 +22,8 @@ Installation
 Machin is hosted on `PyPI <https://pypi.org/project/tianshou/>`_, currently it
 requires:
 
-1. python >= 3.5
-2. torch >= 1.5.0
+1. python >= 3.6
+2. torch >= 1.6.0
 
 If you are using PIP to manage your python packages, you may directly type::
 
