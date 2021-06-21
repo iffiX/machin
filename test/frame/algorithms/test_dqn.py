@@ -366,7 +366,7 @@ class TestDQN:
                         }
                     )
 
-            dqn.store_episode(tmp_observations)
+            dqn_train.store_episode(tmp_observations)
             # update
             if episode.get() > 100:
                 for _ in range(step.get()):

@@ -528,8 +528,11 @@ class TestMADDPG:
 
             # batch size = 1
             total_reward = 0
-            states = [t.tensor(st, dtype=t.float32) for st in env.reset()]
-            tmp_observations_list = [[] for _ in range(agent_num)]
+            states = [
+                t.tensor(st, dtype=t.float32).view(1, c.observe_dim)
+                for st in env.reset()
+            ]
+            tmp_observations_list = [[] for _ in range(c.agent_num)]
 
             while not terminal and step <= c.max_steps:
                 step.count()
@@ -538,13 +541,16 @@ class TestMADDPG:
 
                     # agent model inference
                     results = maddpg_train.act_discrete_with_noise(
-                        [{"state": st.unsqueeze(0)} for st in states]
+                        [{"state": st.view(1, c.observe_dim)} for st in states]
                     )
                     actions = [int(r[0]) for r in results]
                     action_probs = [r[1] for r in results]
 
                     states, rewards, terminals, _ = env.step(actions)
-                    states = [t.tensor(st, dtype=t.float32) for st in states]
+                    states = [
+                        t.tensor(st, dtype=t.float32).view(1, c.observe_dim)
+                        for st in states
+                    ]
 
                     total_reward += float(sum(rewards)) / c.agent_num
 
@@ -557,15 +563,13 @@ class TestMADDPG:
                         terminals,
                     ):
                         tmp_observations.append(
-                            [
-                                {
-                                    "state": {"state": ost},
-                                    "action": {"action": act},
-                                    "next_state": {"state": st},
-                                    "reward": float(rew),
-                                    "terminal": term or step == max_steps,
-                                }
-                            ]
+                            {
+                                "state": {"state": ost},
+                                "action": {"action": act},
+                                "next_state": {"state": st},
+                                "reward": float(rew),
+                                "terminal": term or step == c.max_steps,
+                            }
                         )
 
             maddpg_train.store_episodes(tmp_observations_list)
