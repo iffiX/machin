@@ -10,8 +10,8 @@ pipeline {
     }
     environment {
         PYPI_CREDS = credentials('pypi_username_password')
-        TWINE_USERNAME = "${env.PYPI_CREDS_USR}"
-        TWINE_PASSWORD = "${env.PYPI_CREDS_PSW}"
+        TWINE_USERNAME = '${env.PYPI_CREDS_USR}'
+        TWINE_PASSWORD = '${env.PYPI_CREDS_PSW}'
         // See https://github.com/pytorch/pytorch/issues/37377
         MKL_SERVICE_FORCE_INTEL = "1"
     }
@@ -19,7 +19,7 @@ pipeline {
         stage("All") {
             agent {
                 docker {
-                    image 'pytorch/pytorch:1.6.0-cuda10.1-cudnn7-runtime'
+                    image 'pytorch/pytorch:1.8.1-cuda10.2-cudnn7-runtime'
                     // host network is needed because mirrors are on the lan and resolved with /etc/hosts
                     args '-u root:sudo --shm-size=1024m --gpus all --network=host'
                     reuseNode true
@@ -82,9 +82,6 @@ pipeline {
                             junit 'test_results/test_api.xml'
                             archiveArtifacts 'test_results/test_api.html'
                             archiveArtifacts 'test_results/cov_report.xml'
-                            cache(maxCacheSize: 1024, caches: [
-                                [$class: 'ArbitraryFileCache', excludes: '', includes: '*', path: '../test/data/generated']
-                            ])
                         }
                     }
                     post {

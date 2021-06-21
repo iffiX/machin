@@ -32,20 +32,20 @@ def show_image(
         image = image.astype(np.floating) / 255
 
     fig = plt.figure(title, clear=True)
-    fig.canvas.set_window_title(title)
+    fig.canvas.manager.set_window_title(title)
     if show_normalized:
-        ax = fig.add_subplot("121")
+        ax = fig.add_subplot(1, 2, 1)
         ax.set_facecolor((0.0, 0.0, 0.0))
         ax.imshow(image, vmin=np.min(image), vmax=np.max(image))
 
-        ax2 = fig.add_subplot("122")
+        ax2 = fig.add_subplot(1, 2, 2)
         ax2.set_facecolor((0.0, 0.0, 0.0))
         pix_range = (np.max(image) - np.min(image)) + 1e-6
         ax2.imshow((image - np.min(image)) / pix_range, vmin=0, vmax=1)
         plt.pause(pause_time)
 
     else:
-        ax = fig.add_subplot("111")
+        ax = fig.add_subplot(1, 1, 1)
         ax.set_facecolor((0.0, 0.0, 0.0))
         ax.imshow(image, vmin=np.min(image), vmax=np.max(image))
         plt.pause(pause_time)
