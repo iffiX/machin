@@ -241,7 +241,10 @@ matematiklth/vision/publdb/reports/pdf/byrod-eccv-10.pdf>` equation 6.
 
             # usually 1e-15 is low enough
             if t.allclose(loss_grad, t.zeros_like(loss_grad), atol=1e-15):
-                default_logger.warning("TRPO detects zero gradient.")
+                default_logger.warning(
+                    "TRPO detects zero gradient, update step skipped."
+                )
+                return 0, 0
 
             step_dir = self._conjugate_gradients(
                 fvp,

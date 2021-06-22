@@ -253,6 +253,8 @@ class TestDQNApex:
     @run_multi(expected_results=[True, True, True], timeout=1800)
     @setup_world
     def test_full_train(rank):
+        training_group = get_world().create_rpc_group("training", ["0", "1", "2"])
+
         c = TestDQNApex.c
         dqn_apex = TestDQNApex.dqn_apex("cpu", t.float32)
         # perform manual syncing to decrease the number of rpc calls
@@ -263,19 +265,19 @@ class TestDQNApex:
         reward_fulfilled = Counter()
         smoother = Smooth()
         terminal = False
-
         env = c.env
-        env.seed(0)
-        world = get_world()
-        all_group = world.create_rpc_group("all", ["0", "1", "2"])
-        all_group.pair(f"{rank}_running", True)
+        env.seed(rank)
 
-        if rank in (0, 1):
-            while episode < c.max_episodes:
-                # wait for trainer to keep up
-                sleep(0.2)
-                episode.count()
+        # make sure all things are initialized.
+        training_group.barrier()
 
+        # for cpu usage viewing
+        default_logger.info(f"{rank}, pid {os.getpid()}")
+
+        while episode < c.max_episodes:
+            episode.count()
+
+            if rank in (0, 1):
                 # batch size = 1
                 total_reward = 0
                 state = t.tensor(env.reset(), dtype=t.float32)
@@ -313,31 +315,28 @@ class TestDQNApex:
                         rank, episode, smoother.value
                     )
                 )
-
                 if smoother.value > c.solved_reward:
                     reward_fulfilled.count()
                     if reward_fulfilled >= c.solved_repeat:
                         default_logger.info("Environment solved!")
-
-                        all_group.unpair(f"{rank}_running")
-                        while all_group.is_paired("0_running") or all_group.is_paired(
-                            "1_running"
-                        ):
-                            # wait for all workers to join
-                            sleep(1)
-                        # wait for trainer
-                        sleep(5)
-                        return True
+                        try:
+                            training_group.pair(f"solved", True)
+                        except KeyError:
+                            # already solved in another process
+                            pass
                 else:
                     reward_fulfilled.reset()
-        else:
-            # wait for some samples
-            while dqn_apex.replay_buffer.all_size() < 500:
-                sleep(0.1)
-            while all_group.is_paired("0_running") or all_group.is_paired("1_running"):
-                dqn_apex.update()
-                default_logger.info("Updated")
-            return True
+
+            else:
+                # wait for some samples
+                if episode.get() > 200:
+                    for _ in range(100):
+                        dqn_apex.update()
+                    default_logger.info("Updated 100 times.")
+
+            training_group.barrier()
+            if training_group.is_paired("solved"):
+                return True
 
         raise RuntimeError("DQN-Apex Training failed.")
 
@@ -584,6 +583,8 @@ class TestDDPGApex:
     @run_multi(expected_results=[True, True, True], timeout=1800)
     @setup_world
     def test_full_train(rank):
+        training_group = get_world().create_rpc_group("training", ["0", "1", "2"])
+
         c = TestDDPGApex.c
         ddpg_apex = TestDDPGApex.ddpg_apex("cpu", t.float32, discrete=True)
         # perform manual syncing to decrease the number of rpc calls
@@ -595,22 +596,19 @@ class TestDDPGApex:
         reward_fulfilled = Counter()
         smoother = Smooth()
         terminal = False
-
         env = c.env
-        env.seed(0)
-        world = get_world()
-        all_group = world.create_rpc_group("all", ["0", "1", "2"])
-        all_group.pair(f"{rank}_running", True)
+        env.seed(rank)
+
+        # make sure all things are initialized.
+        training_group.barrier()
+
+        # for cpu usage viewing
         default_logger.info(f"{rank}, pid {os.getpid()}")
-        if rank == 0:
-            all_group.pair("episode", episode)
 
-        if rank in (0, 1):
-            while episode < c.max_episodes:
-                # wait for trainer to keep up
-                sleep(0.2)
-                episode.count()
+        while episode < c.max_episodes:
+            episode.count()
 
+            if rank in (0, 1):
                 # batch size = 1
                 total_reward = 0
                 state = t.tensor(env.reset(), dtype=t.float32)
@@ -651,27 +649,22 @@ class TestDDPGApex:
 
                 if smoother.value > c.solved_reward:
                     reward_fulfilled.count()
-                    if reward_fulfilled >= c.solved_repeat:
-                        default_logger.info("Environment solved!")
-
-                        all_group.unpair(f"{rank}_running")
-                        while all_group.is_paired("0_running") or all_group.is_paired(
-                            "1_running"
-                        ):
-                            # wait for all workers to join
-                            sleep(1)
-                        # wait for trainer
-                        sleep(5)
-                        return True
+                    try:
+                        training_group.pair(f"solved", True)
+                    except KeyError:
+                        # already solved in another process
+                        pass
                 else:
                     reward_fulfilled.reset()
-        else:
-            # wait for some samples
-            while ddpg_apex.replay_buffer.all_size() < 500:
-                sleep(0.1)
-            while all_group.is_paired("0_running") or all_group.is_paired("1_running"):
-                ddpg_apex.update()
-                default_logger.info(f"Updated")
-            return True
+            else:
+                # wait for some samples
+                if episode.get() > 200:
+                    for _ in range(100):
+                        ddpg_apex.update()
+                    default_logger.info("Updated 100 times.")
+
+            training_group.barrier()
+            if training_group.is_paired("solved"):
+                return True
 
         raise RuntimeError("DDPG-Apex Training failed.")

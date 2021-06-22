@@ -266,6 +266,8 @@ class TestARS:
     @run_multi(expected_results=[True, True, True], timeout=1800)
     @setup_world
     def test_full_train(rank):
+        training_group = get_world().create_rpc_group("training", ["0", "1", "2"])
+
         c = TestARS.c
         ars = TestARS.ars("cpu", t.float32)
 
@@ -274,11 +276,15 @@ class TestARS:
         reward_fulfilled = Counter()
         smoother = Smooth()
         terminal = False
-
         env = c.env
-        env.seed(0)
+        env.seed(rank)
+
         # for cpu usage viewing
         default_logger.info(f"{rank}, pid {os.getpid()}")
+
+        # make sure all things are initialized.
+        training_group.barrier()
+
         while episode < c.max_episodes:
             episode.count()
 
@@ -312,8 +318,16 @@ class TestARS:
                 reward_fulfilled.count()
                 if reward_fulfilled >= c.solved_repeat:
                     default_logger.info("Environment solved!")
-                    raise SafeExit
+                    try:
+                        training_group.pair(f"solved", True)
+                    except KeyError:
+                        # already solved in another process
+                        pass
             else:
                 reward_fulfilled.reset()
+
+            training_group.barrier()
+            if training_group.is_paired("solved"):
+                return True
 
         raise RuntimeError("ARS Training failed.")

@@ -26,7 +26,8 @@ class ActorDiscrete(NeuralNetworkModule):
             Action log probability tensor of shape ``[batch, 1]``.
         """
         batch_size = probability.shape[0]
-        self.action_param = probability
+        # dx (xlnx) = lnx + 1, x must > 0
+        self.action_param = probability + 1e-6
         dist = Categorical(probs=probability)
         if action is None:
             action = dist.sample()
@@ -41,7 +42,7 @@ class ActorDiscrete(NeuralNetworkModule):
         self.forward(*args, **kwargs)
         action_prob1 = self.action_param
         action_prob0 = action_prob1.detach()
-        kl = action_prob0 * (t.log(action_prob0) - t.log(action_prob1))
+        kl = action_prob0 * (t.log(action_prob0 / action_prob1))
         return kl.sum(1, keepdim=True)
 
     def compare_kl(self, params: t.tensor, *args, **kwargs):
