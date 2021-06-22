@@ -4,16 +4,16 @@ from machin.frame.helpers.servers import model_server_helper
 from machin.utils.helper_classes import Counter
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
+from test.frame.algorithms.utils import unwrap_time_limit, Smooth
+from test.util_run_multi import *
+from test.util_fixtures import *
+from test.util_platforms import linux_only_forall
 
 import os
 import torch as t
 import torch.nn as nn
 import gym
 
-from test.frame.algorithms.utils import unwrap_time_limit, Smooth
-from test.util_run_multi import *
-from test.util_fixtures import *
-from test.util_platforms import linux_only_forall
 
 linux_only_forall()
 
@@ -130,7 +130,7 @@ class TestDQNApex:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_act(_, device, dtype):
         c = TestDQNApex.c
         dqn_apex = TestDQNApex.dqn_apex(device, dtype)
@@ -150,7 +150,7 @@ class TestDQNApex:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_criticize(_, device, dtype):
         c = TestDQNApex.c
         dqn_apex = TestDQNApex.dqn_apex(device, dtype)
@@ -173,7 +173,7 @@ class TestDQNApex:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_update(rank, device, dtype):
         c = TestDQNApex.c
         dqn_apex = TestDQNApex.dqn_apex(device, dtype)
@@ -213,7 +213,7 @@ class TestDQNApex:
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], timeout=180)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_config_init(rank):
         c = TestDQNApex.c
         config = DQNApex.generate_config({})
@@ -251,7 +251,7 @@ class TestDQNApex:
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], timeout=1800)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_full_train(rank):
         c = TestDQNApex.c
         dqn_apex = TestDQNApex.dqn_apex("cpu", t.float32)
@@ -265,6 +265,7 @@ class TestDQNApex:
         terminal = False
 
         env = c.env
+        env.seed(0)
         world = get_world()
         all_group = world.create_rpc_group("all", ["0", "1", "2"])
         all_group.pair(f"{rank}_running", True)
@@ -424,7 +425,7 @@ class TestDDPGApex:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_contiguous_act(_, device, dtype):
         c = TestDDPGApex.c
         ddpg_apex = TestDDPGApex.ddpg_apex(device, dtype)
@@ -446,7 +447,7 @@ class TestDDPGApex:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_discrete_act(_, device, dtype):
         c = TestDDPGApex.c
         c.device = gpu
@@ -467,7 +468,7 @@ class TestDDPGApex:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test__criticize(_, device, dtype):
         c = TestDDPGApex.c
         c.device = gpu
@@ -492,7 +493,7 @@ class TestDDPGApex:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_update(rank, device, dtype):
         c = TestDDPGApex.c
         c.device = gpu
@@ -539,7 +540,7 @@ class TestDDPGApex:
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], timeout=180)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_config_init(rank):
         c = TestDDPGApex.c
         config = DDPGApex.generate_config({})
@@ -581,7 +582,7 @@ class TestDDPGApex:
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], timeout=1800)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_full_train(rank):
         c = TestDDPGApex.c
         ddpg_apex = TestDDPGApex.ddpg_apex("cpu", t.float32, discrete=True)
@@ -596,6 +597,7 @@ class TestDDPGApex:
         terminal = False
 
         env = c.env
+        env.seed(0)
         world = get_world()
         all_group = world.create_rpc_group("all", ["0", "1", "2"])
         all_group.pair(f"{rank}_running", True)

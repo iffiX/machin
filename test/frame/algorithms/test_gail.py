@@ -1,3 +1,5 @@
+from torch.optim.lr_scheduler import LambdaLR
+from torch.distributions import Categorical
 from machin.model.nets.base import static_module_wrapper as smw
 from machin.frame.algorithms.ppo import PPO
 from machin.frame.algorithms.gail import GAIL
@@ -6,18 +8,15 @@ from machin.utils.logging import default_logger as logger
 from machin.utils.helper_classes import Counter
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
-from torch.optim.lr_scheduler import LambdaLR
-from torch.distributions import Categorical
+from test.frame.algorithms.utils import unwrap_time_limit, Smooth
+from test.util_fixtures import *
+from test.util_platforms import linux_only
 
 import os
 import pytest
 import torch as t
 import torch.nn as nn
 import gym
-
-from test.frame.algorithms.utils import unwrap_time_limit, Smooth
-from test.util_fixtures import *
-from test.util_platforms import linux_only
 
 
 class Actor(nn.Module):
@@ -265,10 +264,10 @@ class TestGAIL:
 
     def test_store_expert_episode(self, train_config, gail, dtype):
         c = train_config
-        old_state = state = t.zeros([1, c.observe_dim], dtype=dtype)
+        old_state = t.zeros([1, c.observe_dim], dtype=dtype)
         action = t.zeros([1, 1], dtype=t.int)
         episode = [
-            {"state": {"state": old_state}, "action": {"action": action},}
+            {"state": {"state": old_state}, "action": {"action": action}}
             for _ in range(3)
         ]
         gail.store_expert_episode(episode)
@@ -326,10 +325,10 @@ class TestGAIL:
     # Test for GAIL config & init
     ########################################################################
     def test_config_init(self, train_config, tmpdir, archives):
-        dir = tmpdir.make_numbered_dir()
+        tmp_dir = tmpdir.make_numbered_dir()
         t.save(
             archives["gail"].load().item("expert_trajectories"),
-            os.path.join(dir, "trajectory.data"),
+            os.path.join(tmp_dir, "trajectory.data"),
         )
 
         c = train_config
@@ -347,7 +346,7 @@ class TestGAIL:
             {"state_dim": c.observe_dim, "action_num": c.action_num},
         ]
         config["frame_config"]["expert_trajectory_path"] = os.path.join(
-            dir, "trajectory.data"
+            tmp_dir, "trajectory.data"
         )
         gail = GAIL.init_from_config(config)
 
@@ -387,6 +386,7 @@ class TestGAIL:
         terminal = False
 
         env = c.env
+        env.seed(0)
         while episode < c.max_episodes:
             episode.count()
 

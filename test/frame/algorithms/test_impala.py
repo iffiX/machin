@@ -1,3 +1,5 @@
+from torch.optim.lr_scheduler import LambdaLR
+from torch.distributions import Categorical
 from machin.model.nets.base import static_module_wrapper as smw
 from machin.frame.algorithms.impala import IMPALA
 from machin.frame.helpers.servers import model_server_helper
@@ -5,18 +7,16 @@ from machin.utils.helper_classes import Counter
 from machin.utils.learning_rate import gen_learning_rate_func
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
-from torch.optim.lr_scheduler import LambdaLR
-from torch.distributions import Categorical
+from test.frame.algorithms.utils import unwrap_time_limit, Smooth
+from test.util_run_multi import *
+from test.util_fixtures import *
+from test.util_platforms import linux_only_forall
 
 import os
 import torch as t
 import torch.nn as nn
 import gym
 
-from test.frame.algorithms.utils import unwrap_time_limit, Smooth
-from test.util_run_multi import *
-from test.util_fixtures import *
-from test.util_platforms import linux_only_forall
 
 linux_only_forall()
 
@@ -118,7 +118,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_act(_, device, dtype):
         c = TestIMPALA.c
         impala = TestIMPALA.impala(device, dtype)
@@ -136,7 +136,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_eval_action(_, device, dtype):
         c = TestIMPALA.c
         impala = TestIMPALA.impala(device, dtype)
@@ -155,7 +155,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test__criticize(_, device, dtype):
         c = TestIMPALA.c
         impala = TestIMPALA.impala(device, dtype)
@@ -173,7 +173,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_store_episode(_, device, dtype):
         c = TestIMPALA.c
         impala = TestIMPALA.impala(device, dtype)
@@ -203,7 +203,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_update(rank, device, dtype):
         c = TestIMPALA.c
         impala = TestIMPALA.impala(device, dtype)
@@ -261,7 +261,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_lr_scheduler(_, device, dtype):
         impala = TestIMPALA.impala(device, dtype)
 
@@ -273,7 +273,7 @@ class TestIMPALA:
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], timeout=180)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_config_init(rank):
         c = TestIMPALA.c
         config = IMPALA.generate_config({})
@@ -329,7 +329,7 @@ class TestIMPALA:
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], timeout=1800)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_full_train(rank):
         c = TestIMPALA.c
         impala = TestIMPALA.impala("cpu", t.float32)
@@ -344,6 +344,7 @@ class TestIMPALA:
         terminal = False
 
         env = c.env
+        env.seed(0)
         world = get_world()
         all_group = world.create_rpc_group("all", ["0", "1", "2"])
         all_group.pair(f"{rank}_running", True)

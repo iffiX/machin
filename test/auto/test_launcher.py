@@ -1,7 +1,7 @@
+from unittest import mock
 from machin.frame.algorithms import DQN
 from machin.auto.launcher import Launcher
 from machin.auto.dataset import RLDataset, DatasetResult
-from unittest import mock
 import pytest
 import torch as t
 import torch.nn as nn

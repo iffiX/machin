@@ -1,6 +1,7 @@
 from machin.parallel.server import PushPullGradServerImpl, PushPullModelServerImpl
 from test.util_run_multi import *
 from test.util_platforms import linux_only_forall
+
 import random
 import torch as t
 import torch.nn as nn
@@ -52,10 +53,10 @@ class Optimizer:
                 p -= p.grad
 
 
-class TestPushPullModelServer(WorldTestBase):
+class TestPushPullModelServer:
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_push_pull(rank):
         world = get_world()
         if rank == 0:
@@ -102,7 +103,7 @@ class TestPushPullModelServer(WorldTestBase):
         return True
 
 
-class TestPushPullGradServer(WorldTestBase):
+class TestPushPullGradServer:
     @staticmethod
     @pytest.mark.parametrize(
         "reduce_method,new_weight", [("mean", (-5, -1, 1)), ("sum", (-23, -10, -5))]
@@ -111,7 +112,7 @@ class TestPushPullGradServer(WorldTestBase):
         expected_results=[True, True, True],
         pass_through=["reduce_method", "new_weight"],
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_push_pull(rank, reduce_method, new_weight):
         world = get_world()
         if rank == 0:

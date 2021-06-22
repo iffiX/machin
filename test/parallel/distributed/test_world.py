@@ -2,6 +2,7 @@ from machin.parallel.distributed import get_cur_name, get_cur_rank
 from test.util_run_multi import *
 from test.util_fixtures import *
 from test.util_platforms import linux_only_forall
+
 import torch as t
 
 linux_only_forall()
@@ -22,13 +23,13 @@ def worker_calculate(a, b):
     return a + b
 
 
-class TestWorld(WorldTestBase):
+class TestWorld:
     ########################################################################
     # Test for world APIs
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_get_info(rank):
         world = get_world()
         assert world.get_ranks() == [0, 1, 2]
@@ -42,7 +43,7 @@ class TestWorld(WorldTestBase):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_cc_send_recv(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
@@ -59,7 +60,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_cc_isend_irecv(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
@@ -76,7 +77,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_cc_broadcast(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
@@ -92,7 +93,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_cc_all_reduce(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
@@ -104,7 +105,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_cc_reduce(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
@@ -117,7 +118,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_cc_all_gather(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
@@ -132,7 +133,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_cc_gather(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
@@ -151,7 +152,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_cc_scatter(rank):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
@@ -167,7 +168,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_cc_barrier(_):
         world = get_world()
         group = world.create_collective_group(ranks=[0, 1, 2])
@@ -178,7 +179,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True], pass_through=["gpu"])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_cc_broadcast_multigpu(rank, gpu):
         if isinstance(gpu, str) and gpu.startswith("cuda"):
             world = get_world()
@@ -194,7 +195,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True], pass_through=["gpu"])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_cc_all_reduce_multigpu(_, gpu):
         if isinstance(gpu, str) and gpu.startswith("cuda"):
             world = get_world()
@@ -210,7 +211,7 @@ class TestWorld(WorldTestBase):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_rpc_sync(_):
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
@@ -220,7 +221,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_rpc_async(_):
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
@@ -232,7 +233,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_rpc_remote(_):
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
@@ -244,7 +245,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_rpc_pair(rank):
         world = get_world()
         service = WorkerService()
@@ -284,7 +285,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_rpc_register(rank):
         world = get_world()
         service = WorkerService()
@@ -331,7 +332,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_rpc_get_info(rank):
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])
@@ -344,7 +345,7 @@ class TestWorld(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_rpc_barrier(_):
         world = get_world()
         group = world.create_rpc_group("group", ["0", "1", "2"])

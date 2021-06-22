@@ -1,3 +1,4 @@
+from os.path import join
 from machin.utils.media import (
     show_image,
     create_video,
@@ -5,7 +6,7 @@ from machin.utils.media import (
     create_image,
     create_image_subproc,
 )
-from os.path import join
+
 import os
 import pytest
 import numpy as np

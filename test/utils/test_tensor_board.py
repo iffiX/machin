@@ -1,4 +1,5 @@
 from machin.utils.tensor_board import default_board
+
 import pytest
 
 

@@ -326,4 +326,4 @@ class TestBuffer:
     ########################################################################
     def test_reduce(self, const_buffer):
         str = dill.dumps(const_buffer)
-        buffer = dill.loads(str)
+        _buffer = dill.loads(str)

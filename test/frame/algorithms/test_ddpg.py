@@ -1,3 +1,4 @@
+from torch.optim.lr_scheduler import LambdaLR
 from machin.model.nets.base import static_module_wrapper as smw
 from machin.frame.algorithms.ddpg import DDPG
 from machin.utils.learning_rate import gen_learning_rate_func
@@ -5,16 +6,14 @@ from machin.utils.logging import default_logger as logger
 from machin.utils.helper_classes import Counter
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
-from torch.optim.lr_scheduler import LambdaLR
+from test.frame.algorithms.utils import unwrap_time_limit, Smooth
+from test.util_fixtures import *
+from test.util_platforms import linux_only
 
 import pytest
 import torch as t
 import torch.nn as nn
 import gym
-
-from test.frame.algorithms.utils import unwrap_time_limit, Smooth
-from test.util_fixtures import *
-from test.util_platforms import linux_only
 
 
 class Actor(nn.Module):
@@ -411,6 +410,7 @@ class TestDDPG:
         terminal = False
 
         env = c.env
+        env.seed(0)
         while episode < c.max_episodes:
             episode.count()
 

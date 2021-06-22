@@ -1,7 +1,8 @@
+from test.data.all import generate_all, get_all
+import random
+import numpy as np
 import torch as t
 import pytest
-from test.data.archive import Archive
-from test.data.all import generate_all, get_all
 
 
 @pytest.fixture()
@@ -24,7 +25,7 @@ def device(pytestconfig, request):
 
 
 @pytest.fixture(params=["float32", "float64"])
-def dtype(pytestconfig, request):
+def dtype(request):
     if request.param == "float32":
         return t.float32
     return t.float64
@@ -45,4 +46,12 @@ def archives():
     return get_all()
 
 
-__all__ = ["gpu", "device", "dtype", "mp_tmpdir", "archives"]
+@pytest.fixture(scope="session", autouse=True)
+def fix_random():
+    t.manual_seed(0)
+    np.random.seed(0)
+    random.seed(0)
+    return None
+
+
+__all__ = ["gpu", "device", "dtype", "mp_tmpdir", "archives", "fix_random"]

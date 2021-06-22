@@ -1,10 +1,11 @@
+from os.path import join
 from machin.utils.prepare import (
     prep_clear_dirs,
     prep_create_dirs,
     prep_load_state_dict,
     prep_load_model,
 )
-from os.path import join
+
 import os
 import pytest
 import torch as t

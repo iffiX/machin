@@ -1,8 +1,9 @@
+from multiprocessing import Pipe, get_context
 from machin.parallel.pickle import dumps, loads
 from machin.parallel.process import Process
-import torch as t
-from multiprocessing import Pipe, get_context
 from test.util_platforms import linux_only
+
+import torch as t
 
 
 def subproc_test_dumps_copy_tensor(pipe):

@@ -11,6 +11,9 @@ import itertools
 import logging
 import multiprocessing as mp
 import socket
+import random
+import numpy as np
+import torch as t
 from contextlib import closing
 
 get_world = gw
@@ -20,6 +23,11 @@ default_logger.setLevel(logging.INFO)
 
 
 class SafeExit(Exception):
+    """
+    Raise this if the process needs to be terminated safely while
+    other processes are still running.
+    """
+
     pass
 
 
@@ -35,14 +43,37 @@ def find_free_port():
 def process_main(pipe, log_queue):
     handler = logging.handlers.QueueHandler(log_queue)
     default_logger.addHandler(handler)
+
+    # fix randomness
+    t.manual_seed(0)
+    np.random.seed(0)
+    random.seed(0)
     while True:
         func, args, kwargs = dill.loads(pipe.recv())
         pipe.send(func(*args, **kwargs))
 
 
+@pytest.fixture(scope="session", autouse=True)
+def ctx(pytestconfig):
+    multiprocess_method = pytestconfig.getoption("multiprocess_method")
+    assert multiprocess_method in ("forkserver", "spawn",), (
+        f"Multiprocess starting method must be forkserver or spawn, "
+        f"but get {multiprocess_method}"
+    )
+    if not sys.platform.startswith("linux"):
+        default_logger.info(
+            f"Platform {sys.platform} is not linux, use spawn to start processes."
+        )
+        multiprocess_method = "spawn"
+    ctx = mp.get_context(multiprocess_method)
+    if multiprocess_method == "forkserver":
+        # preload library to improve testing speed
+        ctx.set_forkserver_preload(["machin"])
+    return ctx
+
+
 @pytest.fixture(scope="function")
-def processes():
-    ctx = mp.get_context("spawn")
+def processes(ctx):
     pipes = [mp.Pipe(duplex=True) for _ in [0, 1, 2]]
     man = ctx.Manager()
     queue = man.Queue()
@@ -135,7 +166,7 @@ def run_multi(
     else:
         pt_args = "," + ",".join(pass_through)
 
-    def deco(func):
+    def wrapped(func):
         return FunctionMaker.create(
             f"w_wrapped_func(processes{pt_args})",
             f"""
@@ -153,21 +184,18 @@ def run_multi(
             ),
         )
 
-    return deco
+    return wrapped
 
 
-class WorldTestBase:
-    @staticmethod
-    def setup_world(func):
-        def wrapped(rank, *args, _world_port=9100, **kwargs):
-            # election function for all tests
-            world = World(world_size=3, rank=rank, name=str(rank))
-            default_logger.info(f"World using port {_world_port}")
-            # set a temporary success attribute on world
-            default_logger.info(f"World created on {rank}")
-            result = func(rank, *args, **kwargs)
-            world.stop()
-            default_logger.info(f"World stopped on {rank}")
-            return result
+def setup_world(func):
+    def wrapped(rank, *args, _world_port=9100, **kwargs):
+        # election function for all tests
+        default_logger.info(f"Initializing world on {rank}")
+        world = World(world_size=3, rank=rank, name=str(rank))
+        default_logger.info(f"World initialized on {rank} using port {_world_port}")
+        result = func(rank, *args, **kwargs)
+        world.stop()
+        default_logger.info(f"World stopped on {rank}")
+        return result
 
-        return wrapped
+    return wrapped
