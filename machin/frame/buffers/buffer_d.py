@@ -1,8 +1,10 @@
-from typing import Union, Dict, List, Any, Callable
+from typing import Union, Dict, List, Tuple, Callable
 from threading import RLock
+from machin.parallel.distributed import RpcGroup
 from ..transition import TransitionBase
 from .buffer import Buffer
-from machin.parallel.distributed import RpcGroup
+from .storage import TransitionStorageBase, TransitionStorageBasic
+
 import torch as t
 import numpy as np
 import itertools as it
@@ -13,7 +15,15 @@ def _round_up(num):
 
 
 class DistributedBuffer(Buffer):
-    def __init__(self, buffer_name: str, group: RpcGroup, buffer_size: int, *_, **__):
+    def __init__(
+        self,
+        buffer_name: str,
+        group: RpcGroup,
+        buffer_size: int = 1000000,
+        storage: TransitionStorageBase = None,
+        *_,
+        **__,
+    ):
         """
         Create a distributed replay buffer instance.
 
@@ -31,17 +41,24 @@ class DistributedBuffer(Buffer):
         .. seealso:: :class:`.Buffer`
 
         Note:
+            `DistributedBuffer` does not support customizing storage device when using
+            the default storage, since its safer to pass cpu tensors between RPC callers
+            and callees.
+
+        Note:
             Since ``append()`` operates on the local buffer, in order to
             append to the distributed buffer correctly, please make sure
             that your actor is also the local buffer holder, i.e. a member
             of the ``group``
 
         Args:
-            buffer_size: Maximum local buffer size.
+            buffer_name: A unique name of your buffer for registration in the group.
             group: Process group which holds this buffer.
-            buffer_name: A unique name of your buffer.
+            buffer_size: Maximum local buffer size.
+            storage: Custom storage, not compatible with `buffer_size` and
+                `buffer_device`.
         """
-        super().__init__(buffer_size, "cpu")
+        super().__init__(buffer_size=buffer_size, buffer_device="cpu", storage=storage)
         self.buffer_name = buffer_name
         self.group = group
 
@@ -58,14 +75,14 @@ class DistributedBuffer(Buffer):
         )
         self.wr_lock = RLock()
 
-    def append(
+    def store_episode(
         self,
-        transition: Union[TransitionBase, Dict],
+        episode: List[Union[TransitionBase, Dict]],
         required_attrs=("state", "action", "next_state", "reward", "terminal"),
     ):
         # DOC INHERITED
         with self.wr_lock:
-            super().append(transition, required_attrs=required_attrs)
+            super().store_episode(episode, required_attrs=required_attrs)
 
     def clear(self):
         """
@@ -114,13 +131,13 @@ class DistributedBuffer(Buffer):
         self,
         batch_size: int,
         concatenate: bool = True,
-        device: Union[str, t.device] = None,
+        device: Union[str, t.device] = "cpu",
         sample_method: Union[Callable, str] = "random_unique",
         sample_attrs: List[str] = None,
-        additional_concat_attrs: List[str] = None,
+        additional_concat_custom_attrs: List[str] = None,
         *_,
         **__,
-    ) -> Any:
+    ) -> Tuple[int, Union[None, tuple]]:
         # DOC INHERITED
         p_num = self.group.size()
         local_batch_size = _round_up(batch_size / p_num)
@@ -137,17 +154,19 @@ class DistributedBuffer(Buffer):
         all_batch_size = sum([r[0] for r in results])
         all_batch = list(it.chain(*[r[1] for r in results]))
 
-        if device is None:
-            device = "cpu"
         if sample_attrs is None:
             sample_attrs = all_batch[0].keys()
-        if additional_concat_attrs is None:
-            additional_concat_attrs = []
+        if additional_concat_custom_attrs is None:
+            additional_concat_custom_attrs = []
 
         return (
             all_batch_size,
-            Buffer.post_process_batch(
-                all_batch, device, concatenate, sample_attrs, additional_concat_attrs
+            self.post_process_batch(
+                all_batch,
+                device,
+                concatenate,
+                sample_attrs,
+                additional_concat_custom_attrs,
             ),
         )
 
@@ -165,8 +184,14 @@ class DistributedBuffer(Buffer):
                 )
             sample_method = getattr(self, "sample_method_" + sample_method)
 
-        # sample raw local batch from local buffer
-        with self.wr_lock:
-            local_batch_size, local_batch = sample_method(self.buffer, batch_size)
+            with self.wr_lock:
+                local_batch_size, local_batch = sample_method(batch_size)
+        else:
+            with self.wr_lock:
+                local_batch_size, local_batch = sample_method(self, batch_size)
+
+        if not isinstance(self.storage, TransitionStorageBasic):
+            # for safety
+            local_batch = [transition.to("cpu") for transition in local_batch]
 
         return local_batch_size, local_batch

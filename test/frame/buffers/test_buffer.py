@@ -230,7 +230,7 @@ class TestBuffer:
                     device=dev,
                     sample_method=sample_method,
                     sample_attrs=sample_attrs,
-                    additional_concat_attrs=concat_attrs,
+                    additional_concat_custom_attrs=concat_attrs,
                 )
         elif will_concat_custom and "not_concatenable" in concat_attrs:
             with pytest.raises(ValueError, match="Batch not concatenable"):
@@ -240,7 +240,7 @@ class TestBuffer:
                     device=dev,
                     sample_method=sample_method,
                     sample_attrs=sample_attrs,
-                    additional_concat_attrs=concat_attrs,
+                    additional_concat_custom_attrs=concat_attrs,
                 )
         else:
             bsize, b = const_buffer.sample_batch(
@@ -249,7 +249,7 @@ class TestBuffer:
                 device=dev,
                 sample_method=sample_method,
                 sample_attrs=sample_attrs,
-                additional_concat_attrs=concat_attrs,
+                additional_concat_custom_attrs=concat_attrs,
             )
 
             # Check form of sample

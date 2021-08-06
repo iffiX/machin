@@ -216,7 +216,7 @@ class RAINBOW(DQN):
             self.batch_size,
             concatenate_samples,
             sample_attrs=["state", "action", "value", "next_state", "terminal", "*"],
-            additional_concat_attrs=["value"],
+            additional_concat_custom_attrs=["value"],
         )
 
         # q_dist is the distribution of q values

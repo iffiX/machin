@@ -1,5 +1,6 @@
 from typing import Union, Dict, List, Tuple, Callable, Any
 from copy import deepcopy
+import random
 import numpy as np
 import torch as t
 import torch.nn as nn
@@ -24,68 +25,45 @@ def _disable_update(*_, **__):
     return None, None
 
 
-def _make_tensor_from_batch(batch: List[Any], device, concatenate):
+class IMPALABuffer(DistributedBuffer):
     """
-    Used to convert compact every attribute of every step of a whole episode
-    into a single tensor.
-
-    Args:
-        batch: A list of tensor or scalar. If elements are tensors, they will
-            be concatenated in dimension 0.
-        device: Device to move tensors to.
-        concatenate: Whether to perform concatenation or not, only True
-            for major and sub attributes in ``Transition``.
-
-    Returns:
-        A tensor if ``concatenate`` is ``True``, otherwise the original List.
-    """
-    if len(batch) == 0:
-        return None
-    if concatenate:
-        item = batch[0]
-        batch_size = len(batch)
-        if t.is_tensor(item):
-            return t.cat([it.to(device) for it in batch], dim=0).to(device)
-        else:
-            return t.tensor(batch, device=device).view(batch_size, -1)
-    else:
-        return batch
-
-
-class EpisodeTransition(Transition):
-    """
-    A transition class which allows storing the whole episode as a
-    single transition object, the batch dimension will be used to
-    stack all transition steps.
+    Samples full episodes for batch_size instead of steps.
     """
 
-    def _check_validity(self):
-        """
-        Disable checking for batch size in the base :class:`.Transition`
-        """
-        super(Transition, self)._check_validity()
-
-
-class EpisodeDistributedBuffer(DistributedBuffer):
-    """
-    A distributed buffer which stores each episode as a transition
-    object inside the buffer.
-    """
-
-    def append(
+    def sample_batch(
         self,
-        transition: Dict,
-        required_attrs=(
-            "state",
-            "action",
-            "next_state",
-            "reward",
-            "terminal",
-            "action_log_prob",
-        ),
-    ):
-        transition = EpisodeTransition(**transition)
-        super().append(transition, required_attrs=required_attrs)
+        batch_size: int,
+        concatenate: bool = True,
+        device: Union[str, t.device] = "cpu",
+        sample_attrs: List[str] = None,
+        additional_concat_custom_attrs: List[str] = None,
+        *_,
+        **__,
+    ) -> Any:
+        super().sample_batch(
+            batch_size=batch_size,
+            concatenate=concatenate,
+            device=device,
+            sample_method="episode",
+            sample_attrs=sample_attrs,
+            additional_concat_custom_attrs=additional_concat_custom_attrs,
+        )
+
+    def sample_method_episode(self, batch_size: int) -> Tuple[int, List[Transition]]:
+        """
+        Args:
+            batch_size: Number of **episodes** to sample.
+        """
+        batch_size = min(len(self.episode_transition_handles), batch_size)
+        episodes = random.choices(
+            list(self.episode_transition_handles.keys()), k=batch_size
+        )
+        batch = [
+            self.storage[handle]
+            for episode in episodes
+            for handle in self.episode_transition_handles[episode]
+        ]
+        return batch_size, batch
 
 
 class IMPALA(TorchFramework):
@@ -117,7 +95,7 @@ class IMPALA(TorchFramework):
         gradient_max: float = np.inf,
         discount: float = 0.99,
         replay_size: int = 500,
-        **__
+        **__,
     ):
         """
         Note:
@@ -161,7 +139,7 @@ class IMPALA(TorchFramework):
         self.critic = critic
         self.actor_optim = optimizer(self.actor.parameters(), lr=learning_rate)
         self.critic_optim = optimizer(self.critic.parameters(), lr=learning_rate)
-        self.replay_buffer = EpisodeDistributedBuffer(
+        self.replay_buffer = IMPALABuffer(
             buffer_name="buffer", group=impala_group, buffer_size=replay_size
         )
         self.is_syncing = True
@@ -240,41 +218,16 @@ class IMPALA(TorchFramework):
         """
         Add a full episode of transition samples to the replay buffer.
         """
-        if not isinstance(episode[0], Transition):
-            episode = [Transition(**trans) for trans in episode]
+        if len(episode) == 0:
+            raise ValueError("Episode must be non-empty.")
 
-        cc_episode = {}
-        # In order to compute v-trace, we must reshape the whole
-        # episode to make it look like a single Transition, because
-        # v-trace need to see all future rewards.
+        # The first step records episode length, other steps records 0
+        episode[0]["episode_length"] = len(episode)
+        for transition in episode[1:]:
+            transition["episode_length"] = 0
 
-        # therefore, only one entry will be stored into the buffer
-        # each entry in the buffer is of shape [episode_length, ...]
-
-        # In other frameworks. each entry in the buffer is of shape
-        # [1, ...]
-        for k, v in episode[0].items():
-            if k in ("state", "action", "next_state"):
-                tmp_dict = {}
-                for sub_k in v.keys():
-                    tmp_dict[sub_k] = _make_tensor_from_batch(
-                        [item[k][sub_k] for item in episode],
-                        self.replay_buffer.buffer_device,
-                        True,
-                    )
-                cc_episode[k] = tmp_dict
-            elif k in ("reward", "terminal", "action_log_prob"):
-                cc_episode[k] = _make_tensor_from_batch(
-                    [item[k] for item in episode],
-                    self.replay_buffer.buffer_device,
-                    True,
-                )
-            else:
-                # currently, additional attributes are not supported.
-                pass
-
-        self.replay_buffer.append(
-            cc_episode,
+        self.replay_buffer.store_episode(
+            episode,
             required_attrs=(
                 "state",
                 "action",
@@ -282,6 +235,7 @@ class IMPALA(TorchFramework):
                 "reward",
                 "action_log_prob",
                 "terminal",
+                "episode_length",
             ),
         )
 
@@ -301,23 +255,27 @@ class IMPALA(TorchFramework):
         """
         # sample a batch
 
-        # Note: each episode is stored as a single sample entry,
-        # the second dimension of all attributes is the length of episode,
-        # the first dimension is always 1.
-
         # `batch_size` here means the number of episodes sampled, not
         # the number of steps sampled.
+        # The size of the batch dimension of sampled attributes should be
+        # the summed length of sampled episodes,
+        # eg: total_length = ep1_length + ep2_length + ...
 
-        # `concatenate` is False, because the length of each episode
-        # might be different.
         self.actor.train()
         self.critic.train()
         (
             batch_size,
-            (state, action, reward, next_state, terminal, action_log_prob,),
+            (
+                state,
+                action,
+                reward,
+                next_state,
+                terminal,
+                action_log_prob,
+                episode_length,
+            ),
         ) = self.replay_buffer.sample_batch(
             self.batch_size,
-            concatenate=False,
             device="cpu",
             sample_attrs=[
                 "state",
@@ -326,23 +284,31 @@ class IMPALA(TorchFramework):
                 "next_state",
                 "terminal",
                 "action_log_prob",
+                "episode_length",
             ],
-            additional_concat_attrs=["action_log_prob"],
+            additional_concat_custom_attrs=["action_log_prob"],
         )
-        # `state`, `action` and `next_state` should be dicts like:
-        # {"attr1": [Tensor(ep1_length, ...),
-        #            Tensor(ep2_length, ...)]}
 
-        # `terminal`, `reward`, `action_log_prob` should be lists like:
-        # [Tensor(ep1_length, 1), (ep2_length, 1)]
-
-        # chain steps of all episodes together, make them look like:
+        # episodes are chained together like:
         # ep1_step1, ep1_step2, ..., ep1_stepN, ep2_step1, ep2_step2 ...
+
+        # `state`, `action` and `next_state` should be dicts like:
+        # {"attr1": Tensor(total_length, ...),
+        #  "attr2": Tensor(total_length, ...)}
+
+        # `terminal`, `reward`, `action_log_prob` should be tensors like:
+        # Tensor(total_length, 1)
 
         # store the length of each episode, so that we can find boundaries
         # between two episodes inside the chained "sample"
-        all_length = [tensor.shape[0] for tensor in terminal]
+        all_length = [length for length in episode_length if length != 0]
         sum_length = sum(all_length)
+
+        if sum_length != terminal.shape[0]:
+            raise RuntimeError(
+                "Sum length is unequal to tensor total length,"
+                " an unknown error has occurred."
+            )
 
         for major_attr in (state, action, next_state):
             for k, v in major_attr.items():

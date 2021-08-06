@@ -1,4 +1,4 @@
-from typing import Union, Dict, List, Any
+from typing import Union, Dict, List, Tuple, Any
 from ..transition import TransitionBase
 from .buffer import Buffer
 import torch as t
@@ -240,10 +240,13 @@ class PrioritizedBuffer(Buffer):
         alpha=0.6,
         beta=0.4,
         beta_increment_per_sampling=0.001,
-        *_,
-        **__,
+        **kwargs,
     ):
         """
+        Note:
+            `PrioritizedBuffer` does not support customizing storage as it
+            requires a linear storage.
+
         Args:
             buffer_size: Maximum buffer size.
             buffer_device: Device where buffer is stored.
@@ -263,7 +266,7 @@ class PrioritizedBuffer(Buffer):
             beta_increment_per_sampling:
                 Beta increase step size, will gradually increase ``beta`` to 1.
         """
-        super().__init__(buffer_size, buffer_device)
+        super().__init__(buffer_size=buffer_size, buffer_device=buffer_device)
         self.epsilon = epsilon
         self.alpha = alpha
         self.beta = beta
@@ -277,39 +280,44 @@ class PrioritizedBuffer(Buffer):
         """
         return (np.abs(priority) + self.epsilon) ** self.alpha
 
-    def append(
+    def store_episode(
         self,
-        transition: Union[TransitionBase, Dict],
-        priority: Union[float, None] = None,
+        episode: List[Union[TransitionBase, Dict]],
+        priority: Union[List[float], None] = None,
         required_attrs=("state", "action", "next_state", "reward", "terminal"),
     ):
         """
-        Store a transition object to buffer.
+        Store an episode to the buffer.
 
         Args:
-            transition: A transition object.
-            priority: Priority of transition.
-            required_attrs: Required attributes.
-        """
-        position = super().append(transition, required_attrs)
-        if priority is None:
-            # the initialization method used in the original essay
-            priority = self.wt_tree.get_leaf_max()
-        self.wt_tree.update_leaf(self._normalize_priority(priority), position)
+            episode: A list of transition objects.
+            priority: Priority of each transition in the episode.
+            required_attrs: Required attributes. Could be an empty tuple if
+                no attribute is required.
 
-    def size(self):
+        Raises:
+            ``ValueError`` if episode is empty.
+            ``ValueError`` if any transition object in the episode doesn't have
+            required attributes in ``required_attrs``.
         """
-        Returns:
-            Length of current buffer.
-        """
-        return len(self.buffer)
+        super().store_episode(episode, required_attrs)
+        episode_number = self.episode_counter - 1
+        positions = self.episode_transition_handles[episode_number]
+        if priority is None:
+            for position in positions:
+                # the initialization method used in the original essay
+                priority = self.wt_tree.get_leaf_max()
+                self.wt_tree.update_leaf(self._normalize_priority(priority), position)
+        else:
+            for p, position in zip(priority, positions):
+                self.wt_tree.update_leaf(self._normalize_priority(priority), position)
 
     def clear(self):
         """
         Clear and resets the buffer to its initial state.
         """
-        self.buffer.clear()
-        self.wt_tree = WeightTree(self.buffer_size)
+        super().clear()
+        self.wt_tree = WeightTree(self.storage.max_size)
         self.curr_beta = self.beta
 
     def update_priority(self, priorities: np.ndarray, indexes: np.ndarray):
@@ -327,12 +335,12 @@ class PrioritizedBuffer(Buffer):
         self,
         batch_size: int,
         concatenate: bool = True,
-        device: Union[str, t.device] = None,
+        device: Union[str, t.device] = "cpu",
         sample_attrs: List[str] = None,
-        additional_concat_attrs: List[str] = None,
+        additional_concat_custom_attrs: List[str] = None,
         *_,
         **__,
-    ) -> Any:
+    ) -> Tuple[int, Union[None, tuple]]:
         """
         Sample the most important batch from the prioritized buffer.
 
@@ -341,19 +349,23 @@ class PrioritizedBuffer(Buffer):
 
         Args:
             batch_size: A hint size of the result sample.
-            concatenate: Whether concatenate state, action and next_state
-                         in dimension 0.
+            concatenate: Whether perform concatenation on major, sub and custom
+                         attributes.
                          If ``True``, for each value in dictionaries of major
                          attributes. and each value of sub attributes, returns
                          a concatenated tensor. Custom Attributes specified in
-                         ``additional_concat_attrs`` will also be concatenated.
-                         If ``False``, return a list of tensors.
-            device:      Device to copy to.
+                         ``additional_concat_custom_attrs`` will also be concatenated.
+                         If ``False``, performs no concatenation.
+            device:      Device to move tensors in the batch to.
             sample_attrs: If sample_keys is specified, then only specified keys
                          of the transition object will be sampled. You may use
-                         ``"*"`` as a wildcard to collect remaining keys.
-            additional_concat_attrs: additional custom keys needed to be
-                         concatenated,
+                         ``"*"`` as a wildcard to collect remaining
+                         **custom keys** as a ``dict``, you cannot collect major
+                         and sub attributes using this.
+                         Invalid sample attributes will be ignored.
+            additional_concat_custom_attrs: additional **custom keys** needed to be
+                         concatenated, will only work if ``concatenate`` is
+                         ``True``.
 
         Returns:
             1. Batch size.
@@ -363,6 +375,9 @@ class PrioritizedBuffer(Buffer):
                Sampled attribute values is a tuple. Or ``None`` if sampled
                batch size is zero (E.g.: if buffer is empty or your sample
                size is 0).
+
+               For details on the attribute values, please refer to doc of
+               :meth:`.Buffer.sample_batch`.
 
             3. Indexes of samples in the weight tree, ``np.ndarray``.
                Or ``None`` if sampled batch size is zero
@@ -383,21 +398,18 @@ class PrioritizedBuffer(Buffer):
         )
         index = self.wt_tree.find_leaf_index(rand_priority)
 
-        batch = [self.buffer[idx] for idx in index]
+        batch = [self.storage[idx] for idx in index]
         priority = self.wt_tree.get_leaf_weight(index)
 
         # calculate importance sampling weight
         sample_probability = priority / self.wt_tree.get_weight_sum()
-        is_weight = np.power(len(self.buffer) * sample_probability, -self.curr_beta)
+        is_weight = np.power(self.size() * sample_probability, -self.curr_beta)
         is_weight /= is_weight.max()
         self.curr_beta = np.min(
             [1.0, self.curr_beta + self.beta_increment_per_sampling]
         )
 
-        if device is None:
-            device = self.buffer_device
-
         result = self.post_process_batch(
-            batch, device, concatenate, sample_attrs, additional_concat_attrs
+            batch, device, concatenate, sample_attrs, additional_concat_custom_attrs
         )
         return len(batch), result, index, is_weight

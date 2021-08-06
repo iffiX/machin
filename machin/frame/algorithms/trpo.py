@@ -196,7 +196,7 @@ matematiklth/vision/publdb/reports/pdf/byrod-eccv-10.pdf>` equation 6.
             sample_method="all",
             concatenate=concatenate_samples,
             sample_attrs=["state", "action", "gae"],
-            additional_concat_attrs=["gae"],
+            additional_concat_custom_attrs=["gae"],
         )
 
         # normalize advantage
@@ -270,7 +270,7 @@ matematiklth/vision/publdb/reports/pdf/byrod-eccv-10.pdf>` equation 6.
                 sample_method="random_unique",
                 concatenate=concatenate_samples,
                 sample_attrs=["state", "value"],
-                additional_concat_attrs=["value"],
+                additional_concat_custom_attrs=["value"],
             )
             # calculate value loss
             value = self._criticize(state)

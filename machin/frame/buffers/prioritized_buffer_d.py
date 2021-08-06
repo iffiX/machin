@@ -1,4 +1,4 @@
-from typing import Union, Dict, List, Any
+from typing import Union, Dict, List, Tuple
 from threading import RLock
 from collections import OrderedDict
 from ..transition import TransitionBase
@@ -36,14 +36,19 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
         .. seealso:: :class:`PrioritizedBuffer`
 
         Note:
+            `DistributedPrioritizedBuffer` does not support customizing storage as it
+            requires a linear storage.
+
+        Note:
             :class:`DistributedPrioritizedBuffer` is not split into an
             accessor and an implementation, because we would like to operate
             on the buffer directly, when calling "size()" or "append()", to
             increase efficiency (since rpc layer is bypassed).
 
         Args:
-            buffer_size: Maximum local buffer size.
+            buffer_name: A unique name of your buffer for registration in the group.
             group: Process group which holds this buffer.
+            buffer_size: Maximum local buffer size.
         """
         super().__init__(buffer_size, "cpu")
         self.buffer_name = buffer_name
@@ -70,22 +75,33 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
         )
         self.wr_lock = RLock()
 
-    def append(
+    def store_episode(
         self,
-        transition: Union[TransitionBase, Dict],
-        priority: Union[float, None] = None,
+        episode: List[Union[TransitionBase, Dict]],
+        priority: Union[List[float], None] = None,
         required_attrs=("state", "action", "next_state", "reward", "terminal"),
     ):
         # DOC INHERITED
         with self.wr_lock:
-            position = super(PrioritizedBuffer, self).append(transition, required_attrs)
+            super().store_episode(episode, required_attrs)
+            episode_number = self.episode_counter - 1
+            positions = self.episode_transition_handles[episode_number]
             if priority is None:
-                # the initialization method used in the original essay
-                priority = self.wt_tree.get_leaf_max()
-            self.wt_tree.update_leaf(self._normalize_priority(priority), position)
-            # increase the version counter to mark it as tainted
-            # later priority update will ignore this position
-            self.buffer_version_table[position] += 1
+                for position in positions:
+                    # the initialization method used in the original essay
+                    priority = self.wt_tree.get_leaf_max()
+                    self.wt_tree.update_leaf(
+                        self._normalize_priority(priority), position
+                    )
+                    # increase the version counter to mark it as tainted
+                    # later priority update will ignore this position
+                    self.buffer_version_table[position] += 1
+            else:
+                for p, position in zip(priority, positions):
+                    self.wt_tree.update_leaf(
+                        self._normalize_priority(priority), position
+                    )
+                    self.buffer_version_table[position] += 1
 
     def size(self):
         """
@@ -158,10 +174,10 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
         concatenate: bool = True,
         device: Union[str, t.device] = None,
         sample_attrs: List[str] = None,
-        additional_concat_attrs: List[str] = None,
+        additional_concat_custom_attrs: List[str] = None,
         *_,
         **__
-    ) -> Any:
+    ) -> Tuple[int, Union[None, tuple]]:
         if batch_size <= 0:
             return 0, None, None, None
 
@@ -206,8 +222,8 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             all_index[m] = (index, version)
         if all_batch_len == 0:
             return 0, None, None, None
-        all_batch = PrioritizedBuffer.post_process_batch(
-            all_batch, device, concatenate, sample_attrs, additional_concat_attrs
+        all_batch = self.post_process_batch(
+            all_batch, device, concatenate, sample_attrs, additional_concat_custom_attrs
         )
         all_is_weight = np.concatenate(all_is_weight, axis=0)
         return all_batch_len, all_batch, all_index, all_is_weight
@@ -240,7 +256,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
     def _sample_service(self, batch_size, all_weight_sum):  # pragma: no cover
         # the local batch size
         with self.wr_lock:
-            if batch_size <= 0 or len(self.buffer) == 0:
+            if batch_size <= 0 or len(self.storage) == 0:
                 return 0, None, None, None, None
 
             wt_tree = self.wt_tree
@@ -254,12 +270,14 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             index = wt_tree.find_leaf_index(rand_priority)
             version = self.buffer_version_table[index]
 
-            batch = [self.buffer[idx] for idx in index]
+            batch = [self.storage[idx] for idx in index]
             priority = wt_tree.get_leaf_weight(index)
 
             # calculate importance sampling weight
             sample_probability = priority / all_weight_sum
-            is_weight = np.power(len(self.buffer) * sample_probability, -self.curr_beta)
+            is_weight = np.power(
+                len(self.storage) * sample_probability, -self.curr_beta
+            )
             is_weight /= is_weight.max()
             self.curr_beta = np.min(
                 [1.0, self.curr_beta + self.beta_increment_per_sampling]
