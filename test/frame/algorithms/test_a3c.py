@@ -1,20 +1,20 @@
+from torch.distributions import Categorical
 from machin.model.nets.base import static_module_wrapper as smw
 from machin.frame.algorithms.a3c import A3C
 from machin.frame.helpers.servers import grad_server_helper
 from machin.utils.helper_classes import Counter
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
-from torch.distributions import Categorical
+from test.frame.algorithms.utils import unwrap_time_limit, Smooth
+from test.util_run_multi import *
+from test.util_fixtures import *
+from test.util_platforms import linux_only_forall
 
 import os
 import torch as t
 import torch.nn as nn
 import gym
 
-from test.frame.algorithms.utils import unwrap_time_limit, Smooth
-from test.util_run_multi import *
-from test.util_fixtures import *
-from test.util_platforms import linux_only_forall
 
 linux_only_forall()
 
@@ -101,7 +101,7 @@ class TestA3C:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_act(_, device, dtype):
         c = TestA3C.c
         a3c = TestA3C.a3c(device, dtype)
@@ -118,7 +118,7 @@ class TestA3C:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_eval_action(_, device, dtype):
         c = TestA3C.c
         a3c = TestA3C.a3c(device, dtype)
@@ -136,7 +136,7 @@ class TestA3C:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test__criticize(_, device, dtype):
         c = TestA3C.c
         a3c = TestA3C.a3c(device, dtype)
@@ -158,7 +158,7 @@ class TestA3C:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_update(rank, device, dtype):
         c = TestA3C.c
         c.device = gpu
@@ -208,7 +208,7 @@ class TestA3C:
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], timeout=180)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_config_init(rank):
         c = TestA3C.c
         config = A3C.generate_config({})
@@ -253,8 +253,10 @@ class TestA3C:
     @run_multi(
         expected_results=[True, True, True], pass_through=["gae_lambda"], timeout=1800
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_full_train(rank, gae_lambda):
+        training_group = get_world().create_rpc_group("training", ["0", "1", "2"])
+
         c = TestA3C.c
         a3c = TestA3C.a3c("cpu", t.float32)
         a3c.set_sync(False)
@@ -264,10 +266,15 @@ class TestA3C:
         reward_fulfilled = Counter()
         smoother = Smooth()
         terminal = False
-
         env = c.env
+        env.seed(rank)
+
+        # make sure all things are initialized.
+        training_group.barrier()
+
         # for cpu usage viewing
         default_logger.info(f"{rank}, pid {os.getpid()}")
+
         while episode < c.max_episodes:
             episode.count()
 
@@ -313,8 +320,16 @@ class TestA3C:
                 reward_fulfilled.count()
                 if reward_fulfilled >= c.solved_repeat:
                     default_logger.info("Environment solved!")
-                    return True
+                    try:
+                        training_group.pair(f"solved", True)
+                    except KeyError:
+                        # already solved in another process
+                        pass
             else:
                 reward_fulfilled.reset()
+
+            training_group.barrier()
+            if training_group.is_paired("solved"):
+                return True
 
         raise RuntimeError("A3C Training failed.")

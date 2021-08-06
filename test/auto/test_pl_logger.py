@@ -1,6 +1,6 @@
-from machin.auto.pl_logger import LocalMediaLogger
-from pytorch_lightning.loggers.base import DummyExperiment
 from PIL import Image
+from pytorch_lightning.loggers.base import DummyExperiment
+from machin.auto.pl_logger import LocalMediaLogger
 import os
 import matplotlib.pyplot as plt
 

@@ -7,7 +7,7 @@ import torch as t
 linux_only_forall()
 
 
-class TestDistributedBuffer(WorldTestBase):
+class TestDistributedBuffer:
     BUFFER_SIZE = 1
     SAMPLE_BUFFER_SIZE = 10
 
@@ -16,7 +16,7 @@ class TestDistributedBuffer(WorldTestBase):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_append_sample(rank):
         world = get_world()
         data = {
@@ -53,7 +53,7 @@ class TestDistributedBuffer(WorldTestBase):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_append_size(rank):
         world = get_world()
         data = {
@@ -82,7 +82,7 @@ class TestDistributedBuffer(WorldTestBase):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_append_clear(rank):
         world = get_world()
         data = {

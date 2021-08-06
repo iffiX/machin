@@ -1,7 +1,7 @@
-import torch as t
 import os
 import re
 import datetime
+import torch as t
 
 
 class Archive:

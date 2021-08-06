@@ -1,7 +1,7 @@
+from unittest import mock
 from machin.parallel.assigner import ModelSizeEstimator, ModelAssigner
 from machin.utils.helper_classes import Object
 
-from unittest import mock
 import pytest
 import torch as t
 import torch.nn as nn

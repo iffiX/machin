@@ -5,15 +5,15 @@ from machin.utils.logging import default_logger as logger
 from machin.utils.helper_classes import Counter
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
-
-import pytest
-import torch as t
-import torch.nn as nn
-import gym
-
 from test.frame.algorithms.utils import unwrap_time_limit, Smooth
 from test.util_fixtures import *
 from test.util_platforms import linux_only
+
+import pytest
+import numpy as np
+import torch as t
+import torch.nn as nn
+import gym
 
 
 class Actor(ActorDiscrete):
@@ -81,6 +81,7 @@ class TestTRPO:
         c.replay_size = 10000
         c.solved_reward = 150
         c.solved_repeat = 5
+        c.noise = 0.1
         return c
 
     @pytest.fixture(scope="function", params=["fim", "direct"])
@@ -284,6 +285,7 @@ class TestTRPO:
         terminal = False
 
         env = c.env
+        env.seed(0)
         while episode < c.max_episodes:
             episode.count()
 
@@ -298,6 +300,8 @@ class TestTRPO:
                     old_state = state
                     # agent model inference
                     action = trpo_train.act({"state": old_state.unsqueeze(0)})[0]
+                    if np.random.rand() < c.noise:
+                        action[0, 0] = np.random.randint(c.action_num)
                     state, reward, terminal, _ = env.step(action.item())
                     state = t.tensor(state, dtype=t.float32).flatten()
                     total_reward += float(reward)

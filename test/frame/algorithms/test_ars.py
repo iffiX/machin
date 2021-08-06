@@ -6,16 +6,16 @@ from machin.utils.conf import Config
 from machin.utils.learning_rate import gen_learning_rate_func
 from machin.env.utils.openai_gym import disable_view_window
 from torch.optim.lr_scheduler import LambdaLR
+from test.frame.algorithms.utils import unwrap_time_limit, Smooth
+from test.util_run_multi import *
+from test.util_fixtures import *
+from test.util_platforms import linux_only_forall
 
 import os
 import torch as t
 import torch.nn as nn
 import gym
 
-from test.frame.algorithms.utils import unwrap_time_limit, Smooth
-from test.util_run_multi import *
-from test.util_fixtures import *
-from test.util_platforms import linux_only_forall
 
 linux_only_forall()
 
@@ -161,7 +161,7 @@ class TestARS:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_act(_, device, dtype):
         c = TestARS.c
         ars = TestARS.ars(device, dtype)
@@ -181,7 +181,7 @@ class TestARS:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_store_reward(_, device, dtype):
         ars = TestARS.ars(device, dtype)
         ars.store_reward(0.0, ars.get_actor_types()[0])
@@ -198,7 +198,7 @@ class TestARS:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_update(_, device, dtype):
         c = TestARS.c
         ars = TestARS.ars(device, dtype)
@@ -226,7 +226,7 @@ class TestARS:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_lr_scheduler(_, device, dtype):
         ars = TestARS.ars_lr(device, dtype)
         ars.update_lr_scheduler()
@@ -237,7 +237,7 @@ class TestARS:
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], timeout=180)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_config_init(_):
         c = TestARS.c
         config = ARS.generate_config({})
@@ -264,8 +264,10 @@ class TestARS:
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], timeout=1800)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_full_train(rank):
+        training_group = get_world().create_rpc_group("training", ["0", "1", "2"])
+
         c = TestARS.c
         ars = TestARS.ars("cpu", t.float32)
 
@@ -274,10 +276,15 @@ class TestARS:
         reward_fulfilled = Counter()
         smoother = Smooth()
         terminal = False
-
         env = c.env
+        env.seed(rank)
+
         # for cpu usage viewing
         default_logger.info(f"{rank}, pid {os.getpid()}")
+
+        # make sure all things are initialized.
+        training_group.barrier()
+
         while episode < c.max_episodes:
             episode.count()
 
@@ -311,8 +318,16 @@ class TestARS:
                 reward_fulfilled.count()
                 if reward_fulfilled >= c.solved_repeat:
                     default_logger.info("Environment solved!")
-                    raise SafeExit
+                    try:
+                        training_group.pair(f"solved", True)
+                    except KeyError:
+                        # already solved in another process
+                        pass
             else:
                 reward_fulfilled.reset()
+
+            training_group.barrier()
+            if training_group.is_paired("solved"):
+                return True
 
         raise RuntimeError("ARS Training failed.")

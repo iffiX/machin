@@ -7,15 +7,14 @@ from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
 from torch.optim.lr_scheduler import LambdaLR
 from copy import deepcopy
-
-import pytest
-import torch as t
-import torch.nn as nn
-
 from test.frame.algorithms.utils import Smooth
 from test.util_create_ma_env import create_env
 from test.util_fixtures import *
 from test.util_platforms import linux_only
+
+import pytest
+import torch as t
+import torch.nn as nn
 
 
 class Actor(nn.Module):
@@ -523,6 +522,7 @@ class TestMADDPG:
         terminal = False
 
         env = c.env
+        env.seed(0)
         while episode < c.max_episodes:
             episode.count()
 

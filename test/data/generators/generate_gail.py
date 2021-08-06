@@ -1,6 +1,6 @@
+from torch.distributions import Categorical
 from machin.frame.algorithms import PPO
 from machin.utils.logging import default_logger as logger
-from torch.distributions import Categorical
 from test.data import ROOT
 from test.data.archive import Archive, get_time_string
 import os

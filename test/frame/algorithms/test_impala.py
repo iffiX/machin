@@ -1,3 +1,5 @@
+from torch.optim.lr_scheduler import LambdaLR
+from torch.distributions import Categorical
 from machin.model.nets.base import static_module_wrapper as smw
 from machin.frame.algorithms.impala import IMPALA
 from machin.frame.helpers.servers import model_server_helper
@@ -5,18 +7,16 @@ from machin.utils.helper_classes import Counter
 from machin.utils.learning_rate import gen_learning_rate_func
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
-from torch.optim.lr_scheduler import LambdaLR
-from torch.distributions import Categorical
+from test.frame.algorithms.utils import unwrap_time_limit, Smooth
+from test.util_run_multi import *
+from test.util_fixtures import *
+from test.util_platforms import linux_only_forall
 
 import os
 import torch as t
 import torch.nn as nn
 import gym
 
-from test.frame.algorithms.utils import unwrap_time_limit, Smooth
-from test.util_run_multi import *
-from test.util_fixtures import *
-from test.util_platforms import linux_only_forall
 
 linux_only_forall()
 
@@ -118,7 +118,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_act(_, device, dtype):
         c = TestIMPALA.c
         impala = TestIMPALA.impala(device, dtype)
@@ -136,7 +136,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_eval_action(_, device, dtype):
         c = TestIMPALA.c
         impala = TestIMPALA.impala(device, dtype)
@@ -155,7 +155,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test__criticize(_, device, dtype):
         c = TestIMPALA.c
         impala = TestIMPALA.impala(device, dtype)
@@ -173,7 +173,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_store_episode(_, device, dtype):
         c = TestIMPALA.c
         impala = TestIMPALA.impala(device, dtype)
@@ -203,7 +203,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_update(rank, device, dtype):
         c = TestIMPALA.c
         impala = TestIMPALA.impala(device, dtype)
@@ -261,7 +261,7 @@ class TestIMPALA:
         pass_through=["device", "dtype"],
         timeout=180,
     )
-    @WorldTestBase.setup_world
+    @setup_world
     def test_lr_scheduler(_, device, dtype):
         impala = TestIMPALA.impala(device, dtype)
 
@@ -273,7 +273,7 @@ class TestIMPALA:
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], timeout=180)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_config_init(rank):
         c = TestIMPALA.c
         config = IMPALA.generate_config({})
@@ -329,8 +329,10 @@ class TestIMPALA:
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], timeout=1800)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_full_train(rank):
+        training_group = get_world().create_rpc_group("training", ["0", "1", "2"])
+
         c = TestIMPALA.c
         impala = TestIMPALA.impala("cpu", t.float32)
 
@@ -342,21 +344,19 @@ class TestIMPALA:
         reward_fulfilled = Counter()
         smoother = Smooth()
         terminal = False
-
         env = c.env
-        world = get_world()
-        all_group = world.create_rpc_group("all", ["0", "1", "2"])
-        all_group.pair(f"{rank}_running", True)
+        env.seed(rank)
+
+        # make sure all things are initialized.
+        training_group.barrier()
+
+        # for cpu usage viewing
         default_logger.info(f"{rank}, pid {os.getpid()}")
-        if rank == 0:
-            all_group.pair("episode", episode)
 
-        if rank in (0, 1):
-            while episode < c.max_episodes:
-                # wait for trainer to keep up
-                sleep(0.2)
-                episode.count()
+        while episode < c.max_episodes:
+            episode.count()
 
+            if rank in (0, 1):
                 # batch size = 1
                 total_reward = 0
                 state = t.tensor(env.reset(), dtype=t.float32)
@@ -399,27 +399,22 @@ class TestIMPALA:
                     reward_fulfilled.count()
                     if reward_fulfilled >= c.solved_repeat:
                         default_logger.info("Environment solved!")
-
-                        all_group.unpair(f"{rank}_running")
-                        while all_group.is_paired("0_running") or all_group.is_paired(
-                            "1_running"
-                        ):
-                            # wait for all workers to join
-                            sleep(1)
-                        # wait for trainer
-                        sleep(5)
-                        return True
+                        try:
+                            training_group.pair(f"solved", True)
+                        except KeyError:
+                            # already solved in another process
+                            pass
                 else:
                     reward_fulfilled.reset()
-        else:
-            # wait for some samples
-            # Note: the number of entries in buffer means "episodes"
-            # rather than steps here!
-            while impala.replay_buffer.all_size() < 5:
-                sleep(0.1)
-            while all_group.is_paired("0_running") or all_group.is_paired("1_running"):
-                impala.update()
-                default_logger.info("Updated")
-            return True
+            else:
+                # wait for some samples
+                if episode.get() > 200:
+                    for _ in range(100):
+                        impala.update()
+                    default_logger.info("Updated 100 times.")
+
+            training_group.barrier()
+            if training_group.is_paired("solved"):
+                return True
 
         raise RuntimeError("IMPALA Training failed.")

@@ -10,7 +10,7 @@ import numpy as np
 linux_only_forall()
 
 
-class TestDistributedPrioritizedBuffer(WorldTestBase):
+class TestDistributedPrioritizedBuffer:
     BUFFER_SIZE = 1
     SAMPLE_BUFFER_SIZE = 10
 
@@ -79,7 +79,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     # periodically, and p2 sample from the buffer periodically.
     @staticmethod
     @run_multi(expected_results=[True, True, True], args_list=[(full_trans_list,)] * 3)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_append_sample_random(rank, trans_list):
         world = get_world()
         count = 0
@@ -113,7 +113,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
                 assert list(sample[4].shape) == [batch_size, 1]
                 # index
                 assert len(sample[5]) == batch_size
-                # simulate perform a backward process
+                # simulate the time to perform a backward process
                 sleep(1)
                 buffer.update_priority(priorities, indexes)
                 default_logger.info(f"{rank} sample {count} success")
@@ -126,7 +126,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     # p1 will finish appending before p2, so the test result is always the same.
     @staticmethod
     @run_multi(expected_results=[True, True, True], args_list=[(full_trans_list,)] * 3)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_append_sample_controlled(rank, trans_list):
         world = get_world()
         default_logger.info(f"{rank} started")
@@ -174,7 +174,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     # sample from two empty buffers
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_sample_empty_buffer(rank):
         world = get_world()
         default_logger.info(f"{rank} started")
@@ -196,7 +196,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True], args_list=[(full_trans_list,)] * 3)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_append_sample_empty(rank, trans_list):
         world = get_world()
         default_logger.info(f"{rank} started")
@@ -222,7 +222,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], args_list=[(full_trans_list,)] * 3)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_append_size(rank, trans_list):
         world = get_world()
         default_logger.info(f"{rank} started")
@@ -249,7 +249,7 @@ class TestDistributedPrioritizedBuffer(WorldTestBase):
     ########################################################################
     @staticmethod
     @run_multi(expected_results=[True, True, True], args_list=[(full_trans_list,)] * 3)
-    @WorldTestBase.setup_world
+    @setup_world
     def test_append_clear(rank, trans_list):
         world = get_world()
         default_logger.info(f"{rank} started")

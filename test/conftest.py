@@ -3,5 +3,10 @@ def pytest_addoption(parser):
         "--gpu_device",
         action="store",
         default=None,
-        help="Gpu device descriptor in pytorch",
+        help="GPU device descriptor in pytorch",
+    )
+    parser.addoption(
+        "--multiprocess_method",
+        default="forkserver",
+        help="spawn or forkserver, default is forkserver",
     )

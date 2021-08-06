@@ -4,15 +4,14 @@ from machin.utils.logging import default_logger as logger
 from machin.utils.helper_classes import Counter
 from machin.utils.conf import Config
 from machin.env.utils.openai_gym import disable_view_window
+from test.frame.algorithms.utils import unwrap_time_limit, Smooth
+from test.util_fixtures import *
+from test.util_platforms import linux_only
 
 import pytest
 import torch as t
 import torch.nn as nn
 import gym
-
-from test.frame.algorithms.utils import unwrap_time_limit, Smooth
-from test.util_fixtures import *
-from test.util_platforms import linux_only
 
 
 class QNet(nn.Module):
@@ -249,6 +248,7 @@ class TestRAINBOW:
         terminal = False
 
         env = c.env
+        env.seed(0)
         while episode < c.max_episodes:
             episode.count()
 

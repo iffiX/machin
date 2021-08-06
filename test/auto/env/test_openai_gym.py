@@ -1,4 +1,10 @@
-from test.util_platforms import linux_only_forall
+from torch.distributions import Categorical, Normal
+from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.utilities.distributed import ReduceOp
+from machin.parallel.distributed import get_cur_rank
+from machin.parallel.thread import Thread
+from machin.parallel.queue import SimpleQueue, TimeoutError
+from machin.utils.logging import default_logger
 from machin.auto.config import (
     generate_training_config,
     generate_algorithm_config,
@@ -11,25 +17,18 @@ from machin.auto.envs.openai_gym import (
     gym_env_dataset_creator,
     launch,
 )
+from test.util_run_multi import *
+from test.util_fixtures import *
+from test.util_platforms import linux_only_forall
+
 import os
 import pickle
 import os.path as p
 import gym
-import pytest
 import torch as t
 import torch.nn as nn
 import torch.nn.functional as F
 import subprocess as sp
-import multiprocessing as mp
-from test.util_run_multi import *
-from test.util_fixtures import *
-from pytorch_lightning.callbacks import Callback
-from torch.distributions import Categorical, Normal
-from machin.parallel.distributed import get_cur_rank
-from machin.parallel.thread import Thread
-from machin.parallel.queue import SimpleQueue, TimeoutError
-from machin.utils.logging import default_logger
-from pytorch_lightning.utilities.distributed import ReduceOp
 
 linux_only_forall()
 

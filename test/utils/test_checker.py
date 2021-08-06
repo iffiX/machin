@@ -9,6 +9,7 @@ from machin.utils.checker import (
     p_chk_range,
 )
 from machin.utils.tensor_board import TensorBoard
+
 import pytest
 import torch as t
 import torch.nn as nn

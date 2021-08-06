@@ -13,7 +13,7 @@ class Object:
     pass
 
 
-class TestOrderedServerSimple(WorldTestBase):
+class TestOrderedServerSimple:
     def test__push_pull_service(self):
         fake_group = Object()
         fake_group.pair = lambda *_: None
@@ -33,7 +33,7 @@ class TestOrderedServerSimple(WorldTestBase):
 
     @staticmethod
     @run_multi(expected_results=[True, True, True])
-    @WorldTestBase.setup_world
+    @setup_world
     def test_push_pull(rank):
         world = get_world()
         if rank == 0:

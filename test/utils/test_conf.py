@@ -1,3 +1,4 @@
+from os.path import join
 from machin.utils.conf import (
     Config,
     load_config_cmd,
@@ -6,7 +7,7 @@ from machin.utils.conf import (
     merge_config,
 )
 from machin.utils.helper_classes import Object
-from os.path import join
+
 import os
 import json
 from unittest import mock

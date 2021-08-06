@@ -6,17 +6,16 @@ should work just fine.
 
 Submit us a issue if you have found any problem.
 """
-from test.util_platforms import linux_only_forall
-
-linux_only_forall()
-
+from random import choice, sample
 from machin.env.wrappers import openai_gym
 from machin.utils.logging import default_logger
-from random import choice, sample
+from test.util_platforms import linux_only_forall
+
 import pytest
 import gym
 import numpy as np
 
+linux_only_forall()
 ENV_NUM = 2
 SAMPLE_NUM = 2
 WORKER_NUM = 2
@@ -26,69 +25,15 @@ def mock_action(action_space: gym.spaces.Space):
     return action_space.sample()
 
 
-def prepare_envs(env_list):
-    for env in env_list:
-        env.reset()
-
-
-def should_skip(spec):
-    # From gym/envs/tests/spec_list.py
-    # Used to check whether a gym environment should be tested.
-
-    # We skip tests for envs that require dependencies or are otherwise
-    # troublesome to run frequently
-    ep = spec.entry_point
-
-    # No need to test unittest environments
-    if ep.startswith("gym.envs.unittest"):
-        return True
-
-    # Skip not renderable tests
-    if ep.startswith("gym.envs.algorithmic") or ep.startswith("gym.envs.toy_text"):
-        return True
-
-    # Skip mujoco tests
-    if ep.startswith("gym.envs.mujoco") or ep.startswith("gym.envs.robotics:"):
-        return True
-
-    # Skip atari tests
-    if ep.startswith("gym.envs.atari"):
-        return True
-
-    # Skip other tests
-    if "GoEnv" in ep or "HexEnv" in ep or "CarRacing" in ep:
-        return True
-
-    # Conditionally skip box2d tests
-    try:
-        import Box2D
-    except ImportError:
-        if ep.startswith("gym.envs.box2d"):
-            return True
-
-    return False
-
-
 @pytest.fixture(scope="module", autouse=True)
 def envs():
-    all_envs = []
-    env_map = {}
-    # Find the newest version of non-skippable environments.
-    for env_raw_name, env_spec in gym.envs.registry.env_specs.items():
-        if not should_skip(env_spec):
-            env_name, env_version = env_raw_name.split("-v")
-            if env_name not in env_version or int(env_version) > env_map[env_name]:
-                env_map[env_name] = int(env_version)
+    names = ["CartPole-v0"]
+    creators = []
 
     # Create environments.
-    for env_name, env_version in env_map.items():
-        env_name = env_name + "-v" + str(env_version)
-        default_logger.info(f"OpenAI gym {env_name} added")
-        all_envs.append([lambda *_: gym.make(env_name) for _ in range(ENV_NUM)])
-    default_logger.info(
-        "{} OpenAI gym environments to be tested.".format(len(all_envs))
-    )
-    return all_envs
+    for name in names:
+        creators.append([lambda *_: gym.make(name) for _ in range(ENV_NUM)])
+    return names, creators
 
 
 class TestParallelWrapperDummy:
@@ -104,8 +49,9 @@ class TestParallelWrapperDummy:
 
     @pytest.mark.parametrize("idx,reset_num", param_test_reset)
     def test_reset(self, envs, idx, reset_num):
-        for env_list in envs:
-            dummy_wrapper = openai_gym.ParallelWrapperDummy(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            dummy_wrapper = openai_gym.ParallelWrapperDummy(creators)
             obsrvs = dummy_wrapper.reset(idx)
             dummy_wrapper.close()
 
@@ -129,8 +75,9 @@ class TestParallelWrapperDummy:
 
     @pytest.mark.parametrize("idx,act_num", param_test_step)
     def test_step(self, envs, idx, act_num):
-        for env_list in envs:
-            dummy_wrapper = openai_gym.ParallelWrapperDummy(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            dummy_wrapper = openai_gym.ParallelWrapperDummy(creators)
             action = [mock_action(dummy_wrapper.action_space) for _ in range(act_num)]
             dummy_wrapper.reset(idx)
             obsrvs, reward, terminal, info = dummy_wrapper.step(action, idx)
@@ -159,8 +106,9 @@ class TestParallelWrapperDummy:
 
     @pytest.mark.parametrize("idx", param_test_seed)
     def test_seed(self, envs, idx):
-        for env_list in envs:
-            dummy_wrapper = openai_gym.ParallelWrapperDummy(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            dummy_wrapper = openai_gym.ParallelWrapperDummy(creators)
             seeds = dummy_wrapper.seed()
             dummy_wrapper.close()
             assert len(seeds) == ENV_NUM
@@ -177,8 +125,9 @@ class TestParallelWrapperDummy:
 
     @pytest.mark.parametrize("idx,render_num", param_test_render)
     def test_render(self, envs, idx, render_num):
-        for env_list in envs:
-            dummy_wrapper = openai_gym.ParallelWrapperDummy(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            dummy_wrapper = openai_gym.ParallelWrapperDummy(creators)
             dummy_wrapper.reset(idx)
             rendered = dummy_wrapper.render(idx)
             dummy_wrapper.close()
@@ -190,16 +139,18 @@ class TestParallelWrapperDummy:
     # Test for ParallelWrapperDummy.close
     ########################################################################
     def test_close(self, envs):
-        for env_list in envs:
-            dummy_wrapper = openai_gym.ParallelWrapperDummy(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            dummy_wrapper = openai_gym.ParallelWrapperDummy(creators)
             dummy_wrapper.close()
 
     ########################################################################
     # Test for ParallelWrapperDummy.active
     ########################################################################
     def test_active(self, envs):
-        for env_list in envs:
-            dummy_wrapper = openai_gym.ParallelWrapperDummy(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            dummy_wrapper = openai_gym.ParallelWrapperDummy(creators)
             dummy_wrapper.reset()
             active = dummy_wrapper.active()
             dummy_wrapper.close()
@@ -209,7 +160,7 @@ class TestParallelWrapperDummy:
     # Test for ParallelWrapperDummy.size
     ########################################################################
     def test_size(self, envs):
-        dummy_wrapper = openai_gym.ParallelWrapperDummy(envs[0])
+        dummy_wrapper = openai_gym.ParallelWrapperDummy(envs[1][0])
         assert dummy_wrapper.size() == ENV_NUM
         dummy_wrapper.close()
 
@@ -227,8 +178,9 @@ class TestParallelWrapperSubProc:
 
     @pytest.mark.parametrize("idx,reset_num", param_test_reset)
     def test_reset(self, envs, idx, reset_num):
-        for env_list in envs:
-            subproc_wrapper = openai_gym.ParallelWrapperSubProc(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            subproc_wrapper = openai_gym.ParallelWrapperSubProc(creators)
             obsrvs = subproc_wrapper.reset(idx)
             subproc_wrapper.close()
 
@@ -252,8 +204,9 @@ class TestParallelWrapperSubProc:
 
     @pytest.mark.parametrize("idx,act_num", param_test_step)
     def test_step(self, envs, idx, act_num):
-        for env_list in envs:
-            subproc_wrapper = openai_gym.ParallelWrapperSubProc(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            subproc_wrapper = openai_gym.ParallelWrapperSubProc(creators)
             action = [mock_action(subproc_wrapper.action_space) for _ in range(act_num)]
             subproc_wrapper.reset(idx)
             obsrvs, reward, terminal, info = subproc_wrapper.step(action, idx)
@@ -282,8 +235,9 @@ class TestParallelWrapperSubProc:
 
     @pytest.mark.parametrize("idx", param_test_seed)
     def test_seed(self, envs, idx):
-        for env_list in envs:
-            subproc_wrapper = openai_gym.ParallelWrapperSubProc(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            subproc_wrapper = openai_gym.ParallelWrapperSubProc(creators)
             seeds = subproc_wrapper.seed()
             subproc_wrapper.close()
             assert len(seeds) == ENV_NUM
@@ -300,8 +254,9 @@ class TestParallelWrapperSubProc:
 
     @pytest.mark.parametrize("idx,render_num", param_test_render)
     def test_render(self, envs, idx, render_num):
-        for env_list in envs:
-            subproc_wrapper = openai_gym.ParallelWrapperSubProc(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            subproc_wrapper = openai_gym.ParallelWrapperSubProc(creators)
             subproc_wrapper.reset(idx)
             rendered = subproc_wrapper.render(idx)
             subproc_wrapper.close()
@@ -313,22 +268,24 @@ class TestParallelWrapperSubProc:
     # Test for ParallelWrapperSubProc.close
     ########################################################################
     def test_close(self, envs):
-        for env_list in envs:
-            subproc_wrapper = openai_gym.ParallelWrapperSubProc(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            subproc_wrapper = openai_gym.ParallelWrapperSubProc(creators)
             subproc_wrapper.close()
 
     ########################################################################
     # Test for ParallelWrapperSubProc.active
     ########################################################################
     def test_active(self, envs):
-        for env_list in envs:
-            subproc_wrapper = openai_gym.ParallelWrapperSubProc(env_list)
+        for name, creators in zip(*envs):
+            default_logger.info(f"Testing on env {name}")
+            subproc_wrapper = openai_gym.ParallelWrapperSubProc(creators)
             subproc_wrapper.reset()
             active = subproc_wrapper.active()
             subproc_wrapper.close()
             assert len(active) == ENV_NUM
 
     def test_size(self, envs):
-        subproc_wrapper = openai_gym.ParallelWrapperSubProc(envs[0])
+        subproc_wrapper = openai_gym.ParallelWrapperSubProc(envs[1][0])
         assert subproc_wrapper.size() == ENV_NUM
         subproc_wrapper.close()

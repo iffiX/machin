@@ -1,7 +1,7 @@
-import os
-import re
 from . import generators, ROOT
 from .archive import Archive
+import os
+import re
 
 
 def first(iterable, condition=lambda x: True):

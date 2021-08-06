@@ -1,13 +1,13 @@
+from logging import DEBUG
 from machin.parallel.pool import Pool, P2PPool, CtxPool, ThreadPool, CtxThreadPool
 from machin.utils.logging import default_logger as logger
-from logging import DEBUG
+from test.util_fixtures import *
+from test.util_platforms import linux_only
 
 import dill
 import pytest
 import torch as t
 
-from test.util_fixtures import *
-from test.util_platforms import linux_only
 
 # enable pool logging
 logger.setLevel(DEBUG)

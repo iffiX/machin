@@ -1,5 +1,6 @@
 from machin.utils.visualize import visualize_graph
 from unittest import mock
+
 import torch as t
 
 
