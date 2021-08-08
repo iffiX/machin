@@ -79,7 +79,7 @@ class DQNPer(DQN):
             )
         else:
             # A loss defined in ``torch.nn.modules.loss``
-            if self.criterion.reduction != "none":
+            if getattr(self.criterion, "reduction") != "none":
                 default_logger.warning(
                     "The reduction property of criterion is not 'none', "
                     "automatically corrected."

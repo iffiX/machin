@@ -21,8 +21,7 @@ class DistributedBuffer(Buffer):
         group: RpcGroup,
         buffer_size: int = 1000000,
         storage: TransitionStorageBase = None,
-        *_,
-        **__,
+        **kwargs,
     ):
         """
         Create a distributed replay buffer instance.
@@ -58,7 +57,9 @@ class DistributedBuffer(Buffer):
             storage: Custom storage, not compatible with `buffer_size` and
                 `buffer_device`.
         """
-        super().__init__(buffer_size=buffer_size, buffer_device="cpu", storage=storage)
+        super().__init__(
+            buffer_size=buffer_size, buffer_device="cpu", storage=storage, **kwargs
+        )
         self.buffer_name = buffer_name
         self.group = group
 

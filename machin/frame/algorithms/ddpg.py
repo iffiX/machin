@@ -370,11 +370,10 @@ class DDPG(TorchFramework):
         """
         Add a full episode of transition samples to the replay buffer.
         """
-        for trans in episode:
-            self.replay_buffer.append(
-                trans,
-                required_attrs=("state", "action", "reward", "next_state", "terminal"),
-            )
+        self.replay_buffer.store_episode(
+            episode,
+            required_attrs=("state", "action", "reward", "next_state", "terminal"),
+        )
 
     def update(
         self,

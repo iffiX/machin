@@ -7,8 +7,8 @@ import torch as t
 
 class TestWeightTree:
     WEIGHT_TREE_SIZE = 5
-    WEIGHT_TREE_BASE = [1, 1, 1, 1, 3]
-    WEIGHT_TREE_WEIGHTS = [1, 1, 1, 1, 3, 0, 0, 0, 2, 2, 3, 0, 4, 3, 7]
+    WEIGHT_TREE_BASE = [1, 1, 1, 0, 3]
+    WEIGHT_TREE_WEIGHTS = [1, 1, 1, 0, 3, 0, 0, 0, 2, 1, 3, 0, 3, 3, 6]
 
     @pytest.fixture(scope="class")
     def const_tree(self):
@@ -60,10 +60,10 @@ class TestWeightTree:
         (0.9, 0),
         (1.0, 0),
         (1.1, 1),
-        ([-1.0, 0.9, 1.1, 2.0, 3.9, 4.2, 7.0, 10.0], [0, 0, 1, 1, 3, 4, 4, 4]),
+        ([-1.0, 0.9, 1.1, 2.0, 3.0, 3.9, 4.2, 7.0, 10.0], [0, 0, 1, 1, 2, 4, 4, 4, 4]),
         (
-            np.array([-1.0, 0.9, 1.1, 2.0, 3.9, 4.2, 7.0, 10.0]),
-            np.array([0, 0, 1, 1, 3, 4, 4, 4]),
+            np.array([-1.0, 0.9, 1.1, 2.0, 3.0, 3.9, 4.2, 7.0, 10.0]),
+            np.array([0, 0, 1, 1, 2, 4, 4, 4, 4]),
         ),
     ]
 
@@ -77,7 +77,7 @@ class TestWeightTree:
     param_update_leaf = [
         (2.0, 7, ValueError, "Index has elements out of boundary", None),
         (2.0, -1, ValueError, "Index has elements out of boundary", None),
-        (2.0, 1, None, None, [1, 2, 1, 1, 3, 0, 0, 0, 3, 2, 3, 0, 5, 3, 8]),
+        (2.0, 1, None, None, [1, 2, 1, 0, 3, 0, 0, 0, 3, 1, 3, 0, 4, 3, 7]),
     ]
 
     @pytest.mark.parametrize(
@@ -155,9 +155,24 @@ class TestWeightTree:
 
 class TestPrioritizedBuffer:
     ########################################################################
-    # Test for PrioritizedBuffer.append
+    # Test for PrioritizedBuffer.store_episode
     ########################################################################
-    param_test_append = [
+    param_test_store_episode = [
+        (
+            [],  # empty episode
+            [],
+            None,
+            ValueError,
+            "Episode must be non-empty",
+            {
+                "buffer_size": 5,
+                "buffer_device": "cpu",
+                "epsilon": 1e-2,
+                "alpha": 0.6,
+                "beta": 0.4,
+                "beta_increment_per_sampling": 1e-3,
+            },
+        ),
         (
             [
                 {
@@ -169,8 +184,10 @@ class TestPrioritizedBuffer:
                     "some_custom_attr": None,
                 }
             ],
-            1,
+            [1],
             ((1 + 1e-2) ** 0.6, 0, 0, 0, 0),
+            None,
+            None,
             {
                 "buffer_size": 5,
                 "buffer_device": "cpu",
@@ -193,6 +210,8 @@ class TestPrioritizedBuffer:
             ],
             None,
             (1e-2 ** 0.6, 0, 0, 0, 0),
+            None,
+            None,
             {
                 "buffer_size": 5,
                 "buffer_device": "cpu",
@@ -205,13 +224,19 @@ class TestPrioritizedBuffer:
     ]
 
     @pytest.mark.parametrize(
-        "trans_list,priority,should_be_wt_leaf," "buffer_kwargs", param_test_append
+        "episode,priorities,should_be_wt_leaf,exception,match,buffer_kwargs",
+        param_test_store_episode,
     )
-    def test_append(self, trans_list, priority, should_be_wt_leaf, buffer_kwargs):
+    def test_store_episode(
+        self, episode, priorities, should_be_wt_leaf, exception, match, buffer_kwargs
+    ):
         buffer = PrioritizedBuffer(**buffer_kwargs)
-        for trans in trans_list:
-            buffer.append(trans, priority=priority)
-        assert np.all(buffer.wt_tree.get_leaf_all_weights() == should_be_wt_leaf)
+        if exception is not None:
+            with pytest.raises(exception, match=match):
+                buffer.store_episode(episode, priorities=priorities)
+        else:
+            buffer.store_episode(episode, priorities=priorities)
+            assert np.all(buffer.wt_tree.get_leaf_all_weights() == should_be_wt_leaf)
 
     ########################################################################
     # Test for PrioritizedBuffer.clear
@@ -228,7 +253,7 @@ class TestPrioritizedBuffer:
                     "some_custom_attr": None,
                 }
             ],
-            1,
+            [1],
             {
                 "buffer_size": 5,
                 "buffer_device": "cpu",
@@ -240,11 +265,10 @@ class TestPrioritizedBuffer:
         ),
     ]
 
-    @pytest.mark.parametrize("trans_list,priority,buffer_kwargs", param_test_clear)
-    def test_clear(self, trans_list, priority, buffer_kwargs):
+    @pytest.mark.parametrize("episode,priorities,buffer_kwargs", param_test_clear)
+    def test_clear(self, episode, priorities, buffer_kwargs):
         buffer = PrioritizedBuffer(**buffer_kwargs)
-        for trans in trans_list:
-            buffer.append(trans, priority=priority)
+        buffer.store_episode(episode, priorities=priorities)
         buffer.clear()
 
     ########################################################################
@@ -262,7 +286,7 @@ class TestPrioritizedBuffer:
                     "some_custom_attr": None,
                 }
             ],
-            1,
+            [1],
             np.array([0]),
             np.array([2]),
             ((2 + 1e-2) ** 0.6, 0, 0, 0, 0),
@@ -278,90 +302,77 @@ class TestPrioritizedBuffer:
     ]
 
     @pytest.mark.parametrize(
-        "trans_list,priority,upd_indexes,"
-        "upd_priorities,should_be_wt_leaf,"
+        "episode,priorities,update_indexes,"
+        "update_priorities,should_be_weight_tree_leaf,"
         "buffer_kwargs",
         param_test_update_priority,
     )
     def test_update_priority(
         self,
-        trans_list,
-        priority,
-        upd_indexes,
-        upd_priorities,
-        should_be_wt_leaf,
+        episode,
+        priorities,
+        update_indexes,
+        update_priorities,
+        should_be_weight_tree_leaf,
         buffer_kwargs,
     ):
         buffer = PrioritizedBuffer(**buffer_kwargs)
-        for trans in trans_list:
-            buffer.append(trans, priority=priority)
-        buffer.update_priority(upd_priorities, upd_indexes)
-        assert np.all(buffer.wt_tree.get_leaf_all_weights() == should_be_wt_leaf)
+        buffer.store_episode(episode, priorities=priorities)
+        buffer.update_priority(update_priorities, update_indexes)
+        assert np.all(
+            buffer.wt_tree.get_leaf_all_weights() == should_be_weight_tree_leaf
+        )
 
     ########################################################################
     # Test for PrioritizedBuffer.sample_batch
     ########################################################################
-    empty_trans_list = []
-    full_trans_list = [
-        (
-            {
-                "state": {"state_1": t.zeros([1, 2])},
-                "action": {"action_1": t.zeros([1, 3])},
-                "next_state": {"next_state_1": t.zeros([1, 2])},
-                "reward": 1,
-                "terminal": True,
-                "index": 0,
-            },
-            1,
-        ),
-        (
-            {
-                "state": {"state_1": t.zeros([1, 2])},
-                "action": {"action_1": t.zeros([1, 3])},
-                "next_state": {"next_state_1": t.zeros([1, 2])},
-                "reward": 1,
-                "terminal": True,
-                "index": 1,
-            },
-            1,
-        ),
-        (
-            {
-                "state": {"state_1": t.zeros([1, 2])},
-                "action": {"action_1": t.zeros([1, 3])},
-                "next_state": {"next_state_1": t.zeros([1, 2])},
-                "reward": 1,
-                "terminal": True,
-                "index": 2,
-            },
-            1,
-        ),
-        (
-            {
-                "state": {"state_1": t.zeros([1, 2])},
-                "action": {"action_1": t.zeros([1, 3])},
-                "next_state": {"next_state_1": t.zeros([1, 2])},
-                "reward": 1,
-                "terminal": True,
-                "index": 3,
-            },
-            0.3,
-        ),
-        (
-            {
-                "state": {"state_1": t.zeros([1, 2])},
-                "action": {"action_1": t.zeros([1, 3])},
-                "next_state": {"next_state_1": t.zeros([1, 2])},
-                "reward": 1,
-                "terminal": True,
-                "index": 4,
-            },
-            0.3,
-        ),
+    full_episode = [
+        {
+            "state": {"state_1": t.zeros([1, 2])},
+            "action": {"action_1": t.zeros([1, 3])},
+            "next_state": {"next_state_1": t.zeros([1, 2])},
+            "reward": 1,
+            "terminal": True,
+            "index": 0,
+        },
+        {
+            "state": {"state_1": t.zeros([1, 2])},
+            "action": {"action_1": t.zeros([1, 3])},
+            "next_state": {"next_state_1": t.zeros([1, 2])},
+            "reward": 1,
+            "terminal": True,
+            "index": 1,
+        },
+        {
+            "state": {"state_1": t.zeros([1, 2])},
+            "action": {"action_1": t.zeros([1, 3])},
+            "next_state": {"next_state_1": t.zeros([1, 2])},
+            "reward": 1,
+            "terminal": True,
+            "index": 2,
+        },
+        {
+            "state": {"state_1": t.zeros([1, 2])},
+            "action": {"action_1": t.zeros([1, 3])},
+            "next_state": {"next_state_1": t.zeros([1, 2])},
+            "reward": 1,
+            "terminal": True,
+            "index": 3,
+        },
+        {
+            "state": {"state_1": t.zeros([1, 2])},
+            "action": {"action_1": t.zeros([1, 3])},
+            "next_state": {"next_state_1": t.zeros([1, 2])},
+            "reward": 1,
+            "terminal": True,
+            "index": 4,
+        },
     ]
+    full_priorities = [1, 1, 1, 0.3, 0.3]
     param_test_sample_batch = [
-        (  # test for empty batch & empty buffer
-            empty_trans_list,
+        (  # test for empty batch
+            full_episode,
+            full_priorities,
             0,
             None,
             None,
@@ -375,15 +386,16 @@ class TestPrioritizedBuffer:
                 "beta_increment_per_sampling": 1e-3,
             },
             {
-                "batch_size": 5,
+                "batch_size": 0,
                 "concatenate": True,
                 "sample_attrs": ["index"],
-                "additional_concat_attrs": ["index"],
+                "additional_concat_custom_attrs": ["index"],
             },
             0,
         ),
         (  # test for regular sample
-            full_trans_list,
+            full_episode,
+            full_priorities,
             5,
             [0, 1, 2, 2, 4],
             [0, 1, 2, 2, 4],
@@ -399,12 +411,13 @@ class TestPrioritizedBuffer:
                 "batch_size": 5,
                 "concatenate": True,
                 "sample_attrs": ["index"],
-                "additional_concat_attrs": ["index"],
+                "additional_concat_custom_attrs": ["index"],
             },
             0,
         ),
         (  # test for device="cpu"
-            full_trans_list,
+            full_episode,
+            full_priorities,
             5,
             [0, 1, 2, 2, 4],
             [0, 1, 2, 2, 4],
@@ -421,21 +434,22 @@ class TestPrioritizedBuffer:
                 "concatenate": True,
                 "device": "cpu",
                 "sample_attrs": ["index"],
-                "additional_concat_attrs": ["index"],
+                "additional_concat_custom_attrs": ["index"],
             },
             0,
         ),
     ]
 
     @pytest.mark.parametrize(
-        "trans_list,sampled_size,sampled_result,"
+        "episode,priorities,sampled_size,sampled_result,"
         "sampled_index,sampled_is_weight,buffer_kwargs,"
         "sample_kwargs,np_seed",
         param_test_sample_batch,
     )
     def test_sample_batch(
         self,
-        trans_list,
+        episode,
+        priorities,
         sampled_size,
         sampled_result,
         sampled_index,
@@ -449,8 +463,7 @@ class TestPrioritizedBuffer:
         if "device" not in buffer_kwargs:
             buffer_kwargs["device"] = pytestconfig.getoption("gpu_device")
         buffer = PrioritizedBuffer(**buffer_kwargs)
-        for trans, priority in trans_list:
-            buffer.append(trans, priority=priority)
+        buffer.store_episode(episode, priorities=priorities)
 
         bsize, result, index, is_weight = buffer.sample_batch(**sample_kwargs)
         assert bsize == sampled_size

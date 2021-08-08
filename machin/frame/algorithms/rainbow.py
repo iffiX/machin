@@ -188,18 +188,17 @@ class RAINBOW(DQN):
                 value_sum = value_sum * self.discount + episode[i + j]["reward"]
             episode[i]["value"] = value_sum
 
-        for trans in episode:
-            self.replay_buffer.append(
-                trans,
-                required_attrs=(
-                    "state",
-                    "action",
-                    "next_state",
-                    "reward",
-                    "value",
-                    "terminal",
-                ),
-            )
+        self.replay_buffer.store_episode(
+            episode,
+            required_attrs=(
+                "state",
+                "action",
+                "next_state",
+                "reward",
+                "value",
+                "terminal",
+            ),
+        )
 
     def update(
         self, update_value=True, update_target=True, concatenate_samples=True, **__

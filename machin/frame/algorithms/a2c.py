@@ -312,19 +312,18 @@ class A2C(TorchFramework):
                     + gae_delta
                 )
 
-        for trans in episode:
-            self.replay_buffer.append(
-                trans,
-                required_attrs=(
-                    "state",
-                    "action",
-                    "next_state",
-                    "reward",
-                    "value",
-                    "gae",
-                    "terminal",
-                ),
-            )
+        self.replay_buffer.store_episode(
+            episode,
+            required_attrs=(
+                "state",
+                "action",
+                "next_state",
+                "reward",
+                "value",
+                "gae",
+                "terminal",
+            ),
+        )
 
     def update(
         self, update_value=True, update_policy=True, concatenate_samples=True, **__

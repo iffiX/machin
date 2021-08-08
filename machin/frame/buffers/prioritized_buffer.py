@@ -10,7 +10,7 @@ class WeightTree:
     Sum weight tree data structure.
     """
 
-    def __init__(self, size):
+    def __init__(self, size: int):
         """
         Initialize a weight tree.
 
@@ -49,7 +49,7 @@ class WeightTree:
         level_sizes_log = np.arange(self.depth - 1, -1, -1)
         self.sizes = np.power(2, level_sizes_log)
         self.offsets = np.concatenate(([0], np.cumsum(self.sizes)))
-        self.weights = np.zeros([self.offsets[-1]], dtype=np.float)
+        self.weights = np.zeros([self.offsets[-1]], dtype=np.float64)
 
     def get_weight_sum(self) -> float:
         """
@@ -107,7 +107,7 @@ class WeightTree:
         """
         if not isinstance(weight, np.ndarray):
             weight = np.array(weight).reshape(-1)
-        index = np.zeros([weight.shape[0]], dtype=np.long)
+        index = np.zeros([weight.shape[0]], dtype=np.int64)
 
         # starting from the first child level of root
         for i in range(self.depth - 2, -1, -1):
@@ -234,12 +234,12 @@ class WeightTree:
 class PrioritizedBuffer(Buffer):
     def __init__(
         self,
-        buffer_size,
-        buffer_device="cpu",
-        epsilon=1e-2,
-        alpha=0.6,
-        beta=0.4,
-        beta_increment_per_sampling=0.001,
+        buffer_size: int = 1000000,
+        buffer_device: Union[str, t.device] = "cpu",
+        epsilon: float = 1e-2,
+        alpha: float = 0.6,
+        beta: float = 0.4,
+        beta_increment_per_sampling: float = 0.001,
         **kwargs,
     ):
         """
@@ -266,7 +266,9 @@ class PrioritizedBuffer(Buffer):
             beta_increment_per_sampling:
                 Beta increase step size, will gradually increase ``beta`` to 1.
         """
-        super().__init__(buffer_size=buffer_size, buffer_device=buffer_device)
+        super().__init__(
+            buffer_size=buffer_size, buffer_device=buffer_device, storage=None, **kwargs
+        )
         self.epsilon = epsilon
         self.alpha = alpha
         self.beta = beta
@@ -274,16 +276,10 @@ class PrioritizedBuffer(Buffer):
         self.curr_beta = beta
         self.wt_tree = WeightTree(buffer_size)
 
-    def _normalize_priority(self, priority):
-        """
-        Normalize priority and calculate :math:`p_{j}^{\alpha}`
-        """
-        return (np.abs(priority) + self.epsilon) ** self.alpha
-
     def store_episode(
         self,
         episode: List[Union[TransitionBase, Dict]],
-        priority: Union[List[float], None] = None,
+        priorities: Union[List[float], None] = None,
         required_attrs=("state", "action", "next_state", "reward", "terminal"),
     ):
         """
@@ -291,7 +287,7 @@ class PrioritizedBuffer(Buffer):
 
         Args:
             episode: A list of transition objects.
-            priority: Priority of each transition in the episode.
+            priorities: Priority of each transition in the episode.
             required_attrs: Required attributes. Could be an empty tuple if
                 no attribute is required.
 
@@ -303,14 +299,14 @@ class PrioritizedBuffer(Buffer):
         super().store_episode(episode, required_attrs)
         episode_number = self.episode_counter - 1
         positions = self.episode_transition_handles[episode_number]
-        if priority is None:
-            for position in positions:
-                # the initialization method used in the original essay
-                priority = self.wt_tree.get_leaf_max()
-                self.wt_tree.update_leaf(self._normalize_priority(priority), position)
+        if priorities is None:
+            # the initialization method used in the original essay
+            priority = self._normalize_priority(self.wt_tree.get_leaf_max())
+            self.wt_tree.update_leaf_batch([priority] * len(positions), positions)
         else:
-            for p, position in zip(priority, positions):
-                self.wt_tree.update_leaf(self._normalize_priority(priority), position)
+            self.wt_tree.update_leaf_batch(
+                self._normalize_priority(priorities), positions
+            )
 
     def clear(self):
         """
@@ -340,7 +336,9 @@ class PrioritizedBuffer(Buffer):
         additional_concat_custom_attrs: List[str] = None,
         *_,
         **__,
-    ) -> Tuple[int, Union[None, tuple]]:
+    ) -> Tuple[
+        int, Union[None, tuple], Union[None, np.ndarray], Union[None, np.ndarray]
+    ]:
         """
         Sample the most important batch from the prioritized buffer.
 
@@ -379,37 +377,58 @@ class PrioritizedBuffer(Buffer):
                For details on the attribute values, please refer to doc of
                :meth:`.Buffer.sample_batch`.
 
-            3. Indexes of samples in the weight tree, ``np.ndarray``.
-               Or ``None`` if sampled batch size is zero
+            3. Indexes of samples in the weight tree, ``None`` if sampled
+               batch size is zero.
 
-            4. Importance sampling weight of samples, ``np.ndarray``.
-               Or ``None`` if sampled batch size is zero
+            4. Importance sampling weight of samples, ``None`` if sampled
+               batch size is zero.
 
         """
         if batch_size <= 0 or self.size() == 0:
             return 0, None, None, None
 
+        index, is_weight = self.sample_index_and_weight(batch_size)
+        batch = [self.storage[idx] for idx in index]
+        result = self.post_process_batch(
+            batch, device, concatenate, sample_attrs, additional_concat_custom_attrs
+        )
+        return len(batch), result, index, is_weight
+
+    def sample_index_and_weight(self, batch_size: int, all_weight_sum: float = None):
+        """
+        Sample index of experience entries by priority, and return their importance
+        sampling weight.
+
+        Args:
+            batch_size: Batch size to sample.
+            all_weight_sum: Sum of all weights from all agents,
+                used by the distributed version.
+        Returns:
+            Index array and importance sampling weight array.
+        """
         segment_length = self.wt_tree.get_weight_sum() / batch_size
 
         rand_priority = np.random.uniform(size=batch_size) * segment_length
-        rand_priority += np.arange(batch_size, dtype=np.float) * segment_length
+        rand_priority += np.arange(batch_size, dtype=np.float64) * segment_length
         rand_priority = np.clip(
             rand_priority, 0, max(self.wt_tree.get_weight_sum() - 1e-6, 0)
         )
         index = self.wt_tree.find_leaf_index(rand_priority)
 
-        batch = [self.storage[idx] for idx in index]
         priority = self.wt_tree.get_leaf_weight(index)
 
         # calculate importance sampling weight
-        sample_probability = priority / self.wt_tree.get_weight_sum()
-        is_weight = np.power(self.size() * sample_probability, -self.curr_beta)
+        all_weight_sum = all_weight_sum or self.wt_tree.get_weight_sum()
+        sample_probability = priority / all_weight_sum
+        is_weight = np.power(len(self.storage) * sample_probability, -self.curr_beta)
         is_weight /= is_weight.max()
         self.curr_beta = np.min(
             [1.0, self.curr_beta + self.beta_increment_per_sampling]
         )
+        return index, is_weight
 
-        result = self.post_process_batch(
-            batch, device, concatenate, sample_attrs, additional_concat_custom_attrs
-        )
-        return len(batch), result, index, is_weight
+    def _normalize_priority(self, priority):
+        """
+        Normalize priority and calculate :math:`p_{j}^{\alpha}`
+        """
+        return (np.abs(priority) + self.epsilon) ** self.alpha

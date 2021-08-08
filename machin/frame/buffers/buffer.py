@@ -15,7 +15,6 @@ class Buffer:
         buffer_size: int = 1000000,
         buffer_device: Union[str, t.device] = "cpu",
         storage: TransitionStorageBase = None,
-        *_,
         **__,
     ):
         """
@@ -79,15 +78,15 @@ class Buffer:
             elif isinstance(transition, TransitionBase):
                 pass
             else:  # pragma: no cover
-                raise RuntimeError(
+                raise ValueError(
                     "Transition object must be a dict or an instance"
-                    " of the Transition class"
+                    " of the Transition class."
                 )
             if not transition.has_keys(required_attrs):
                 missing_keys = set(required_attrs) - set(transition.keys())
                 raise ValueError(
                     f"Transition object missing attributes: {missing_keys}, "
-                    f"object is {transition}"
+                    f"object is {transition}."
                 )
             episode[idx] = transition
 

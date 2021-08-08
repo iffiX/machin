@@ -7,14 +7,19 @@ from machin.utils.visualize import make_dot
 from machin.utils.logging import default_logger
 from machin.model.nets.base import static_module_wrapper
 from machin.parallel.pool import P2PPool, ThreadPool
+from machin.frame.transition import Scalar
 
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .ddpg import *
 
 
 class SHMBuffer(Buffer):
-    @staticmethod
-    def make_tensor_from_batch(batch, device, concatenate):
+    def make_tensor_from_batch(
+        self,
+        batch: List[Union[Scalar, t.Tensor]],
+        device: Union[str, t.device],
+        concatenate: bool,
+    ):
         # this function is used in post processing, and we will
         # move all cpu tensors to shared memory.
         if concatenate and len(batch) != 0:
@@ -307,11 +312,11 @@ class MADDPG(TorchFramework):
     def optimizers(self, optimizers):
         counter = 0
         for ac in self.actor_optims:
-            for id, _acc in enumerate(ac):
-                ac[id] = optimizers[counter]
+            for i in range(len(ac)):
+                ac[i] = optimizers[counter]
                 counter += 1
-        for id in range(len(self.critic_optims)):
-            self.critic_optims[id] = optimizers[counter]
+        for i in range(len(self.critic_optims)):
+            self.critic_optims[i] = optimizers[counter]
             counter += 1
 
     @property
@@ -506,18 +511,11 @@ class MADDPG(TorchFramework):
         assert len(episodes) == len(self.replay_buffers)
         all_length = [len(ep) for ep in episodes]
         assert len(set(all_length)) == 1, "All episodes must have the same length!"
-        for buff, ep in zip(self.replay_buffers, episodes):
-            for trans in ep:
-                buff.append(
-                    trans,
-                    required_attrs=(
-                        "state",
-                        "action",
-                        "next_state",
-                        "reward",
-                        "terminal",
-                    ),
-                )
+        for buffer, episode in zip(self.replay_buffers, episodes):
+            buffer.store_episode(
+                episode,
+                required_attrs=("state", "action", "next_state", "reward", "terminal",),
+            )
 
     def update(
         self,
@@ -961,7 +959,7 @@ class MADDPG(TorchFramework):
     def _create_sample_method(indexes):
         def sample_method(buffer, _len):
             nonlocal indexes
-            batch = [buffer[i] for i in indexes if i < len(buffer)]
+            batch = [buffer.storage[i] for i in indexes if i < buffer.size()]
             return len(batch), batch
 
         return sample_method

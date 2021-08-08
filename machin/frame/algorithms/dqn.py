@@ -325,11 +325,10 @@ edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf>`__ essay.
         """
         Add a full episode of transition samples to the replay buffer.
         """
-        for trans in episode:
-            self.replay_buffer.append(
-                trans,
-                required_attrs=("state", "action", "reward", "next_state", "terminal"),
-            )
+        self.replay_buffer.store_episode(
+            episode,
+            required_attrs=("state", "action", "reward", "next_state", "terminal"),
+        )
 
     def update(
         self, update_value=True, update_target=True, concatenate_samples=True, **__

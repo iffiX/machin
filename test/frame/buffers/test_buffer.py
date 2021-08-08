@@ -1,19 +1,18 @@
 from machin.frame.transition import Transition
 from machin.frame.buffers import Buffer
 
-import dill
 import pytest
 import torch as t
 
 
 class TestBuffer:
-    BUFFER_SIZE = 1
+    BUFFER_SIZE = 5
     SAMPLE_BUFFER_SIZE = 10
 
     ########################################################################
-    # Test for Buffer.append
+    # Test for Buffer.store_episode
     ########################################################################
-    param_test_append = [
+    param_test_store_episode = [
         (
             [
                 {
@@ -38,6 +37,18 @@ class TestBuffer:
             None,
         ),
         (
+            [],
+            ("state", "action", "next_state", "reward", "terminal"),
+            ValueError,
+            "Episode must be non-empty",
+        ),
+        (
+            [[]],
+            ("state", "action", "next_state", "reward", "terminal"),
+            ValueError,
+            "Transition object must be a dict",
+        ),
+        (
             [
                 {
                     "state": {"state_1": t.zeros([1, 2])},
@@ -59,43 +70,40 @@ class TestBuffer:
             ValueError,
             "Transition object missing attributes",
         ),
-        (
-            [
-                {
-                    "state": {"state_1": t.zeros([1, 2])},
-                    "action": {"action_1": t.zeros([1, 3])},
-                    "next_state": {"next_state_1": t.zeros([1, 2])},
-                    "reward": 1,
-                    "terminal": True,
-                    "some_custom_attr": None,
-                },
-                {
-                    "state": {"state_1": t.zeros([1, 2])},
-                    "action": {"action_1": t.zeros([1, 3])},
-                    "next_state": {"next_state_1": t.zeros([1, 2])},
-                    "reward": 1,
-                    "terminal": True,
-                    "some_other_custom_attr": None,
-                },
-            ],
-            ("state", "action", "next_state", "reward", "terminal"),
-            ValueError,
-            "Transition object has different attributes",
-        ),
     ]
 
     @pytest.mark.parametrize(
-        "trans_list,require_attr," "exception,match", param_test_append
+        "episode,required_attrs,exception,match", param_test_store_episode
     )
-    def test_append(self, trans_list, require_attr, exception, match):
+    def test_store_episode(self, episode, required_attrs, exception, match):
         buffer = Buffer(self.BUFFER_SIZE)
         if exception is not None:
             with pytest.raises(exception, match=match):
-                for trans in trans_list:
-                    buffer.append(trans, require_attr)
+                buffer.store_episode(episode, required_attrs)
         else:
-            for trans in trans_list:
-                buffer.append(trans, require_attr)
+            buffer.store_episode(episode, required_attrs)
+
+    ########################################################################
+    # Test for Buffer.size
+    ########################################################################
+    param_test_size = [
+        [
+            {
+                "state": {"state_1": t.zeros([1, 2])},
+                "action": {"action_1": t.zeros([1, 3])},
+                "next_state": {"next_state_1": t.zeros([1, 2])},
+                "reward": 1,
+                "terminal": True,
+                "some_custom_attr": None,
+            }
+        ]
+    ]
+
+    @pytest.mark.parametrize("episode", param_test_size)
+    def test_size(self, episode):
+        buffer = Buffer(self.BUFFER_SIZE)
+        buffer.store_episode(episode)
+        assert buffer.size() == 1
 
     ########################################################################
     # Test for Buffer.clear
@@ -113,18 +121,18 @@ class TestBuffer:
         ]
     ]
 
-    @pytest.mark.parametrize("trans_list", param_test_clear)
-    def test_clear(self, trans_list):
+    @pytest.mark.parametrize("episode", param_test_clear)
+    def test_clear(self, episode):
         buffer = Buffer(self.BUFFER_SIZE)
-        for trans in trans_list:
-            buffer.append(trans)
+        buffer.store_episode(episode)
         buffer.clear()
         assert buffer.size() == 0
 
     ########################################################################
     # Test for Buffer.sample_batch
     ########################################################################
-    def t_eq(self, a: t.Tensor, b: t.Tensor):
+    @staticmethod
+    def tensor_equal(a: t.Tensor, b: t.Tensor):
         if a.shape != b.shape:
             return False
         b = b.to(a.device)
@@ -132,7 +140,7 @@ class TestBuffer:
 
     @pytest.fixture(scope="class")
     def const_buffer(self, pytestconfig):
-        data = [
+        episode = [
             {
                 "state": {"state_1": t.zeros([1, 2])},
                 "action": {"action_1": t.zeros([1, 3])},
@@ -148,8 +156,7 @@ class TestBuffer:
             buffer_size=self.SAMPLE_BUFFER_SIZE,
             buffer_device=pytestconfig.getoption("gpu_device"),
         )
-        for d in data:
-            buffer.append(d)
+        buffer.store_episode(episode)
         return buffer
 
     @pytest.mark.parametrize(
@@ -204,7 +211,7 @@ class TestBuffer:
             ),
         ],
     )
-    def test_sample(
+    def test_sample_batch(
         self,
         const_buffer,
         batch_size,
@@ -260,34 +267,46 @@ class TestBuffer:
                 for data, attr in zip(b, should_be_attrs):
                     if attr == "state":
                         if concat:
-                            assert self.t_eq(data["state_1"], t.zeros([bsize, 2]))
+                            assert self.tensor_equal(
+                                data["state_1"], t.zeros([bsize, 2])
+                            )
                         else:
                             assert (
                                 isinstance(data["state_1"], list)
                                 and len(data["state_1"]) == bsize
-                                and self.t_eq(data["state_1"][0], t.zeros([1, 2]))
+                                and self.tensor_equal(
+                                    data["state_1"][0], t.zeros([1, 2])
+                                )
                             )
                     elif attr == "action":
                         if concat:
-                            assert self.t_eq(data["action_1"], t.zeros([bsize, 3]))
+                            assert self.tensor_equal(
+                                data["action_1"], t.zeros([bsize, 3])
+                            )
                         else:
                             assert (
                                 isinstance(data["action_1"], list)
                                 and len(data["action_1"]) == bsize
-                                and self.t_eq(data["action_1"][0], t.zeros([1, 3]))
+                                and self.tensor_equal(
+                                    data["action_1"][0], t.zeros([1, 3])
+                                )
                             )
                     elif attr == "next_state":
                         if concat:
-                            assert self.t_eq(data["next_state_1"], t.zeros([bsize, 4]))
+                            assert self.tensor_equal(
+                                data["next_state_1"], t.zeros([bsize, 4])
+                            )
                         else:
                             assert (
                                 isinstance(data["next_state_1"], list)
                                 and len(data["next_state_1"]) == bsize
-                                and self.t_eq(data["next_state_1"][0], t.zeros([1, 4]))
+                                and self.tensor_equal(
+                                    data["next_state_1"][0], t.zeros([1, 4])
+                                )
                             )
                     elif attr == "reward":
                         if concat:
-                            assert self.t_eq(data, t.full([bsize, 1], 10.0))
+                            assert self.tensor_equal(data, t.full([bsize, 1], 10.0))
                         else:
                             assert (
                                 isinstance(data, list)
@@ -296,7 +315,7 @@ class TestBuffer:
                             )
                     elif attr == "terminal":
                         if concat:
-                            assert self.t_eq(
+                            assert self.tensor_equal(
                                 data, t.full([bsize, 1], True, dtype=t.bool)
                             )
                         else:
@@ -320,10 +339,3 @@ class TestBuffer:
                             and len(data) == bsize
                             and isinstance(data[0], tuple)
                         )
-
-    ########################################################################
-    # Test for Buffer.__reduce__
-    ########################################################################
-    def test_reduce(self, const_buffer):
-        str = dill.dumps(const_buffer)
-        _buffer = dill.loads(str)

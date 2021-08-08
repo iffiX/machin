@@ -31,6 +31,10 @@ class TransitionStorageBase(ABC):
 
         Returns:
             A list of handle corresponding to each stored transition from the episode.
+
+        Raises:
+            Raise value error if episode could not be fully stored due to storage
+            capacity, etc.
         """
 
     @abstractmethod
@@ -80,6 +84,9 @@ class TransitionStorageBasic(TransitionStorageBase):
 
     def store_episode(self, episode: List[TransitionBase]) -> List[int]:
         """
+        See Also:
+            :meth:`.TransitionStorageBase.store_episode`
+
         Args:
             episode: Episode to be stored.
 
@@ -102,6 +109,8 @@ class TransitionStorageBasic(TransitionStorageBase):
                 raise RuntimeError()
             self.index = (position + 1) % self.max_size
             positions.append(position)
+        if len(set(positions)) != len(positions):
+            raise ValueError("Failed to store episode.")
         return positions
 
     def clear(self):

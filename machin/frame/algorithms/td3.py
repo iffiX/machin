@@ -257,7 +257,7 @@ class TD3(DDPG):
         self.critic.eval()
         self.critic2.eval()
         # use .item() to prevent memory leakage
-        return (-act_policy_loss.item(), (value_loss.item() + value_loss2.item()) / 2)
+        return -act_policy_loss.item(), (value_loss.item() + value_loss2.item()) / 2
 
     @staticmethod
     def policy_noise_function(actions, *_):

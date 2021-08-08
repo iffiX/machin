@@ -40,7 +40,7 @@ class IMPALABuffer(DistributedBuffer):
         *_,
         **__,
     ) -> Any:
-        super().sample_batch(
+        return super().sample_batch(
             batch_size=batch_size,
             concatenate=concatenate,
             device=device,
@@ -309,15 +309,6 @@ class IMPALA(TorchFramework):
                 "Sum length is unequal to tensor total length,"
                 " an unknown error has occurred."
             )
-
-        for major_attr in (state, action, next_state):
-            for k, v in major_attr.items():
-                major_attr[k] = t.cat(v, dim=0)
-                assert major_attr[k].shape[0] == sum_length
-
-        terminal = t.cat(terminal, dim=0).view(sum_length, 1)
-        reward = t.cat(reward, dim=0).view(sum_length, 1)
-        action_log_prob = t.cat(action_log_prob, dim=0).view(sum_length, 1)
 
         # Below are the v-trace process
 

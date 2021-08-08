@@ -237,10 +237,12 @@ class GAIL(TorchFramework):
 
         Only states and actions are required.
         """
-        for trans in episode:
-            if isinstance(trans, dict):
-                trans = ExpertTransition(**trans)
-            self.expert_replay_buffer.append(trans, required_attrs=("state", "action"))
+        episode = [
+            ExpertTransition(**trans) for trans in episode if isinstance(trans, dict)
+        ]
+        self.expert_replay_buffer.store_episode(
+            episode, required_attrs=("state", "action")
+        )
 
     def update(
         self,

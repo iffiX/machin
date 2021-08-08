@@ -1,4 +1,4 @@
-from typing import Union, Dict, List, Tuple
+from typing import Union, Dict, List, Tuple, Any
 from threading import RLock
 from collections import OrderedDict
 from ..transition import TransitionBase
@@ -9,7 +9,17 @@ import torch as t
 
 
 class DistributedPrioritizedBuffer(PrioritizedBuffer):
-    def __init__(self, buffer_name: str, group: RpcGroup, buffer_size: int, *_, **__):
+    def __init__(
+        self,
+        buffer_name: str,
+        group: RpcGroup,
+        buffer_size: int = 1000000,
+        epsilon: float = 1e-2,
+        alpha: float = 0.6,
+        beta: float = 0.4,
+        beta_increment_per_sampling: float = 0.001,
+        **kwargs
+    ):
         """
         Create a distributed prioritized replay buffer instance.
 
@@ -49,8 +59,31 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             buffer_name: A unique name of your buffer for registration in the group.
             group: Process group which holds this buffer.
             buffer_size: Maximum local buffer size.
+            epsilon: A small positive constant used to prevent edge-case
+                zero weight transitions from never being visited.
+            alpha: Prioritization weight. Used during transition sampling:
+                :math:`j \\sim P(j)=p_{j}^{\\alpha} / \
+                        \\sum_i p_{i}^{\\alpha}`.
+                When ``alpha = 0``, all samples have the same probability
+                to be sampled.
+                When ``alpha = 1``, all samples are drawn uniformly according
+                to their weight.
+            beta: Bias correcting weight. When ``beta = 1``, bias introduced
+                by prioritized replay will be corrected. Used during
+                importance weight calculation:
+                :math:`w_j=(N \\cdot P(j))^{-\\beta}/max_i w_i`
+            beta_increment_per_sampling:
+                Beta increase step size, will gradually increase ``beta`` to 1.
         """
-        super().__init__(buffer_size, "cpu")
+        super().__init__(
+            buffer_size=buffer_size,
+            buffer_device="cpu",
+            epsilon=epsilon,
+            alpha=alpha,
+            beta=beta,
+            beta_increment_per_sampling=beta_increment_per_sampling,
+            **kwargs
+        )
         self.buffer_name = buffer_name
         self.buffer_version_table = np.zeros([buffer_size], dtype=np.uint64)
         self.group = group
@@ -78,15 +111,15 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
     def store_episode(
         self,
         episode: List[Union[TransitionBase, Dict]],
-        priority: Union[List[float], None] = None,
+        priorities: Union[List[float], None] = None,
         required_attrs=("state", "action", "next_state", "reward", "terminal"),
     ):
         # DOC INHERITED
         with self.wr_lock:
-            super().store_episode(episode, required_attrs)
+            super(PrioritizedBuffer, self).store_episode(episode, required_attrs)
             episode_number = self.episode_counter - 1
             positions = self.episode_transition_handles[episode_number]
-            if priority is None:
+            if priorities is None:
                 for position in positions:
                     # the initialization method used in the original essay
                     priority = self.wt_tree.get_leaf_max()
@@ -97,7 +130,7 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
                     # later priority update will ignore this position
                     self.buffer_version_table[position] += 1
             else:
-                for p, position in zip(priority, positions):
+                for priority, position in zip(priorities, positions):
                     self.wt_tree.update_leaf(
                         self._normalize_priority(priority), position
                     )
@@ -177,7 +210,11 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
         additional_concat_custom_attrs: List[str] = None,
         *_,
         **__
-    ) -> Tuple[int, Union[None, tuple]]:
+    ) -> Tuple[
+        int, Union[None, tuple], Union[None, Dict[str, Any]], Union[None, np.ndarray]
+    ]:
+        # DOC INHERITED
+
         if batch_size <= 0:
             return 0, None, None, None
 
@@ -259,27 +296,8 @@ class DistributedPrioritizedBuffer(PrioritizedBuffer):
             if batch_size <= 0 or len(self.storage) == 0:
                 return 0, None, None, None, None
 
-            wt_tree = self.wt_tree
-
-            segment_length = wt_tree.get_weight_sum() / batch_size
-            rand_priority = np.random.uniform(size=batch_size) * segment_length
-            rand_priority += np.arange(batch_size, dtype=np.float) * segment_length
-            rand_priority = np.clip(
-                rand_priority, 0, max(wt_tree.get_weight_sum() - 1e-6, 0)
-            )
-            index = wt_tree.find_leaf_index(rand_priority)
+            index, is_weight = self.sample_index_and_weight(batch_size, all_weight_sum)
             version = self.buffer_version_table[index]
 
             batch = [self.storage[idx] for idx in index]
-            priority = wt_tree.get_leaf_weight(index)
-
-            # calculate importance sampling weight
-            sample_probability = priority / all_weight_sum
-            is_weight = np.power(
-                len(self.storage) * sample_probability, -self.curr_beta
-            )
-            is_weight /= is_weight.max()
-            self.curr_beta = np.min(
-                [1.0, self.curr_beta + self.beta_increment_per_sampling]
-            )
             return len(batch), batch, index, version, is_weight

@@ -271,11 +271,10 @@ class SAC(TorchFramework):
         """
         Add a full episode of transition samples to the replay buffer.
         """
-        for trans in episode:
-            self.replay_buffer.append(
-                trans,
-                required_attrs=("state", "action", "next_state", "reward", "terminal"),
-            )
+        self.replay_buffer.store_episode(
+            episode,
+            required_attrs=("state", "action", "next_state", "reward", "terminal"),
+        )
 
     def update(
         self,
@@ -395,7 +394,7 @@ class SAC(TorchFramework):
         self.critic.eval()
         self.critic2.eval()
         # use .item() to prevent memory leakage
-        return (-act_policy_loss.item(), (value_loss.item() + value_loss2.item()) / 2)
+        return -act_policy_loss.item(), (value_loss.item() + value_loss2.item()) / 2
 
     def update_lr_scheduler(self):
         """
